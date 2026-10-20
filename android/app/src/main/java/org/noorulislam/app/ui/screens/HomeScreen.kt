@@ -877,7 +877,6 @@ fun SocialIconBtn(icon: ImageVector, onClick: () -> Unit) {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentLoginModalSheet(
     repository: StudentRepository,
