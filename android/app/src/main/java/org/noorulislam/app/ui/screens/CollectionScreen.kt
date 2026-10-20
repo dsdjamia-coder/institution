@@ -74,7 +74,7 @@ fun CollectionScreen(
     var lastReceipt by remember { mutableStateOf<PaymentReceipt?>(null) }
     var isPrintingReceipt by remember { mutableStateOf(false) }
 
-    var classes by remember { mutableStateOf(listOf("All Classes", "Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Alumni")) }
+    var classes by remember { mutableStateOf(listOf("All Classes")) }
     val feeCategories = listOf("Tuition Fee", "Examination Fee", "Admission Fee", "Welfare Fund", "Books & Stationary")
     val paymentModes = listOf("CASH", "UPI", "BANK")
 
