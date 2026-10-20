@@ -1,0 +1,6 @@
+{
+  "summary": "Comprehensive architectural rebuild specification and 100% feature inventory for the Noorul Islam Madrasa System across Native Android (Kotlin + Jetpack Compose), Native iOS (Swift + SwiftUI), Responsive Web (Next.js + Tailwind CSS), NestJS backend services, and Firebase Firestore/Auth/Cloud Functions. Contains complete traceability matrix, database schemas, RBAC matrix, and phase-by-phase rollout roadmap.",
+  "updatedAt": "2026-10-20T09:36:19.008577747Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
