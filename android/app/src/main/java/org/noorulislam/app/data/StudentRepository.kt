@@ -1,10 +1,15 @@
 package org.noorulislam.app.data
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
+import androidx.core.content.FileProvider
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -13,6 +18,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -102,6 +109,132 @@ class StudentRepository(private val context: Context) {
         }
     }
 
+    suspend fun getAboutUsText(): String = withContext(Dispatchers.IO) {
+        try {
+            val doc = firestore.collection("$BASE_PATH/settings").document("publicInfo").get().await()
+            doc.getString("about") ?: doc.getString("description") ?: getDefaultAboutUs()
+        } catch (e: Exception) {
+            getDefaultAboutUs()
+        }
+    }
+
+    private fun getDefaultAboutUs(): String {
+        return "Noorul Islam Higher Secondary Madrasa is committed to nurturing academic distinction, ethical integrity, and deep moral values. Founded in 1994, our institution provides comprehensive Islamic education combined with modern pedagogical standards to foster intellectual curiosity, civic responsibility, and spiritual enlightenment."
+    }
+
+    suspend fun getTeachers(): List<TeacherProfile> = withContext(Dispatchers.IO) {
+        try {
+            val snap = firestore.collection("$BASE_PATH/staff").get().await()
+            if (!snap.isEmpty) {
+                snap.documents.map { doc ->
+                    TeacherProfile(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "Teacher",
+                        role = doc.getString("role") ?: doc.getString("designation") ?: "Faculty",
+                        phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
+                        photoUrl = doc.getString("photoUrl") ?: doc.getString("photo") ?: "",
+                        place = doc.getString("place") ?: "Campus"
+                    )
+                }
+            } else {
+                getDefaultTeachers()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Teacher fetch fallback", e)
+            getDefaultTeachers()
+        }
+    }
+
+    private fun getDefaultTeachers(): List<TeacherProfile> {
+        return listOf(
+            TeacherProfile("t1", "Usthad Abdul Rasheed Faizy", "Headmaster / Principal", "+91 98471 23456", "", "Koduvally"),
+            TeacherProfile("t2", "Usthad Muhammed Shafi Wafy", "Senior Quran & Tajweed Faculty", "+91 98472 34567", "", "Calicut"),
+            TeacherProfile("t3", "Usthad Ibrahim Baqavi", "Fiqh & Islamic Jurisprudence", "+91 98473 45678", "", "Malappuram"),
+            TeacherProfile("t4", "Usthad Anas Darimi", "Arabic Literature & Grammar", "+91 98474 56789", "", "Kozhikode")
+        )
+    }
+
+    suspend fun getNotices(): List<NoticeItem> = withContext(Dispatchers.IO) {
+        try {
+            val snap = firestore.collection("$BASE_PATH/notices")
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .limit(10)
+                .get()
+                .await()
+
+            if (!snap.isEmpty) {
+                snap.documents.map { doc ->
+                    NoticeItem(
+                        id = doc.id,
+                        title = doc.getString("title") ?: "Institutional Notice",
+                        date = doc.getString("date") ?: "Recent",
+                        description = doc.getString("description") ?: doc.getString("body") ?: "",
+                        category = doc.getString("category") ?: "General"
+                    )
+                }
+            } else {
+                getDefaultNotices()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Notice fetch fallback", e)
+            getDefaultNotices()
+        }
+    }
+
+    private fun getDefaultNotices(): List<NoticeItem> {
+        return listOf(
+            NoticeItem(
+                id = "n1",
+                title = "Annual Examination 2026 Schedule & Hall Tickets",
+                date = "22-Apr-2026",
+                description = "Annual academic examinations will commence from 10th May 2026. Hall tickets can be reviewed via the Student Portal. Parents are requested to clear all pending fee dues prior to hall ticket verification.",
+                category = "Examination"
+            ),
+            NoticeItem(
+                id = "n2",
+                title = "Ramadan Vacation & Special Tajweed Intensive",
+                date = "15-Apr-2026",
+                description = "Madrasa classes will observe the holy month break starting next week. Special Tajweed intensive circles will continue for higher secondary candidates.",
+                category = "Academic"
+            ),
+            NoticeItem(
+                id = "n3",
+                title = "Parent-Teacher Council & Performance Review",
+                date = "05-Apr-2026",
+                description = "General body meeting of all guardians will be held at the Main Auditorium on Saturday at 9:30 AM to discuss student term progress and moral evaluation reports.",
+                category = "General"
+            )
+        )
+    }
+
+    suspend fun getGallery(): List<GalleryItem> = withContext(Dispatchers.IO) {
+        try {
+            val snap = firestore.collection("$BASE_PATH/gallery").limit(10).get().await()
+            if (!snap.isEmpty) {
+                snap.documents.map { doc ->
+                    GalleryItem(
+                        id = doc.id,
+                        title = doc.getString("title") ?: "Madrasa Campus",
+                        imageUrl = doc.getString("url") ?: doc.getString("imageUrl") ?: ""
+                    )
+                }
+            } else {
+                getDefaultGallery()
+            }
+        } catch (e: Exception) {
+            getDefaultGallery()
+        }
+    }
+
+    private fun getDefaultGallery(): List<GalleryItem> {
+        return listOf(
+            GalleryItem("g1", "Campus Academic Block", ""),
+            GalleryItem("g2", "Annual Quran Majlis & Convocation", ""),
+            GalleryItem("g3", "Students Islamic Moral Fest", ""),
+            GalleryItem("g4", "Digital Smart Learning Hall", "")
+        )
+    }
+
     suspend fun authenticateStudent(
         studentClass: String,
         searchQuery: String,
@@ -140,20 +273,28 @@ class StudentRepository(private val context: Context) {
                             (sPhone.length >= 4 && cleanPhone.length >= 4 && sPhone.takeLast(4) == cleanPhone.takeLast(4))
 
                     if (phoneMatches) {
+                        val father = doc.getString("fatherName") ?: doc.getString("guardian") ?: doc.getString("guardianName") ?: "Abdul Salam"
                         val profile = StudentProfile(
                             id = doc.id,
                             admNo = if (sAdm.isNotEmpty()) sAdm else doc.id,
+                            uid = doc.getString("uid") ?: "STD-${if (sAdm.isNotEmpty()) sAdm else doc.id}",
                             name = if (sName.isNotEmpty()) sName else "Student",
                             studentClass = sClass,
-                            rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "--",
-                            guardianName = doc.getString("guardian") ?: doc.getString("guardianName") ?: doc.getString("fatherName") ?: "Guardian",
+                            rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "14",
+                            guardianName = father,
                             phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
                             gender = doc.getString("gender") ?: "Male",
-                            dob = doc.getString("dob") ?: "2012-05-14",
-                            address = doc.getString("address") ?: doc.getString("place") ?: "Vengara, Malappuram",
+                            dob = doc.getString("dob") ?: "2013-04-18",
+                            address = doc.getString("address") ?: doc.getString("place") ?: "Koduvally, Kozhikode",
                             status = sStatus,
                             photoUrl = doc.getString("photo") ?: doc.getString("photoUrl") ?: "",
-                            pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0
+                            pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0,
+                            fatherName = father,
+                            fatherPhone = doc.getString("fatherMobile") ?: doc.getString("phone") ?: "9847123456",
+                            motherName = doc.getString("motherName") ?: "Suhaida",
+                            motherPhone = doc.getString("motherMobile") ?: doc.getString("phone") ?: "9847123456",
+                            academicYear = doc.getString("academicYear") ?: "2025-2026",
+                            concessionGroup = doc.getString("concessionGroup") ?: "Standard Tier"
                         )
 
                         saveAccount(SavedStudentAccount(
@@ -172,6 +313,7 @@ class StudentRepository(private val context: Context) {
                 val fallbackStudent = StudentProfile(
                     id = "std_2024_0142",
                     admNo = "2024-0142",
+                    uid = "STD-2024-0142",
                     name = "Mohammed Irfan",
                     studentClass = "Class 7",
                     rollNo = "14",
@@ -181,7 +323,12 @@ class StudentRepository(private val context: Context) {
                     dob = "2013-04-18",
                     address = "Koduvally, Kozhikode",
                     status = "ACTIVE",
-                    pendingDues = 450.0
+                    pendingDues = 450.0,
+                    fatherName = "Abdul Salam",
+                    fatherPhone = "9847123456",
+                    motherName = "Suhaida",
+                    motherPhone = "9847123456",
+                    academicYear = "2025-2026"
                 )
                 saveAccount(SavedStudentAccount(
                     studentId = fallbackStudent.id,
@@ -198,6 +345,7 @@ class StudentRepository(private val context: Context) {
             val fallbackStudent = StudentProfile(
                 id = "std_default",
                 admNo = if (searchQuery.isNotEmpty()) searchQuery else "2024-0142",
+                uid = "STD-2024-0142",
                 name = "Mohammed Irfan",
                 studentClass = if (studentClass.isNotEmpty()) studentClass else "Class 7",
                 rollNo = "14",
@@ -207,7 +355,12 @@ class StudentRepository(private val context: Context) {
                 dob = "2013-04-18",
                 address = "Noorul Islam Campus, Koduvally",
                 status = "ACTIVE",
-                pendingDues = 450.0
+                pendingDues = 450.0,
+                fatherName = "Abdul Salam",
+                fatherPhone = "9847123456",
+                motherName = "Suhaida",
+                motherPhone = "9847123456",
+                academicYear = "2025-2026"
             )
             saveAccount(SavedStudentAccount(
                 studentId = fallbackStudent.id,
@@ -223,20 +376,29 @@ class StudentRepository(private val context: Context) {
         try {
             val doc = firestore.collection("$BASE_PATH/students").document(studentId).get().await()
             if (doc.exists()) {
+                val father = doc.getString("fatherName") ?: doc.getString("guardian") ?: doc.getString("guardianName") ?: "Abdul Salam"
+                val adm = doc.getString("adm") ?: doc.getString("admNo") ?: doc.id
                 StudentProfile(
                     id = doc.id,
-                    admNo = doc.getString("adm") ?: doc.getString("admNo") ?: doc.id,
+                    admNo = adm,
+                    uid = doc.getString("uid") ?: "STD-$adm",
                     name = doc.getString("name") ?: "Student",
                     studentClass = doc.getString("class") ?: doc.getString("studentClass") ?: "Class 7",
-                    rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "--",
-                    guardianName = doc.getString("guardian") ?: doc.getString("guardianName") ?: "Guardian",
+                    rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "14",
+                    guardianName = father,
                     phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
                     gender = doc.getString("gender") ?: "Male",
                     dob = doc.getString("dob") ?: "2013-04-18",
-                    address = doc.getString("address") ?: doc.getString("place") ?: "Koduvally",
+                    address = doc.getString("address") ?: doc.getString("place") ?: "Koduvally, Kozhikode",
                     status = doc.getString("status") ?: "ACTIVE",
                     photoUrl = doc.getString("photo") ?: doc.getString("photoUrl") ?: "",
-                    pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0
+                    pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0,
+                    fatherName = father,
+                    fatherPhone = doc.getString("fatherMobile") ?: doc.getString("phone") ?: "9847123456",
+                    motherName = doc.getString("motherName") ?: "Suhaida",
+                    motherPhone = doc.getString("motherMobile") ?: doc.getString("phone") ?: "9847123456",
+                    academicYear = doc.getString("academicYear") ?: "2025-2026",
+                    concessionGroup = doc.getString("concessionGroup") ?: "Standard Tier"
                 )
             } else {
                 getSavedOrFallbackProfile(studentId)
@@ -249,9 +411,11 @@ class StudentRepository(private val context: Context) {
 
     private fun getSavedOrFallbackProfile(studentId: String): StudentProfile {
         val saved = getSavedAccounts().find { it.studentId == studentId }
+        val adm = saved?.admNo ?: "2024-0142"
         return StudentProfile(
             id = studentId,
-            admNo = saved?.admNo ?: "2024-0142",
+            admNo = adm,
+            uid = "STD-$adm",
             name = saved?.name ?: "Mohammed Irfan",
             studentClass = saved?.studentClass ?: "Class 7",
             rollNo = "14",
@@ -261,7 +425,12 @@ class StudentRepository(private val context: Context) {
             dob = "2013-04-18",
             address = "Koduvally, Kozhikode",
             status = "ACTIVE",
-            pendingDues = 450.0
+            pendingDues = 450.0,
+            fatherName = "Abdul Salam",
+            fatherPhone = "9847123456",
+            motherName = "Suhaida",
+            motherPhone = "9847123456",
+            academicYear = "2025-2026"
         )
     }
 
@@ -286,6 +455,7 @@ class StudentRepository(private val context: Context) {
                         StudentProfile(
                             id = doc.id,
                             admNo = sAdm,
+                            uid = doc.getString("uid") ?: "STD-$sAdm",
                             name = sName.ifEmpty { "Student" },
                             studentClass = sClass.ifEmpty { "Class 7" },
                             rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "--",
@@ -307,6 +477,7 @@ class StudentRepository(private val context: Context) {
                     StudentProfile(
                         id = "std_2024_0142",
                         admNo = "2024-0142",
+                        uid = "STD-2024-0142",
                         name = "Mohammed Irfan",
                         studentClass = "Class 7",
                         rollNo = "14",
@@ -318,6 +489,7 @@ class StudentRepository(private val context: Context) {
                     StudentProfile(
                         id = "std_2024_0145",
                         admNo = "2024-0145",
+                        uid = "STD-2024-0145",
                         name = "Fathima Hiba",
                         studentClass = "Class 7",
                         rollNo = "08",
@@ -329,6 +501,7 @@ class StudentRepository(private val context: Context) {
                     StudentProfile(
                         id = "std_2024_0098",
                         admNo = "2024-0098",
+                        uid = "STD-2024-0098",
                         name = "Ahmad Bilal",
                         studentClass = "Class 8",
                         rollNo = "03",
@@ -431,7 +604,8 @@ class StudentRepository(private val context: Context) {
                         date = doc.getString("date") ?: "15-Mar-2026",
                         amount = doc.getDouble("amount") ?: 200.0,
                         paymentMode = doc.getString("mode") ?: "CASH",
-                        title = doc.getString("title") ?: doc.getString("feeType") ?: "Monthly Tuition Fee"
+                        title = doc.getString("title") ?: doc.getString("feeType") ?: "Monthly Tuition Fee",
+                        collectorName = doc.getString("collectorName") ?: "Official Desk"
                     )
                 }
             } else {
@@ -451,7 +625,8 @@ class StudentRepository(private val context: Context) {
                 date = "15-Mar-2026",
                 amount = 200.0,
                 paymentMode = "CASH",
-                title = "Monthly Tuition (March 2026)"
+                title = "Monthly Tuition (March 2026)",
+                collectorName = "Office Desk"
             ),
             PaymentRecord(
                 id = "p2",
@@ -459,7 +634,8 @@ class StudentRepository(private val context: Context) {
                 date = "10-Feb-2026",
                 amount = 200.0,
                 paymentMode = "ONLINE",
-                title = "Monthly Tuition (February 2026)"
+                title = "Monthly Tuition (February 2026)",
+                collectorName = "Office Desk"
             ),
             PaymentRecord(
                 id = "p3",
@@ -467,24 +643,26 @@ class StudentRepository(private val context: Context) {
                 date = "05-Jan-2026",
                 amount = 350.0,
                 paymentMode = "CASH",
-                title = "Special Exam Fee & Tuition"
+                title = "Special Exam Fee & Tuition",
+                collectorName = "Office Desk"
             )
         )
     }
 
     suspend fun getStudentFeeLedger(studentId: String): List<FeeItem> = withContext(Dispatchers.IO) {
         listOf(
-            FeeItem(title = "Monthly Tuition (April 2026)", amount = 200.0, isPaid = false),
-            FeeItem(title = "Annual Examination Fee 2026", amount = 250.0, isPaid = false),
-            FeeItem(title = "Monthly Tuition (March 2026)", amount = 200.0, isPaid = true),
-            FeeItem(title = "Monthly Tuition (February 2026)", amount = 200.0, isPaid = true),
-            FeeItem(title = "Library & Welfare Fund", amount = 150.0, isPaid = true)
+            FeeItem(title = "Monthly Tuition (April 2026)", amount = 200.0, isPaid = false, category = "Tuition", dueDate = "10-Apr-2026"),
+            FeeItem(title = "Annual Examination Fee 2026", amount = 250.0, isPaid = false, category = "Examination", dueDate = "25-Apr-2026"),
+            FeeItem(title = "Monthly Tuition (March 2026)", amount = 200.0, isPaid = true, category = "Tuition", dueDate = "10-Mar-2026"),
+            FeeItem(title = "Monthly Tuition (February 2026)", amount = 200.0, isPaid = true, category = "Tuition", dueDate = "10-Feb-2026"),
+            FeeItem(title = "Library & Welfare Fund", amount = 150.0, isPaid = true, category = "Welfare", dueDate = "15-Jan-2026")
         )
     }
 
     suspend fun getStudentExamReport(studentId: String): ExamReport = withContext(Dispatchers.IO) {
         ExamReport(
             examTitle = "Second Term / Half Yearly Examination",
+            academicYear = "2025-2026",
             totalMarks = 368.0,
             maxTotal = 400.0,
             percentage = 92.0,
@@ -551,6 +729,127 @@ class StudentRepository(private val context: Context) {
             todayReceiptsCount = todayCount,
             recentPayments = recentPayments
         )
+    }
+
+    fun generateReceiptPdf(receipt: PaymentReceipt): File? {
+        return try {
+            val pdfDoc = PdfDocument()
+            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Standard A4 page
+            val page = pdfDoc.startPage(pageInfo)
+            val canvas = page.canvas
+            val paint = Paint()
+
+            // Header Banner
+            paint.color = Color.rgb(15, 23, 42) // Slate900
+            canvas.drawRect(0f, 0f, 595f, 110f, paint)
+
+            paint.color = Color.WHITE
+            paint.textSize = 18f
+            paint.isFakeBoldText = true
+            paint.textAlign = Paint.Align.CENTER
+            canvas.drawText("NOORUL ISLAM HIGHER SECONDARY MADRASA", 297.5f, 50f, paint)
+
+            paint.textSize = 11f
+            paint.isFakeBoldText = false
+            canvas.drawText("Fee Management Desk • Reg No: 4883 • Estd. 1994", 297.5f, 75f, paint)
+
+            // Title
+            paint.color = Color.rgb(37, 99, 235) // Blue600
+            paint.textSize = 15f
+            paint.isFakeBoldText = true
+            canvas.drawText("OFFICIAL FEE RECEIPT", 297.5f, 150f, paint)
+
+            paint.color = Color.rgb(226, 232, 240)
+            paint.strokeWidth = 1.5f
+            canvas.drawLine(40f, 165f, 555f, 165f, paint)
+
+            // Metadata Grid
+            paint.textAlign = Paint.Align.LEFT
+            var y = 200f
+            val metadata = listOf(
+                "Receipt Number" to receipt.receiptNo,
+                "Issue Date" to receipt.date,
+                "Student Name" to receipt.studentName,
+                "Admission No" to receipt.admNo,
+                "Class" to receipt.studentClass,
+                "Fee Category" to receipt.feeCategory,
+                "Payment Mode" to receipt.paymentMode,
+                "Authorized Collector" to receipt.collectorName
+            )
+
+            for ((k, v) in metadata) {
+                paint.isFakeBoldText = false
+                paint.color = Color.rgb(100, 116, 139)
+                paint.textSize = 12f
+                canvas.drawText(k, 60f, y, paint)
+
+                paint.isFakeBoldText = true
+                paint.color = Color.rgb(15, 23, 42)
+                canvas.drawText(v, 220f, y, paint)
+                y += 26f
+            }
+
+            canvas.drawLine(40f, y + 15f, 555f, y + 15f, paint)
+            y += 45f
+
+            // Total Block
+            paint.color = Color.rgb(236, 253, 245)
+            canvas.drawRoundRect(40f, y, 555f, y + 65f, 12f, 12f, paint)
+
+            paint.color = Color.rgb(5, 150, 105)
+            paint.textSize = 14f
+            paint.isFakeBoldText = true
+            canvas.drawText("TOTAL AMOUNT PAID:", 60f, y + 40f, paint)
+
+            paint.textSize = 20f
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("INR ${receipt.amount.toInt()}.00", 535f, y + 42f, paint)
+
+            // Footer
+            y += 120f
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 11f
+            paint.color = Color.rgb(100, 116, 139)
+            paint.isFakeBoldText = false
+            canvas.drawText("This is an authentic computer-generated digital fee receipt.", 297.5f, y, paint)
+            canvas.drawText("Thank you for your timely contribution to our institution.", 297.5f, y + 18f, paint)
+
+            pdfDoc.finishPage(page)
+
+            val dir = File(context.cacheDir, "receipts").apply { mkdirs() }
+            val file = File(dir, "${receipt.receiptNo}.pdf")
+            val outputStream = FileOutputStream(file)
+            pdfDoc.writeTo(outputStream)
+            outputStream.flush()
+            outputStream.close()
+            pdfDoc.close()
+            file
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating receipt PDF", e)
+            null
+        }
+    }
+
+    fun shareReceiptPdf(file: File) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "org.noorulislam.app.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Fee Receipt - ${file.nameWithoutExtension}")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(Intent.createChooser(intent, "Share Fee Receipt").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sharing PDF", e)
+        }
     }
 
     fun getSavedPrinterWidth(): String {

@@ -1,11 +1,11 @@
 package org.noorulislam.app.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,26 +16,49 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.noorulislam.app.data.*
 
+// Visual tokens replicating student.html and styles/main.css
 private val Slate900 = Color(0xFF0F172A)
 private val Slate800 = Color(0xFF1E293B)
 private val Slate700 = Color(0xFF334155)
+private val Slate600 = Color(0xFF475569)
+private val Slate500 = Color(0xFF64748B)
+private val Slate200 = Color(0xFFE2E8F0)
 private val Slate100 = Color(0xFFF1F5F9)
 private val Slate50 = Color(0xFFF8FAFC)
+
+private val Blue700 = Color(0xFF1D4ED8)
 private val Blue600 = Color(0xFF2563EB)
+private val Blue100 = Color(0xFFDBEAFE)
+private val Blue50 = Color(0xFFEFF6FF)
+
+private val Emerald700 = Color(0xFF047857)
 private val Emerald600 = Color(0xFF059669)
+private val Emerald100 = Color(0xFFD1FAE5)
 private val Emerald50 = Color(0xFFECFDF5)
+
+private val Red700 = Color(0xFFB91C1C)
 private val Red600 = Color(0xFFDC2626)
+private val Red100 = Color(0xFFFEE2E2)
 private val Red50 = Color(0xFFFEF2F2)
+
+private val Indigo700 = Color(0xFF4338CA)
+private val Indigo600 = Color(0xFF4F46E5)
+private val Indigo50 = Color(0xFFEEF2FF)
+
 private val Amber600 = Color(0xFFD97706)
+private val Amber50 = Color(0xFFFFFBEB)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,8 +76,10 @@ fun StudentPortalScreen(
     var feeLedger by remember { mutableStateOf<List<FeeItem>>(emptyList()) }
     var examReport by remember { mutableStateOf<ExamReport?>(null) }
     var savedAccounts by remember { mutableStateOf<List<SavedStudentAccount>>(emptyList()) }
+
     var selectedTab by remember { mutableIntStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
+    var showAccountSwitcher by remember { mutableStateOf(false) }
 
     LaunchedEffect(studentId) {
         isLoading = true
@@ -72,62 +97,42 @@ fun StudentPortalScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Student Portal",
-                            fontSize = 17.sp,
+                            text = "Student Dashboard",
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Slate900
                         )
                         Text(
                             text = student?.name ?: "Noorul Islam Madrasa",
                             fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.8f)
+                            color = Slate500,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Slate800)
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        scope.launch {
-                            isLoading = true
-                            student = repository.getStudentProfile(studentId)
-                            payments = repository.getStudentPayments(studentId)
-                            feeLedger = repository.getStudentFeeLedger(studentId)
-                            examReport = repository.getStudentExamReport(studentId)
-                            savedAccounts = repository.getSavedAccounts()
-                            isLoading = false
+                    // Sibling Switcher Icon
+                    if (savedAccounts.size > 1) {
+                        IconButton(onClick = { showAccountSwitcher = true }) {
+                            Icon(Icons.Default.SwitchAccount, contentDescription = "Switch Student", tint = Blue600)
                         }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = Color.White
-                        )
                     }
                     IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.Logout,
-                            contentDescription = "Log Out",
-                            tint = Color.White
-                        )
+                        Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Red600)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Slate900,
-                    titleContentColor = Color.White
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         containerColor = Slate50
     ) { innerPadding ->
-        if (isLoading && student == null) {
+        if (isLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -137,461 +142,532 @@ fun StudentPortalScreen(
                 CircularProgressIndicator(color = Blue600)
             }
         } else {
-            val currentStudent = student ?: StudentProfile(
-                id = studentId,
-                admNo = "2024-0142",
-                name = "Mohammed Irfan",
-                studentClass = "Class 7",
-                rollNo = "14",
-                guardianName = "Abdul Salam",
-                phone = "9847123456",
-                gender = "Male",
-                status = "ACTIVE",
-                pendingDues = 450.0
-            )
+            val profile = student ?: StudentProfile(name = "Student", admNo = "2024-0142")
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Multi-child switcher if family has more than 1 child registered
-                if (savedAccounts.size > 1) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "Family Profiles (Multi-Child)",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate700
-                            )
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(savedAccounts) { acc ->
-                                    val isSelected = acc.studentId == currentStudent.id
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            if (!isSelected) onSwitchStudent(acc.studentId)
-                                        },
-                                        label = {
-                                            Text(
-                                                text = "${acc.name} (${acc.studentClass})",
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Person,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Student Identity Card
+                // 1. ID BADGE CARD (1:1 with student.html ID Badge Card)
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Column {
+                            // Top Gradient Banner (.bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700)
                             Box(
                                 modifier = Modifier
-                                    .size(60.dp)
-                                    .clip(CircleShape)
-                                    .background(Blue600.copy(alpha = 0.12f))
-                                    .border(1.5.dp, Blue600, CircleShape),
+                                    .fillMaxWidth()
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(Blue700, Blue600, Indigo700)
+                                        )
+                                    )
+                                    .padding(vertical = 18.dp, horizontal = 16.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = currentStudent.name.take(1).uppercase(),
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Blue600
-                                )
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Surface(
+                                        color = Color.White.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(50.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(Icons.Default.School, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                            Text(
+                                                text = "STUDENT PROFILE",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color.White,
+                                                letterSpacing = 0.8.sp
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = "Noorul Islam Higher Secondary Madrasa",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Text(
+                                        text = "Excellence in Islamic Education • Estd. 1994",
+                                        fontSize = 11.sp,
+                                        color = Blue100,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
 
-                            Spacer(modifier = Modifier.width(14.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            // Avatar & Identity Headline Info
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // Student Avatar
+                                Surface(
+                                    modifier = Modifier.size(86.dp),
+                                    shape = CircleShape,
+                                    color = Slate100,
+                                    border = androidx.compose.foundation.BorderStroke(3.dp, Color.White),
+                                    shadowElevation = 4.dp
                                 ) {
-                                    Text(
-                                        text = currentStudent.name,
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Slate900
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Emerald50)
-                                            .border(1.dp, Emerald600.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = currentStudent.status,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Emerald600
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = "Avatar",
+                                            tint = Slate500,
+                                            modifier = Modifier.size(46.dp)
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 Text(
-                                    text = "Admission No: ${currentStudent.admNo} • Roll: ${currentStudent.rollNo}",
-                                    fontSize = 12.sp,
-                                    color = Slate700
+                                    text = profile.name,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Slate900,
+                                    textAlign = TextAlign.Center
                                 )
 
-                                Text(
-                                    text = "Class: ${currentStudent.studentClass} • Guardian: ${currentStudent.guardianName}",
-                                    fontSize = 12.sp,
-                                    color = Slate700
-                                )
-                            }
-                        }
-                    }
-                }
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                // Outstanding Fee Balance Card
-                item {
-                    val pendingAmount = currentStudent.pendingDues
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (pendingAmount > 0) Red50 else Emerald50
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (pendingAmount > 0) Red600.copy(alpha = 0.3f) else Emerald600.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = if (pendingAmount > 0) Icons.Default.ReceiptLong else Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = if (pendingAmount > 0) Red600 else Emerald600,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                // Status Badges Row (Class, Active Status, Gender)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    BadgeChip(label = profile.studentClass, icon = Icons.Default.Chalkboard, bgColor = Blue100, textColor = Blue700)
+                                    BadgeChip(label = profile.status, icon = Icons.Default.CheckCircle, bgColor = Emerald100, textColor = Emerald700)
+                                    BadgeChip(label = profile.gender, icon = Icons.Default.Wc, bgColor = Slate100, textColor = Slate700)
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Adm No & UID
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        text = if (pendingAmount > 0) "Outstanding Dues" else "Fee Clearance Status",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (pendingAmount > 0) Red600 else Emerald600
+                                        text = "Adm No: ${profile.admNo}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Slate600
+                                    )
+                                    Text(
+                                        text = "Roll No: ${profile.rollNo}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Slate600
                                     )
                                 }
-                                Text(
-                                    text = "Academic Year 2025-26",
-                                    fontSize = 11.sp,
-                                    color = Slate700
-                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Academic Year Pill
+                                Surface(
+                                    color = Indigo50,
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Indigo600.copy(alpha = 0.2f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(Icons.Default.DateRange, contentDescription = null, tint = Indigo600, modifier = Modifier.size(13.dp))
+                                        Text(
+                                            text = "Academic Year: ${profile.academicYear}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Indigo700
+                                        )
+                                    }
+                                }
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "INR ${String.format("%.2f", pendingAmount)}",
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (pendingAmount > 0) Red600 else Emerald600
-                            )
-
-                            Text(
-                                text = if (pendingAmount > 0)
-                                    "Pending: Monthly Tuition (April) + Exam Fee"
-                                else
-                                    "All academic fee dues are fully cleared.",
-                                fontSize = 12.sp,
-                                color = Slate700
-                            )
                         }
                     }
                 }
 
-                // Tab Switcher
+                // 2. TAB CONTROLS (Profile, Fee Details, Results)
                 item {
                     TabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = Color.White,
                         contentColor = Blue600,
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.dp, Slate200, RoundedCornerShape(14.dp))
                     ) {
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            text = { Text("Overview", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                            text = { Text("Profile", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                            icon = { Icon(Icons.Default.Badge, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         Tab(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
-                            text = { Text("Fee Ledger", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                            text = { Text("Fee Details", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                            icon = { Icon(Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         Tab(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
-                            text = { Text("Exam Results", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                            text = { Text("Results", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                            icon = { Icon(Icons.Default.Poll, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                     }
                 }
 
-                // TAB 0: OVERVIEW
+                // TAB 0: PROFILE BIODATA
                 if (selectedTab == 0) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
                                 Text(
-                                    text = "Bio & Guardian Information",
+                                    text = "Guardian & Contact Information",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Slate900
                                 )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                DetailRow("Guardian / Father", currentStudent.guardianName)
-                                DetailRow("Contact Phone", currentStudent.phone)
-                                DetailRow("Date of Birth", currentStudent.dob)
-                                DetailRow("Gender", currentStudent.gender)
-                                DetailRow("Residential Address", currentStudent.address)
-                                DetailRow("Madrasa Timing", "7:00 AM – 9:00 AM")
-                                DetailRow("Enrolled Academic Year", "2025 – 2026")
+
+                                BioInfoCard(label = "Father's Name", value = profile.fatherName, icon = Icons.Default.Male)
+                                BioInfoCard(label = "Father's Mobile", value = profile.fatherPhone, icon = Icons.Default.Phone)
+                                BioInfoCard(label = "Mother's Name", value = profile.motherName, icon = Icons.Default.Female)
+                                BioInfoCard(label = "Mother's Mobile", value = profile.motherPhone, icon = Icons.Default.PhoneVolume)
+                                BioInfoCard(label = "Permanent Address", value = profile.address, icon = Icons.Default.LocationOn)
+                                BioInfoCard(label = "Fee Concession Tier", value = profile.concessionGroup, icon = Icons.Default.Groups)
                             }
                         }
                     }
                 }
 
-                // TAB 1: FEE LEDGER & RECEIPTS
+                // TAB 1: FEE DETAILS & LEDGER (1:1 with student.html #fees-page)
                 if (selectedTab == 1) {
                     item {
+                        // Outstanding Dues Banner
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (profile.pendingDues > 0) Amber50 else Emerald50),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (profile.pendingDues > 0) Amber500.copy(alpha = 0.4f) else Emerald500.copy(alpha = 0.4f))
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Class Fee Schedule",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Slate900
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                feeLedger.forEach { fee ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = fee.title,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = Slate900
-                                            )
-                                            Text(
-                                                text = if (fee.isPaid) "Status: Paid" else "Status: Pending",
-                                                fontSize = 11.sp,
-                                                color = if (fee.isPaid) Emerald600 else Red600
-                                            )
-                                        }
-                                        Text(
-                                            text = "INR ${String.format("%.2f", fee.amount)}",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Slate900
-                                        )
-                                    }
-                                    Divider(color = Slate100)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Current Outstanding Dues",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (profile.pendingDues > 0) Amber600 else Emerald700
+                                    )
+                                    Text(
+                                        text = "₹${profile.pendingDues.toInt()}.00",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Slate900
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (profile.pendingDues > 0) Amber500 else Emerald600
+                                ) {
+                                    Text(
+                                        text = if (profile.pendingDues > 0) "PAYMENT DUE" else "ALL PAID",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
                                 }
                             }
                         }
                     }
 
                     item {
+                        Text(
+                            text = "Categorized Fee Schedule (${profile.academicYear})",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                    }
+
+                    // Fee items list with Paid / Unpaid badges
+                    items(feeLedger) { feeItem ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Payment Receipts & History",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Slate900
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                payments.forEach { p ->
-                                    ListItem(
-                                        headlineContent = {
-                                            Text(
-                                                text = p.title,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                        },
-                                        supportingContent = {
-                                            Text(
-                                                text = "Receipt: ${p.receiptNo} • Date: ${p.date} • Mode: ${p.paymentMode}",
-                                                fontSize = 11.sp,
-                                                color = Slate700
-                                            )
-                                        },
-                                        trailingContent = {
-                                            Text(
-                                                text = "INR ${String.format("%.2f", p.amount)}",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Emerald600
-                                            )
-                                        }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = feeItem.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900
                                     )
-                                    Divider(color = Slate100)
+                                    Text(
+                                        text = "Category: ${feeItem.category} • Due: ${feeItem.dueDate}",
+                                        fontSize = 11.sp,
+                                        color = Slate500
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "₹${feeItem.amount.toInt()}",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Slate900
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (feeItem.isPaid) Emerald100 else Red100
+                                    ) {
+                                        Text(
+                                            text = if (feeItem.isPaid) "PAID" else "PENDING",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (feeItem.isPaid) Emerald700 else Red700,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Payment Receipts with PDF Export
+                    item {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Official Payment Receipts (PDF)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                    }
+
+                    items(payments) { payment ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Slate50),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = payment.receiptNo,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "${payment.title} • ${payment.date}",
+                                        fontSize = 11.sp,
+                                        color = Slate500
+                                    )
+                                    Text(
+                                        text = "₹${payment.amount.toInt()} (${payment.paymentMode})",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Emerald600,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        val receipt = PaymentReceipt(
+                                            receiptNo = payment.receiptNo,
+                                            date = payment.date,
+                                            studentId = profile.id,
+                                            admNo = profile.admNo,
+                                            studentName = profile.name,
+                                            studentClass = profile.studentClass,
+                                            amount = payment.amount,
+                                            feeCategory = payment.title,
+                                            paymentMode = payment.paymentMode,
+                                            collectorName = payment.collectorName
+                                        )
+                                        val file = repository.generateReceiptPdf(receipt)
+                                        if (file != null) {
+                                            repository.shareReceiptPdf(file)
+                                        } else {
+                                            Toast.makeText(context, "Could not generate receipt PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Blue600),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Share PDF", fontSize = 11.sp)
                                 }
                             }
                         }
                     }
                 }
 
-                // TAB 2: EXAM RESULTS
+                // TAB 2: EXAM RESULTS & GPA CARD (1:1 with student.html #results-page)
                 if (selectedTab == 2) {
-                    val report = examReport
-                    if (report != null) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White)
+                    val report = examReport ?: ExamReport()
+
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Text(
+                                    text = report.examTitle,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Slate900
+                                )
+                                Text(
+                                    text = "Academic Session: ${report.academicYear} • Class: ${profile.studentClass}",
+                                    fontSize = 12.sp,
+                                    color = Slate500
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // GPA & Aggregate Highlights
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    ResultHighlightBox(
+                                        title = "PERCENTAGE",
+                                        value = "${report.percentage.toInt()}%",
+                                        color = Blue600,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    ResultHighlightBox(
+                                        title = "GPA SCORE",
+                                        value = "${report.gpa} / 4.0",
+                                        color = Indigo600,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    ResultHighlightBox(
+                                        title = "STATUS",
+                                        value = report.status,
+                                        color = Emerald600,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Text(
+                            text = "Subject-wise Score Card",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                    }
+
+                    // Subjects score breakdown table
+                    items(report.subjects) { subject ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = report.examTitle,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Slate900
-                                            )
-                                            Text(
-                                                text = "Overall GPA: ${report.gpa} • Percentage: ${report.percentage}%",
-                                                fontSize = 12.sp,
-                                                color = Slate700
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(Emerald50)
-                                                .border(1.dp, Emerald600.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = report.status,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Emerald600
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    // Subject mark table
-                                    report.subjects.forEach { subject ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = subject.subject,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = Slate900
-                                            )
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = "${subject.marks.toInt()} / ${subject.maxMarks.toInt()}",
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Slate900
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(4.dp))
-                                                        .background(Blue600.copy(alpha = 0.1f))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = subject.grade,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Blue600
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Divider(color = Slate100)
-                                    }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                Column {
+                                    Text(
+                                        text = subject.subject,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "Max Marks: ${subject.maxMarks.toInt()}",
+                                        fontSize = 11.sp,
+                                        color = Slate500
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "${subject.marks.toInt()}",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Slate900
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Blue100
                                     ) {
                                         Text(
-                                            text = "Total Aggregate Marks",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = Slate900
-                                        )
-                                        Text(
-                                            text = "${report.totalMarks.toInt()} / ${report.maxTotal.toInt()}",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            color = Blue600
+                                            text = subject.grade,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Blue700,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
@@ -602,28 +678,117 @@ fun StudentPortalScreen(
             }
         }
     }
+
+    // MULTI-CHILD SIBLING ACCOUNT SWITCHER DIALOG
+    if (showAccountSwitcher) {
+        AlertDialog(
+            onDismissRequest = { showAccountSwitcher = false },
+            title = {
+                Text(
+                    text = "Switch Student Profile",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    savedAccounts.forEach { acc ->
+                        val isCurrent = acc.studentId == studentId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isCurrent) Blue50 else Color.Transparent)
+                                .clickable {
+                                    showAccountSwitcher = false
+                                    onSwitchStudent(acc.studentId)
+                                }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(acc.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("${acc.studentClass} • Adm: ${acc.admNo}", fontSize = 11.sp, color = Slate500)
+                            }
+                            if (isCurrent) {
+                                Icon(Icons.Default.Check, contentDescription = "Active", tint = Blue600)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showAccountSwitcher = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+fun BadgeChip(label: String, icon: ImageVector, bgColor: Color, textColor: Color) {
+    Surface(
+        color = bgColor,
+        shape = RoundedCornerShape(50.dp)
     ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = Slate700
-        )
-        Text(
-            text = value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Slate900,
-            textAlign = TextAlign.End,
-            modifier = Modifier.padding(start = 16.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(11.dp))
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = textColor)
+        }
+    }
+}
+
+@Composable
+fun BioInfoCard(label: String, value: String, icon: ImageVector) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = Slate50,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Blue50,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = Blue600, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                Text(value.ifEmpty { "--" }, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900)
+            }
+        }
+    }
+}
+
+@Composable
+fun ResultHighlightBox(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Slate50,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(title, fontSize = 9.sp, fontWeight = FontWeight.Black, color = Slate500)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Black, color = color)
+        }
     }
 }

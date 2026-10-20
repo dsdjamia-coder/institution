@@ -47,9 +47,6 @@ fun NoorulIslamNavigationApp() {
             HomeScreen(
                 onNavigateToStudent = { studentId ->
                     navController.navigate("student/$studentId")
-                },
-                onNavigateToCollection = {
-                    navController.navigate("collection")
                 }
             )
         }
