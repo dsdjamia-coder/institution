@@ -28,39 +28,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.noorulislam.app.data.*
 
-// Visual tokens replicating student.html and styles/main.css
-private val Slate900 = Color(0xFF0F172A)
-private val Slate800 = Color(0xFF1E293B)
-private val Slate700 = Color(0xFF334155)
-private val Slate600 = Color(0xFF475569)
-private val Slate500 = Color(0xFF64748B)
-private val Slate200 = Color(0xFFE2E8F0)
-private val Slate100 = Color(0xFFF1F5F9)
-private val Slate50 = Color(0xFFF8FAFC)
-
-private val Blue700 = Color(0xFF1D4ED8)
-private val Blue600 = Color(0xFF2563EB)
-private val Blue100 = Color(0xFFDBEAFE)
-private val Blue50 = Color(0xFFEFF6FF)
-
-private val Emerald700 = Color(0xFF047857)
-private val Emerald600 = Color(0xFF059669)
-private val Emerald500 = Color(0xFF10B981)
-private val Emerald100 = Color(0xFFD1FAE5)
-private val Emerald50 = Color(0xFFECFDF5)
-
-private val Red700 = Color(0xFFB91C1C)
-private val Red600 = Color(0xFFDC2626)
-private val Red100 = Color(0xFFFEE2E2)
-private val Red50 = Color(0xFFFEF2F2)
-
-private val Indigo700 = Color(0xFF4338CA)
-private val Indigo600 = Color(0xFF4F46E5)
-private val Indigo50 = Color(0xFFEEF2FF)
-
-private val Amber600 = Color(0xFFD97706)
-private val Amber500 = Color(0xFFF59E0B)
-private val Amber50 = Color(0xFFFFFBEB)
+import org.noorulislam.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,7 +225,7 @@ fun StudentPortalScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    BadgeChip(label = profile.studentClass, icon = Icons.Default.Class, bgColor = Blue100, textColor = Blue700)
+                                    BadgeChip(label = profile.studentClass, icon = Icons.Default.School, bgColor = Blue100, textColor = Blue700)
                                     BadgeChip(label = profile.status, icon = Icons.Default.CheckCircle, bgColor = Emerald100, textColor = Emerald700)
                                     BadgeChip(label = profile.gender, icon = Icons.Default.Wc, bgColor = Slate100, textColor = Slate700)
                                 }
@@ -561,116 +529,157 @@ fun StudentPortalScreen(
 
                 // TAB 2: EXAM RESULTS & GPA CARD (1:1 with student.html #results-page)
                 if (selectedTab == 2) {
-                    val report = examReport ?: ExamReport()
-
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
-                        ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = report.examTitle,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Slate900
-                                )
-                                Text(
-                                    text = "Academic Session: ${report.academicYear} • Class: ${profile.studentClass}",
-                                    fontSize = 12.sp,
-                                    color = Slate500
-                                )
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                // GPA & Aggregate Highlights
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    val report = examReport
+                    if (report == null || report.subjects.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Indigo50.copy(alpha = 0.5f)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Indigo100)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(28.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
                                 ) {
-                                    ResultHighlightBox(
-                                        title = "PERCENTAGE",
-                                        value = "${report.percentage.toInt()}%",
-                                        color = Blue600,
-                                        modifier = Modifier.weight(1f)
+                                    Icon(
+                                        imageVector = Icons.Default.Poll,
+                                        contentDescription = null,
+                                        tint = Indigo600,
+                                        modifier = Modifier.size(48.dp)
                                     )
-                                    ResultHighlightBox(
-                                        title = "GPA SCORE",
-                                        value = "${report.gpa} / 4.0",
-                                        color = Indigo600,
-                                        modifier = Modifier.weight(1f)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "Results will be published here",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900,
+                                        textAlign = TextAlign.Center
                                     )
-                                    ResultHighlightBox(
-                                        title = "STATUS",
-                                        value = report.status,
-                                        color = Emerald600,
-                                        modifier = Modifier.weight(1f)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Academic year examination results have not been published yet for this student. Once uploaded and verified, official score cards and grades will appear here.",
+                                        fontSize = 12.sp,
+                                        color = Slate600,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 18.sp
                                     )
                                 }
                             }
                         }
-                    }
-
-                    item {
-                        Text(
-                            text = "Subject-wise Score Card",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Slate900
-                        )
-                    }
-
-                    // Subjects score breakdown table
-                    items(report.subjects) { subject ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    } else {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
                             ) {
-                                Column {
+                                Column(modifier = Modifier.padding(18.dp)) {
                                     Text(
-                                        text = subject.subject,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Slate900
-                                    )
-                                    Text(
-                                        text = "Max Marks: ${subject.maxMarks.toInt()}",
-                                        fontSize = 11.sp,
-                                        color = Slate500
-                                    )
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "${subject.marks.toInt()}",
+                                        text = report.examTitle,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Black,
                                         color = Slate900
                                     )
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = Blue100
+                                    Text(
+                                        text = "Academic Session: ${report.academicYear} • Class: ${profile.studentClass}",
+                                        fontSize = 12.sp,
+                                        color = Slate500
+                                    )
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    // GPA & Aggregate Highlights
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        ResultHighlightBox(
+                                            title = "PERCENTAGE",
+                                            value = "${report.percentage.toInt()}%",
+                                            color = Blue600,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        ResultHighlightBox(
+                                            title = "GPA SCORE",
+                                            value = if (report.gpa.isNotEmpty()) "${report.gpa} / 4.0" else "--",
+                                            color = Indigo600,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        ResultHighlightBox(
+                                            title = "STATUS",
+                                            value = report.status,
+                                            color = if (report.status.contains("PASS", ignoreCase = true)) Emerald600 else Amber600,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Text(
+                                text = "Subject-wise Score Card",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate900
+                            )
+                        }
+
+                        // Subjects score breakdown table
+                        items(report.subjects) { subject ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = subject.subject,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Slate900
+                                        )
+                                        Text(
+                                            text = "Max Marks: ${subject.maxMarks.toInt()}",
+                                            fontSize = 11.sp,
+                                            color = Slate500
+                                        )
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Text(
-                                            text = subject.grade,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Blue700,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            text = "${subject.marks.toInt()}",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Slate900
                                         )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (subject.grade == "F") Red100 else Blue100
+                                        ) {
+                                            Text(
+                                                text = subject.grade.ifEmpty { "PASS" },
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = if (subject.grade == "F") Red700 else Blue700,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

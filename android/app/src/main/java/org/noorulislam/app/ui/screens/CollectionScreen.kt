@@ -36,18 +36,7 @@ import org.noorulislam.app.printer.PrinterPaperWidth
 import org.noorulislam.app.printer.ReceiptData
 import org.noorulislam.app.printer.ReceiptItem
 
-private val Slate900 = Color(0xFF0F172A)
-private val Slate800 = Color(0xFF1E293B)
-private val Slate700 = Color(0xFF334155)
-private val Slate100 = Color(0xFFF1F5F9)
-private val Slate50 = Color(0xFFF8FAFC)
-private val Blue600 = Color(0xFF2563EB)
-private val Emerald600 = Color(0xFF059669)
-private val Emerald50 = Color(0xFFECFDF5)
-private val Red600 = Color(0xFFDC2626)
-private val Red50 = Color(0xFFFEF2F2)
-private val Amber600 = Color(0xFFD97706)
-private val Amber50 = Color(0xFFFFFBEB)
+import org.noorulislam.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +74,7 @@ fun CollectionScreen(
     var lastReceipt by remember { mutableStateOf<PaymentReceipt?>(null) }
     var isPrintingReceipt by remember { mutableStateOf(false) }
 
-    val classes = listOf("All Classes", "Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Alumni")
+    var classes by remember { mutableStateOf(listOf("All Classes", "Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Alumni")) }
     val feeCategories = listOf("Tuition Fee", "Examination Fee", "Admission Fee", "Welfare Fund", "Books & Stationary")
     val paymentModes = listOf("CASH", "UPI", "BANK")
 
@@ -100,8 +89,16 @@ fun CollectionScreen(
         }
     }
 
-    // Load paired devices on launch
+    // Load paired devices and classes on launch
     LaunchedEffect(Unit) {
+        try {
+            val distinct = repository.getDistinctClasses()
+            if (distinct.isNotEmpty()) {
+                classes = listOf("All Classes") + distinct
+            }
+        } catch (e: Exception) {
+            // keep default
+        }
         pairedDevices = printerService.getPairedDevices()
         val savedAddr = repository.getSavedPrinterAddress()
         if (savedAddr != null) {

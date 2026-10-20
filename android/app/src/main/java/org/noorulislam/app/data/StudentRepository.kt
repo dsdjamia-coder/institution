@@ -1,7 +1,6 @@
 package org.noorulislam.app.data
 
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Paint
@@ -57,14 +56,88 @@ class StudentRepository(private val context: Context) {
         }
     }
 
+    private fun normalizePhone(value: String): String {
+        return value.replace(Regex("[^0-9]"), "")
+    }
+
+    /**
+     * Synchronize distinct classes dynamically from Firestore.
+     * Mirrors distinctClasses in index-page.js and collection-page.js.
+     */
+    suspend fun getDistinctClasses(): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val studentsSnap = firestore.collection("$BASE_PATH/students").get().await()
+            val rawClasses = mutableSetOf<String>()
+
+            for (doc in studentsSnap.documents) {
+                val cls = (doc.getString("class") ?: doc.getString("studentClass") ?: "").trim()
+                if (cls.isNotEmpty()) {
+                    rawClasses.add(cls)
+                }
+            }
+
+            // Also check classes collection if configured
+            try {
+                val classSnap = firestore.collection("$BASE_PATH/classes").get().await()
+                for (doc in classSnap.documents) {
+                    val name = (doc.getString("name") ?: doc.getString("className") ?: doc.id).trim()
+                    if (name.isNotEmpty()) {
+                        rawClasses.add(name)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Optional classes collection query notice", e)
+            }
+
+            val regularClasses = rawClasses
+                .filter { !it.equals("alumni", ignoreCase = true) }
+                .sortedWith(Comparator { a, b ->
+                    // Natural numeric comparator matching web localeCompare numeric: true
+                    compareClassNames(a, b)
+                })
+
+            val hasAlumni = rawClasses.any { it.equals("alumni", ignoreCase = true) }
+            val result = mutableListOf<String>()
+            result.addAll(regularClasses)
+            if (hasAlumni || regularClasses.isNotEmpty()) {
+                result.add("Alumni")
+            }
+            if (result.isEmpty()) {
+                // If database is completely empty on fresh setup, provide standard class starter
+                listOf("Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Alumni")
+            } else {
+                result
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching distinct classes", e)
+            listOf("Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Alumni")
+        }
+    }
+
+    private fun compareClassNames(a: String, b: String): Int {
+        val numA = Regex("\\d+").find(a)?.value?.toIntOrNull()
+        val numB = Regex("\\d+").find(b)?.value?.toIntOrNull()
+        return if (numA != null && numB != null) {
+            numA.compareTo(numB)
+        } else {
+            a.compareTo(b, ignoreCase = true)
+        }
+    }
+
     suspend fun getInstitutionStats(): InstitutionStats = withContext(Dispatchers.IO) {
         try {
             val studentsSnap = firestore.collection("$BASE_PATH/students").get().await()
-            val totalStudents = studentsSnap.size()
             var maleCount = 0
             var femaleCount = 0
+            var activeStudentCount = 0
 
             for (doc in studentsSnap.documents) {
+                val cls = (doc.getString("class") ?: doc.getString("studentClass") ?: "").trim().lowercase()
+                val status = (doc.getString("status") ?: "ACTIVE").trim().lowercase()
+                if (cls == "alumni" || status == "alumni" || status == "graduated" || status == "discontinued") {
+                    continue
+                }
+                activeStudentCount++
                 val gender = doc.getString("gender") ?: doc.getString("sex") ?: ""
                 if (gender.equals("male", ignoreCase = true) || gender.equals("m", ignoreCase = true) || gender.equals("boy", ignoreCase = true)) {
                     maleCount++
@@ -73,53 +146,38 @@ class StudentRepository(private val context: Context) {
                 }
             }
 
-            var staffCount = 24
+            var staffCount = 0
             try {
                 val staffSnap = firestore.collection("$BASE_PATH/staff").get().await()
-                if (!staffSnap.isEmpty) {
-                    staffCount = staffSnap.size()
-                }
+                staffCount = staffSnap.size()
             } catch (e: Exception) {
-                Log.w(TAG, "Staff fetch non-fatal", e)
+                Log.w(TAG, "Staff fetch notice", e)
             }
 
-            if (totalStudents > 0) {
-                InstitutionStats(
-                    totalStudents = totalStudents,
-                    totalStaff = staffCount,
-                    maleStudents = if (maleCount > 0) maleCount else (totalStudents * 0.52).toInt(),
-                    femaleStudents = if (femaleCount > 0) femaleCount else (totalStudents - (totalStudents * 0.52).toInt())
-                )
-            } else {
-                InstitutionStats(
-                    totalStudents = 480,
-                    totalStaff = 24,
-                    maleStudents = 252,
-                    femaleStudents = 228
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching live stats", e)
             InstitutionStats(
-                totalStudents = 480,
-                totalStaff = 24,
-                maleStudents = 252,
-                femaleStudents = 228
+                totalStudents = activeStudentCount,
+                totalStaff = staffCount,
+                maleStudents = maleCount,
+                femaleStudents = femaleCount
             )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching stats", e)
+            InstitutionStats(0, 0, 0, 0)
         }
     }
 
     suspend fun getAboutUsText(): String = withContext(Dispatchers.IO) {
         try {
             val doc = firestore.collection("$BASE_PATH/settings").document("publicInfo").get().await()
-            doc.getString("about") ?: doc.getString("description") ?: getDefaultAboutUs()
+            if (doc.exists()) {
+                doc.getString("about") ?: doc.getString("description") ?: ""
+            } else {
+                val generalDoc = firestore.collection(BASE_PATH).document("settings").get().await()
+                generalDoc.getString("about") ?: generalDoc.getString("description") ?: ""
+            }
         } catch (e: Exception) {
-            getDefaultAboutUs()
+            ""
         }
-    }
-
-    private fun getDefaultAboutUs(): String {
-        return "Noorul Islam Higher Secondary Madrasa is committed to nurturing academic distinction, ethical integrity, and deep moral values. Founded in 1994, our institution provides comprehensive Islamic education combined with modern pedagogical standards to foster intellectual curiosity, civic responsibility, and spiritual enlightenment."
     }
 
     suspend fun getTeachers(): List<TeacherProfile> = withContext(Dispatchers.IO) {
@@ -133,108 +191,64 @@ class StudentRepository(private val context: Context) {
                         role = doc.getString("role") ?: doc.getString("designation") ?: "Faculty",
                         phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
                         photoUrl = doc.getString("photoUrl") ?: doc.getString("photo") ?: "",
-                        place = doc.getString("place") ?: "Campus"
+                        place = doc.getString("place") ?: doc.getString("address") ?: ""
                     )
                 }
             } else {
-                getDefaultTeachers()
+                emptyList()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Teacher fetch fallback", e)
-            getDefaultTeachers()
+            Log.w(TAG, "Teacher fetch error", e)
+            emptyList()
         }
-    }
-
-    private fun getDefaultTeachers(): List<TeacherProfile> {
-        return listOf(
-            TeacherProfile("t1", "Usthad Abdul Rasheed Faizy", "Headmaster / Principal", "+91 98471 23456", "", "Koduvally"),
-            TeacherProfile("t2", "Usthad Muhammed Shafi Wafy", "Senior Quran & Tajweed Faculty", "+91 98472 34567", "", "Calicut"),
-            TeacherProfile("t3", "Usthad Ibrahim Baqavi", "Fiqh & Islamic Jurisprudence", "+91 98473 45678", "", "Malappuram"),
-            TeacherProfile("t4", "Usthad Anas Darimi", "Arabic Literature & Grammar", "+91 98474 56789", "", "Kozhikode")
-        )
     }
 
     suspend fun getNotices(): List<NoticeItem> = withContext(Dispatchers.IO) {
         try {
             val snap = firestore.collection("$BASE_PATH/notices")
                 .orderBy("timestamp", Query.Direction.DESCENDING)
-                .limit(10)
+                .limit(15)
                 .get()
                 .await()
 
-            if (!snap.isEmpty) {
-                snap.documents.map { doc ->
-                    NoticeItem(
-                        id = doc.id,
-                        title = doc.getString("title") ?: "Institutional Notice",
-                        date = doc.getString("date") ?: "Recent",
-                        description = doc.getString("description") ?: doc.getString("body") ?: "",
-                        category = doc.getString("category") ?: "General"
-                    )
-                }
-            } else {
-                getDefaultNotices()
+            snap.documents.map { doc ->
+                NoticeItem(
+                    id = doc.id,
+                    title = doc.getString("title") ?: "Notice",
+                    date = doc.getString("date") ?: "",
+                    description = doc.getString("description") ?: doc.getString("body") ?: "",
+                    category = doc.getString("category") ?: "General"
+                )
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Notice fetch fallback", e)
-            getDefaultNotices()
+            Log.w(TAG, "Notice fetch error", e)
+            emptyList()
         }
-    }
-
-    private fun getDefaultNotices(): List<NoticeItem> {
-        return listOf(
-            NoticeItem(
-                id = "n1",
-                title = "Annual Examination 2026 Schedule & Hall Tickets",
-                date = "22-Apr-2026",
-                description = "Annual academic examinations will commence from 10th May 2026. Hall tickets can be reviewed via the Student Portal. Parents are requested to clear all pending fee dues prior to hall ticket verification.",
-                category = "Examination"
-            ),
-            NoticeItem(
-                id = "n2",
-                title = "Ramadan Vacation & Special Tajweed Intensive",
-                date = "15-Apr-2026",
-                description = "Madrasa classes will observe the holy month break starting next week. Special Tajweed intensive circles will continue for higher secondary candidates.",
-                category = "Academic"
-            ),
-            NoticeItem(
-                id = "n3",
-                title = "Parent-Teacher Council & Performance Review",
-                date = "05-Apr-2026",
-                description = "General body meeting of all guardians will be held at the Main Auditorium on Saturday at 9:30 AM to discuss student term progress and moral evaluation reports.",
-                category = "General"
-            )
-        )
     }
 
     suspend fun getGallery(): List<GalleryItem> = withContext(Dispatchers.IO) {
         try {
-            val snap = firestore.collection("$BASE_PATH/gallery").limit(10).get().await()
-            if (!snap.isEmpty) {
-                snap.documents.map { doc ->
+            val snap = firestore.collection("$BASE_PATH/gallery").limit(20).get().await()
+            snap.documents.mapNotNull { doc ->
+                val url = doc.getString("url") ?: doc.getString("imageUrl") ?: ""
+                if (url.isNotEmpty()) {
                     GalleryItem(
                         id = doc.id,
-                        title = doc.getString("title") ?: "Madrasa Campus",
-                        imageUrl = doc.getString("url") ?: doc.getString("imageUrl") ?: ""
+                        title = doc.getString("title") ?: "",
+                        imageUrl = url
                     )
-                }
-            } else {
-                getDefaultGallery()
+                } else null
             }
         } catch (e: Exception) {
-            getDefaultGallery()
+            emptyList()
         }
     }
 
-    private fun getDefaultGallery(): List<GalleryItem> {
-        return listOf(
-            GalleryItem("g1", "Campus Academic Block", ""),
-            GalleryItem("g2", "Annual Quran Majlis & Convocation", ""),
-            GalleryItem("g3", "Students Islamic Moral Fest", ""),
-            GalleryItem("g4", "Digital Smart Learning Hall", "")
-        )
-    }
-
+    /**
+     * Authenticate student exactly mirroring index-page.js logic.
+     * Validates class, student identifier, and registered phone number.
+     * Throws specific errors if mobile is missing or mismatch.
+     */
     suspend fun authenticateStudent(
         studentClass: String,
         searchQuery: String,
@@ -242,196 +256,160 @@ class StudentRepository(private val context: Context) {
     ): Result<StudentProfile> = withContext(Dispatchers.IO) {
         try {
             val cleanQuery = searchQuery.trim().lowercase()
-            val cleanPhone = phoneInput.replace(Regex("[^0-9]"), "")
+            val inputPhoneNormalized = normalizePhone(phoneInput)
             val isAlumni = studentClass.equals("alumni", ignoreCase = true)
 
             val querySnapshot = firestore.collection("$BASE_PATH/students").get().await()
+            val matchingClassStudents = mutableListOf<com.google.firebase.firestore.DocumentSnapshot>()
 
             for (doc in querySnapshot.documents) {
                 val sClass = (doc.getString("class") ?: doc.getString("studentClass") ?: "").trim()
-                val sAdm = (doc.getString("adm") ?: doc.getString("admNo") ?: "").trim()
-                val sName = (doc.getString("name") ?: "").trim()
-                val sPhone = (doc.getString("phone") ?: doc.getString("mobile") ?: doc.getString("guardianPhone") ?: "").replace(Regex("[^0-9]"), "")
                 val sStatus = (doc.getString("status") ?: "ACTIVE").trim()
 
                 val classMatches = if (isAlumni) {
-                    sClass.equals("alumni", ignoreCase = true) || sStatus.equals("alumni", ignoreCase = true) || sStatus.equals("graduated", ignoreCase = true)
+                    sClass.equals("alumni", ignoreCase = true) ||
+                            sStatus.equals("alumni", ignoreCase = true) ||
+                            sStatus.equals("graduated", ignoreCase = true) ||
+                            doc.getBoolean("isAlumni") == true
                 } else {
                     sClass.equals(studentClass, ignoreCase = true)
                 }
 
-                if (!classMatches) continue
-
-                val identifierMatches = cleanQuery.isEmpty() ||
-                        sAdm.lowercase() == cleanQuery ||
-                        sName.lowercase().contains(cleanQuery)
-
-                if (identifierMatches) {
-                    val phoneMatches = cleanPhone.isEmpty() ||
-                            sPhone.endsWith(cleanPhone) ||
-                            cleanPhone.endsWith(sPhone) ||
-                            (sPhone.length >= 4 && cleanPhone.length >= 4 && sPhone.takeLast(4) == cleanPhone.takeLast(4))
-
-                    if (phoneMatches) {
-                        val father = doc.getString("fatherName") ?: doc.getString("guardian") ?: doc.getString("guardianName") ?: "Abdul Salam"
-                        val profile = StudentProfile(
-                            id = doc.id,
-                            admNo = if (sAdm.isNotEmpty()) sAdm else doc.id,
-                            uid = doc.getString("uid") ?: "STD-${if (sAdm.isNotEmpty()) sAdm else doc.id}",
-                            name = if (sName.isNotEmpty()) sName else "Student",
-                            studentClass = sClass,
-                            rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "14",
-                            guardianName = father,
-                            phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
-                            gender = doc.getString("gender") ?: "Male",
-                            dob = doc.getString("dob") ?: "2013-04-18",
-                            address = doc.getString("address") ?: doc.getString("place") ?: "Koduvally, Kozhikode",
-                            status = sStatus,
-                            photoUrl = doc.getString("photo") ?: doc.getString("photoUrl") ?: "",
-                            pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0,
-                            fatherName = father,
-                            fatherPhone = doc.getString("fatherMobile") ?: doc.getString("phone") ?: "9847123456",
-                            motherName = doc.getString("motherName") ?: "Suhaida",
-                            motherPhone = doc.getString("motherMobile") ?: doc.getString("phone") ?: "9847123456",
-                            academicYear = doc.getString("academicYear") ?: "2025-2026",
-                            concessionGroup = doc.getString("concessionGroup") ?: "Standard Tier"
-                        )
-
-                        saveAccount(SavedStudentAccount(
-                            studentId = profile.id,
-                            name = profile.name,
-                            admNo = profile.admNo,
-                            studentClass = profile.studentClass
-                        ))
-
-                        return@withContext Result.success(profile)
-                    }
+                if (classMatches) {
+                    matchingClassStudents.add(doc)
                 }
             }
 
-            if (cleanQuery == "2024-0142" || cleanQuery == "irfan" || cleanQuery.contains("irfan") || (studentClass == "Class 7" && cleanQuery.isEmpty())) {
-                val fallbackStudent = StudentProfile(
-                    id = "std_2024_0142",
-                    admNo = "2024-0142",
-                    uid = "STD-2024-0142",
-                    name = "Mohammed Irfan",
-                    studentClass = "Class 7",
-                    rollNo = "14",
-                    guardianName = "Abdul Salam",
-                    phone = if (phoneInput.isNotEmpty()) phoneInput else "9847123456",
-                    gender = "Male",
-                    dob = "2013-04-18",
-                    address = "Koduvally, Kozhikode",
-                    status = "ACTIVE",
-                    pendingDues = 450.0,
-                    fatherName = "Abdul Salam",
-                    fatherPhone = "9847123456",
-                    motherName = "Suhaida",
-                    motherPhone = "9847123456",
-                    academicYear = "2025-2026"
-                )
-                saveAccount(SavedStudentAccount(
-                    studentId = fallbackStudent.id,
-                    name = fallbackStudent.name,
-                    admNo = fallbackStudent.admNo,
-                    studentClass = fallbackStudent.studentClass
-                ))
-                return@withContext Result.success(fallbackStudent)
+            // Find matching student by name or admission number
+            val candidateDocs = matchingClassStudents.filter { doc ->
+                val sAdm = (doc.getString("adm") ?: doc.getString("admNo") ?: doc.id).trim().lowercase()
+                val sName = (doc.getString("name") ?: "").trim().lowercase()
+                cleanQuery.isEmpty() || sAdm == cleanQuery || sName.contains(cleanQuery)
             }
 
-            Result.failure(Exception("No student found matching class '$studentClass' and Admission/Phone credentials."))
-        } catch (e: Exception) {
-            Log.e(TAG, "Authentication exception", e)
-            val fallbackStudent = StudentProfile(
-                id = "std_default",
-                admNo = if (searchQuery.isNotEmpty()) searchQuery else "2024-0142",
-                uid = "STD-2024-0142",
-                name = "Mohammed Irfan",
-                studentClass = if (studentClass.isNotEmpty()) studentClass else "Class 7",
-                rollNo = "14",
-                guardianName = "Abdul Salam",
-                phone = phoneInput,
-                gender = "Male",
-                dob = "2013-04-18",
-                address = "Noorul Islam Campus, Koduvally",
-                status = "ACTIVE",
-                pendingDues = 450.0,
-                fatherName = "Abdul Salam",
-                fatherPhone = "9847123456",
-                motherName = "Suhaida",
-                motherPhone = "9847123456",
-                academicYear = "2025-2026"
+            if (candidateDocs.isEmpty()) {
+                return@withContext Result.failure(
+                    Exception("No student found matching '$searchQuery' in $studentClass.")
+                )
+            }
+
+            // Find target student document
+            val targetDoc = candidateDocs.first()
+
+            // Resolve registered phone number from Firestore document
+            val regPhoneRaw = targetDoc.getString("mobile")
+                ?: targetDoc.getString("phone")
+                ?: targetDoc.getString("primaryMobile")
+                ?: targetDoc.getString("fatherPhone")
+                ?: targetDoc.getString("fatherMobile")
+                ?: targetDoc.getString("guardianPhone")
+                ?: targetDoc.getString("guardianMobile")
+                ?: ""
+
+            val normalizedRegisteredPhone = normalizePhone(regPhoneRaw)
+
+            if (normalizedRegisteredPhone.isEmpty()) {
+                return@withContext Result.failure(
+                    Exception("MISSING_PHONE: This student does not have a registered mobile number. Please contact the Madrasa office.")
+                )
+            }
+
+            if (inputPhoneNormalized.isEmpty()) {
+                return@withContext Result.failure(
+                    Exception("Please enter the registered mobile number.")
+                )
+            }
+
+            // Match phone (exact, endsWith 10 digits or 4 digits)
+            val phoneMatches = normalizedRegisteredPhone == inputPhoneNormalized ||
+                    (normalizedRegisteredPhone.length >= 10 && inputPhoneNormalized.length >= 10 &&
+                            normalizedRegisteredPhone.takeLast(10) == inputPhoneNormalized.takeLast(10)) ||
+                    normalizedRegisteredPhone.endsWith(inputPhoneNormalized) ||
+                    inputPhoneNormalized.endsWith(normalizedRegisteredPhone)
+
+            if (!phoneMatches) {
+                return@withContext Result.failure(
+                    Exception("Incorrect registered mobile number. Please check and try again.")
+                )
+            }
+
+            val adm = (targetDoc.getString("adm") ?: targetDoc.getString("admNo") ?: targetDoc.id).trim()
+            val father = targetDoc.getString("fatherName") ?: targetDoc.getString("father") ?: targetDoc.getString("guardian") ?: targetDoc.getString("guardianName") ?: ""
+            val mother = targetDoc.getString("motherName") ?: targetDoc.getString("mother") ?: ""
+
+            val profile = StudentProfile(
+                id = targetDoc.id,
+                admNo = adm,
+                uid = targetDoc.getString("uid") ?: "STD-$adm",
+                name = targetDoc.getString("name") ?: "Student",
+                studentClass = targetDoc.getString("class") ?: targetDoc.getString("studentClass") ?: studentClass,
+                rollNo = targetDoc.getString("rollNo") ?: targetDoc.getString("roll") ?: "",
+                guardianName = father,
+                phone = regPhoneRaw,
+                gender = targetDoc.getString("gender") ?: "Male",
+                dob = targetDoc.getString("dob") ?: targetDoc.getString("birthDate") ?: "",
+                address = targetDoc.getString("address") ?: targetDoc.getString("place") ?: "",
+                status = targetDoc.getString("status") ?: "ACTIVE",
+                photoUrl = targetDoc.getString("photo") ?: targetDoc.getString("photoUrl") ?: "",
+                pendingDues = targetDoc.getDouble("pendingDue") ?: targetDoc.getDouble("balance") ?: 0.0,
+                fatherName = father,
+                fatherPhone = targetDoc.getString("fatherMobile") ?: targetDoc.getString("fatherPhone") ?: regPhoneRaw,
+                motherName = mother,
+                motherPhone = targetDoc.getString("motherMobile") ?: targetDoc.getString("motherPhone") ?: "",
+                academicYear = targetDoc.getString("academicYear") ?: "2025-2026",
+                concessionGroup = targetDoc.getString("concessionGroup") ?: targetDoc.getString("concessionFee") ?: ""
             )
+
             saveAccount(SavedStudentAccount(
-                studentId = fallbackStudent.id,
-                name = fallbackStudent.name,
-                admNo = fallbackStudent.admNo,
-                studentClass = fallbackStudent.studentClass
+                studentId = profile.id,
+                name = profile.name,
+                admNo = profile.admNo,
+                studentClass = profile.studentClass
             ))
-            Result.success(fallbackStudent)
+
+            Result.success(profile)
+        } catch (e: Exception) {
+            Log.e(TAG, "authenticateStudent failure", e)
+            Result.failure(e)
         }
     }
 
-    suspend fun getStudentProfile(studentId: String): StudentProfile = withContext(Dispatchers.IO) {
+    suspend fun getStudentProfile(studentId: String): StudentProfile? = withContext(Dispatchers.IO) {
         try {
             val doc = firestore.collection("$BASE_PATH/students").document(studentId).get().await()
-            if (doc.exists()) {
-                val father = doc.getString("fatherName") ?: doc.getString("guardian") ?: doc.getString("guardianName") ?: "Abdul Salam"
-                val adm = doc.getString("adm") ?: doc.getString("admNo") ?: doc.id
-                StudentProfile(
-                    id = doc.id,
-                    admNo = adm,
-                    uid = doc.getString("uid") ?: "STD-$adm",
-                    name = doc.getString("name") ?: "Student",
-                    studentClass = doc.getString("class") ?: doc.getString("studentClass") ?: "Class 7",
-                    rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "14",
-                    guardianName = father,
-                    phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
-                    gender = doc.getString("gender") ?: "Male",
-                    dob = doc.getString("dob") ?: "2013-04-18",
-                    address = doc.getString("address") ?: doc.getString("place") ?: "Koduvally, Kozhikode",
-                    status = doc.getString("status") ?: "ACTIVE",
-                    photoUrl = doc.getString("photo") ?: doc.getString("photoUrl") ?: "",
-                    pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0,
-                    fatherName = father,
-                    fatherPhone = doc.getString("fatherMobile") ?: doc.getString("phone") ?: "9847123456",
-                    motherName = doc.getString("motherName") ?: "Suhaida",
-                    motherPhone = doc.getString("motherMobile") ?: doc.getString("phone") ?: "9847123456",
-                    academicYear = doc.getString("academicYear") ?: "2025-2026",
-                    concessionGroup = doc.getString("concessionGroup") ?: "Standard Tier"
-                )
-            } else {
-                getSavedOrFallbackProfile(studentId)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching profile", e)
-            getSavedOrFallbackProfile(studentId)
-        }
-    }
+            if (!doc.exists()) return@withContext null
 
-    private fun getSavedOrFallbackProfile(studentId: String): StudentProfile {
-        val saved = getSavedAccounts().find { it.studentId == studentId }
-        val adm = saved?.admNo ?: "2024-0142"
-        return StudentProfile(
-            id = studentId,
-            admNo = adm,
-            uid = "STD-$adm",
-            name = saved?.name ?: "Mohammed Irfan",
-            studentClass = saved?.studentClass ?: "Class 7",
-            rollNo = "14",
-            guardianName = "Abdul Salam",
-            phone = "9847123456",
-            gender = "Male",
-            dob = "2013-04-18",
-            address = "Koduvally, Kozhikode",
-            status = "ACTIVE",
-            pendingDues = 450.0,
-            fatherName = "Abdul Salam",
-            fatherPhone = "9847123456",
-            motherName = "Suhaida",
-            motherPhone = "9847123456",
-            academicYear = "2025-2026"
-        )
+            val adm = (doc.getString("adm") ?: doc.getString("admNo") ?: doc.id).trim()
+            val father = doc.getString("fatherName") ?: doc.getString("father") ?: doc.getString("guardian") ?: doc.getString("guardianName") ?: ""
+            val mother = doc.getString("motherName") ?: doc.getString("mother") ?: ""
+            val phone = doc.getString("mobile") ?: doc.getString("phone") ?: doc.getString("fatherPhone") ?: ""
+
+            StudentProfile(
+                id = doc.id,
+                admNo = adm,
+                uid = doc.getString("uid") ?: "STD-$adm",
+                name = doc.getString("name") ?: "Student",
+                studentClass = doc.getString("class") ?: doc.getString("studentClass") ?: "",
+                rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "",
+                guardianName = father,
+                phone = phone,
+                gender = doc.getString("gender") ?: "Male",
+                dob = doc.getString("dob") ?: doc.getString("birthDate") ?: "",
+                address = doc.getString("address") ?: doc.getString("place") ?: "",
+                status = doc.getString("status") ?: "ACTIVE",
+                photoUrl = doc.getString("photo") ?: doc.getString("photoUrl") ?: "",
+                pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 0.0,
+                fatherName = father,
+                fatherPhone = doc.getString("fatherMobile") ?: doc.getString("fatherPhone") ?: phone,
+                motherName = mother,
+                motherPhone = doc.getString("motherMobile") ?: doc.getString("motherPhone") ?: "",
+                academicYear = doc.getString("academicYear") ?: "2025-2026",
+                concessionGroup = doc.getString("concessionGroup") ?: doc.getString("concessionFee") ?: ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching student profile", e)
+            null
+        }
     }
 
     suspend fun searchStudents(query: String, filterClass: String = "All Classes"): List<StudentProfile> = withContext(Dispatchers.IO) {
@@ -446,80 +424,34 @@ class StudentRepository(private val context: Context) {
                 val sName = (doc.getString("name") ?: "").trim()
                 val sStatus = (doc.getString("status") ?: "ACTIVE").trim()
 
-                if (filterClass != "All Classes" && !sClass.equals(filterClass, ignoreCase = true)) {
+                if (filterClass != "All Classes" && filterClass.isNotEmpty() && !sClass.equals(filterClass, ignoreCase = true)) {
                     continue
                 }
 
                 if (cleanQuery.isEmpty() || sName.lowercase().contains(cleanQuery) || sAdm.lowercase().contains(cleanQuery)) {
+                    val phone = doc.getString("mobile") ?: doc.getString("phone") ?: ""
                     list.add(
                         StudentProfile(
                             id = doc.id,
                             admNo = sAdm,
                             uid = doc.getString("uid") ?: "STD-$sAdm",
                             name = sName.ifEmpty { "Student" },
-                            studentClass = sClass.ifEmpty { "Class 7" },
-                            rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "--",
-                            guardianName = doc.getString("guardian") ?: doc.getString("guardianName") ?: "Guardian",
-                            phone = doc.getString("phone") ?: doc.getString("mobile") ?: "",
+                            studentClass = sClass,
+                            rollNo = doc.getString("rollNo") ?: doc.getString("roll") ?: "",
+                            guardianName = doc.getString("guardian") ?: doc.getString("fatherName") ?: "",
+                            phone = phone,
                             gender = doc.getString("gender") ?: "Male",
-                            dob = doc.getString("dob") ?: "2013-01-01",
-                            address = doc.getString("address") ?: doc.getString("place") ?: "Campus",
+                            dob = doc.getString("dob") ?: "",
+                            address = doc.getString("address") ?: doc.getString("place") ?: "",
                             status = sStatus,
                             photoUrl = doc.getString("photo") ?: doc.getString("photoUrl") ?: "",
-                            pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 450.0
+                            pendingDues = doc.getDouble("pendingDue") ?: doc.getDouble("balance") ?: 0.0
                         )
                     )
                 }
             }
 
-            if (list.isEmpty()) {
-                val fallbackStudents = listOf(
-                    StudentProfile(
-                        id = "std_2024_0142",
-                        admNo = "2024-0142",
-                        uid = "STD-2024-0142",
-                        name = "Mohammed Irfan",
-                        studentClass = "Class 7",
-                        rollNo = "14",
-                        guardianName = "Abdul Salam",
-                        phone = "9847123456",
-                        gender = "Male",
-                        pendingDues = 450.0
-                    ),
-                    StudentProfile(
-                        id = "std_2024_0145",
-                        admNo = "2024-0145",
-                        uid = "STD-2024-0145",
-                        name = "Fathima Hiba",
-                        studentClass = "Class 7",
-                        rollNo = "08",
-                        guardianName = "Musthafa K",
-                        phone = "9847654321",
-                        gender = "Female",
-                        pendingDues = 200.0
-                    ),
-                    StudentProfile(
-                        id = "std_2024_0098",
-                        admNo = "2024-0098",
-                        uid = "STD-2024-0098",
-                        name = "Ahmad Bilal",
-                        studentClass = "Class 8",
-                        rollNo = "03",
-                        guardianName = "Ibrahim V",
-                        phone = "9745112233",
-                        gender = "Male",
-                        pendingDues = 600.0
-                    )
-                )
-                list.addAll(
-                    fallbackStudents.filter { s ->
-                        (filterClass == "All Classes" || s.studentClass.equals(filterClass, ignoreCase = true)) &&
-                        (cleanQuery.isEmpty() || s.name.lowercase().contains(cleanQuery) || s.admNo.lowercase().contains(cleanQuery))
-                    }
-                )
-            }
-
-            list
+            list.sortedBy { it.name }
         } catch (e: Exception) {
             Log.e(TAG, "Search students exception", e)
             emptyList()
@@ -592,89 +524,187 @@ class StudentRepository(private val context: Context) {
             val snap = firestore.collection("$BASE_PATH/payments")
                 .whereEqualTo("studentId", studentId)
                 .orderBy("timestamp", Query.Direction.DESCENDING)
-                .limit(10)
+                .limit(25)
                 .get()
                 .await()
 
-            if (!snap.isEmpty) {
-                snap.documents.map { doc ->
-                    PaymentRecord(
-                        id = doc.id,
-                        receiptNo = doc.getString("receiptNo") ?: "REC-${doc.id.take(6).uppercase()}",
-                        date = doc.getString("date") ?: "15-Mar-2026",
-                        amount = doc.getDouble("amount") ?: 200.0,
-                        paymentMode = doc.getString("mode") ?: "CASH",
-                        title = doc.getString("title") ?: doc.getString("feeType") ?: "Monthly Tuition Fee",
-                        collectorName = doc.getString("collectorName") ?: "Official Desk"
-                    )
-                }
-            } else {
-                getDefaultPaymentRecords()
+            snap.documents.map { doc ->
+                PaymentRecord(
+                    id = doc.id,
+                    receiptNo = doc.getString("receiptNo") ?: "REC-${doc.id.take(6).uppercase()}",
+                    date = doc.getString("date") ?: doc.getString("dateTime") ?: "",
+                    amount = doc.getDouble("amount") ?: 0.0,
+                    paymentMode = doc.getString("paymentMode") ?: doc.getString("mode") ?: "CASH",
+                    title = doc.getString("title") ?: doc.getString("feeCategory") ?: "Fee Payment",
+                    collectorName = doc.getString("collectorName") ?: "Madrasa Desk",
+                    academicYear = doc.getString("academicYear") ?: ""
+                )
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Error fetching payments", e)
-            getDefaultPaymentRecords()
+            Log.w(TAG, "Error fetching payments for student $studentId", e)
+            emptyList()
         }
     }
 
-    fun getDefaultPaymentRecords(): List<PaymentRecord> {
-        return listOf(
-            PaymentRecord(
-                id = "p1",
-                receiptNo = "REC-2026-0891",
-                date = "15-Mar-2026",
-                amount = 200.0,
-                paymentMode = "CASH",
-                title = "Monthly Tuition (March 2026)",
-                collectorName = "Office Desk"
-            ),
-            PaymentRecord(
-                id = "p2",
-                receiptNo = "REC-2026-0645",
-                date = "10-Feb-2026",
-                amount = 200.0,
-                paymentMode = "ONLINE",
-                title = "Monthly Tuition (February 2026)",
-                collectorName = "Office Desk"
-            ),
-            PaymentRecord(
-                id = "p3",
-                receiptNo = "REC-2026-0112",
-                date = "05-Jan-2026",
-                amount = 350.0,
-                paymentMode = "CASH",
-                title = "Special Exam Fee & Tuition",
-                collectorName = "Office Desk"
-            )
-        )
-    }
-
     suspend fun getStudentFeeLedger(studentId: String): List<FeeItem> = withContext(Dispatchers.IO) {
-        listOf(
-            FeeItem(title = "Monthly Tuition (April 2026)", amount = 200.0, isPaid = false, category = "Tuition", dueDate = "10-Apr-2026"),
-            FeeItem(title = "Annual Examination Fee 2026", amount = 250.0, isPaid = false, category = "Examination", dueDate = "25-Apr-2026"),
-            FeeItem(title = "Monthly Tuition (March 2026)", amount = 200.0, isPaid = true, category = "Tuition", dueDate = "10-Mar-2026"),
-            FeeItem(title = "Monthly Tuition (February 2026)", amount = 200.0, isPaid = true, category = "Tuition", dueDate = "10-Feb-2026"),
-            FeeItem(title = "Library & Welfare Fund", amount = 150.0, isPaid = true, category = "Welfare", dueDate = "15-Jan-2026")
-        )
+        try {
+            val payments = getStudentPayments(studentId)
+            val studentDoc = firestore.collection("$BASE_PATH/students").document(studentId).get().await()
+            val pendingDues = studentDoc.getDouble("pendingDue") ?: studentDoc.getDouble("balance") ?: 0.0
+            val academicYear = studentDoc.getString("academicYear") ?: "2025-2026"
+
+            val ledger = mutableListOf<FeeItem>()
+
+            // Add verified paid items from Firestore payments
+            for (p in payments) {
+                ledger.add(
+                    FeeItem(
+                        key = p.id,
+                        title = p.title,
+                        amount = p.amount,
+                        isPaid = true,
+                        category = "Paid Fee",
+                        academicYear = p.academicYear.ifEmpty { academicYear },
+                        paidDate = p.date,
+                        receiptNo = p.receiptNo
+                    )
+                )
+            }
+
+            // If there are outstanding dues, show pending balance item
+            if (pendingDues > 0) {
+                ledger.add(
+                    0,
+                    FeeItem(
+                        key = "pending_dues",
+                        title = "Current Outstanding Dues",
+                        amount = pendingDues,
+                        isPaid = false,
+                        category = "Tuition / Examination",
+                        academicYear = academicYear,
+                        dueDate = "Payable at Office"
+                    )
+                )
+            }
+
+            ledger
+        } catch (e: Exception) {
+            Log.e(TAG, "Error building fee ledger", e)
+            emptyList()
+        }
     }
 
-    suspend fun getStudentExamReport(studentId: String): ExamReport = withContext(Dispatchers.IO) {
-        ExamReport(
-            examTitle = "Second Term / Half Yearly Examination",
-            academicYear = "2025-2026",
-            totalMarks = 368.0,
-            maxTotal = 400.0,
-            percentage = 92.0,
-            gpa = "3.8",
-            status = "PASSED",
-            subjects = listOf(
-                ExamResultItem(subject = "Quran & Tajweed", marks = 96.0, maxMarks = 100.0, grade = "A+"),
-                ExamResultItem(subject = "Fiqh & Aqeedah", marks = 92.0, maxMarks = 100.0, grade = "A+"),
-                ExamResultItem(subject = "Thareekh (Islamic History)", marks = 88.0, maxMarks = 100.0, grade = "A"),
-                ExamResultItem(subject = "Arabic Language", marks = 92.0, maxMarks = 100.0, grade = "A+")
+    /**
+     * Fetch real Exam Report with full subject breakdown, grades, and percentage from Firestore.
+     * Mirrors student-page.js /examResults logic.
+     */
+    suspend fun getStudentExamReport(studentId: String): ExamReport? = withContext(Dispatchers.IO) {
+        try {
+            val snap = firestore.collection("$BASE_PATH/examResults")
+                .whereEqualTo("studentId", studentId)
+                .get()
+                .await()
+
+            if (snap.isEmpty) {
+                return@withContext null
+            }
+
+            // Pick the latest published exam result
+            val publishedDocs = snap.documents.filter { it.getBoolean("published") != false }
+            if (publishedDocs.isEmpty()) return@withContext null
+
+            val targetDoc = publishedDocs.first()
+
+            val examKey = targetDoc.getString("examKey") ?: ""
+            val examTitle = targetDoc.getString("examLabel") ?: targetDoc.getString("title") ?: "Annual Examination"
+            val academicYear = targetDoc.getString("academicYear") ?: ""
+            val classLabel = targetDoc.getString("classLabel") ?: ""
+
+            // Subject marks & grades map
+            val marksMap = targetDoc.get("marks") as? Map<*, *> ?: emptyMap<Any, Any>()
+            val gradesMap = targetDoc.get("grades") as? Map<*, *> ?: emptyMap<Any, Any>()
+            val totalsMap = targetDoc.get("totals") as? Map<*, *> ?: emptyMap<Any, Any>()
+
+            val subjectsList = mutableListOf<ExamResultItem>()
+            var calculatedObtained = 0.0
+            var calculatedMax = 0.0
+
+            val allSubjectKeys = (marksMap.keys + gradesMap.keys).mapNotNull { it?.toString() }.distinct()
+
+            for (subjKey in allSubjectKeys) {
+                val markObj = marksMap[subjKey]
+                val gradeObj = gradesMap[subjKey]?.toString() ?: ""
+
+                val (score, maxScore, status) = when (markObj) {
+                    is Number -> Triple(markObj.toDouble(), 100.0, "PASS")
+                    is Map<*, *> -> {
+                        val m = (markObj["mark"] ?: markObj["marks"] ?: markObj["score"]) as? Number
+                        val max = (markObj["maxMarks"] ?: markObj["maxScore"] ?: 100.0) as? Number
+                        val st = markObj["status"]?.toString() ?: "PASS"
+                        Triple(m?.toDouble() ?: 0.0, max?.toDouble() ?: 100.0, st)
+                    }
+                    else -> Triple(0.0, 100.0, "PASS")
+                }
+
+                calculatedObtained += score
+                calculatedMax += maxScore
+
+                val resolvedGrade = if (gradeObj.isNotEmpty()) {
+                    gradeObj
+                } else {
+                    val pct = if (maxScore > 0) (score / maxScore) * 100 else 0.0
+                    when {
+                        pct >= 90 -> "A+"
+                        pct >= 80 -> "A"
+                        pct >= 70 -> "B+"
+                        pct >= 60 -> "B"
+                        pct >= 50 -> "C+"
+                        pct >= 40 -> "C"
+                        else -> "F"
+                    }
+                }
+
+                subjectsList.add(
+                    ExamResultItem(
+                        subject = formatSubjectName(subjKey),
+                        marks = score,
+                        maxMarks = maxScore,
+                        grade = resolvedGrade,
+                        status = status
+                    )
+                )
+            }
+
+            val finalObtained = (totalsMap["obtained"] as? Number)?.toDouble() ?: calculatedObtained
+            val finalMax = (totalsMap["max"] as? Number)?.toDouble() ?: if (calculatedMax > 0) calculatedMax else 400.0
+            val percentage = if (finalMax > 0) (finalObtained / finalMax) * 100.0 else 0.0
+            val passStatus = totalsMap["passStatus"]?.toString() ?: if (percentage >= 40) "PASSED" else "NEEDS IMPROVEMENT"
+            val gpa = totalsMap["gpa"]?.toString() ?: String.format(Locale.US, "%.1f", (percentage / 100.0) * 4.0)
+
+            ExamReport(
+                id = targetDoc.id,
+                examKey = examKey,
+                examTitle = examTitle,
+                academicYear = academicYear,
+                classLabel = classLabel,
+                totalMarks = finalObtained,
+                maxTotal = finalMax,
+                percentage = percentage,
+                gpa = gpa,
+                status = passStatus,
+                subjects = subjectsList,
+                published = true
             )
-        )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching exam report for student $studentId", e)
+            null
+        }
+    }
+
+    private fun formatSubjectName(key: String): String {
+        return key.replace("_", " ")
+            .split(" ")
+            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
     }
 
     suspend fun getAdminOverview(): AdminOverview = withContext(Dispatchers.IO) {
@@ -717,12 +747,6 @@ class StudentRepository(private val context: Context) {
             Log.w(TAG, "Admin overview fetch notice", e)
         }
 
-        if (recentPayments.isEmpty()) {
-            recentPayments.addAll(getDefaultPaymentRecords())
-            todayTotal = 1250.0
-            todayCount = 5
-        }
-
         AdminOverview(
             stats = stats,
             todayCollectionTotal = todayTotal,
@@ -734,13 +758,13 @@ class StudentRepository(private val context: Context) {
     fun generateReceiptPdf(receipt: PaymentReceipt): File? {
         return try {
             val pdfDoc = PdfDocument()
-            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Standard A4 page
+            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
             val page = pdfDoc.startPage(pageInfo)
             val canvas = page.canvas
             val paint = Paint()
 
             // Header Banner
-            paint.color = Color.rgb(15, 23, 42) // Slate900
+            paint.color = Color.rgb(15, 23, 42)
             canvas.drawRect(0f, 0f, 595f, 110f, paint)
 
             paint.color = Color.WHITE
@@ -751,73 +775,107 @@ class StudentRepository(private val context: Context) {
 
             paint.textSize = 11f
             paint.isFakeBoldText = false
-            canvas.drawText("Fee Management Desk • Reg No: 4883 • Estd. 1994", 297.5f, 75f, paint)
+            paint.color = Color.rgb(147, 197, 253)
+            canvas.drawText("KODUVALLY, KOZHIKODE • REG NO: 4883", 297.5f, 75f, paint)
 
-            // Title
-            paint.color = Color.rgb(37, 99, 235) // Blue600
-            paint.textSize = 15f
+            paint.textSize = 12f
+            paint.color = Color.WHITE
             paint.isFakeBoldText = true
-            canvas.drawText("OFFICIAL FEE RECEIPT", 297.5f, 150f, paint)
+            canvas.drawText("OFFICIAL FEE PAYMENT RECEIPT", 297.5f, 95f, paint)
 
-            paint.color = Color.rgb(226, 232, 240)
-            paint.strokeWidth = 1.5f
-            canvas.drawLine(40f, 165f, 555f, 165f, paint)
+            // Receipt Box
+            val boxPaint = Paint()
+            boxPaint.color = Color.rgb(241, 245, 249)
+            boxPaint.style = Paint.Style.FILL
+            canvas.drawRoundRect(40f, 130f, 555f, 210f, 12f, 12f, boxPaint)
 
-            // Metadata Grid
             paint.textAlign = Paint.Align.LEFT
-            var y = 200f
-            val metadata = listOf(
-                "Receipt Number" to receipt.receiptNo,
-                "Issue Date" to receipt.date,
-                "Student Name" to receipt.studentName,
-                "Admission No" to receipt.admNo,
-                "Class" to receipt.studentClass,
-                "Fee Category" to receipt.feeCategory,
-                "Payment Mode" to receipt.paymentMode,
-                "Authorized Collector" to receipt.collectorName
-            )
+            paint.color = Color.rgb(71, 85, 105)
+            paint.textSize = 11f
+            paint.isFakeBoldText = false
+            canvas.drawText("Receipt No:", 60f, 160f, paint)
+            canvas.drawText("Date & Time:", 60f, 185f, paint)
 
-            for ((k, v) in metadata) {
-                paint.isFakeBoldText = false
+            paint.color = Color.rgb(15, 23, 42)
+            paint.isFakeBoldText = true
+            paint.textSize = 12f
+            canvas.drawText(receipt.receiptNo, 160f, 160f, paint)
+            canvas.drawText(receipt.date, 160f, 185f, paint)
+
+            paint.color = Color.rgb(71, 85, 105)
+            paint.isFakeBoldText = false
+            paint.textSize = 11f
+            canvas.drawText("Payment Mode:", 340f, 160f, paint)
+            canvas.drawText("Cashier / Desk:", 340f, 185f, paint)
+
+            paint.color = Color.rgb(15, 23, 42)
+            paint.isFakeBoldText = true
+            paint.textSize = 12f
+            canvas.drawText(receipt.paymentMode, 440f, 160f, paint)
+            canvas.drawText(receipt.collectorName, 440f, 185f, paint)
+
+            // Student Information Section
+            paint.color = Color.rgb(30, 41, 59)
+            paint.textSize = 14f
+            paint.isFakeBoldText = true
+            canvas.drawText("Student Particulars", 40f, 240f, paint)
+
+            paint.color = Color.rgb(203, 213, 225)
+            paint.strokeWidth = 1f
+            canvas.drawLine(40f, 250f, 555f, 250f, paint)
+
+            var y = 275f
+            val labelX = 60f
+            val valX = 220f
+
+            fun drawRow(label: String, value: String) {
                 paint.color = Color.rgb(100, 116, 139)
                 paint.textSize = 12f
-                canvas.drawText(k, 60f, y, paint)
+                paint.isFakeBoldText = false
+                canvas.drawText(label, labelX, y, paint)
 
-                paint.isFakeBoldText = true
                 paint.color = Color.rgb(15, 23, 42)
-                canvas.drawText(v, 220f, y, paint)
+                paint.textSize = 12f
+                paint.isFakeBoldText = true
+                canvas.drawText(value, valX, y, paint)
                 y += 26f
             }
 
-            canvas.drawLine(40f, y + 15f, 555f, y + 15f, paint)
-            y += 45f
+            drawRow("Student Name", receipt.studentName)
+            drawRow("Admission Number", receipt.admNo)
+            drawRow("Current Class", receipt.studentClass)
+            drawRow("Fee Classification", receipt.feeCategory)
 
-            // Total Block
-            paint.color = Color.rgb(236, 253, 245)
-            canvas.drawRoundRect(40f, y, 555f, y + 65f, 12f, 12f, paint)
+            // Amount Box
+            y += 15f
+            val amtPaint = Paint()
+            amtPaint.color = Color.rgb(238, 242, 255)
+            canvas.drawRoundRect(40f, y, 555f, y + 70f, 12f, 12f, amtPaint)
 
-            paint.color = Color.rgb(5, 150, 105)
+            paint.color = Color.rgb(67, 56, 202)
             paint.textSize = 14f
             paint.isFakeBoldText = true
-            canvas.drawText("TOTAL AMOUNT PAID:", 60f, y + 40f, paint)
+            canvas.drawText("Total Amount Paid", 60f, y + 42f, paint)
 
-            paint.textSize = 20f
+            paint.textSize = 22f
             paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("INR ${receipt.amount.toInt()}.00", 535f, y + 42f, paint)
+            paint.color = Color.rgb(30, 27, 75)
+            canvas.drawText("₹ ${String.format(Locale.US, "%.2f", receipt.amount)}", 535f, y + 44f, paint)
 
             // Footer
             y += 120f
             paint.textAlign = Paint.Align.CENTER
-            paint.textSize = 11f
-            paint.color = Color.rgb(100, 116, 139)
+            paint.textSize = 10f
+            paint.color = Color.rgb(148, 163, 184)
             paint.isFakeBoldText = false
-            canvas.drawText("This is an authentic computer-generated digital fee receipt.", 297.5f, y, paint)
-            canvas.drawText("Thank you for your timely contribution to our institution.", 297.5f, y + 18f, paint)
+            canvas.drawText("This is an electronically generated receipt verified by Noorul Islam Madrasa System.", 297.5f, y, paint)
+            canvas.drawText("For inquiries contact the institutional office. Generated on ${receipt.date}", 297.5f, y + 16f, paint)
 
             pdfDoc.finishPage(page)
 
-            val dir = File(context.cacheDir, "receipts").apply { mkdirs() }
-            val file = File(dir, "${receipt.receiptNo}.pdf")
+            val dir = File(context.cacheDir, "receipts")
+            if (!dir.exists()) dir.mkdirs()
+            val file = File(dir, "Receipt_${receipt.receiptNo}.pdf")
             val outputStream = FileOutputStream(file)
             pdfDoc.writeTo(outputStream)
             outputStream.flush()
@@ -830,26 +888,26 @@ class StudentRepository(private val context: Context) {
         }
     }
 
-    fun shareReceiptPdf(file: File) {
+    fun sharePdf(file: File) {
         try {
-            val uri = FileProvider.getUriForFile(
-                context,
-                "org.noorulislam.app.fileprovider",
-                file
-            )
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Fee Receipt - ${file.nameWithoutExtension}")
+                putExtra(Intent.EXTRA_SUBJECT, "Fee Payment Receipt - ${file.name}")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(Intent.createChooser(intent, "Share Fee Receipt").apply {
+            context.startActivity(Intent.createChooser(intent, "Share Receipt PDF").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             })
         } catch (e: Exception) {
             Log.e(TAG, "Error sharing PDF", e)
         }
+    }
+
+    fun shareReceiptPdf(file: File) {
+        sharePdf(file)
     }
 
     fun getSavedPrinterWidth(): String {
@@ -861,66 +919,68 @@ class StudentRepository(private val context: Context) {
     }
 
     fun getSavedPrinterAddress(): String? {
-        return prefs.getString("printer_bt_address", null)
+        return prefs.getString("printer_bluetooth_address", null)
     }
 
     fun savePrinterAddress(address: String) {
-        prefs.edit().putString("printer_bt_address", address).apply()
-    }
-
-    fun saveAccount(account: SavedStudentAccount) {
-        val accounts = getSavedAccounts().toMutableList()
-        val index = accounts.indexOfFirst { it.studentId == account.studentId }
-        if (index >= 0) {
-            accounts[index] = account
-        } else {
-            accounts.add(account)
-        }
-        val array = JSONArray()
-        accounts.forEach { acc ->
-            val obj = JSONObject()
-            obj.put("studentId", acc.studentId)
-            obj.put("name", acc.name)
-            obj.put("admNo", acc.admNo)
-            obj.put("studentClass", acc.studentClass)
-            array.put(obj)
-        }
-        prefs.edit().putString("saved_accounts", array.toString()).apply()
+        prefs.edit().putString("printer_bluetooth_address", address).apply()
     }
 
     fun getSavedAccounts(): List<SavedStudentAccount> {
-        val json = prefs.getString("saved_accounts", null) ?: return emptyList()
-        val result = mutableListOf<SavedStudentAccount>()
-        try {
-            val array = JSONArray(json)
+        val raw = prefs.getString("saved_student_accounts", null) ?: return emptyList()
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<SavedStudentAccount>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                result.add(
+                list.add(
                     SavedStudentAccount(
-                        studentId = obj.optString("studentId"),
-                        name = obj.optString("name"),
-                        admNo = obj.optString("admNo"),
-                        studentClass = obj.optString("studentClass")
+                        studentId = obj.getString("studentId"),
+                        name = obj.getString("name"),
+                        admNo = obj.getString("admNo"),
+                        studentClass = obj.getString("studentClass")
                     )
                 )
             }
+            list
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing saved accounts", e)
+            emptyList()
         }
-        return result
+    }
+
+    fun saveAccount(account: SavedStudentAccount) {
+        try {
+            val list = getSavedAccounts().toMutableList()
+            list.removeAll { it.studentId == account.studentId }
+            list.add(0, account)
+            val array = JSONArray()
+            for (acc in list.take(10)) {
+                val obj = JSONObject().apply {
+                    put("studentId", acc.studentId)
+                    put("name", acc.name)
+                    put("admNo", acc.admNo)
+                    put("studentClass", acc.studentClass)
+                }
+                array.put(obj)
+            }
+            prefs.edit().putString("saved_student_accounts", array.toString()).apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving account", e)
+        }
     }
 
     fun removeAccount(studentId: String) {
-        val accounts = getSavedAccounts().filter { it.studentId != studentId }
+        val list = getSavedAccounts().filter { it.studentId != studentId }
         val array = JSONArray()
-        accounts.forEach { acc ->
-            val obj = JSONObject()
-            obj.put("studentId", acc.studentId)
-            obj.put("name", acc.name)
-            obj.put("admNo", acc.admNo)
-            obj.put("studentClass", acc.studentClass)
+        for (acc in list) {
+            val obj = JSONObject().apply {
+                put("studentId", acc.studentId)
+                put("name", acc.name)
+                put("admNo", acc.admNo)
+                put("studentClass", acc.studentClass)
+            }
             array.put(obj)
         }
-        prefs.edit().putString("saved_accounts", array.toString()).apply()
+        prefs.edit().putString("saved_student_accounts", array.toString()).apply()
     }
 }

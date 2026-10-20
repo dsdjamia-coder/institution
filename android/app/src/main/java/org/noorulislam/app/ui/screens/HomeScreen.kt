@@ -34,32 +34,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.noorulislam.app.data.*
 
-// Color tokens replicating styles/main.css and index.html
-private val Slate900 = Color(0xFF0F172A)
-private val Slate800 = Color(0xFF1E293B)
-private val Slate700 = Color(0xFF334155)
-private val Slate600 = Color(0xFF475569)
-private val Slate500 = Color(0xFF64748B)
-private val Slate200 = Color(0xFFE2E8F0)
-private val Slate100 = Color(0xFFF1F5F9)
-private val Slate50 = Color(0xFFF8FAFC)
-
-private val Blue600 = Color(0xFF2563EB)
-private val Blue700 = Color(0xFF1D4ED8)
-private val Blue100 = Color(0xFFDBEAFE)
-private val Blue50 = Color(0xFFEFF6FF)
-
-private val Emerald600 = Color(0xFF059669)
-private val Emerald500 = Color(0xFF10B981)
-private val Emerald50 = Color(0xFFECFDF5)
-
-private val Amber600 = Color(0xFFD97706)
-private val Amber500 = Color(0xFFF59E0B)
-private val Amber50 = Color(0xFFFFFBEB)
-
-private val Teal600 = Color(0xFF0D9488)
-private val Teal500 = Color(0xFF14B8A6)
-private val Teal50 = Color(0xFFF0FDFA)
+import org.noorulislam.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -902,6 +877,7 @@ fun SocialIconBtn(icon: ImageVector, onClick: () -> Unit) {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentLoginModalSheet(
     repository: StudentRepository,
@@ -909,20 +885,65 @@ fun StudentLoginModalSheet(
     onLoginSuccess: (StudentProfile) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val classOptions = remember {
-        listOf(
-            "Class 1", "Class 2", "Class 3", "Class 4", "Class 5",
-            "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Alumni"
-        )
-    }
-
-    var selectedClass by remember { mutableStateOf("Class 7") }
+    var classOptions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedClass by remember { mutableStateOf("") }
     var classDropdownExpanded by remember { mutableStateOf(false) }
     var identifierQuery by remember { mutableStateOf("") }
+    var suggestions by remember { mutableStateOf<List<StudentProfile>>(emptyList()) }
     var phoneInput by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showOfficeWarningDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val loaded = repository.getDistinctClasses()
+        classOptions = loaded
+        if (loaded.isNotEmpty()) {
+            selectedClass = loaded.first()
+        }
+    }
+
+    LaunchedEffect(selectedClass, identifierQuery) {
+        val cleanTxt = identifierQuery.trim()
+        if (selectedClass.isNotEmpty() && cleanTxt.length >= 1) {
+            suggestions = repository.searchStudents(cleanTxt, selectedClass).take(6)
+        } else {
+            suggestions = emptyList()
+        }
+    }
+
+    if (showOfficeWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showOfficeWarningDialog = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = Amber500, modifier = Modifier.size(32.dp)) },
+            title = {
+                Text(
+                    text = "No Registered Mobile Number",
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "This student does not have a registered mobile number in the institutional database. For access to the Student Portal, please contact the Madrasa office.",
+                    color = Slate700,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showOfficeWarningDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("OK, Contact Office")
+                }
+            }
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -963,13 +984,13 @@ fun StudentLoginModalSheet(
                 }
             }
 
-            // Class Selector Dropdown
+            // Class Selector Dropdown (Dynamic from Firestore)
             ExposedDropdownMenuBox(
                 expanded = classDropdownExpanded,
                 onExpandedChange = { classDropdownExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = selectedClass,
+                    value = if (selectedClass.isEmpty()) "Loading classes..." else selectedClass,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Select Class") },
@@ -988,6 +1009,8 @@ fun StudentLoginModalSheet(
                             text = { Text(cls, fontWeight = if (cls == selectedClass) FontWeight.Bold else FontWeight.Normal) },
                             onClick = {
                                 selectedClass = cls
+                                identifierQuery = ""
+                                suggestions = emptyList()
                                 classDropdownExpanded = false
                             }
                         )
@@ -995,26 +1018,77 @@ fun StudentLoginModalSheet(
                 }
             }
 
-            // Search Name or Admission Number
-            OutlinedTextField(
-                value = identifierQuery,
-                onValueChange = { identifierQuery = it },
-                label = { Text("Search Name or Adm No") },
-                placeholder = { Text("e.g. 2024-0142 or Irfan") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = Slate500)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
-            )
+            // Search Name or Admission Number with Live Autocomplete
+            Column {
+                OutlinedTextField(
+                    value = identifierQuery,
+                    onValueChange = { identifierQuery = it },
+                    label = { Text("Search Name or Adm No") },
+                    placeholder = { Text("Type name or admission number") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = Slate500)
+                    },
+                    trailingIcon = {
+                        if (identifierQuery.isNotEmpty()) {
+                            IconButton(onClick = { identifierQuery = ""; suggestions = emptyList() }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Slate400, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                // Suggestions Dropdown Card
+                if (suggestions.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Slate50,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
+                    ) {
+                        Column {
+                            suggestions.forEach { st ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            identifierQuery = st.name
+                                            suggestions = emptyList()
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = st.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "Adm: ${st.admNo.ifEmpty { "--" }}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Slate500
+                                    )
+                                }
+                                Divider(color = Slate200, thickness = 0.5.dp)
+                            }
+                        }
+                    }
+                }
+            }
 
             // Password (Mobile Number) with Eye Toggle
             OutlinedTextField(
                 value = phoneInput,
                 onValueChange = { phoneInput = it },
-                label = { Text("Password (Mobile Number)") },
-                placeholder = { Text("Registered 10-digit number") },
+                label = { Text("Password (Registered Mobile Number)") },
+                placeholder = { Text("10-digit mobile number") },
                 leadingIcon = {
                     Icon(Icons.Default.Key, contentDescription = null, tint = Slate500)
                 },
@@ -1035,13 +1109,14 @@ fun StudentLoginModalSheet(
 
             if (errorMessage != null) {
                 Surface(
-                    color = Color(0xFFFEF2F2),
+                    color = Red50,
                     shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Red100),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = errorMessage!!,
-                        color = Color(0xFFDC2626),
+                        color = Red600,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(10.dp)
@@ -1064,7 +1139,11 @@ fun StudentLoginModalSheet(
                         result.onSuccess { student ->
                             onLoginSuccess(student)
                         }.onFailure { err ->
-                            errorMessage = err.localizedMessage ?: "Student verification failed."
+                            val msg = err.localizedMessage ?: "Student verification failed."
+                            if (msg.contains("MISSING_PHONE")) {
+                                showOfficeWarningDialog = true
+                            }
+                            errorMessage = msg.replace("MISSING_PHONE: ", "")
                         }
                     }
                 },
@@ -1088,3 +1167,4 @@ fun StudentLoginModalSheet(
         }
     }
 }
+
