@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import org.noorulislam.app.ui.screens.CollectionScreen
 import org.noorulislam.app.ui.screens.HomeScreen
 import org.noorulislam.app.ui.screens.StudentPortalScreen
 
@@ -46,6 +47,17 @@ fun NoorulIslamNavigationApp() {
             HomeScreen(
                 onNavigateToStudent = { studentId ->
                     navController.navigate("student/$studentId")
+                },
+                onNavigateToCollection = {
+                    navController.navigate("collection")
+                }
+            )
+        }
+
+        composable("collection") {
+            CollectionScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

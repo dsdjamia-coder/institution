@@ -50,7 +50,8 @@ private val Teal50 = Color(0xFFF0FDFA)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onNavigateToStudent: (String) -> Unit
+    onNavigateToStudent: (String) -> Unit,
+    onNavigateToCollection: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val repository = remember { StudentRepository(context) }
@@ -59,6 +60,9 @@ fun HomeScreen(
     var stats by remember { mutableStateOf(InstitutionStats(480, 24, 252, 228)) }
     var savedAccounts by remember { mutableStateOf<List<SavedStudentAccount>>(emptyList()) }
     var showLoginSheet by remember { mutableStateOf(false) }
+    var showAdminDialog by remember { mutableStateOf(false) }
+    var adminOverview by remember { mutableStateOf<org.noorulislam.app.data.AdminOverview?>(null) }
+    var isLoadingAdmin by remember { mutableStateOf(false) }
 
     // Initial load of live stats & local multi-child accounts
     LaunchedEffect(Unit) {
@@ -67,6 +71,14 @@ fun HomeScreen(
             stats = repository.getInstitutionStats()
         } catch (e: Exception) {
             // Graceful fallback to default stats
+        }
+    }
+
+    LaunchedEffect(showAdminDialog) {
+        if (showAdminDialog) {
+            isLoadingAdmin = true
+            adminOverview = repository.getAdminOverview()
+            isLoadingAdmin = false
         }
     }
 
@@ -185,6 +197,45 @@ fun HomeScreen(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = onNavigateToCollection,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = Emerald600,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Fee Desk", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            FilledTonalButton(
+                                onClick = { showAdminDialog = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = Slate700,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Admin Stats", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -391,6 +442,89 @@ fun HomeScreen(
             onLoginSuccess = { student ->
                 showLoginSheet = false
                 onNavigateToStudent(student.id)
+            }
+        )
+    }
+
+    // Admin Governance & Statistics Overview Dialog
+    if (showAdminDialog) {
+        AlertDialog(
+            onDismissRequest = { showAdminDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.BarChart, contentDescription = null, tint = Blue600)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Admin Overview", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
+            text = {
+                if (isLoadingAdmin) {
+                    Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Blue600)
+                    }
+                } else {
+                    val overview = adminOverview
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Emerald50),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Today's Fee Collections", fontSize = 12.sp, color = Emerald600, fontWeight = FontWeight.SemiBold)
+                                Text("₹${overview?.todayCollectionTotal?.toInt() ?: 0}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Slate900)
+                                Text("${overview?.todayReceiptsCount ?: 0} Verified Receipts Issued Today", fontSize = 11.sp, color = Slate700)
+                            }
+                        }
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Slate100),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Institution Statistics", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Total Students: ${overview?.stats?.totalStudents ?: 480}", fontSize = 12.sp)
+                                    Text("Staff: ${overview?.stats?.totalStaff ?: 24}", fontSize = 12.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Boys: ${overview?.stats?.maleStudents ?: 252}", fontSize = 12.sp)
+                                    Text("Girls: ${overview?.stats?.femaleStudents ?: 228}", fontSize = 12.sp)
+                                }
+                            }
+                        }
+
+                        Text("Recent Receipts:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                        LazyColumn(modifier = Modifier.heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(overview?.recentPayments ?: emptyList()) { p ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(p.receiptNo, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("${p.title} • ${p.date}", fontSize = 10.sp, color = Slate700)
+                                    }
+                                    Text("₹${p.amount.toInt()}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emerald600)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showAdminDialog = false
+                    onNavigateToCollection()
+                }) {
+                    Text("Go to Fee Desk")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdminDialog = false }) {
+                    Text("Close")
+                }
             }
         )
     }

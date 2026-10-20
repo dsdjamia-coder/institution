@@ -61,3 +61,37 @@ data class SavedStudentAccount(
     val admNo: String = "",
     val studentClass: String = ""
 )
+
+data class FeePaymentPayload(
+    val studentId: String,
+    val admNo: String,
+    val studentName: String,
+    val studentClass: String,
+    val amount: Double,
+    val feeCategory: String = "Tuition Fee",
+    val paymentMode: String = "CASH",
+    val remarks: String = "",
+    val collectorName: String = "Staff Desk"
+)
+
+data class PaymentReceipt(
+    val receiptNo: String,
+    val date: String,
+    val studentId: String,
+    val admNo: String,
+    val studentName: String,
+    val studentClass: String,
+    val amount: Double,
+    val feeCategory: String,
+    val paymentMode: String,
+    val collectorName: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class AdminOverview(
+    val stats: InstitutionStats,
+    val todayCollectionTotal: Double = 0.0,
+    val todayReceiptsCount: Int = 0,
+    val recentPayments: List<PaymentRecord> = emptyList()
+)
+
