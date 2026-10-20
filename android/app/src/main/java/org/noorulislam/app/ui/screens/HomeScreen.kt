@@ -246,7 +246,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
-                        CompactPillBtn(icon = Icons.Default.Chalkboard, label = "Teachers", color = Amber500) {
+                        CompactPillBtn(icon = Icons.Default.School, label = "Teachers", color = Amber500) {
                             if (teachers.isNotEmpty()) selectedTeacher = teachers.first()
                         }
                         CompactPillBtn(icon = Icons.Default.Notifications, label = "Notices", color = Color(0xFFEF4444)) {

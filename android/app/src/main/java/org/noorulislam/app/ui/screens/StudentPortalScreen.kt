@@ -45,6 +45,7 @@ private val Blue50 = Color(0xFFEFF6FF)
 
 private val Emerald700 = Color(0xFF047857)
 private val Emerald600 = Color(0xFF059669)
+private val Emerald500 = Color(0xFF10B981)
 private val Emerald100 = Color(0xFFD1FAE5)
 private val Emerald50 = Color(0xFFECFDF5)
 
@@ -58,6 +59,7 @@ private val Indigo600 = Color(0xFF4F46E5)
 private val Indigo50 = Color(0xFFEEF2FF)
 
 private val Amber600 = Color(0xFFD97706)
+private val Amber500 = Color(0xFFF59E0B)
 private val Amber50 = Color(0xFFFFFBEB)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -255,7 +257,7 @@ fun StudentPortalScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    BadgeChip(label = profile.studentClass, icon = Icons.Default.Chalkboard, bgColor = Blue100, textColor = Blue700)
+                                    BadgeChip(label = profile.studentClass, icon = Icons.Default.Class, bgColor = Blue100, textColor = Blue700)
                                     BadgeChip(label = profile.status, icon = Icons.Default.CheckCircle, bgColor = Emerald100, textColor = Emerald700)
                                     BadgeChip(label = profile.gender, icon = Icons.Default.Wc, bgColor = Slate100, textColor = Slate700)
                                 }
@@ -362,7 +364,7 @@ fun StudentPortalScreen(
                                 BioInfoCard(label = "Father's Name", value = profile.fatherName, icon = Icons.Default.Male)
                                 BioInfoCard(label = "Father's Mobile", value = profile.fatherPhone, icon = Icons.Default.Phone)
                                 BioInfoCard(label = "Mother's Name", value = profile.motherName, icon = Icons.Default.Female)
-                                BioInfoCard(label = "Mother's Mobile", value = profile.motherPhone, icon = Icons.Default.PhoneVolume)
+                                BioInfoCard(label = "Mother's Mobile", value = profile.motherPhone, icon = Icons.Default.Phone)
                                 BioInfoCard(label = "Permanent Address", value = profile.address, icon = Icons.Default.LocationOn)
                                 BioInfoCard(label = "Fee Concession Tier", value = profile.concessionGroup, icon = Icons.Default.Groups)
                             }
