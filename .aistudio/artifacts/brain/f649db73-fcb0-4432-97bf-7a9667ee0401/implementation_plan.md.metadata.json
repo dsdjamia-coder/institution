@@ -1,6 +1,6 @@
 {
-  "summary": "Comprehensive architectural rebuild specification and 100% feature inventory for the Noorul Islam Madrasa System across Native Android (Kotlin + Jetpack Compose), Native iOS (Swift + SwiftUI), Responsive Web (Next.js + Tailwind CSS), NestJS backend services, and Firebase Firestore/Auth/Cloud Functions. Contains complete traceability matrix, database schemas, RBAC matrix, and phase-by-phase rollout roadmap.",
-  "updatedAt": "2026-10-20T09:36:19.008577747Z",
+  "summary": "Implementation plan for upgrading the Native Android APK to a full-screen, hardware-accelerated Native WebView bridge that loads 100% of the live Noorul Islam Madrasa System (live Firestore data, fee collections, worksheets, student portal, admin governance, and camera/print features) with zero feature loss and identical fidelity to the web application.",
+  "updatedAt": "2026-10-20T11:42:41.544254220Z",
   "requestFeedback": true,
   "userFacing": true
 }
