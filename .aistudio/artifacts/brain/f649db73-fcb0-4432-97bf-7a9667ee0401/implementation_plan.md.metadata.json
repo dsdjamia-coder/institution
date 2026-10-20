@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for upgrading the Native Android APK to a full-screen, hardware-accelerated Native WebView bridge that loads 100% of the live Noorul Islam Madrasa System (live Firestore data, fee collections, worksheets, student portal, admin governance, and camera/print features) with zero feature loss and identical fidelity to the web application.",
-  "updatedAt": "2026-10-20T11:42:41.544254220Z",
+  "summary": "Implementation plan for building pure native Android Kotlin Jetpack Compose screens for the Index Page and Student Portal with direct live Firebase Firestore database integration. Features live statistics, interactive student login with admission number and phone verification, student fee ledger, exam results, multi-child profile switcher, and responsive Material 3 design matching the original web app.",
+  "updatedAt": "2026-10-20T12:04:12.063467062Z",
   "requestFeedback": true,
   "userFacing": true
 }
