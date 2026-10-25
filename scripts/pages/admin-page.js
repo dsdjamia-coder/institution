@@ -4,6 +4,7 @@ import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
 import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatDateDisplay, hardenExternalLinks, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
+import { InteractiveCropper } from '../shared/image-cropper.js';
 
 registerServiceWorker();
 hardenExternalLinks();
@@ -1701,30 +1702,40 @@ if (window.location.hash === '#results') {
 }
 
 // --- ADMIN PHOTO WIDGET HANDLING ---
-let activeAdminCropImg = null;
-let adminCropZoom = 1;
-let adminCropPanX = 0;
-let adminCropPanY = 0;
+let adminInteractiveCropper = null;
 let adminCameraStream = null;
 let activePhotoTargetInputId = '';
 let activePhotoTargetPreviewId = '';
 let activePhotoTargetPlaceholderId = '';
 let activePhotoTargetRemoveBtnId = '';
 
-const drawAdminCropCanvas = () => {
+const openAdminInteractiveCropper = async (imageSrc, inputId = '', previewId = '', placeholderId = '', removeBtnId = '') => {
+    if (inputId) activePhotoTargetInputId = inputId;
+    if (previewId) activePhotoTargetPreviewId = previewId;
+    if (placeholderId) activePhotoTargetPlaceholderId = placeholderId;
+    if (removeBtnId) activePhotoTargetRemoveBtnId = removeBtnId;
+
+    const modal = document.getElementById('admin-crop-modal');
     const canvas = document.getElementById('admin-crop-canvas');
-    if (!canvas || !activeAdminCropImg) return;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 150, 150);
+    if (!modal || !canvas) return;
 
-    const drawWidth = 150 * adminCropZoom;
-    const drawHeight = (activeAdminCropImg.height / activeAdminCropImg.width) * drawWidth;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
 
-    const xOffset = (150 - drawWidth) / 2 + (adminCropPanX * drawWidth / 100);
-    const yOffset = (150 - drawHeight) / 2 + (adminCropPanY * drawHeight / 100);
+    if (!adminInteractiveCropper) {
+        adminInteractiveCropper = new InteractiveCropper({
+            canvas: canvas,
+            targetSize: 400,
+            maxKb: 50
+        });
+    }
 
-    ctx.drawImage(activeAdminCropImg, xOffset, yOffset, drawWidth, drawHeight);
+    try {
+        await adminInteractiveCropper.loadImage(imageSrc);
+    } catch (err) {
+        console.error('Failed to load image in admin cropper:', err);
+        showToast('Failed to load image for cropping', 'error');
+    }
 };
 
 const setupAdminPhotoWidget = (inputId, previewId, placeholderId, removeBtnId, fileInputId, cameraBtnId, uploadBtnId) => {
@@ -1734,26 +1745,7 @@ const setupAdminPhotoWidget = (inputId, previewId, placeholderId, removeBtnId, f
     const removeBtn = document.getElementById(removeBtnId);
 
     const showCropper = (imageSrc) => {
-        const img = new Image();
-        img.onload = () => {
-            activeAdminCropImg = img;
-            adminCropZoom = 1;
-            adminCropPanX = 0;
-            adminCropPanY = 0;
-            activePhotoTargetInputId = inputId;
-            activePhotoTargetPreviewId = previewId;
-            activePhotoTargetPlaceholderId = placeholderId;
-            activePhotoTargetRemoveBtnId = removeBtnId;
-
-            document.getElementById('admin-crop-zoom').value = 1;
-            document.getElementById('admin-crop-panx').value = 0;
-            document.getElementById('admin-crop-pany').value = 0;
-            document.getElementById('admin-zoom-label').textContent = '1.0x';
-            document.getElementById('admin-crop-modal').classList.remove('hidden');
-            document.getElementById('admin-crop-modal').classList.add('flex');
-            drawAdminCropCanvas();
-        };
-        img.src = imageSrc;
+        openAdminInteractiveCropper(imageSrc, inputId, previewId, placeholderId, removeBtnId);
     };
 
     if (fileInput) {
@@ -1764,6 +1756,7 @@ const setupAdminPhotoWidget = (inputId, previewId, placeholderId, removeBtnId, f
                 reader.onload = () => showCropper(reader.result);
                 reader.readAsDataURL(file);
             }
+            e.target.value = '';
         });
     }
 
@@ -2002,97 +1995,63 @@ const initAllAdminPhotoWidgets = () => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         stopAdminCamera();
-
-        const img = new Image();
-        img.onload = () => {
-            activeAdminCropImg = img;
-            adminCropZoom = 1;
-            adminCropPanX = 0;
-            adminCropPanY = 0;
-            document.getElementById('admin-crop-zoom').value = 1;
-            document.getElementById('admin-crop-panx').value = 0;
-            document.getElementById('admin-crop-pany').value = 0;
-            document.getElementById('admin-zoom-label').textContent = '1.0x';
-            document.getElementById('admin-crop-modal').classList.remove('hidden');
-            document.getElementById('admin-crop-modal').classList.add('flex');
-            drawAdminCropCanvas();
-        };
-        img.src = canvas.toDataURL('image/jpeg');
+        openAdminInteractiveCropper(canvas.toDataURL('image/jpeg', 0.95));
     });
 
     document.getElementById('admin-crop-close-btn')?.addEventListener('click', () => {
-        document.getElementById('admin-crop-modal').classList.add('hidden');
-        document.getElementById('admin-crop-modal').classList.remove('flex');
+        document.getElementById('admin-crop-modal')?.classList.add('hidden');
+        document.getElementById('admin-crop-modal')?.classList.remove('flex');
     });
     document.getElementById('admin-crop-cancel-btn')?.addEventListener('click', () => {
-        document.getElementById('admin-crop-modal').classList.add('hidden');
-        document.getElementById('admin-crop-modal').classList.remove('flex');
+        document.getElementById('admin-crop-modal')?.classList.add('hidden');
+        document.getElementById('admin-crop-modal')?.classList.remove('flex');
     });
 
-    const zoomInput = document.getElementById('admin-crop-zoom');
-    const panXInput = document.getElementById('admin-crop-panx');
-    const panYInput = document.getElementById('admin-crop-pany');
-
-    zoomInput?.addEventListener('input', (e) => {
-        adminCropZoom = parseFloat(e.target.value);
-        document.getElementById('admin-zoom-label').textContent = adminCropZoom.toFixed(1) + 'x';
-        drawAdminCropCanvas();
+    document.getElementById('admin-crop-rotate-btn')?.addEventListener('click', () => {
+        adminInteractiveCropper?.rotateClockwise();
     });
-    panXInput?.addEventListener('input', (e) => {
-        adminCropPanX = parseInt(e.target.value);
-        drawAdminCropCanvas();
+    document.getElementById('admin-crop-zoomin-btn')?.addEventListener('click', () => {
+        adminInteractiveCropper?.zoomCropBox(1.15);
     });
-    panYInput?.addEventListener('input', (e) => {
-        adminCropPanY = parseInt(e.target.value);
-        drawAdminCropCanvas();
+    document.getElementById('admin-crop-zoomout-btn')?.addEventListener('click', () => {
+        adminInteractiveCropper?.zoomCropBox(0.85);
+    });
+    document.getElementById('admin-crop-reset-btn')?.addEventListener('click', () => {
+        adminInteractiveCropper?.reset();
     });
 
     document.getElementById('admin-crop-save-btn')?.addEventListener('click', () => {
-        const canvas = document.getElementById('admin-crop-canvas');
-        if (!canvas) return;
-        let quality = 0.9;
-        let base64 = canvas.toDataURL('image/jpeg', quality);
+        if (!adminInteractiveCropper) return;
+        try {
+            const base64 = adminInteractiveCropper.getCroppedBase64(50, 400);
 
-        // Compress base64 size to strictly under 50KB (approx 50 * 1024 bytes)
-        while (base64.length * 0.75 > 50 * 1024 && quality > 0.1) {
-            quality -= 0.1;
-            base64 = canvas.toDataURL('image/jpeg', quality);
-        }
+            document.getElementById('admin-crop-modal')?.classList.add('hidden');
+            document.getElementById('admin-crop-modal')?.classList.remove('flex');
 
-        // If still over 50KB, scale down resolution iteratively
-        let currentWidth = 150;
-        let currentHeight = 150;
-        while (base64.length * 0.75 > 50 * 1024 && currentWidth > 60) {
-            currentWidth -= 15;
-            currentHeight -= 15;
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = currentWidth;
-            tempCanvas.height = currentHeight;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
-            base64 = tempCanvas.toDataURL('image/jpeg', 0.6);
-        }
+            // Save result to hidden input
+            if (activePhotoTargetInputId) {
+                const targetInput = document.getElementById(activePhotoTargetInputId);
+                if (targetInput) targetInput.value = base64;
+            }
 
-        document.getElementById('admin-crop-modal').classList.add('hidden');
-        document.getElementById('admin-crop-modal').classList.remove('flex');
+            // Update Preview UI
+            const preview = document.getElementById(activePhotoTargetPreviewId);
+            const placeholder = document.getElementById(activePhotoTargetPlaceholderId);
+            const removeBtn = document.getElementById(activePhotoTargetRemoveBtnId);
 
-        // Save result to hidden input
-        document.getElementById(activePhotoTargetInputId).value = base64;
-
-        // Update Preview UI
-        const preview = document.getElementById(activePhotoTargetPreviewId);
-        const placeholder = document.getElementById(activePhotoTargetPlaceholderId);
-        const removeBtn = document.getElementById(activePhotoTargetRemoveBtnId);
-
-        if (preview) {
-            preview.src = base64;
-            preview.classList.remove('hidden');
-        }
-        if (placeholder) {
-            placeholder.classList.add('hidden');
-        }
-        if (removeBtn) {
-            removeBtn.classList.remove('hidden');
+            if (preview) {
+                preview.src = base64;
+                preview.classList.remove('hidden');
+            }
+            if (placeholder) {
+                placeholder.classList.add('hidden');
+            }
+            if (removeBtn) {
+                removeBtn.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error('Crop error:', err);
+            showToast('Failed to crop image', 'error');
         }
     });
 };

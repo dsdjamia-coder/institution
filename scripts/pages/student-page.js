@@ -3,6 +3,7 @@ import { doc, getDoc, getDocFromCache, collection, query, where, getDocs, onSnap
 import { db, auth } from '../../config/firebase-config.js';
 import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, registerServiceWorker, renderVersionInfo, sanitizeUrl } from '../shared/app-common.js';
 import { registerPortalForPwa } from '../shared/pwa-install.js';
+import { InteractiveCropper } from '../shared/image-cropper.js';
 
 async function fetchDocWithRetry(docRef, maxRetries = 3, initialDelayMs = 1200) {
     let lastError = null;
@@ -3107,12 +3108,32 @@ const studentPwa = registerPortalForPwa('student', {
                 if (container) container.innerHTML = buildEmptyState('Unable to load results. Please refresh and try again.', 'fa-exclamation-triangle');
             }
         };
-        let activeCropImg = null;
-        let cropZoom = 1;
-        let cropPanX = 0;
-        let cropPanY = 0;
+        let studentInteractiveCropper = null;
         let cameraStream = null;
         let studentCameraFacingMode = 'user';
+
+        const openStudentInteractiveCropper = async (imageSrc) => {
+            const modal = document.getElementById('student-crop-modal');
+            const canvas = document.getElementById('student-crop-canvas');
+            if (!modal || !canvas) return;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            if (!studentInteractiveCropper) {
+                studentInteractiveCropper = new InteractiveCropper({
+                    canvas: canvas,
+                    targetSize: 400,
+                    maxKb: 50
+                });
+            }
+
+            try {
+                await studentInteractiveCropper.loadImage(imageSrc);
+            } catch (err) {
+                console.error('Failed to load image in student cropper:', err);
+            }
+        };
 
         const startStudentCamera = async (facingMode = 'user') => {
             const video = document.getElementById('student-camera-video');
@@ -3161,27 +3182,6 @@ const studentPwa = registerPortalForPwa('student', {
             }
         };
 
-        const drawStudentCropCanvas = () => {
-            const canvas = document.getElementById('student-crop-canvas');
-            if (!canvas || !activeCropImg) return;
-            const size = canvas.width || 200;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, size, size);
-
-            const imgW = activeCropImg.width || 1;
-            const imgH = activeCropImg.height || 1;
-            // Cover scale so the image fills the 1:1 square at 1.0x zoom
-            const baseScale = Math.max(size / imgW, size / imgH);
-            const drawWidth = imgW * baseScale * cropZoom;
-            const drawHeight = imgH * baseScale * cropZoom;
-
-            const xOffset = (size - drawWidth) / 2 + (cropPanX * drawWidth / 100);
-            const yOffset = (size - drawHeight) / 2 + (cropPanY * drawHeight / 100);
-
-            ctx.drawImage(activeCropImg, xOffset, yOffset, drawWidth, drawHeight);
-        };
-
         const setupStudentPhotoActions = () => {
             const fileInput = document.getElementById('student-photo-file-input');
             const cameraBtn = document.getElementById('student-photo-camera-btn');
@@ -3196,23 +3196,7 @@ const studentPwa = registerPortalForPwa('student', {
                             topModal.classList.remove('flex');
                         }
                         const reader = new FileReader();
-                        reader.onload = () => {
-                            const img = new Image();
-                            img.onload = () => {
-                                activeCropImg = img;
-                                cropZoom = 1;
-                                cropPanX = 0;
-                                cropPanY = 0;
-                                document.getElementById('student-crop-zoom').value = 1;
-                                document.getElementById('student-crop-panx').value = 0;
-                                document.getElementById('student-crop-pany').value = 0;
-                                document.getElementById('student-zoom-label').textContent = '1.0x';
-                                document.getElementById('student-crop-modal').classList.remove('hidden');
-                                document.getElementById('student-crop-modal').classList.add('flex');
-                                drawStudentCropCanvas();
-                            };
-                            img.src = reader.result;
-                        };
+                        reader.onload = () => openStudentInteractiveCropper(reader.result);
                         reader.readAsDataURL(file);
                     }
                     e.target.value = '';
@@ -3247,90 +3231,45 @@ const studentPwa = registerPortalForPwa('student', {
                 if (!video) return;
                 const vw = video.videoWidth || 640;
                 const vh = video.videoHeight || 640;
-                const squareSide = Math.min(vw, vh);
-                const sx = Math.max(0, (vw - squareSide) / 2);
-                const sy = Math.max(0, (vh - squareSide) / 2);
-
                 const canvas = document.createElement('canvas');
-                canvas.width = 600;
-                canvas.height = 600;
+                canvas.width = vw;
+                canvas.height = vh;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, sx, sy, squareSide, squareSide, 0, 0, 600, 600);
+                ctx.drawImage(video, 0, 0, vw, vh);
                 stopStudentCamera();
 
-                const img = new Image();
-                img.onload = () => {
-                    activeCropImg = img;
-                    cropZoom = 1;
-                    cropPanX = 0;
-                    cropPanY = 0;
-                    document.getElementById('student-crop-zoom').value = 1;
-                    document.getElementById('student-crop-panx').value = 0;
-                    document.getElementById('student-crop-pany').value = 0;
-                    document.getElementById('student-zoom-label').textContent = '1.0x';
-                    document.getElementById('student-crop-modal').classList.remove('hidden');
-                    document.getElementById('student-crop-modal').classList.add('flex');
-                    drawStudentCropCanvas();
-                };
-                img.src = canvas.toDataURL('image/jpeg', 0.92);
+                openStudentInteractiveCropper(canvas.toDataURL('image/jpeg', 0.95));
             });
 
             // Crop modal control bindings
             document.getElementById('student-crop-close-btn')?.addEventListener('click', () => {
-                document.getElementById('student-crop-modal').classList.add('hidden');
-                document.getElementById('student-crop-modal').classList.remove('flex');
+                document.getElementById('student-crop-modal')?.classList.add('hidden');
+                document.getElementById('student-crop-modal')?.classList.remove('flex');
             });
             document.getElementById('student-crop-cancel-btn')?.addEventListener('click', () => {
-                document.getElementById('student-crop-modal').classList.add('hidden');
-                document.getElementById('student-crop-modal').classList.remove('flex');
+                document.getElementById('student-crop-modal')?.classList.add('hidden');
+                document.getElementById('student-crop-modal')?.classList.remove('flex');
             });
 
-            const zoomInput = document.getElementById('student-crop-zoom');
-            const panXInput = document.getElementById('student-crop-panx');
-            const panYInput = document.getElementById('student-crop-pany');
-
-            zoomInput?.addEventListener('input', (e) => {
-                cropZoom = parseFloat(e.target.value);
-                document.getElementById('student-zoom-label').textContent = cropZoom.toFixed(1) + 'x';
-                drawStudentCropCanvas();
+            document.getElementById('student-crop-rotate-btn')?.addEventListener('click', () => {
+                studentInteractiveCropper?.rotateClockwise();
             });
-            panXInput?.addEventListener('input', (e) => {
-                cropPanX = parseInt(e.target.value);
-                drawStudentCropCanvas();
+            document.getElementById('student-crop-zoomin-btn')?.addEventListener('click', () => {
+                studentInteractiveCropper?.zoomCropBox(1.15);
             });
-            panYInput?.addEventListener('input', (e) => {
-                cropPanY = parseInt(e.target.value);
-                drawStudentCropCanvas();
+            document.getElementById('student-crop-zoomout-btn')?.addEventListener('click', () => {
+                studentInteractiveCropper?.zoomCropBox(0.85);
+            });
+            document.getElementById('student-crop-reset-btn')?.addEventListener('click', () => {
+                studentInteractiveCropper?.reset();
             });
 
             document.getElementById('student-crop-save-btn')?.addEventListener('click', async () => {
-                const canvas = document.getElementById('student-crop-canvas');
-                if (!canvas) return;
-                let quality = 0.9;
-                let base64 = canvas.toDataURL('image/jpeg', quality);
+                if (!studentInteractiveCropper) return;
+                const base64 = studentInteractiveCropper.getCroppedBase64(50, 400);
 
-                // Compress base64 size to strictly under 50KB (approx 50 * 1024 bytes)
-                while (base64.length * 0.75 > 50 * 1024 && quality > 0.1) {
-                    quality -= 0.1;
-                    base64 = canvas.toDataURL('image/jpeg', quality);
-                }
-
-                // If still over 50KB, scale down resolution iteratively
-                let currentWidth = 200;
-                let currentHeight = 200;
-                while (base64.length * 0.75 > 50 * 1024 && currentWidth > 60) {
-                    currentWidth -= 15;
-                    currentHeight -= 15;
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = currentWidth;
-                    tempCanvas.height = currentHeight;
-                    const tempCtx = tempCanvas.getContext('2d');
-                    tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
-                    base64 = tempCanvas.toDataURL('image/jpeg', 0.6);
-                }
-
-                document.getElementById('student-crop-modal').classList.add('hidden');
-                document.getElementById('student-crop-modal').classList.remove('flex');
+                document.getElementById('student-crop-modal')?.classList.add('hidden');
+                document.getElementById('student-crop-modal')?.classList.remove('flex');
 
                 // Render updated image on UI immediately with circular progress ring
                 document.getElementById('dash-avatar').innerHTML = `<img src="${base64}" class="w-full h-full object-cover rounded-full" alt="Profile Photo">`;
