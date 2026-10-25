@@ -255,6 +255,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       sigLeft: 'Class Teacher',
       sigCenter: 'Checked By',
       sigRight: 'Principal / Head',
+      instNameOverride: '',
+      instSubOverride: '',
+      instRegOverride: '',
       customTitle: 'INSTITUTION WORKSHEET & REGISTER',
       customSubtitle: '',
       activeTab: 'data',
@@ -308,6 +311,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         n = Math.floor(n / 26) - 1;
       }
       return label;
+    };
+
+    const getPaperDimensionDesc = (paper = 'A4', orient = 'landscape') => {
+      if (paper === 'A4') return orient === 'landscape' ? '297 × 210 mm' : '210 × 297 mm';
+      if (paper === 'Legal') return orient === 'landscape' ? '355.6 × 215.9 mm (14 × 8.5 in)' : '215.9 × 355.6 mm (8.5 × 14 in)';
+      if (paper === 'A3') return orient === 'landscape' ? '420 × 297 mm' : '297 × 420 mm';
+      return '';
     };
 
     let allWorksheetTemplates = [];
@@ -541,6 +551,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         showHeader: builderConfig.showHeader !== false,
         repeatHeader: builderConfig.repeatHeader !== false,
         showSignatures: Boolean(builderConfig.showSignatures),
+        instNameOverride: builderConfig.instNameOverride || '',
+        instSubOverride: builderConfig.instSubOverride || '',
+        instRegOverride: builderConfig.instRegOverride || '',
         customTitle: builderConfig.customTitle || '',
         customSubtitle: builderConfig.customSubtitle || '',
         sigLeft: builderConfig.sigLeft || 'Class Teacher',
@@ -588,6 +601,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (template.borderMode) builderConfig.borderMode = template.borderMode;
       if (template.sortBy) builderConfig.sortBy = template.sortBy;
       if (template.groupBy) builderConfig.groupBy = template.groupBy;
+      if (template.instNameOverride !== undefined) builderConfig.instNameOverride = template.instNameOverride;
+      if (template.instSubOverride !== undefined) builderConfig.instSubOverride = template.instSubOverride;
+      if (template.instRegOverride !== undefined) builderConfig.instRegOverride = template.instRegOverride;
       if (template.customTitle !== undefined) builderConfig.customTitle = template.customTitle;
       if (template.customSubtitle !== undefined) builderConfig.customSubtitle = template.customSubtitle;
       if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
@@ -3969,9 +3985,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const currentFields = getAvailableFieldsForSource(builderConfig.sourceType);
       const dataRows = getBuilderDatasetRows();
 
-      const instName = resolveInstitutionName(institutionConfig);
-      const instSub = institutionConfig.place || institutionConfig.subtitle || 'Official Academic & Administrative Register';
-      const instReg = institutionConfig.regNo ? `Reg No: ${institutionConfig.regNo}` : '';
+      const defaultInstName = resolveInstitutionName(institutionConfig) || 'Institution / School Name';
+      const defaultInstSub = institutionConfig.place || institutionConfig.subtitle || 'Official Academic & Administrative Register';
+      const defaultInstReg = institutionConfig.regNo ? `Reg No: ${institutionConfig.regNo}` : '';
+
+      const effectiveInstName = builderConfig.instNameOverride !== undefined && builderConfig.instNameOverride !== '' ? builderConfig.instNameOverride : defaultInstName;
+      const effectiveInstSub = builderConfig.instSubOverride !== undefined && builderConfig.instSubOverride !== '' ? builderConfig.instSubOverride : defaultInstSub;
+      const effectiveInstReg = builderConfig.instRegOverride !== undefined && builderConfig.instRegOverride !== '' ? builderConfig.instRegOverride : defaultInstReg;
 
       const selectedYearObj = academicYears.find((y) => y.id === builderConfig.academicYearId);
       const yearLabel = selectedYearObj ? (selectedYearObj.name || selectedYearObj.label || selectedYearObj.id) : '';
@@ -3985,7 +4005,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       } else {
         autoSubInfo.push(builderConfig.staffCategory === 'ALL' ? 'All Staff & Management Categories' : `Category: ${builderConfig.staffCategory}`);
       }
-      const subtitleText = builderConfig.customSubtitle || autoSubInfo.join('  •  ');
+      const effectiveCustomTitle = builderConfig.customTitle !== undefined && builderConfig.customTitle !== '' ? builderConfig.customTitle : 'INSTITUTION WORKSHEET & REGISTER';
+      const effectiveCustomSub = builderConfig.customSubtitle !== undefined && builderConfig.customSubtitle !== '' ? builderConfig.customSubtitle : autoSubInfo.join('  •  ');
 
       const colSpanPrint = builderConfig.columns.length;
 
@@ -3993,12 +4014,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         <thead class="${builderConfig.repeatHeader ? 'builder-print-header repeat-header' : 'builder-print-header'}">
           <tr>
             <th colspan="${colSpanPrint + 1}" class="print-header-th bg-white border-0 !p-0">
-              <div class="print-header-content">
-                <h1 class="print-inst-name">${escapeHtml(instName)}</h1>
-                <h2 class="print-inst-sub">${escapeHtml(instSub)}</h2>
-                ${instReg ? `<h3 class="print-inst-reg">${escapeHtml(instReg)}</h3>` : ''}
-                ${builderConfig.customTitle ? `<h4 class="print-custom-title">${escapeHtml(builderConfig.customTitle)}</h4>` : ''}
-                ${subtitleText ? `<div class="text-[11px] font-bold text-slate-600 mt-1">${escapeHtml(subtitleText)}</div>` : ''}
+              <div class="print-header-content text-center py-2 px-3">
+                <input type="text" id="hdr-inst-name" class="header-live-input print-inst-name-input" value="${escapeHtml(effectiveInstName)}" placeholder="Institution Name (Click to edit directly)..." title="Click to edit Institution Name directly" />
+                <input type="text" id="hdr-inst-sub" class="header-live-input print-inst-sub-input" value="${escapeHtml(effectiveInstSub)}" placeholder="Subtitle / Place / Address..." title="Click to edit Subtitle directly" />
+                <input type="text" id="hdr-inst-reg" class="header-live-input print-inst-reg-input ${!effectiveInstReg ? 'no-print' : ''}" value="${escapeHtml(effectiveInstReg)}" placeholder="Reg / Affiliation No. (Optional)..." title="Click to edit Reg No directly" />
+                <div class="my-1.5 border-t border-slate-300 w-1/3 mx-auto"></div>
+                <input type="text" id="hdr-report-title" class="header-live-input print-report-title-input" value="${escapeHtml(effectiveCustomTitle)}" placeholder="Report / Register Heading..." title="Click to edit Report Title directly" />
+                <input type="text" id="hdr-report-sub" class="header-live-input print-report-sub-input" value="${escapeHtml(effectiveCustomSub)}" placeholder="Academic Year • Class • Section / Cohort Details..." title="Click to edit Sub-heading directly" />
               </div>
             </th>
           </tr>
@@ -4344,11 +4366,19 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               </div>
               <div class="flex flex-col">
                 <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Canvas Zoom</label>
-                <select id="builder-zoom" class="excel-input-ribbon w-20">
+                <select id="builder-zoom" class="excel-input-ribbon w-24 font-bold text-indigo-900">
+                  <option value="40" ${builderConfig.zoom === 40 ? 'selected' : ''}>40%</option>
+                  <option value="50" ${builderConfig.zoom === 50 ? 'selected' : ''}>50%</option>
+                  <option value="65" ${builderConfig.zoom === 65 ? 'selected' : ''}>65%</option>
                   <option value="75" ${builderConfig.zoom === 75 ? 'selected' : ''}>75%</option>
-                  <option value="90" ${builderConfig.zoom === 90 ? 'selected' : ''}>90%</option>
-                  <option value="100" ${builderConfig.zoom === 100 ? 'selected' : ''}>100%</option>
+                  <option value="85" ${builderConfig.zoom === 85 ? 'selected' : ''}>85%</option>
+                  <option value="100" ${builderConfig.zoom === 100 || !builderConfig.zoom ? 'selected' : ''}>100%</option>
                   <option value="115" ${builderConfig.zoom === 115 ? 'selected' : ''}>115%</option>
+                  <option value="125" ${builderConfig.zoom === 125 ? 'selected' : ''}>125%</option>
+                  <option value="150" ${builderConfig.zoom === 150 ? 'selected' : ''}>150%</option>
+                  <option value="175" ${builderConfig.zoom === 175 ? 'selected' : ''}>175%</option>
+                  <option value="200" ${builderConfig.zoom === 200 ? 'selected' : ''}>200%</option>
+                  <option value="250" ${builderConfig.zoom === 250 ? 'selected' : ''}>250%</option>
                 </select>
               </div>
             </div>
@@ -4356,17 +4386,31 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <div class="ribbon-group">
-            <div class="ribbon-row h-full gap-2 items-center">
+            <div class="ribbon-row mb-1 gap-2 items-center">
               <div class="flex flex-col">
-                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Report Main Heading</label>
-                <input type="text" id="builder-custom-title" value="${escapeHtml(builderConfig.customTitle)}" class="excel-input-ribbon w-44" placeholder="e.g. Term 1 Register">
+                <label class="text-[9px] font-bold text-slate-600">Institution Name</label>
+                <input type="text" id="builder-inst-name" value="${escapeHtml(effectiveInstName)}" class="excel-input-ribbon w-36 font-semibold" placeholder="Institution Name">
               </div>
               <div class="flex flex-col">
-                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Sub-Heading (Optional)</label>
-                <input type="text" id="builder-custom-subtitle" value="${escapeHtml(builderConfig.customSubtitle)}" class="excel-input-ribbon w-40" placeholder="Auto class/year info">
+                <label class="text-[9px] font-bold text-slate-600">Subtitle / Place</label>
+                <input type="text" id="builder-inst-sub" value="${escapeHtml(effectiveInstSub)}" class="excel-input-ribbon w-32" placeholder="Subtitle / Place">
+              </div>
+              <div class="flex flex-col">
+                <label class="text-[9px] font-bold text-slate-600">Reg No (Optional)</label>
+                <input type="text" id="builder-inst-reg" value="${escapeHtml(effectiveInstReg)}" class="excel-input-ribbon w-24" placeholder="Reg No">
               </div>
             </div>
-            <span class="ribbon-label">Header Titles</span>
+            <div class="ribbon-row gap-2 items-center">
+              <div class="flex flex-col">
+                <label class="text-[9px] font-bold text-slate-600">Report Main Title</label>
+                <input type="text" id="builder-custom-title" value="${escapeHtml(effectiveCustomTitle)}" class="excel-input-ribbon w-48 font-bold text-indigo-900" placeholder="Report Title">
+              </div>
+              <div class="flex flex-col">
+                <label class="text-[9px] font-bold text-slate-600">Sub-Heading (Class / Year)</label>
+                <input type="text" id="builder-custom-subtitle" value="${escapeHtml(effectiveCustomSub)}" class="excel-input-ribbon w-44" placeholder="Sub-heading info">
+              </div>
+            </div>
+            <span class="ribbon-label">Header & Institutional Titles</span>
           </div>
 
           <div class="ribbon-group">
@@ -4422,6 +4466,22 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         </div>
 
         <div class="excel-workspace spreadsheet-container">
+          <div class="canvas-meta-bar no-print flex items-center justify-between mb-3 px-3.5 py-1.5 bg-slate-200/80 rounded-2xl border border-slate-300 max-w-[1200px] mx-auto text-xs text-slate-600 shadow-sm">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-extrabold text-[11px] shadow-sm">
+                <i class="fas fa-file-invoice text-amber-400"></i>
+                <span id="canvas-paper-badge">${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}</span>
+              </span>
+              <span class="text-[11px] text-slate-600 font-bold hidden sm:inline" id="canvas-dim-desc">${getPaperDimensionDesc(builderConfig.paper, builderConfig.orientation)}</span>
+            </div>
+            <div class="flex items-center gap-1.5 bg-white border border-slate-300 rounded-full px-2.5 py-0.5 shadow-sm">
+              <button id="btn-zoom-out" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom Out (Ctrl + Scroll Down)"><i class="fas fa-minus text-[10px]"></i></button>
+              <span id="canvas-zoom-text" class="px-1.5 font-black text-xs text-indigo-700 min-w-[46px] text-center">${builderConfig.zoom || 100}%</span>
+              <button id="btn-zoom-in" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom In (Ctrl + Scroll Up)"><i class="fas fa-plus text-[10px]"></i></button>
+              <button id="btn-zoom-reset" class="ml-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition-colors" title="Reset Zoom to 100%">100%</button>
+            </div>
+          </div>
+
           <div id="print-canvas" class="print-canvas" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}" style="zoom: ${(builderConfig.zoom || 100) / 100};">
             <table id="builder-table" class="excel-table">
               ${headerHtml}
@@ -4483,10 +4543,20 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const delBtn = thElement.querySelector('.delete-col-btn');
       delBtn?.addEventListener('click', (e) => {
-        const idx = parseInt(e.currentTarget.dataset.colIndex, 10);
-        if (builderConfig.columns.length > 1) {
+        const clickedIdx = parseInt(e.currentTarget.dataset.colIndex, 10);
+        const selectedCols = Array.from(document.querySelectorAll('th.col-header.selected'))
+          .map((th) => parseInt(th.dataset.col, 10))
+          .filter((n) => !isNaN(n));
+
+        const targetCols = selectedCols.includes(clickedIdx) && selectedCols.length > 1
+          ? selectedCols
+          : [clickedIdx];
+
+        if (builderConfig.columns.length > targetCols.length) {
           saveBuilderState();
-          builderConfig.columns.splice(idx, 1);
+          targetCols.sort((a, b) => b - a).forEach((idx) => {
+            builderConfig.columns.splice(idx, 1);
+          });
           renderExportTab();
           setupExcelEngine();
         }
@@ -4516,7 +4586,28 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canvas.dataset.orient = builderConfig.orientation;
         canvas.style.zoom = String((builderConfig.zoom || 100) / 100);
       }
+      const paperBadge = document.getElementById('canvas-paper-badge');
+      if (paperBadge) {
+        paperBadge.textContent = `${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}`;
+      }
+      const dimDesc = document.getElementById('canvas-dim-desc');
+      if (dimDesc) {
+        dimDesc.textContent = getPaperDimensionDesc(builderConfig.paper, builderConfig.orientation);
+      }
+      const zoomText = document.getElementById('canvas-zoom-text');
+      if (zoomText) {
+        zoomText.textContent = `${builderConfig.zoom || 100}%`;
+      }
+      const zoomSelect = document.getElementById('builder-zoom');
+      if (zoomSelect) {
+        zoomSelect.value = String(builderConfig.zoom || 100);
+      }
       syncDynamicPageOrientationStyle();
+    };
+
+    const setCanvasZoom = (zoomLevel) => {
+      builderConfig.zoom = Math.min(250, Math.max(40, parseInt(zoomLevel, 10) || 100));
+      updateCanvasStyle();
     };
 
     const attachBuilderListeners = () => {
@@ -4605,9 +4696,51 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         setupExcelEngine();
       });
       document.getElementById('builder-zoom')?.addEventListener('change', (e) => {
-        builderConfig.zoom = parseInt(e.target.value, 10) || 100;
-        updateCanvasStyle();
+        setCanvasZoom(e.target.value);
       });
+
+      document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
+        setCanvasZoom((builderConfig.zoom || 100) + 10);
+      });
+      document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
+        setCanvasZoom((builderConfig.zoom || 100) - 10);
+      });
+      document.getElementById('btn-zoom-reset')?.addEventListener('click', () => {
+        setCanvasZoom(100);
+      });
+
+      const workspace = document.querySelector('.excel-workspace');
+      workspace?.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          const delta = e.deltaY < 0 ? 10 : -10;
+          setCanvasZoom((builderConfig.zoom || 100) + delta);
+        }
+      }, { passive: false });
+
+      // Live Header Inputs Two-Way Synchronization
+      const bindHeaderLiveInput = (canvasId, ribbonId, configKey) => {
+        const canvasEl = document.getElementById(canvasId);
+        const ribbonEl = document.getElementById(ribbonId);
+
+        canvasEl?.addEventListener('input', (e) => {
+          builderConfig[configKey] = e.target.value;
+          if (ribbonEl && ribbonEl !== e.target) ribbonEl.value = e.target.value;
+        });
+        canvasEl?.addEventListener('blur', saveBuilderState);
+
+        ribbonEl?.addEventListener('input', (e) => {
+          builderConfig[configKey] = e.target.value;
+          if (canvasEl && canvasEl !== e.target) canvasEl.value = e.target.value;
+        });
+        ribbonEl?.addEventListener('blur', saveBuilderState);
+      };
+
+      bindHeaderLiveInput('hdr-inst-name', 'builder-inst-name', 'instNameOverride');
+      bindHeaderLiveInput('hdr-inst-sub', 'builder-inst-sub', 'instSubOverride');
+      bindHeaderLiveInput('hdr-inst-reg', 'builder-inst-reg', 'instRegOverride');
+      bindHeaderLiveInput('hdr-report-title', 'builder-custom-title', 'customTitle');
+      bindHeaderLiveInput('hdr-report-sub', 'builder-custom-subtitle', 'customSubtitle');
       document.getElementById('builder-border-mode')?.addEventListener('change', (e) => {
         builderConfig.borderMode = e.target.value;
         renderExportTab();
@@ -4828,7 +4961,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       document.getElementById('btn-export-print')?.addEventListener('click', () => {
         syncDynamicPageOrientationStyle();
-        document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected'));
+        document.querySelectorAll('.header-live-input').forEach((inp) => {
+          inp.setAttribute('value', inp.value);
+        });
+        document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
         document.body.classList.add('is-printing');
         window.print();
         setTimeout(() => document.body.classList.remove('is-printing'), 500);
@@ -4839,6 +4975,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const tableClone = document.getElementById('builder-table').cloneNode(true);
         tableClone.querySelectorAll('.no-print').forEach((el) => el.remove());
         tableClone.querySelectorAll('td[style*="display: none"]').forEach((el) => el.remove());
+        tableClone.querySelectorAll('.header-live-input').forEach((inp) => {
+          const span = document.createElement('span');
+          span.textContent = inp.value;
+          inp.parentNode.replaceChild(span, inp);
+        });
         tableClone.querySelectorAll('th').forEach((th) => {
           const heading = th.querySelector('.print-only-heading');
           if (heading) th.textContent = heading.textContent;
@@ -4978,6 +5119,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       let isSelecting = false;
       let startCell = null;
+      let lastSelectedCol = null;
+      let lastSelectedRow = null;
 
       const getCellCoords = (td) => ({
         row: parseInt(td.dataset.row, 10),
@@ -4987,25 +5130,79 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const clearSelection = () => document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
 
       table.onmousedown = (e) => {
-        if (e.target.classList.contains('col-resizer')) return;
+        if (e.target.classList.contains('col-resizer') || e.target.classList.contains('delete-col-btn')) return;
 
         const colHeader = e.target.closest('th.col-header');
         if (colHeader) {
-          clearSelection();
-          colHeader.classList.add('selected');
-          document.querySelectorAll(`.builder-cell[data-col="${colHeader.dataset.col}"]`).forEach((c) => c.classList.add('selected'));
           const colIdx = parseInt(colHeader.dataset.col, 10);
-          const colLetter = getExcelColumnLabel(colIdx);
-          document.getElementById('active-cell-id').textContent = `Col ${colLetter}`;
+          if (e.shiftKey && lastSelectedCol !== null) {
+            // Contiguous range selection between lastSelectedCol and colIdx
+            const minC = Math.min(lastSelectedCol, colIdx);
+            const maxC = Math.max(lastSelectedCol, colIdx);
+            clearSelection();
+            for (let c = minC; c <= maxC; c++) {
+              document.querySelector(`th.col-header[data-col="${c}"]`)?.classList.add('selected');
+              document.querySelectorAll(`.builder-cell[data-col="${c}"]`).forEach((cell) => cell.classList.add('selected'));
+            }
+            document.getElementById('active-cell-id').textContent = `Cols ${getExcelColumnLabel(minC)}:${getExcelColumnLabel(maxC)}`;
+          } else if (e.ctrlKey || e.metaKey) {
+            // Multi-toggle selection for this column
+            const isSelected = colHeader.classList.contains('selected');
+            if (isSelected) {
+              colHeader.classList.remove('selected');
+              document.querySelectorAll(`.builder-cell[data-col="${colIdx}"]`).forEach((cell) => cell.classList.remove('selected'));
+            } else {
+              colHeader.classList.add('selected');
+              document.querySelectorAll(`.builder-cell[data-col="${colIdx}"]`).forEach((cell) => cell.classList.add('selected'));
+            }
+            lastSelectedCol = colIdx;
+            const selCount = document.querySelectorAll('th.col-header.selected').length;
+            document.getElementById('active-cell-id').textContent = `${selCount} Cols Selected`;
+          } else {
+            // Standard single-column selection
+            clearSelection();
+            colHeader.classList.add('selected');
+            document.querySelectorAll(`.builder-cell[data-col="${colIdx}"]`).forEach((cell) => cell.classList.add('selected'));
+            lastSelectedCol = colIdx;
+            document.getElementById('active-cell-id').textContent = `Col ${getExcelColumnLabel(colIdx)}`;
+          }
           return;
         }
 
         const rowHeader = e.target.closest('td.row-header');
         if (rowHeader) {
-          clearSelection();
-          rowHeader.classList.add('selected');
-          document.querySelectorAll(`.builder-cell[data-row="${rowHeader.dataset.row}"]`).forEach((c) => c.classList.add('selected'));
-          document.getElementById('active-cell-id').textContent = `Row ${parseInt(rowHeader.dataset.row, 10) + 1}`;
+          const rowIdx = parseInt(rowHeader.dataset.row, 10);
+          if (e.shiftKey && lastSelectedRow !== null) {
+            // Contiguous range selection between lastSelectedRow and rowIdx
+            const minR = Math.min(lastSelectedRow, rowIdx);
+            const maxR = Math.max(lastSelectedRow, rowIdx);
+            clearSelection();
+            for (let r = minR; r <= maxR; r++) {
+              document.querySelector(`td.row-header[data-row="${r}"]`)?.classList.add('selected');
+              document.querySelectorAll(`.builder-cell[data-row="${r}"]`).forEach((cell) => cell.classList.add('selected'));
+            }
+            document.getElementById('active-cell-id').textContent = `Rows ${minR + 1}:${maxR + 1}`;
+          } else if (e.ctrlKey || e.metaKey) {
+            // Multi-toggle selection for this row
+            const isSelected = rowHeader.classList.contains('selected');
+            if (isSelected) {
+              rowHeader.classList.remove('selected');
+              document.querySelectorAll(`.builder-cell[data-row="${rowIdx}"]`).forEach((cell) => cell.classList.remove('selected'));
+            } else {
+              rowHeader.classList.add('selected');
+              document.querySelectorAll(`.builder-cell[data-row="${rowIdx}"]`).forEach((cell) => cell.classList.add('selected'));
+            }
+            lastSelectedRow = rowIdx;
+            const selCount = document.querySelectorAll('td.row-header.selected').length;
+            document.getElementById('active-cell-id').textContent = `${selCount} Rows Selected`;
+          } else {
+            // Standard single-row selection
+            clearSelection();
+            rowHeader.classList.add('selected');
+            document.querySelectorAll(`.builder-cell[data-row="${rowIdx}"]`).forEach((cell) => cell.classList.add('selected'));
+            lastSelectedRow = rowIdx;
+            document.getElementById('active-cell-id').textContent = `Row ${rowIdx + 1}`;
+          }
           return;
         }
 
@@ -5022,6 +5219,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         if (td) {
           isSelecting = true;
           startCell = getCellCoords(td);
+          lastSelectedCol = startCell.col;
+          lastSelectedRow = startCell.row;
           clearSelection();
           td.classList.add('selected', 'cell-focused');
 
