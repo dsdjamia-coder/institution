@@ -1,5 +1,5 @@
 import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-    import { collection, doc, getDoc, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+    import { collection, doc, getDoc, getDocs, onSnapshot, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
     import { db, auth } from '../../config/firebase-config.js';
     import { BASE_PATH, applyCachedInstitutionLogo, escapeHtml, rememberInstitutionLogo, sanitizeUrl } from '../shared/app-common.js';
     import { registerPortalForPwa } from '../shared/pwa-install.js';
@@ -298,6 +298,500 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             attachTableFormatListeners();
             rebindAllColumnListeners();
         }
+    };
+
+    const getExcelColumnLabel = (index) => {
+      let label = '';
+      let n = index;
+      while (n >= 0) {
+        label = String.fromCharCode((n % 26) + 65) + label;
+        n = Math.floor(n / 26) - 1;
+      }
+      return label;
+    };
+
+    let allWorksheetTemplates = [];
+    const STORAGE_KEY_WORKSHEET_TEMPLATES = 'feee_worksheet_templates';
+
+    const SYSTEM_WORKSHEET_TEMPLATES = [
+      {
+        id: 'sys_student_register',
+        isSystem: true,
+        name: 'General Student Register',
+        description: 'Comprehensive student personal, admission, UID, and guardian directory register',
+        sourceType: 'students',
+        customTitle: 'GENERAL STUDENT REGISTER',
+        customSubtitle: '',
+        paper: 'A4',
+        orientation: 'landscape',
+        rowDensity: 'normal',
+        borderMode: 'grid',
+        showHeader: true,
+        repeatHeader: true,
+        showSignatures: false,
+        sortBy: 'adm',
+        groupBy: 'mixed',
+        columns: [
+          { id: 'col_sno', field: 'SNO', title: 'S.No', width: '45px' },
+          { id: 'col_adm', field: 'adm', title: 'Adm No.', width: '80px' },
+          { id: 'col_uid', field: 'uid', title: 'UID', width: '80px' },
+          { id: 'col_name', field: 'name', title: 'Student Name', width: '175px' },
+          { id: 'col_class', field: 'class', title: 'Class', width: '65px' },
+          { id: 'col_father', field: 'father', title: 'Father Name', width: '150px' },
+          { id: 'col_mobile', field: 'mobile', title: 'Mobile', width: '110px' },
+          { id: 'col_dob', field: 'dob', title: 'DOB', width: '95px' }
+        ]
+      },
+      {
+        id: 'sys_attendance_monthly',
+        isSystem: true,
+        name: 'Monthly Attendance Register (15 Sessions)',
+        description: 'Attendance tracking grid with S.No, Adm, Name and 15 date check columns',
+        sourceType: 'students',
+        customTitle: 'MONTHLY ATTENDANCE REGISTER',
+        customSubtitle: '',
+        paper: 'A4',
+        orientation: 'landscape',
+        rowDensity: 'compact',
+        borderMode: 'grid',
+        showHeader: true,
+        repeatHeader: true,
+        showSignatures: true,
+        sortBy: 'adm',
+        groupBy: 'mixed',
+        columns: [
+          { id: 'col_sno', field: 'SNO', title: 'S.No', width: '42px' },
+          { id: 'col_adm', field: 'adm', title: 'Adm No', width: '75px' },
+          { id: 'col_name', field: 'name', title: 'Student Name', width: '170px' },
+          ...Array.from({ length: 15 }, (_, i) => ({
+            id: `col_d${i + 1}`,
+            field: 'CUSTOM',
+            title: `${i + 1}`,
+            width: '32px'
+          })),
+          { id: 'col_tot', field: 'CUSTOM', title: 'Total', width: '55px' }
+        ]
+      },
+      {
+        id: 'sys_fee_defaulters',
+        isSystem: true,
+        name: 'Fee Collection & Defaulters Register',
+        description: 'Fee item tracker sorted by highest balance due with status overview',
+        sourceType: 'fees',
+        customTitle: 'FEE COLLECTION & BALANCE REGISTER',
+        customSubtitle: '',
+        paper: 'A4',
+        orientation: 'landscape',
+        rowDensity: 'normal',
+        borderMode: 'grid',
+        showHeader: true,
+        repeatHeader: true,
+        showSignatures: true,
+        sortBy: 'balance',
+        groupBy: 'mixed',
+        columns: [
+          { id: 'col_sno', field: 'SNO', title: 'S.No', width: '45px' },
+          { id: 'col_adm', field: 'adm', title: 'Adm No.', width: '80px' },
+          { id: 'col_name', field: 'name', title: 'Student Name', width: '175px' },
+          { id: 'col_class', field: 'class', title: 'Class', width: '65px' },
+          { id: 'col_mobile', field: 'mobile', title: 'Mobile', width: '105px' },
+          { id: 'col_net', field: 'netPayable', title: 'Net Fee', width: '85px' },
+          { id: 'col_paid', field: 'paidAmount', title: 'Paid', width: '85px' },
+          { id: 'col_bal', field: 'balanceDue', title: 'Balance Due', width: '95px' },
+          { id: 'col_st', field: 'feeStatus', title: 'Status', width: '85px' }
+        ]
+      },
+      {
+        id: 'sys_exam_marklist',
+        isSystem: true,
+        name: 'Exam Mark List & Tabulation Register',
+        description: 'Exam score register with marks, percentages, grades, and ranks',
+        sourceType: 'results',
+        customTitle: 'EXAMINATION MARK LIST & TABULATION',
+        customSubtitle: '',
+        paper: 'Legal',
+        orientation: 'landscape',
+        rowDensity: 'normal',
+        borderMode: 'grid',
+        showHeader: true,
+        repeatHeader: true,
+        showSignatures: true,
+        sortBy: 'rank',
+        groupBy: 'mixed',
+        columns: [
+          { id: 'col_sno', field: 'SNO', title: 'S.No', width: '45px' },
+          { id: 'col_adm', field: 'adm', title: 'Adm No.', width: '80px' },
+          { id: 'col_name', field: 'name', title: 'Student Name', width: '170px' },
+          { id: 'col_class', field: 'class', title: 'Class', width: '65px' },
+          { id: 'col_obt', field: 'obtainedMarks', title: 'Total', width: '75px' },
+          { id: 'col_pct', field: 'percentage', title: '%', width: '68px' },
+          { id: 'col_grd', field: 'grade', title: 'Grade', width: '65px' },
+          { id: 'col_rnk', field: 'rank', title: 'Rank', width: '60px' }
+        ]
+      },
+      {
+        id: 'sys_staff_directory',
+        isSystem: true,
+        name: 'Staff & Faculty Official Directory',
+        description: 'Faculty, teachers, and management team directory with roles and signatures',
+        sourceType: 'staff',
+        customTitle: 'STAFF & MANAGEMENT DIRECTORY REGISTER',
+        customSubtitle: '',
+        paper: 'A4',
+        orientation: 'landscape',
+        rowDensity: 'normal',
+        borderMode: 'grid',
+        showHeader: true,
+        repeatHeader: true,
+        showSignatures: true,
+        sortBy: 'name',
+        groupBy: 'mixed',
+        columns: [
+          { id: 'col_sno', field: 'SNO', title: 'S.No', width: '45px' },
+          { id: 'col_name', field: 'name', title: 'Full Name', width: '180px' },
+          { id: 'col_cat', field: 'category', title: 'Category', width: '125px' },
+          { id: 'col_role', field: 'role', title: 'Designation', width: '135px' },
+          { id: 'col_mob', field: 'mobile', title: 'Mobile', width: '115px' },
+          { id: 'col_place', field: 'place', title: 'Place / Address', width: '140px' },
+          { id: 'col_sig', field: 'CUSTOM', title: 'Signature', width: '110px' }
+        ]
+      }
+    ];
+
+    const showToastNotification = (message, type = 'success') => {
+      let toastContainer = document.getElementById('official-toast-container');
+      if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'official-toast-container';
+        toastContainer.className = 'fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none no-print';
+        document.body.appendChild(toastContainer);
+      }
+      const toast = document.createElement('div');
+      const bg = type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white';
+      const icon = type === 'error' ? 'fa-exclamation-circle text-rose-300' : 'fa-check-circle text-emerald-400';
+      toast.className = `flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-2xl text-xs font-bold pointer-events-auto transition-all duration-300 transform translate-y-3 opacity-0 border border-white/10 ${bg}`;
+      toast.innerHTML = `<i class="fas ${icon}"></i><span>${escapeHtml(message)}</span>`;
+      toastContainer.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-3', 'opacity-0');
+      });
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    };
+
+    const getCachedWorksheetTemplates = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_WORKSHEET_TEMPLATES);
+        return raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        return [];
+      }
+    };
+
+    const saveCachedWorksheetTemplates = (list) => {
+      try {
+        localStorage.setItem(STORAGE_KEY_WORKSHEET_TEMPLATES, JSON.stringify(list || []));
+      } catch (err) {
+        // Ignore storage errors
+      }
+    };
+
+    const updateTemplateCountBadge = () => {
+      const count = allWorksheetTemplates.length;
+      document.querySelectorAll('.tpl-count-badge').forEach((el) => {
+        el.textContent = String(count);
+      });
+    };
+
+    const syncWorksheetTemplatesFromFirestore = async () => {
+      try {
+        const snap = await getDocs(collection(db, `${BASE_PATH}/worksheetTemplates`));
+        const firestoreList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const localList = getCachedWorksheetTemplates();
+        const map = new Map();
+        localList.forEach((t) => { if (t && t.id) map.set(t.id, t); });
+        firestoreList.forEach((t) => { if (t && t.id) map.set(t.id, t); });
+        allWorksheetTemplates = Array.from(map.values());
+        saveCachedWorksheetTemplates(allWorksheetTemplates);
+      } catch (err) {
+        allWorksheetTemplates = getCachedWorksheetTemplates();
+      }
+      updateTemplateCountBadge();
+    };
+
+    const saveCurrentAsWorksheetTemplate = async (templateName, description = '') => {
+      const cleanName = String(templateName || '').trim();
+      if (!cleanName) throw new Error('Please enter a template name');
+
+      const templateId = 'tpl_' + Date.now();
+      const templateObj = {
+        id: templateId,
+        name: cleanName,
+        description: String(description || '').trim(),
+        sourceType: builderConfig.sourceType || 'students',
+        columns: JSON.parse(JSON.stringify(builderConfig.columns || [])),
+        sortBy: builderConfig.sortBy || 'name',
+        groupBy: builderConfig.groupBy || 'mixed',
+        paper: builderConfig.paper || 'A4',
+        orientation: builderConfig.orientation || 'landscape',
+        rowDensity: builderConfig.rowDensity || 'normal',
+        borderMode: builderConfig.borderMode || 'grid',
+        showHeader: builderConfig.showHeader !== false,
+        repeatHeader: builderConfig.repeatHeader !== false,
+        showSignatures: Boolean(builderConfig.showSignatures),
+        customTitle: builderConfig.customTitle || '',
+        customSubtitle: builderConfig.customSubtitle || '',
+        sigLeft: builderConfig.sigLeft || 'Class Teacher',
+        sigCenter: builderConfig.sigCenter || 'Checked By',
+        sigRight: builderConfig.sigRight || 'Principal / Head',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const currentList = getCachedWorksheetTemplates().filter((t) => t.id !== templateId);
+      currentList.unshift(templateObj);
+      saveCachedWorksheetTemplates(currentList);
+      allWorksheetTemplates = currentList;
+      updateTemplateCountBadge();
+
+      try {
+        await setDoc(doc(db, `${BASE_PATH}/worksheetTemplates`, templateId), templateObj);
+      } catch (err) {
+        console.warn('Firestore template save warning, saved locally:', err);
+      }
+
+      return templateObj;
+    };
+
+    const deleteWorksheetTemplate = async (templateId) => {
+      allWorksheetTemplates = allWorksheetTemplates.filter((t) => t.id !== templateId);
+      saveCachedWorksheetTemplates(allWorksheetTemplates);
+      updateTemplateCountBadge();
+      try {
+        await deleteDoc(doc(db, `${BASE_PATH}/worksheetTemplates`, templateId));
+      } catch (err) {
+        console.warn('Firestore template delete warning:', err);
+      }
+    };
+
+    const applyWorksheetTemplate = (template) => {
+      if (!template) return;
+      saveBuilderState();
+
+      builderConfig.sourceType = template.sourceType || 'students';
+      builderConfig.columns = JSON.parse(JSON.stringify(template.columns || []));
+      if (template.paper) builderConfig.paper = template.paper;
+      if (template.orientation) builderConfig.orientation = template.orientation;
+      if (template.rowDensity) builderConfig.rowDensity = template.rowDensity;
+      if (template.borderMode) builderConfig.borderMode = template.borderMode;
+      if (template.sortBy) builderConfig.sortBy = template.sortBy;
+      if (template.groupBy) builderConfig.groupBy = template.groupBy;
+      if (template.customTitle !== undefined) builderConfig.customTitle = template.customTitle;
+      if (template.customSubtitle !== undefined) builderConfig.customSubtitle = template.customSubtitle;
+      if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
+      if (template.repeatHeader !== undefined) builderConfig.repeatHeader = template.repeatHeader;
+      if (template.showSignatures !== undefined) builderConfig.showSignatures = template.showSignatures;
+      if (template.sigLeft) builderConfig.sigLeft = template.sigLeft;
+      if (template.sigCenter) builderConfig.sigCenter = template.sigCenter;
+      if (template.sigRight) builderConfig.sigRight = template.sigRight;
+
+      renderExportTab();
+      setupExcelEngine();
+    };
+
+    const openSaveTemplateModal = () => {
+      const colCount = builderConfig.columns.length;
+      const colNames = builderConfig.columns.map((c) => c.title || c.field).slice(0, 5).join(', ') + (colCount > 5 ? ` +${colCount - 5} more` : '');
+      const moduleLabel = builderConfig.sourceType.toUpperCase();
+      const pageLabel = `${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}`;
+
+      const bodyHtml = `
+        <div class="p-4 sm:p-6 space-y-4 text-left">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Template Name <span class="text-rose-500">*</span></label>
+            <input type="text" id="tpl-name-input" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none font-bold text-slate-800 text-sm" placeholder="e.g. Monthly Attendance Register 2026" autofocus value="${escapeHtml(builderConfig.customTitle || '')}" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Description / Notes (Optional)</label>
+            <textarea id="tpl-desc-input" rows="2" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-slate-700 text-sm" placeholder="Brief notes about this template..."></textarea>
+          </div>
+
+          <div class="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-2 text-xs">
+            <div class="font-bold text-slate-700 flex items-center justify-between">
+              <span>Active Configuration Summary</span>
+              <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 font-extrabold uppercase">${escapeHtml(moduleLabel)}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-slate-600">
+              <div><strong class="text-slate-800">Columns:</strong> ${colCount} (${escapeHtml(colNames)})</div>
+              <div><strong class="text-slate-800">Page Layout:</strong> ${escapeHtml(pageLabel)}</div>
+              <div><strong class="text-slate-800">Row Spacing:</strong> ${escapeHtml(builderConfig.rowDensity)}</div>
+              <div><strong class="text-slate-800">Grid Style:</strong> ${escapeHtml(builderConfig.borderMode)}</div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+            <button id="btn-tpl-save-cancel" class="px-4 py-2 rounded-xl border border-slate-300 font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+            <button id="btn-tpl-save-confirm" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-bold text-xs text-white shadow-md flex items-center gap-1.5 transition-all">
+              <i class="fas fa-save"></i> Save Template
+            </button>
+          </div>
+        </div>
+      `;
+
+      openOfficialDetailModal('Save Register Template', bodyHtml);
+
+      document.getElementById('btn-tpl-save-cancel')?.addEventListener('click', closeOfficialDetailModal);
+      document.getElementById('btn-tpl-save-confirm')?.addEventListener('click', async () => {
+        const nameInput = document.getElementById('tpl-name-input');
+        const descInput = document.getElementById('tpl-desc-input');
+        const nameVal = nameInput?.value?.trim();
+        if (!nameVal) {
+          nameInput?.focus();
+          return;
+        }
+        const btn = document.getElementById('btn-tpl-save-confirm');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        }
+        try {
+          await saveCurrentAsWorksheetTemplate(nameVal, descInput?.value || '');
+          closeOfficialDetailModal();
+          showToastNotification(`Template "${nameVal}" saved successfully!`);
+        } catch (err) {
+          alert(err.message || 'Error saving template');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save Template';
+          }
+        }
+      });
+    };
+
+    const openManageTemplatesModal = () => {
+      const renderTemplateCards = (templates, isCustom) => {
+        if (!templates.length) {
+          return `
+            <div class="py-8 text-center text-slate-400 col-span-full">
+              <i class="fas fa-folder-open text-3xl mb-2 block"></i>
+              <p class="text-sm">No ${isCustom ? 'custom saved' : 'system'} templates found.</p>
+            </div>
+          `;
+        }
+
+        return templates.map((tpl) => {
+          const colCount = tpl.columns ? tpl.columns.length : 0;
+          const colPreview = (tpl.columns || []).map((c) => c.title || c.field).slice(0, 6).join(' • ') + (colCount > 6 ? ` • +${colCount - 6}` : '');
+          const moduleBadgeClass = tpl.sourceType === 'fees' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+            tpl.sourceType === 'results' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+            tpl.sourceType === 'staff' ? 'bg-teal-100 text-teal-800 border-teal-200' :
+            tpl.sourceType === 'alumni' ? 'bg-sky-100 text-sky-800 border-sky-200' :
+            'bg-indigo-100 text-indigo-800 border-indigo-200';
+
+          return `
+            <div class="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md transition-all flex flex-col justify-between gap-3 group">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${moduleBadgeClass}">${escapeHtml(tpl.sourceType || 'students')}</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(tpl.paper || 'A4')} ${tpl.orientation === 'landscape' ? 'Landscape' : 'Portrait'}</span>
+                    <span class="text-[11px] text-slate-400 font-semibold">${colCount} Cols</span>
+                  </div>
+                  <h4 class="font-extrabold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">${escapeHtml(tpl.name)}</h4>
+                  ${tpl.description ? `<p class="text-xs text-slate-500 mt-0.5 line-clamp-1">${escapeHtml(tpl.description)}</p>` : ''}
+                </div>
+                ${!tpl.isSystem ? `
+                  <button class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors btn-delete-tpl" data-tpl-id="${escapeHtml(tpl.id)}" title="Delete Template">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                  </button>
+                ` : ''}
+              </div>
+
+              <div class="text-[11px] text-slate-500 font-medium bg-slate-50 rounded-lg p-2 border border-slate-100 truncate">
+                <strong class="text-slate-700">Columns:</strong> ${escapeHtml(colPreview)}
+              </div>
+
+              <div class="flex items-center justify-between pt-1">
+                <span class="text-[10px] text-slate-400 font-semibold">${tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleDateString() : 'Standard Preset'}</span>
+                <button class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm flex items-center gap-1.5 btn-apply-tpl transition-all" data-tpl-id="${escapeHtml(tpl.id)}" data-is-system="${Boolean(tpl.isSystem)}">
+                  <i class="fas fa-check-circle"></i> Load Template
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      };
+
+      const bodyHtml = `
+        <div class="p-3 sm:p-5 space-y-4 text-left max-h-[75vh] overflow-y-auto">
+          <div class="flex items-center justify-between gap-3 border-b border-slate-200 pb-3 flex-wrap">
+            <div>
+              <h3 class="font-extrabold text-slate-900 text-base">Register Templates Studio</h3>
+              <p class="text-xs text-slate-500">Load a saved layout or design to automatically populate with current class or student records</p>
+            </div>
+            <button id="btn-modal-save-new" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5">
+              <i class="fas fa-plus"></i> Save Current Sheet
+            </button>
+          </div>
+
+          <!-- Custom User Templates -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fas fa-folder text-indigo-600"></i> My Saved Templates (${allWorksheetTemplates.length})
+              </h4>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="user-templates-grid">
+              ${renderTemplateCards(allWorksheetTemplates, true)}
+            </div>
+          </div>
+
+          <!-- Pre-built System Templates -->
+          <div class="pt-4 border-t border-slate-200">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fas fa-star text-amber-500"></i> Pre-Built Standard Institutional Registers (${SYSTEM_WORKSHEET_TEMPLATES.length})
+              </h4>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ${renderTemplateCards(SYSTEM_WORKSHEET_TEMPLATES, false)}
+            </div>
+          </div>
+        </div>
+      `;
+
+      openOfficialDetailModal('Register Templates Studio', bodyHtml);
+
+      document.getElementById('btn-modal-save-new')?.addEventListener('click', () => {
+        closeOfficialDetailModal();
+        setTimeout(openSaveTemplateModal, 150);
+      });
+
+      document.querySelectorAll('.btn-apply-tpl').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const tplId = e.currentTarget.dataset.tplId;
+          const isSystem = e.currentTarget.dataset.isSystem === 'true';
+          const targetTpl = isSystem ? SYSTEM_WORKSHEET_TEMPLATES.find((t) => t.id === tplId) : allWorksheetTemplates.find((t) => t.id === tplId);
+          if (targetTpl) {
+            applyWorksheetTemplate(targetTpl);
+            closeOfficialDetailModal();
+            showToastNotification(`Loaded template: "${targetTpl.name}"`);
+          }
+        });
+      });
+
+      document.querySelectorAll('.btn-delete-tpl').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const tplId = e.currentTarget.dataset.tplId;
+          if (confirm('Are you sure you want to delete this template?')) {
+            await deleteWorksheetTemplate(tplId);
+            openManageTemplatesModal();
+          }
+        });
+      });
     };
 
     const resolveInstitutionName = (conf = {}) => String(conf.appName || conf.institutionName || conf.institution || conf.schoolName || conf.school || conf.name || '').trim();
@@ -3794,6 +4288,21 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <div class="ribbon-group">
+            <div class="ribbon-row h-full items-center gap-1.5">
+              <button id="btn-save-template-ribbon" class="excel-btn-ribbon text-indigo-700 font-bold" title="Save current columns, styles, and page setup as a reusable named template">
+                <i class="fas fa-save text-indigo-600"></i>
+                <span>Save As...</span>
+              </button>
+              <button id="btn-load-template-ribbon" class="excel-btn-ribbon text-slate-800 font-bold relative" title="Browse and open saved or pre-built register templates">
+                <i class="fas fa-folder-open text-amber-600"></i>
+                <span>Templates</span>
+                <span class="tpl-count-badge absolute -top-1 -right-1 px-1.5 py-0.2 bg-indigo-600 text-white rounded-full text-[9px] font-extrabold">${allWorksheetTemplates.length}</span>
+              </button>
+            </div>
+            <span class="ribbon-label">Template Studio</span>
+          </div>
+
+          <div class="ribbon-group">
             <div class="ribbon-row h-full items-center gap-1">
               <button class="excel-btn-ribbon text-indigo-700 preset-template-btn" data-preset="attendance" title="Load Monthly Attendance Grid"><i class="fas fa-calendar-check"></i><span>Attendance</span></button>
               <button class="excel-btn-ribbon text-sky-700 preset-template-btn" data-preset="student_register" title="Load Full Student Register"><i class="fas fa-user-graduate"></i><span>Student Reg</span></button>
@@ -3891,6 +4400,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               <span class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
                 <i class="fas fa-table"></i> ${dataRows.length} Rows • ${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
               </span>
+              <button id="btn-save-template-top" class="premium-export-btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold text-xs" title="Save this worksheet setup as a named reusable template"><i class="fas fa-save"></i> Save Template</button>
+              <button id="btn-load-template-top" class="premium-export-btn bg-slate-800 hover:bg-slate-900 text-white shadow-sm font-bold text-xs" title="Open saved register templates"><i class="fas fa-folder-open text-amber-400"></i> Templates (<span class="tpl-count-badge font-extrabold text-amber-300">${allWorksheetTemplates.length}</span>)</button>
               <button id="btn-export-print" class="premium-export-btn btn-pdf-red"><i class="fas fa-print"></i> Print / Save PDF</button>
               <button id="btn-export-excel" class="premium-export-btn btn-excel-green"><i class="fas fa-file-excel"></i> Export Excel</button>
             </div>
@@ -4141,22 +4652,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       });
 
       document.getElementById('btn-add-row')?.addEventListener('click', () => {
-        saveBuilderState();
-        const tbodys = document.querySelectorAll('#builder-table tbody');
-        if (tbodys.length === 0) return;
-        const targetTbody = tbodys[tbodys.length - 1];
-        const colsCount = builderConfig.columns.length;
-        const tr = document.createElement('tr');
-        const nextRowIdx = document.querySelectorAll('#builder-table tr[data-index]').length;
-        tr.dataset.index = nextRowIdx;
-        tr.dataset.studentId = '';
-        tr.innerHTML =
-          `<td class="no-print row-header" data-row="${nextRowIdx}">${nextRowIdx + 1}</td>` +
-          Array.from({ length: colsCount })
-            .map((_, cIndex) => `<td class="excel-cell builder-cell" contenteditable="true" data-row="${nextRowIdx}" data-col="${cIndex}" style="border: 1px solid #000;"></td>`)
-            .join('');
-        targetTbody.appendChild(tr);
-        attachTableFormatListeners();
+        appendNewRowToTable();
       });
 
       document.getElementById('btn-del-row')?.addEventListener('click', () => {
@@ -4352,208 +4848,378 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const sub = builderConfig.sourceType === 'staff' ? builderConfig.staffCategory : (builderConfig.classId || 'Sheet');
         XLSX.writeFile(wb, `${prefix}_${sub}_${formatDate(new Date())}.xlsx`);
       });
+
+      document.getElementById('btn-save-template-top')?.addEventListener('click', openSaveTemplateModal);
+      document.getElementById('btn-save-template-ribbon')?.addEventListener('click', openSaveTemplateModal);
+      document.getElementById('btn-load-template-top')?.addEventListener('click', openManageTemplatesModal);
+      document.getElementById('btn-load-template-ribbon')?.addEventListener('click', openManageTemplatesModal);
+    };
+
+    const appendNewRowToTable = () => {
+      saveBuilderState();
+      const tbodys = document.querySelectorAll('#builder-table tbody');
+      if (tbodys.length === 0) return null;
+      const targetTbody = tbodys[tbodys.length - 1];
+      const colsCount = builderConfig.columns.length;
+      const tr = document.createElement('tr');
+      const nextRowIdx = document.querySelectorAll('#builder-table tr[data-index]').length;
+      tr.dataset.index = nextRowIdx;
+      tr.dataset.studentId = '';
+      const densityPadding = builderConfig.rowDensity === 'compact' ? '2px 5px' : (builderConfig.rowDensity === 'comfortable' ? '9px 10px' : '5px 8px');
+      const defaultBorderCss = builderConfig.borderMode === 'none' ? '1px solid transparent' : '1px solid #000000';
+
+      tr.innerHTML =
+        `<td class="no-print row-header" data-row="${nextRowIdx}">${nextRowIdx + 1}</td>` +
+        Array.from({ length: colsCount })
+          .map((_, cIndex) => `<td class="excel-cell builder-cell" contenteditable="true" data-row="${nextRowIdx}" data-col="${cIndex}" style="padding: ${densityPadding}; border: ${defaultBorderCss};"></td>`)
+          .join('');
+      targetTbody.appendChild(tr);
+      attachTableFormatListeners();
+      return tr;
+    };
+
+    const focusAndSelectCell = (cell) => {
+      if (!cell) return;
+      document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
+      cell.classList.add('selected', 'cell-focused');
+      cell.focus();
+
+      const row = parseInt(cell.dataset.row, 10);
+      const col = parseInt(cell.dataset.col, 10);
+      const colLetter = getExcelColumnLabel(col);
+      const cellIdEl = document.getElementById('active-cell-id');
+      if (cellIdEl) cellIdEl.textContent = `${colLetter}${row + 1}`;
+      const fInput = document.getElementById('formula-input');
+      if (fInput) fInput.value = cell.innerText;
+
+      cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     };
 
     const attachTableFormatListeners = () => {
-        const fInput = document.getElementById('formula-input');
-        if(!fInput) return;
-        document.querySelectorAll('.builder-cell').forEach(cell => {
-            // Remove old listener to avoid duplicates if re-attaching
-            const newCell = cell.cloneNode(true);
-            cell.parentNode.replaceChild(newCell, cell);
-            
-            newCell.addEventListener('focus', (e) => {
-                const row = e.target.dataset.row;
-                const col = e.target.dataset.col;
-                const colLetter = String.fromCharCode(65 + parseInt(col));
-                document.getElementById('active-cell-id').textContent = `${colLetter}${parseInt(row)+1}`;
-                fInput.value = e.target.innerText;
-            });
-            newCell.addEventListener('input', (e) => {
-                if(e.target.classList.contains('selected')) fInput.value = e.target.innerText;
-            });
-        });
-        
-        // Ensure formula input only has one listener
-        const newFInput = fInput.cloneNode(true);
-        fInput.parentNode.replaceChild(newFInput, fInput);
-        newFInput.addEventListener('input', (e) => {
-            const activeCell = document.querySelector('.builder-cell.selected');
-            if(activeCell) activeCell.innerText = e.target.value;
-        });
+      const fInput = document.getElementById('formula-input');
+      if (!fInput) return;
+
+      document.querySelectorAll('.builder-cell').forEach((cell) => {
+        cell.onfocus = (e) => {
+          const row = parseInt(e.target.dataset.row, 10);
+          const col = parseInt(e.target.dataset.col, 10);
+          const colLetter = getExcelColumnLabel(col);
+          const cellIdEl = document.getElementById('active-cell-id');
+          if (cellIdEl) cellIdEl.textContent = `${colLetter}${row + 1}`;
+          fInput.value = e.target.innerText;
+          document.querySelectorAll('.builder-cell').forEach((c) => c.classList.remove('cell-focused'));
+          e.target.classList.add('cell-focused');
+        };
+
+        cell.oninput = (e) => {
+          if (e.target.classList.contains('selected') || e.target.classList.contains('cell-focused') || document.activeElement === e.target) {
+            fInput.value = e.target.innerText;
+          }
+        };
+      });
+
+      fInput.oninput = (e) => {
+        const activeCell = document.querySelector('.builder-cell.cell-focused') || document.querySelector('.builder-cell.selected');
+        if (activeCell) activeCell.innerText = e.target.value;
+      };
+
+      fInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const activeCell = document.querySelector('.builder-cell.cell-focused') || document.querySelector('.builder-cell.selected');
+          if (activeCell) {
+            const r = parseInt(activeCell.dataset.row, 10);
+            const c = parseInt(activeCell.dataset.col, 10);
+            let nextCell = document.querySelector(`.builder-cell[data-row="${r + 1}"][data-col="${c}"]`);
+            if (!nextCell) {
+              appendNewRowToTable();
+              nextCell = document.querySelector(`.builder-cell[data-row="${r + 1}"][data-col="${c}"]`);
+            }
+            if (nextCell) focusAndSelectCell(nextCell);
+          }
+        }
+      };
     };
 
     const setupExcelEngine = () => {
-        const table = document.getElementById('builder-table');
-        if (!table) return;
+      const table = document.getElementById('builder-table');
+      if (!table) return;
 
-        attachTableFormatListeners();
+      attachTableFormatListeners();
 
-        let resizingCol = null;
-        let startX = 0;
-        let startWidth = 0;
+      let resizingCol = null;
+      let startX = 0;
+      let startWidth = 0;
 
-        document.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('col-resizer')) {
-                saveBuilderState();
-                resizingCol = e.target.closest('th');
-                startX = e.pageX;
-                startWidth = resizingCol.offsetWidth;
-                e.preventDefault();
+      document.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('col-resizer')) {
+          saveBuilderState();
+          resizingCol = e.target.closest('th');
+          startX = e.pageX;
+          startWidth = resizingCol.offsetWidth;
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (resizingCol) {
+          const newWidth = startWidth + (e.pageX - startX);
+          if (newWidth > 30) {
+            resizingCol.style.width = newWidth + 'px';
+            const colIndex = resizingCol.querySelector('.col-resizer').dataset.colIndex;
+            if (builderConfig.columns[colIndex]) {
+              builderConfig.columns[colIndex].width = newWidth + 'px';
             }
-        });
+          }
+        }
+      });
 
-        document.addEventListener('mousemove', (e) => {
-            if (resizingCol) {
-                const newWidth = startWidth + (e.pageX - startX);
-                if (newWidth > 30) {
-                    resizingCol.style.width = newWidth + 'px';
-                    const colIndex = resizingCol.querySelector('.col-resizer').dataset.colIndex;
-                    if(builderConfig.columns[colIndex]) {
-                        builderConfig.columns[colIndex].width = newWidth + 'px';
-                    }
-                }
-            }
-        });
+      document.addEventListener('mouseup', () => { resizingCol = null; });
 
-        document.addEventListener('mouseup', () => { resizingCol = null; });
+      let isSelecting = false;
+      let startCell = null;
 
-        let isSelecting = false;
-        let startCell = null;
+      const getCellCoords = (td) => ({
+        row: parseInt(td.dataset.row, 10),
+        col: parseInt(td.dataset.col, 10)
+      });
 
-        const getCellCoords = (td) => {
-            return { row: parseInt(td.dataset.row), col: parseInt(td.dataset.col) };
-        };
+      const clearSelection = () => document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
 
-        const clearSelection = () => document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach(c => c.classList.remove('selected'));
+      table.onmousedown = (e) => {
+        if (e.target.classList.contains('col-resizer')) return;
 
-        table.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('col-resizer')) return; 
-            
-            const colHeader = e.target.closest('th.col-header');
-            if (colHeader) {
-                clearSelection();
-                colHeader.classList.add('selected');
-                document.querySelectorAll(`.builder-cell[data-col="${colHeader.dataset.col}"]`).forEach(c => c.classList.add('selected'));
-                return;
-            }
-            
-            const rowHeader = e.target.closest('td.row-header');
-            if (rowHeader) {
-                clearSelection();
-                rowHeader.classList.add('selected');
-                document.querySelectorAll(`.builder-cell[data-row="${rowHeader.dataset.row}"]`).forEach(c => c.classList.add('selected'));
-                return;
-            }
-            
-            const selectAll = e.target.closest('.select-all-corner');
-            if (selectAll) {
-                clearSelection();
-                selectAll.classList.add('selected');
-                document.querySelectorAll('.builder-cell, .col-header, .row-header').forEach(c => c.classList.add('selected'));
-                return;
-            }
+        const colHeader = e.target.closest('th.col-header');
+        if (colHeader) {
+          clearSelection();
+          colHeader.classList.add('selected');
+          document.querySelectorAll(`.builder-cell[data-col="${colHeader.dataset.col}"]`).forEach((c) => c.classList.add('selected'));
+          const colIdx = parseInt(colHeader.dataset.col, 10);
+          const colLetter = getExcelColumnLabel(colIdx);
+          document.getElementById('active-cell-id').textContent = `Col ${colLetter}`;
+          return;
+        }
 
-            const td = e.target.closest('td.builder-cell');
-            if (td) {
-                isSelecting = true;
-                startCell = getCellCoords(td);
-                clearSelection();
-                td.classList.add('selected');
-            }
-        });
+        const rowHeader = e.target.closest('td.row-header');
+        if (rowHeader) {
+          clearSelection();
+          rowHeader.classList.add('selected');
+          document.querySelectorAll(`.builder-cell[data-row="${rowHeader.dataset.row}"]`).forEach((c) => c.classList.add('selected'));
+          document.getElementById('active-cell-id').textContent = `Row ${parseInt(rowHeader.dataset.row, 10) + 1}`;
+          return;
+        }
 
-        table.addEventListener('mouseover', (e) => {
-            if (isSelecting) {
-                const td = e.target.closest('td.builder-cell');
-                if (td) {
-                    const endCell = getCellCoords(td);
-                    const minR = Math.min(startCell.row, endCell.row);
-                    const maxR = Math.max(startCell.row, endCell.row);
-                    const minC = Math.min(startCell.col, endCell.col);
-                    const maxC = Math.max(startCell.col, endCell.col);
-                    
-                    document.querySelectorAll('.builder-cell').forEach(cell => {
-                        const r = parseInt(cell.dataset.row);
-                        const c = parseInt(cell.dataset.col);
-                        if (r >= minR && r <= maxR && c >= minC && c <= maxC) {
-                            cell.classList.add('selected');
-                        } else {
-                            cell.classList.remove('selected');
-                        }
-                    });
-                }
-            }
-        });
+        const selectAll = e.target.closest('.select-all-corner');
+        if (selectAll) {
+          clearSelection();
+          selectAll.classList.add('selected');
+          document.querySelectorAll('.builder-cell, .col-header, .row-header').forEach((c) => c.classList.add('selected'));
+          document.getElementById('active-cell-id').textContent = 'ALL';
+          return;
+        }
 
-        document.addEventListener('mouseup', () => isSelecting = false);
-        
-        table.addEventListener('focusin', (e) => {
-            if(e.target.classList.contains('builder-cell')) e.target.dataset.original = e.target.innerHTML;
-        });
-        table.addEventListener('focusout', (e) => {
-            if(e.target.classList.contains('builder-cell')) {
-                if(e.target.dataset.original !== e.target.innerHTML) saveBuilderState();
-            }
-        });
+        const td = e.target.closest('td.builder-cell');
+        if (td) {
+          isSelecting = true;
+          startCell = getCellCoords(td);
+          clearSelection();
+          td.classList.add('selected', 'cell-focused');
 
-        document.addEventListener('copy', (e) => {
-            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-            if (builderConfig.activeTab !== 'home' && builderConfig.activeTab !== 'data' && builderConfig.activeTab !== 'layout') return;
-            const selected = document.querySelectorAll('.builder-cell.selected');
-            if (selected.length === 0) return;
+          const colLetter = getExcelColumnLabel(startCell.col);
+          const cellIdEl = document.getElementById('active-cell-id');
+          if (cellIdEl) cellIdEl.textContent = `${colLetter}${startCell.row + 1}`;
+          const fInput = document.getElementById('formula-input');
+          if (fInput) fInput.value = td.innerText;
+        }
+      };
 
-            const rowMap = new Map();
-            selected.forEach(td => {
-                const tr = td.parentElement;
-                if(!rowMap.has(tr)) rowMap.set(tr, []);
-                rowMap.get(tr).push(td.innerText.trim());
+      table.onmouseover = (e) => {
+        if (isSelecting && startCell) {
+          const td = e.target.closest('td.builder-cell');
+          if (td) {
+            const endCell = getCellCoords(td);
+            const minR = Math.min(startCell.row, endCell.row);
+            const maxR = Math.max(startCell.row, endCell.row);
+            const minC = Math.min(startCell.col, endCell.col);
+            const maxC = Math.max(startCell.col, endCell.col);
+
+            document.querySelectorAll('.builder-cell').forEach((cell) => {
+              const r = parseInt(cell.dataset.row, 10);
+              const c = parseInt(cell.dataset.col, 10);
+              if (r >= minR && r <= maxR && c >= minC && c <= maxC) {
+                cell.classList.add('selected');
+              } else {
+                cell.classList.remove('selected', 'cell-focused');
+              }
             });
 
-            const tsv = Array.from(rowMap.values()).map(row => row.join('\t')).join('\n');
-            e.clipboardData.setData('text/plain', tsv);
+            const cellIdEl = document.getElementById('active-cell-id');
+            if (cellIdEl) {
+              if (minR === maxR && minC === maxC) {
+                cellIdEl.textContent = `${getExcelColumnLabel(minC)}${minR + 1}`;
+              } else {
+                cellIdEl.textContent = `${getExcelColumnLabel(minC)}${minR + 1}:${getExcelColumnLabel(maxC)}${maxR + 1}`;
+              }
+            }
+          }
+        }
+      };
+
+      document.onmouseup = () => {
+        isSelecting = false;
+      };
+
+      table.onkeydown = (e) => {
+        const activeCell = e.target.closest('td.builder-cell');
+        if (!activeCell) return;
+
+        const r = parseInt(activeCell.dataset.row, 10);
+        const c = parseInt(activeCell.dataset.col, 10);
+        const colsCount = builderConfig.columns.length;
+
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Shift + Enter: Navigate UP
+            if (r > 0) {
+              const prevCell = document.querySelector(`.builder-cell[data-row="${r - 1}"][data-col="${c}"]`);
+              if (prevCell) focusAndSelectCell(prevCell);
+            }
+          } else {
+            // Enter: Navigate DOWN
+            let nextCell = document.querySelector(`.builder-cell[data-row="${r + 1}"][data-col="${c}"]`);
+            if (!nextCell) {
+              appendNewRowToTable();
+              nextCell = document.querySelector(`.builder-cell[data-row="${r + 1}"][data-col="${c}"]`);
+            }
+            if (nextCell) focusAndSelectCell(nextCell);
+          }
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Shift + Tab: Navigate LEFT
+            let targetR = r;
+            let targetC = c - 1;
+            if (targetC < 0) {
+              targetR = r - 1;
+              targetC = colsCount - 1;
+            }
+            if (targetR >= 0) {
+              const prevCell = document.querySelector(`.builder-cell[data-row="${targetR}"][data-col="${targetC}"]`);
+              if (prevCell) focusAndSelectCell(prevCell);
+            }
+          } else {
+            // Tab: Navigate RIGHT
+            let targetR = r;
+            let targetC = c + 1;
+            if (targetC >= colsCount) {
+              targetR = r + 1;
+              targetC = 0;
+            }
+            let nextCell = document.querySelector(`.builder-cell[data-row="${targetR}"][data-col="${targetC}"]`);
+            if (!nextCell && targetR > r) {
+              appendNewRowToTable();
+              nextCell = document.querySelector(`.builder-cell[data-row="${targetR}"][data-col="${targetC}"]`);
+            }
+            if (nextCell) focusAndSelectCell(nextCell);
+          }
+        } else if (e.key === 'Escape') {
+          activeCell.blur();
+          clearSelection();
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          const selected = document.querySelectorAll('.builder-cell.selected');
+          if (selected.length > 1) {
             e.preventDefault();
+            saveBuilderState();
+            selected.forEach((td) => { td.textContent = ''; });
+            const fInput = document.getElementById('formula-input');
+            if (fInput) fInput.value = '';
+          }
+        } else if (e.key === 'ArrowUp' && (e.altKey || window.getSelection()?.toString() === activeCell.innerText)) {
+          if (r > 0) {
+            e.preventDefault();
+            const prevCell = document.querySelector(`.builder-cell[data-row="${r - 1}"][data-col="${c}"]`);
+            if (prevCell) focusAndSelectCell(prevCell);
+          }
+        } else if (e.key === 'ArrowDown' && (e.altKey || window.getSelection()?.toString() === activeCell.innerText)) {
+          e.preventDefault();
+          let nextCell = document.querySelector(`.builder-cell[data-row="${r + 1}"][data-col="${c}"]`);
+          if (!nextCell) {
+            appendNewRowToTable();
+            nextCell = document.querySelector(`.builder-cell[data-row="${r + 1}"][data-col="${c}"]`);
+          }
+          if (nextCell) focusAndSelectCell(nextCell);
+        }
+      };
+
+      table.addEventListener('focusin', (e) => {
+        if (e.target.classList.contains('builder-cell')) e.target.dataset.original = e.target.innerHTML;
+      });
+      table.addEventListener('focusout', (e) => {
+        if (e.target.classList.contains('builder-cell')) {
+          if (e.target.dataset.original !== e.target.innerHTML) saveBuilderState();
+        }
+      });
+
+      document.addEventListener('copy', (e) => {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+        if (builderConfig.activeTab !== 'home' && builderConfig.activeTab !== 'data' && builderConfig.activeTab !== 'layout') return;
+        const selected = document.querySelectorAll('.builder-cell.selected');
+        if (selected.length === 0) return;
+
+        const rowMap = new Map();
+        selected.forEach((td) => {
+          const tr = td.parentElement;
+          if (!rowMap.has(tr)) rowMap.set(tr, []);
+          rowMap.get(tr).push(td.innerText.trim());
         });
 
-        document.addEventListener('paste', (e) => {
-            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-            if (builderConfig.activeTab !== 'home' && builderConfig.activeTab !== 'data' && builderConfig.activeTab !== 'layout') return;
-            
-            const activeCell = document.querySelector('.builder-cell.selected') || document.activeElement.closest('td.builder-cell');
-            if (activeCell) {
-                saveBuilderState();
-                e.preventDefault();
-                const text = e.clipboardData.getData('text/plain');
-                const rowsData = text.split(/\r?\n/).map(r => r.split('\t'));
-                
-                const startR = parseInt(activeCell.dataset.row);
-                const startC = parseInt(activeCell.dataset.col);
-                
-                rowsData.forEach((rowData, i) => {
-                    let tr = document.querySelector(`.builder-cell[data-row="${startR + i}"]`)?.parentElement;
-                    if (!tr) {
-                        const targetTbody = document.querySelector('#builder-table tbody:last-child');
-                        if(targetTbody) {
-                            tr = document.createElement('tr');
-                            const nextRowIdx = startR + i;
-                            tr.dataset.index = nextRowIdx;
-                            tr.dataset.studentId = ""; 
-                            tr.innerHTML = `<td class="no-print row-header" data-row="${nextRowIdx}">${nextRowIdx + 1}</td>` + 
-                                           Array.from({ length: builderConfig.columns.length }).map((_, cIndex) => `<td class="excel-cell builder-cell" contenteditable="true" data-row="${nextRowIdx}" data-col="${cIndex}"></td>`).join('');
-                            targetTbody.appendChild(tr);
-                            attachTableFormatListeners();
-                        }
-                    }
-                    
-                    if(tr) {
-                        rowData.forEach((val, j) => {
-                            const td = tr.querySelector(`.builder-cell[data-col="${startC + j}"]`);
-                            if (td) td.textContent = val;
-                        });
-                    }
-                });
+        const tsv = Array.from(rowMap.values()).map((row) => row.join('\t')).join('\n');
+        e.clipboardData.setData('text/plain', tsv);
+        e.preventDefault();
+      });
+
+      document.addEventListener('paste', (e) => {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+        if (builderConfig.activeTab !== 'home' && builderConfig.activeTab !== 'data' && builderConfig.activeTab !== 'layout') return;
+
+        const activeCell = document.querySelector('.builder-cell.cell-focused') || document.querySelector('.builder-cell.selected') || document.activeElement.closest('td.builder-cell');
+        if (activeCell) {
+          saveBuilderState();
+          e.preventDefault();
+          const text = e.clipboardData.getData('text/plain');
+          const rowsData = text.split(/\r?\n/).map((r) => r.split('\t'));
+
+          const startR = parseInt(activeCell.dataset.row, 10);
+          const startC = parseInt(activeCell.dataset.col, 10);
+
+          rowsData.forEach((rowData, i) => {
+            let tr = document.querySelector(`.builder-cell[data-row="${startR + i}"]`)?.parentElement;
+            if (!tr) {
+              const targetTbody = document.querySelector('#builder-table tbody:last-child');
+              if (targetTbody) {
+                tr = document.createElement('tr');
+                const nextRowIdx = startR + i;
+                tr.dataset.index = nextRowIdx;
+                tr.dataset.studentId = '';
+                const densityPadding = builderConfig.rowDensity === 'compact' ? '2px 5px' : (builderConfig.rowDensity === 'comfortable' ? '9px 10px' : '5px 8px');
+                const defaultBorderCss = builderConfig.borderMode === 'none' ? '1px solid transparent' : '1px solid #000000';
+                tr.innerHTML = `<td class="no-print row-header" data-row="${nextRowIdx}">${nextRowIdx + 1}</td>` +
+                  Array.from({ length: builderConfig.columns.length }).map((_, cIndex) => `<td class="excel-cell builder-cell" contenteditable="true" data-row="${nextRowIdx}" data-col="${cIndex}" style="padding: ${densityPadding}; border: ${defaultBorderCss};"></td>`).join('');
+                targetTbody.appendChild(tr);
+                attachTableFormatListeners();
+              }
             }
-        });
+
+            if (tr) {
+              rowData.forEach((val, j) => {
+                const td = tr.querySelector(`.builder-cell[data-col="${startC + j}"]`);
+                if (td) td.textContent = val;
+              });
+            }
+          });
+        }
+      });
     };
 
     const renderAll = () => {
@@ -4613,6 +5279,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       directoryCategories = Array.isArray(content.directoryCategories) ? content.directoryCategories : [];
       categoryAuthConfig = authConfigSnap.exists() ? { categories: {}, ...(authConfigSnap.data() || {}) } : { categories: {} };
       pageAccessConfig = pageAccessSnap.exists() ? { categories: {}, overrides: {}, ...(pageAccessSnap.data() || {}) } : { categories: {}, overrides: {} };
+      await syncWorksheetTemplatesFromFirestore();
       const yearsData = academicYearsSnap.exists() ? (academicYearsSnap.data() || {}) : {};
       const currentYearVal = String(yearsData.currentYear || yearsData.activeYear || '').trim();
       const rawYearsList = Array.isArray(yearsData.years) ? yearsData.years : [];

@@ -394,9 +394,8 @@
     .excel-cell { outline: none; transition: 0.08s; white-space: nowrap; overflow: hidden; position: relative;}
     .excel-cell.wrap-text { white-space: pre-wrap !important; word-break: break-word !important; }
     .excel-cell.selected { background-color: #e5f3eb !important; }
-    .excel-cell.selected::after { content: ''; position: absolute; inset: -1px; border: 2px solid #107c41; z-index: 10; pointer-events: none; }
-    .excel-cell:focus { z-index: 12; }
-    .excel-cell:focus::after { content: ''; position: absolute; inset: -1px; border: 2px solid #107c41; z-index: 12; pointer-events: none; }
+    .excel-cell.selected.cell-focused::after, .excel-cell:focus::after { content: ''; position: absolute; inset: -1px; border: 2px solid #107c41; z-index: 12; pointer-events: none; }
+    .excel-cell:focus, .excel-cell.cell-focused { z-index: 12; }
 
     .config-row th { background: #f8fafc; padding: 4px; border-bottom: 2px solid #334155;}
     .grid-select { width: 100%; border: 1px solid #c8c6c4; padding: 2px; font-size: 11px; outline: none; color: #333; border-radius: 2px;}
