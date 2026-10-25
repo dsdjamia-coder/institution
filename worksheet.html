@@ -371,26 +371,158 @@
     .excel-workspace::-webkit-scrollbar-thumb:hover { background: #a19f9d; }
 
     .print-canvas {
-        background: #ffffff;
+        background: transparent;
         margin: 12px auto 30px auto;
-        min-height: 500px;
-        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.08);
         position: relative;
         overflow: visible;
         transform-origin: top center;
-        transition: width 0.25s ease, min-height 0.25s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+    }
+    .print-canvas-page {
+        background: #ffffff;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.08);
+        position: relative;
+        overflow: visible;
         border-radius: 2px;
         border-right: 2px dashed #cbd5e1;
+        box-sizing: border-box;
+        transition: width 0.25s ease, min-height 0.25s ease;
+        padding: 10mm;
     }
-    .print-canvas[data-paper="A4"][data-orient="portrait"] { width: 210mm; min-height: 297mm; }
-    .print-canvas[data-paper="A4"][data-orient="landscape"] { width: 297mm; min-height: 210mm; }
-    .print-canvas[data-paper="Legal"][data-orient="portrait"] { width: 215.9mm; min-height: 355.6mm; }
-    .print-canvas[data-paper="Legal"][data-orient="landscape"] { width: 355.6mm; min-height: 215.9mm; }
-    .print-canvas[data-paper="A3"][data-orient="portrait"] { width: 297mm; min-height: 420mm; }
-    .print-canvas[data-paper="A3"][data-orient="landscape"] { width: 420mm; min-height: 297mm; }
-    .print-canvas[data-margin="narrow"] { padding: 5mm; }
-    .print-canvas[data-margin="normal"] { padding: 10mm; }
-    .print-canvas[data-margin="wide"] { padding: 18mm; }
+    .print-canvas-page[data-paper="A4"][data-orient="portrait"] { width: 210mm; min-height: 297mm; }
+    .print-canvas-page[data-paper="A4"][data-orient="landscape"] { width: 297mm; min-height: 210mm; }
+    .print-canvas-page[data-paper="Legal"][data-orient="portrait"] { width: 215.9mm; min-height: 355.6mm; }
+    .print-canvas-page[data-paper="Legal"][data-orient="landscape"] { width: 355.6mm; min-height: 215.9mm; }
+    .print-canvas-page[data-paper="A3"][data-orient="portrait"] { width: 297mm; min-height: 420mm; }
+    .print-canvas-page[data-paper="A3"][data-orient="landscape"] { width: 420mm; min-height: 297mm; }
+    .print-canvas-page[data-margin="narrow"] { padding: 5mm; }
+    .print-canvas-page[data-margin="normal"] { padding: 10mm; }
+    .print-canvas-page[data-margin="wide"] { padding: 18mm; }
+
+    .page-gap-divider {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        width: 100%;
+        max-width: 600px;
+        margin: 28px auto;
+        user-select: none;
+    }
+    .page-gap-divider::before,
+    .page-gap-divider::after {
+        content: '';
+        flex: 1;
+        border-top: 2px dashed #94a3b8;
+    }
+    .page-gap-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #0f172a;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 800;
+        padding: 5px 14px;
+        border-radius: 9999px;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        letter-spacing: 0.5px;
+    }
+
+    /* Modular Header Styles */
+    .header-builder-section {
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #0f172a;
+        position: relative;
+    }
+    .header-block-item {
+        position: relative;
+        padding: 2px 28px 2px 4px;
+        margin-bottom: 3px;
+        border-radius: 6px;
+        border: 1px dashed transparent;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .header-block-item:hover {
+        border-color: #93c5fd;
+        background-color: rgba(239, 246, 255, 0.7);
+    }
+    .header-block-actions {
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: none;
+        align-items: center;
+        gap: 3px;
+        z-index: 25;
+    }
+    .header-block-item:hover .header-block-actions {
+        display: flex;
+    }
+    .header-action-btn {
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        font-size: 10px;
+        color: #475569;
+        cursor: pointer;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        transition: all 0.1s ease;
+    }
+    .header-action-btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+        border-color: #94a3b8;
+    }
+    .header-action-btn.btn-del:hover {
+        background: #fef2f2;
+        color: #ef4444;
+        border-color: #fca5a5;
+    }
+    .btn-add-header-block {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #2563eb;
+        background: #eff6ff;
+        border: 1px dashed #93c5fd;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-add-header-block:hover {
+        background: #dbeafe;
+        border-color: #3b82f6;
+        color: #1d4ed8;
+        transform: translateY(-1px);
+    }
+
+    .sig-line-item {
+        outline: none;
+        padding: 2px 4px;
+        border-radius: 4px;
+        transition: background-color 0.15s ease;
+    }
+    .sig-line-item:hover {
+        background-color: rgba(241, 245, 249, 0.8);
+    }
+    .sig-line-item:focus {
+        background-color: #ffffff;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
 
     .header-live-input {
         width: 100%;
@@ -488,24 +620,74 @@
             print-color-adjust: exact !important;
             color-adjust: exact !important;
         }
-        body.is-printing { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-        body.is-printing * { visibility: hidden; }
-        body.is-printing #print-canvas, body.is-printing #print-canvas * { visibility: visible; }
-        body.is-printing #print-canvas {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            max-width: none !important;
+        body.is-printing {
+            background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: visible !important;
+        }
+        body.is-printing header,
+        body.is-printing .excel-ui-header,
+        body.is-printing .canvas-meta-bar,
+        body.is-printing .page-gap-divider,
+        body.is-printing .header-block-actions,
+        body.is-printing .btn-add-header-block,
+        body.is-printing .no-print {
+            display: none !important;
+        }
+        body.is-printing #official-app,
+        body.is-printing #app,
+        body.is-printing #page-content,
+        body.is-printing #official-tab-export,
+        body.is-printing .excel-container,
+        body.is-printing .excel-workspace {
+            display: block !important;
+            position: static !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            background: #ffffff !important;
+            border: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        body.is-printing #print-canvas {
+            display: block !important;
+            position: static !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
             border: none !important;
             box-shadow: none !important;
             overflow: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
             zoom: 1 !important;
             transform: none !important;
+            background: #ffffff !important;
         }
-        body.is-printing .no-print, body.is-printing .canvas-meta-bar { display: none !important; }
+        body.is-printing .print-canvas-page {
+            page-break-after: always !important;
+            break-after: page !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-right: none !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            height: auto !important;
+            padding: 6mm 4mm !important;
+            box-sizing: border-box !important;
+            background: #ffffff !important;
+        }
+        body.is-printing .print-canvas-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+        }
         body.is-printing .header-live-input {
             border: none !important;
             background: transparent !important;
@@ -513,11 +695,27 @@
             box-shadow: none !important;
             outline: none !important;
         }
-        body.is-printing .print-only-heading { display: block !important; font-size: 12px; font-weight: 800; text-align: center; padding: 4px; color: #000; }
-        body.is-printing .builder-print-header { display: table-header-group !important; }
-        body.is-printing .excel-table.print-gridlines-off td.excel-cell { border-color: transparent !important; }
-        body.is-printing .excel-cell { white-space: normal; word-break: break-word; }
-        .page-break-before { page-break-before: always; break-before: page; }
+        body.is-printing .header-block-item {
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin-bottom: 2px !important;
+        }
+        body.is-printing .print-only-heading {
+            display: block !important;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: center;
+            padding: 4px;
+            color: #000;
+        }
+        body.is-printing .excel-table.hide-gridlines td.excel-cell {
+            border-color: transparent !important;
+        }
+        body.is-printing .excel-cell {
+            white-space: normal;
+            word-break: break-word;
+        }
     }
   </style>
 </head>

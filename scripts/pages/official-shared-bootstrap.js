@@ -250,11 +250,15 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       borderMode: 'grid', // 'grid' | 'outer' | 'none'
       rowDensity: 'normal', // 'compact' | 'normal' | 'comfortable'
       showHeader: true,
+      showFooter: true,
       repeatHeader: true,
-      showSignatures: false,
+      rowsPerPage: 'auto', // 'auto' | '15' | '20' | '25' | '30' | 'all'
+      showSignatures: true,
       sigLeft: 'Class Teacher',
       sigCenter: 'Checked By',
       sigRight: 'Principal / Head',
+      footerNote: '',
+      headerBlocks: null,
       instNameOverride: '',
       instSubOverride: '',
       instRegOverride: '',
@@ -275,9 +279,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     let redoStack = [];
 
     const saveBuilderState = () => {
-        const table = document.getElementById('builder-table');
-        if (table) {
-            undoStack.push(table.innerHTML);
+        const canvas = document.getElementById('print-canvas');
+        if (canvas) {
+            undoStack.push(canvas.innerHTML);
             if (undoStack.length > 20) undoStack.shift(); 
             redoStack = [];
         }
@@ -285,21 +289,27 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const undoBuilder = () => {
         if (undoStack.length > 0) {
-            const table = document.getElementById('builder-table');
-            redoStack.push(table.innerHTML);
-            table.innerHTML = undoStack.pop();
-            attachTableFormatListeners();
-            rebindAllColumnListeners();
+            const canvas = document.getElementById('print-canvas');
+            if (canvas) {
+                redoStack.push(canvas.innerHTML);
+                canvas.innerHTML = undoStack.pop();
+                attachTableFormatListeners();
+                rebindAllColumnListeners();
+                attachHeaderCanvasEvents();
+            }
         }
     };
 
     const redoBuilder = () => {
         if (redoStack.length > 0) {
-            const table = document.getElementById('builder-table');
-            undoStack.push(table.innerHTML);
-            table.innerHTML = redoStack.pop();
-            attachTableFormatListeners();
-            rebindAllColumnListeners();
+            const canvas = document.getElementById('print-canvas');
+            if (canvas) {
+                undoStack.push(canvas.innerHTML);
+                canvas.innerHTML = redoStack.pop();
+                attachTableFormatListeners();
+                rebindAllColumnListeners();
+                attachHeaderCanvasEvents();
+            }
         }
     };
 
@@ -549,8 +559,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         rowDensity: builderConfig.rowDensity || 'normal',
         borderMode: builderConfig.borderMode || 'grid',
         showHeader: builderConfig.showHeader !== false,
+        showFooter: builderConfig.showFooter !== false,
         repeatHeader: builderConfig.repeatHeader !== false,
+        rowsPerPage: builderConfig.rowsPerPage || 'auto',
         showSignatures: Boolean(builderConfig.showSignatures),
+        headerBlocks: JSON.parse(JSON.stringify(builderConfig.headerBlocks || [])),
+        footerNote: builderConfig.footerNote || '',
         instNameOverride: builderConfig.instNameOverride || '',
         instSubOverride: builderConfig.instSubOverride || '',
         instRegOverride: builderConfig.instRegOverride || '',
@@ -606,8 +620,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (template.instRegOverride !== undefined) builderConfig.instRegOverride = template.instRegOverride;
       if (template.customTitle !== undefined) builderConfig.customTitle = template.customTitle;
       if (template.customSubtitle !== undefined) builderConfig.customSubtitle = template.customSubtitle;
+      if (template.headerBlocks && Array.isArray(template.headerBlocks)) {
+        builderConfig.headerBlocks = JSON.parse(JSON.stringify(template.headerBlocks));
+      } else {
+        builderConfig.headerBlocks = null;
+      }
       if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
+      if (template.showFooter !== undefined) builderConfig.showFooter = template.showFooter;
       if (template.repeatHeader !== undefined) builderConfig.repeatHeader = template.repeatHeader;
+      if (template.rowsPerPage !== undefined) builderConfig.rowsPerPage = template.rowsPerPage;
+      if (template.footerNote !== undefined) builderConfig.footerNote = template.footerNote;
       if (template.showSignatures !== undefined) builderConfig.showSignatures = template.showSignatures;
       if (template.sigLeft) builderConfig.sigLeft = template.sigLeft;
       if (template.sigCenter) builderConfig.sigCenter = template.sigCenter;
@@ -3842,6 +3864,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const applyBuilderPreset = (presetId) => {
       saveBuilderState();
+      builderConfig.headerBlocks = null;
       if (presetId === 'attendance') {
         builderConfig.sourceType = 'students';
         builderConfig.customTitle = 'MONTHLY ATTENDANCE REGISTER';
@@ -3949,7 +3972,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const dataset = getBuilderDatasetRows();
       const rowMap = new Map(dataset.map((item) => [String(item.id), item]));
 
-      document.querySelectorAll('#builder-table tr[data-index]').forEach((tr) => {
+      document.querySelectorAll('#print-canvas tr[data-index]').forEach((tr) => {
         const recordId = tr.dataset.studentId;
         const rowIndex = parseInt(tr.dataset.index, 10);
         const cell = tr.querySelector(`.builder-cell[data-col="${colIndex}"]`);
@@ -4008,24 +4031,130 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const effectiveCustomTitle = builderConfig.customTitle !== undefined && builderConfig.customTitle !== '' ? builderConfig.customTitle : 'INSTITUTION WORKSHEET & REGISTER';
       const effectiveCustomSub = builderConfig.customSubtitle !== undefined && builderConfig.customSubtitle !== '' ? builderConfig.customSubtitle : autoSubInfo.join('  •  ');
 
-      const colSpanPrint = builderConfig.columns.length;
+      const getDefaultHeaderBlocks = () => {
+        const blocks = [
+          {
+            id: 'hb_inst_name',
+            type: 'inst_name',
+            text: effectiveInstName,
+            placeholder: 'Institution / School Name...',
+            fontSize: '22px',
+            fontWeight: '900',
+            align: 'center'
+          },
+          {
+            id: 'hb_inst_sub',
+            type: 'inst_sub',
+            text: effectiveInstSub,
+            placeholder: 'Subtitle / Place / Address...',
+            fontSize: '13px',
+            fontWeight: '600',
+            align: 'center'
+          }
+        ];
+        if (effectiveInstReg) {
+          blocks.push({
+            id: 'hb_inst_reg',
+            type: 'inst_reg',
+            text: effectiveInstReg,
+            placeholder: 'Reg / Affiliation No. (Optional)...',
+            fontSize: '11px',
+            fontWeight: '700',
+            align: 'center'
+          });
+        }
+        blocks.push({
+          id: 'hb_report_title',
+          type: 'report_title',
+          text: effectiveCustomTitle,
+          placeholder: 'Report / Register Heading...',
+          fontSize: '16px',
+          fontWeight: '900',
+          align: 'center'
+        });
+        if (effectiveCustomSub) {
+          blocks.push({
+            id: 'hb_report_sub',
+            type: 'report_sub',
+            text: effectiveCustomSub,
+            placeholder: 'Academic Year • Class • Section Details...',
+            fontSize: '12px',
+            fontWeight: '700',
+            align: 'center'
+          });
+        }
+        return blocks;
+      };
 
-      const headerHtml = builderConfig.showHeader ? `
-        <thead class="${builderConfig.repeatHeader ? 'builder-print-header repeat-header' : 'builder-print-header'}">
-          <tr>
-            <th colspan="${colSpanPrint + 1}" class="print-header-th bg-white border-0 !p-0">
-              <div class="print-header-content text-center py-2 px-3">
-                <input type="text" id="hdr-inst-name" class="header-live-input print-inst-name-input" value="${escapeHtml(effectiveInstName)}" placeholder="Institution Name (Click to edit directly)..." title="Click to edit Institution Name directly" />
-                <input type="text" id="hdr-inst-sub" class="header-live-input print-inst-sub-input" value="${escapeHtml(effectiveInstSub)}" placeholder="Subtitle / Place / Address..." title="Click to edit Subtitle directly" />
-                <input type="text" id="hdr-inst-reg" class="header-live-input print-inst-reg-input ${!effectiveInstReg ? 'no-print' : ''}" value="${escapeHtml(effectiveInstReg)}" placeholder="Reg / Affiliation No. (Optional)..." title="Click to edit Reg No directly" />
-                <div class="my-1.5 border-t border-slate-300 w-1/3 mx-auto"></div>
-                <input type="text" id="hdr-report-title" class="header-live-input print-report-title-input" value="${escapeHtml(effectiveCustomTitle)}" placeholder="Report / Register Heading..." title="Click to edit Report Title directly" />
-                <input type="text" id="hdr-report-sub" class="header-live-input print-report-sub-input" value="${escapeHtml(effectiveCustomSub)}" placeholder="Academic Year • Class • Section / Cohort Details..." title="Click to edit Sub-heading directly" />
+      if (!builderConfig.headerBlocks || !Array.isArray(builderConfig.headerBlocks) || builderConfig.headerBlocks.length === 0) {
+        builderConfig.headerBlocks = getDefaultHeaderBlocks();
+      }
+
+      const renderHeaderHtml = (pageIndex = 0) => {
+        if (!builderConfig.showHeader) return '';
+        const isFirstPage = pageIndex === 0;
+        const blocksHtml = (builderConfig.headerBlocks || []).map((block) => {
+          return `
+            <div class="header-block-item" data-block-id="${escapeHtml(block.id)}" style="text-align: ${escapeHtml(block.align || 'center')};">
+              <input type="text"
+                     class="header-live-input header-block-input"
+                     data-block-id="${escapeHtml(block.id)}"
+                     value="${escapeHtml(block.text || '')}"
+                     placeholder="${escapeHtml(block.placeholder || 'Header text (click to edit)...')}"
+                     style="font-size: ${escapeHtml(block.fontSize || '14px')}; font-weight: ${escapeHtml(block.fontWeight || '700')}; text-align: ${escapeHtml(block.align || 'center')};"
+                     title="Click to edit header box directly" />
+              ${isFirstPage ? `
+              <div class="header-block-actions no-print">
+                <button type="button" class="header-action-btn btn-align-left" data-block-id="${escapeHtml(block.id)}" title="Align Left"><i class="fas fa-align-left"></i></button>
+                <button type="button" class="header-action-btn btn-align-center" data-block-id="${escapeHtml(block.id)}" title="Align Center"><i class="fas fa-align-center"></i></button>
+                <button type="button" class="header-action-btn btn-align-right" data-block-id="${escapeHtml(block.id)}" title="Align Right"><i class="fas fa-align-right"></i></button>
+                <button type="button" class="header-action-btn btn-del" data-block-id="${escapeHtml(block.id)}" title="Delete this box"><i class="fas fa-times"></i></button>
               </div>
-            </th>
-          </tr>
-        </thead>
-      ` : '';
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="header-builder-section">
+            <div class="header-blocks-list">
+              ${blocksHtml}
+            </div>
+            ${isFirstPage ? `
+            <div class="no-print text-center mt-2 mb-1">
+              <button type="button" id="btn-add-header-box" class="btn-add-header-block" title="Add a custom text box to header">
+                <i class="fas fa-plus-circle text-blue-600"></i> Add Header Box
+              </button>
+            </div>
+            ` : ''}
+          </div>
+        `;
+      };
+
+      const renderFooterHtml = (pageNumber, totalPages) => {
+        if (!builderConfig.showFooter) return '';
+        return `
+          <div class="worksheet-page-footer mt-6 pt-4 border-t border-slate-300">
+            ${builderConfig.showSignatures ? `
+            <div class="grid grid-cols-3 gap-6 text-center text-xs font-bold text-slate-800 mb-4 pt-4">
+              <div>
+                <div class="border-t border-slate-800 pt-1.5 w-4/5 mx-auto sig-line-item" contenteditable="true" data-sig-role="left" title="Click to edit signature title">${escapeHtml(builderConfig.sigLeft || 'Class Teacher')}</div>
+              </div>
+              <div>
+                <div class="border-t border-slate-800 pt-1.5 w-4/5 mx-auto sig-line-item" contenteditable="true" data-sig-role="center" title="Click to edit signature title">${escapeHtml(builderConfig.sigCenter || 'Checked By')}</div>
+              </div>
+              <div>
+                <div class="border-t border-slate-800 pt-1.5 w-4/5 mx-auto sig-line-item" contenteditable="true" data-sig-role="right" title="Click to edit signature title">${escapeHtml(builderConfig.sigRight || 'Principal / Head')}</div>
+              </div>
+            </div>
+            ` : ''}
+            <div class="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-2">
+              <span>${escapeHtml(builderConfig.footerNote || '')}</span>
+              <span class="font-bold text-slate-700">Page ${pageNumber} of ${totalPages}</span>
+            </div>
+          </div>
+        `;
+      };
 
       const getExcelColumnLabel = (index) => {
         let label = '';
@@ -4060,9 +4189,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const densityPadding = builderConfig.rowDensity === 'compact' ? '2px 5px' : (builderConfig.rowDensity === 'comfortable' ? '9px 10px' : '5px 8px');
       const defaultBorderCss = builderConfig.borderMode === 'none' ? '1px solid transparent' : '1px solid #000000';
 
-      const renderTbodyRows = (records, startIndex = 0) => {
-        const rowCount = Math.max(15, records.length);
-        return Array.from({ length: rowCount }).map((_, rIndex) => {
+      const renderTbodyRows = (records, startIndex = 0, minRows = 15, sectionTitle = '') => {
+        const rowCount = Math.max(minRows, records.length);
+        const sectionBanner = sectionTitle ? `
+          <tr>
+            <td class="no-print row-header">-</td>
+            <td colspan="${builderConfig.columns.length}" class="bg-slate-100 text-left text-xs py-1.5 px-3 text-slate-800 font-extrabold border border-slate-400">${escapeHtml(sectionTitle)}</td>
+          </tr>
+        ` : '';
+
+        const rowsHtml = Array.from({ length: rowCount }).map((_, rIndex) => {
           const rec = records[rIndex] || null;
           return `<tr data-student-id="${rec ? escapeHtml(String(rec.id)) : ''}" data-index="${startIndex + rIndex}">
             <td class="no-print row-header" data-row="${startIndex + rIndex}">${startIndex + rIndex + 1}</td>
@@ -4076,54 +4212,124 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             }).join('')}
           </tr>`;
         }).join('');
+
+        return sectionBanner + rowsHtml;
       };
 
-      let bodyHtml = '';
-      if (builderConfig.sourceType === 'staff' || !builderConfig.classId || builderConfig.groupBy === 'mixed') {
-        bodyHtml = `<tbody>${renderTbodyRows(dataRows)}</tbody>`;
-      } else if (builderConfig.groupBy === 'class_wise' && builderConfig.classId === 'ALL') {
-        let runningIdx = 0;
-        const groupedHtml = classOptions.map((clsName, gIdx) => {
-          const clsList = dataRows.filter((r) => String(r.class || '') === clsName);
-          if (clsList.length === 0) return '';
-          const sectionRows = renderTbodyRows(clsList, runningIdx);
-          runningIdx += Math.max(15, clsList.length);
-          return `<tbody class="${gIdx > 0 ? 'page-break-before' : ''}">
-            <tr>
-              <td class="no-print row-header">-</td>
-              <td colspan="${builderConfig.columns.length}" class="bg-slate-100 text-left text-xs py-1.5 px-3 text-slate-800 font-extrabold border border-slate-400">CLASS: ${escapeHtml(clsName)} (${clsList.length} Students)</td>
-            </tr>
-            ${sectionRows}
-          </tbody>`;
-        }).join('');
-        bodyHtml = groupedHtml || `<tbody>${renderTbodyRows(dataRows)}</tbody>`;
+      let pageSize = 20;
+      if (builderConfig.rowsPerPage === 'all') {
+        pageSize = 999999;
+      } else if (builderConfig.rowsPerPage && builderConfig.rowsPerPage !== 'auto') {
+        pageSize = parseInt(builderConfig.rowsPerPage, 10) || 20;
       } else {
-        const boys = dataRows.filter((s) => normalizeText(s.gender) === 'male');
-        const girls = dataRows.filter((s) => normalizeText(s.gender) === 'female');
-
-        if (builderConfig.groupBy === 'grouped') {
-          bodyHtml = `<tbody>${renderTbodyRows([...boys, ...girls])}</tbody>`;
-        } else if (builderConfig.groupBy === 'separate') {
-          bodyHtml = `<tbody>${renderTbodyRows(boys)}</tbody>
-            <tbody class="page-break-before">
-              <tr>
-                <td class="no-print row-header">-</td>
-                <td colspan="${builderConfig.columns.length}" class="no-print bg-slate-100 text-center text-xs py-2 text-slate-500 font-bold border-dashed border-y border-slate-300">--- PAGE BREAK (Girls List) ---</td>
-              </tr>
-              ${renderTbodyRows(girls, Math.max(15, boys.length))}
-            </tbody>`;
-        } else {
-          bodyHtml = `<tbody>${renderTbodyRows(dataRows)}</tbody>`;
-        }
+        pageSize = builderConfig.orientation === 'landscape' ? 18 : 26;
       }
 
-      const signatureFooterHtml = builderConfig.showSignatures ? `
-        <div class="mt-10 pt-8 px-6 pb-4 grid grid-cols-3 gap-8 text-center text-xs font-bold text-slate-800">
-          <div class="border-t border-slate-800 pt-2">${escapeHtml(builderConfig.sigLeft || 'Class Teacher')}</div>
-          <div class="border-t border-slate-800 pt-2">${escapeHtml(builderConfig.sigCenter || 'Checked By')}</div>
-          <div class="border-t border-slate-800 pt-2">${escapeHtml(builderConfig.sigRight || 'Principal / Head')}</div>
-        </div>
-      ` : '';
+      const pageChunks = [];
+
+      if (builderConfig.sourceType !== 'staff' && builderConfig.groupBy === 'class_wise' && builderConfig.classId === 'ALL') {
+        let globalIndex = 0;
+        classOptions.forEach((clsName) => {
+          const clsList = dataRows.filter((r) => String(r.class || '') === clsName);
+          if (clsList.length === 0) return;
+          for (let i = 0; i < clsList.length; i += pageSize) {
+            pageChunks.push({
+              rows: clsList.slice(i, i + pageSize),
+              startIndex: globalIndex,
+              sectionTitle: i === 0 ? `CLASS: ${clsName} (${clsList.length} Students)` : ''
+            });
+            globalIndex += clsList.slice(i, i + pageSize).length;
+          }
+        });
+        if (pageChunks.length === 0) {
+          pageChunks.push({ rows: [], startIndex: 0, sectionTitle: '' });
+        }
+      } else if (builderConfig.sourceType !== 'staff' && builderConfig.groupBy === 'separate') {
+        const boys = dataRows.filter((s) => normalizeText(s.gender) === 'male');
+        const girls = dataRows.filter((s) => normalizeText(s.gender) === 'female');
+        let globalIndex = 0;
+        if (boys.length > 0) {
+          for (let i = 0; i < boys.length; i += pageSize) {
+            pageChunks.push({
+              rows: boys.slice(i, i + pageSize),
+              startIndex: globalIndex,
+              sectionTitle: i === 0 ? `Boys List (${boys.length})` : ''
+            });
+            globalIndex += boys.slice(i, i + pageSize).length;
+          }
+        }
+        if (girls.length > 0) {
+          for (let i = 0; i < girls.length; i += pageSize) {
+            pageChunks.push({
+              rows: girls.slice(i, i + pageSize),
+              startIndex: globalIndex,
+              sectionTitle: i === 0 ? `Girls List (${girls.length})` : ''
+            });
+            globalIndex += girls.slice(i, i + pageSize).length;
+          }
+        }
+        if (pageChunks.length === 0) {
+          pageChunks.push({ rows: [], startIndex: 0, sectionTitle: '' });
+        }
+      } else {
+        let ordered = dataRows;
+        if (builderConfig.groupBy === 'grouped') {
+          const boys = dataRows.filter((s) => normalizeText(s.gender) === 'male');
+          const girls = dataRows.filter((s) => normalizeText(s.gender) === 'female');
+          ordered = [...boys, ...girls];
+        }
+        if (ordered.length === 0) {
+          pageChunks.push({ rows: [], startIndex: 0, sectionTitle: '' });
+        } else {
+          for (let i = 0; i < ordered.length; i += pageSize) {
+            pageChunks.push({
+              rows: ordered.slice(i, i + pageSize),
+              startIndex: i,
+              sectionTitle: ''
+            });
+          }
+        }
+      }
+      const totalPages = pageChunks.length;
+
+      const pagesHtml = pageChunks.map((chunkInfo, pIdx) => {
+        const isFirst = pIdx === 0;
+        const pageNumber = pIdx + 1;
+        const shouldShowHeader = builderConfig.showHeader && (isFirst || builderConfig.repeatHeader);
+
+        const pageTableHtml = `
+          <table class="excel-table ${pIdx === 0 ? 'first-page-table' : ''} ${builderConfig.borderMode === 'none' ? 'hide-gridlines' : ''}" data-page-index="${pIdx}">
+            <thead>
+              <tr class="no-print">
+                <th class="select-all-corner w-10 border-slate-300" title="Select All Cells"></th>
+                ${excelColHeaders}
+              </tr>
+              <tr class="config-row">
+                <th class="no-print row-header bg-slate-200 border-slate-300">#</th>
+                ${colHeadersHtml}
+              </tr>
+            </thead>
+            <tbody>
+              ${renderTbodyRows(chunkInfo.rows, chunkInfo.startIndex, (isFirst && totalPages === 1) ? 15 : chunkInfo.rows.length, chunkInfo.sectionTitle)}
+            </tbody>
+          </table>
+        `;
+
+        const dividerHtml = (pIdx < totalPages - 1) ? `
+          <div class="page-gap-divider no-print">
+            <span class="page-gap-badge"><i class="fas fa-file-alt"></i> Page ${pageNumber + 1} Break</span>
+          </div>
+        ` : '';
+
+        return `
+          <div class="print-canvas-page" data-page-index="${pIdx}" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}">
+            ${shouldShowHeader ? renderHeaderHtml(pIdx) : ''}
+            ${pageTableHtml}
+            ${builderConfig.showFooter ? renderFooterHtml(pageNumber, totalPages) : ''}
+          </div>
+          ${dividerHtml}
+        `;
+      }).join('');
 
       const ribbonHome = `
         <div id="ribbon-home" class="ribbon-panel ${builderConfig.activeTab === 'home' ? 'active' : ''}">
@@ -4386,46 +4592,51 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <div class="ribbon-group">
-            <div class="ribbon-row mb-1 gap-2 items-center">
+            <div class="ribbon-row h-full gap-2 items-center">
               <div class="flex flex-col">
-                <label class="text-[9px] font-bold text-slate-600">Institution Name</label>
-                <input type="text" id="builder-inst-name" value="${escapeHtml(effectiveInstName)}" class="excel-input-ribbon w-36 font-semibold" placeholder="Institution Name">
+                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Rows Per Page</label>
+                <select id="builder-rows-per-page" class="excel-input-ribbon w-36 font-bold text-slate-800">
+                  <option value="auto" ${builderConfig.rowsPerPage === 'auto' ? 'selected' : ''}>Auto (${builderConfig.orientation === 'landscape' ? '18' : '26'} Rows)</option>
+                  <option value="15" ${builderConfig.rowsPerPage === '15' ? 'selected' : ''}>15 Rows / Page</option>
+                  <option value="20" ${builderConfig.rowsPerPage === '20' ? 'selected' : ''}>20 Rows / Page</option>
+                  <option value="25" ${builderConfig.rowsPerPage === '25' ? 'selected' : ''}>25 Rows / Page</option>
+                  <option value="30" ${builderConfig.rowsPerPage === '30' ? 'selected' : ''}>30 Rows / Page</option>
+                  <option value="all" ${builderConfig.rowsPerPage === 'all' ? 'selected' : ''}>Continuous (All Rows)</option>
+                </select>
               </div>
               <div class="flex flex-col">
-                <label class="text-[9px] font-bold text-slate-600">Subtitle / Place</label>
-                <input type="text" id="builder-inst-sub" value="${escapeHtml(effectiveInstSub)}" class="excel-input-ribbon w-32" placeholder="Subtitle / Place">
-              </div>
-              <div class="flex flex-col">
-                <label class="text-[9px] font-bold text-slate-600">Reg No (Optional)</label>
-                <input type="text" id="builder-inst-reg" value="${escapeHtml(effectiveInstReg)}" class="excel-input-ribbon w-24" placeholder="Reg No">
-              </div>
-            </div>
-            <div class="ribbon-row gap-2 items-center">
-              <div class="flex flex-col">
-                <label class="text-[9px] font-bold text-slate-600">Report Main Title</label>
-                <input type="text" id="builder-custom-title" value="${escapeHtml(effectiveCustomTitle)}" class="excel-input-ribbon w-48 font-bold text-indigo-900" placeholder="Report Title">
-              </div>
-              <div class="flex flex-col">
-                <label class="text-[9px] font-bold text-slate-600">Sub-Heading (Class / Year)</label>
-                <input type="text" id="builder-custom-subtitle" value="${escapeHtml(effectiveCustomSub)}" class="excel-input-ribbon w-44" placeholder="Sub-heading info">
+                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Table Grid</label>
+                <select id="builder-border-mode" class="excel-input-ribbon w-24">
+                  <option value="grid" ${builderConfig.borderMode === 'grid' ? 'selected' : ''}>Full Grid</option>
+                  <option value="none" ${builderConfig.borderMode === 'none' ? 'selected' : ''}>Borderless</option>
+                </select>
               </div>
             </div>
-            <span class="ribbon-label">Header & Institutional Titles</span>
+            <span class="ribbon-label">Paging & Gridlines</span>
           </div>
 
           <div class="ribbon-group">
-            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
-              <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                <input type="checkbox" id="builder-show-header" ${builderConfig.showHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Institution Header
+            <div class="flex flex-col gap-1.5 mt-0.5 justify-center h-full">
+              <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                <input type="checkbox" id="builder-show-header" ${builderConfig.showHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Header
               </label>
               <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showHeader ? 'opacity-50 pointer-events-none' : ''}">
                 <input type="checkbox" id="builder-repeat-header" ${builderConfig.repeatHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Repeat Header on Pages
               </label>
-              <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Signature Footer
+            </div>
+            <span class="ribbon-label">Header Controls</span>
+          </div>
+
+          <div class="ribbon-group">
+            <div class="flex flex-col gap-1.5 mt-0.5 justify-center h-full">
+              <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                <input type="checkbox" id="builder-show-footer" ${builderConfig.showFooter ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Footer
+              </label>
+              <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showFooter ? 'opacity-50 pointer-events-none' : ''}">
+                <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Include Signatures
               </label>
             </div>
-            <span class="ribbon-label">Print Options</span>
+            <span class="ribbon-label">Footer Controls</span>
           </div>
         </div>
       `;
@@ -4442,7 +4653,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             <div class="flex-grow"></div>
             <div class="flex gap-2 items-center pr-3 mb-1">
               <span class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                <i class="fas fa-table"></i> ${dataRows.length} Rows • ${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
+                <i class="fas fa-table"></i> ${dataRows.length} Rows • ${totalPages} Page${totalPages > 1 ? 's' : ''} • ${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
               </span>
               <button id="btn-save-template-top" class="premium-export-btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold text-xs" title="Save this worksheet setup as a named reusable template"><i class="fas fa-save"></i> Save Template</button>
               <button id="btn-load-template-top" class="premium-export-btn bg-slate-800 hover:bg-slate-900 text-white shadow-sm font-bold text-xs" title="Open saved register templates"><i class="fas fa-folder-open text-amber-400"></i> Templates (<span class="tpl-count-badge font-extrabold text-amber-300">${allWorksheetTemplates.length}</span>)</button>
@@ -4473,6 +4684,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 <span id="canvas-paper-badge">${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}</span>
               </span>
               <span class="text-[11px] text-slate-600 font-bold hidden sm:inline" id="canvas-dim-desc">${getPaperDimensionDesc(builderConfig.paper, builderConfig.orientation)}</span>
+              <span class="text-[11px] text-indigo-700 font-bold px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">${totalPages} Page${totalPages > 1 ? 's' : ''} (${dataRows.length} Total Rows)</span>
             </div>
             <div class="flex items-center gap-1.5 bg-white border border-slate-300 rounded-full px-2.5 py-0.5 shadow-sm">
               <button id="btn-zoom-out" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom Out (Ctrl + Scroll Down)"><i class="fas fa-minus text-[10px]"></i></button>
@@ -4483,21 +4695,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <div id="print-canvas" class="print-canvas" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}" style="zoom: ${(builderConfig.zoom || 100) / 100};">
-            <table id="builder-table" class="excel-table">
-              ${headerHtml}
-              <thead>
-                <tr class="no-print">
-                  <th class="select-all-corner w-10 border-slate-300" title="Select All Cells"></th>
-                  ${excelColHeaders}
-                </tr>
-                <tr class="config-row">
-                  <th class="no-print row-header bg-slate-200 border-slate-300">#</th>
-                  ${colHeadersHtml}
-                </tr>
-              </thead>
-              ${bodyHtml}
-            </table>
-            ${signatureFooterHtml}
+            ${pagesHtml}
           </div>
         </div>
       `;
@@ -4586,6 +4784,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canvas.dataset.orient = builderConfig.orientation;
         canvas.style.zoom = String((builderConfig.zoom || 100) / 100);
       }
+      document.querySelectorAll('.print-canvas-page').forEach((pageEl) => {
+        pageEl.dataset.paper = builderConfig.paper;
+        pageEl.dataset.orient = builderConfig.orientation;
+      });
       const paperBadge = document.getElementById('canvas-paper-badge');
       if (paperBadge) {
         paperBadge.textContent = `${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}`;
@@ -4608,6 +4810,84 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     const setCanvasZoom = (zoomLevel) => {
       builderConfig.zoom = Math.min(250, Math.max(40, parseInt(zoomLevel, 10) || 100));
       updateCanvasStyle();
+    };
+
+    const attachHeaderCanvasEvents = () => {
+      document.querySelectorAll('.header-block-input').forEach((inp) => {
+        inp.addEventListener('input', (e) => {
+          const blockId = e.target.dataset.blockId;
+          const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
+          if (targetBlock) {
+            targetBlock.text = e.target.value;
+            if (targetBlock.type === 'inst_name') builderConfig.instNameOverride = e.target.value;
+            else if (targetBlock.type === 'inst_sub') builderConfig.instSubOverride = e.target.value;
+            else if (targetBlock.type === 'inst_reg') builderConfig.instRegOverride = e.target.value;
+            else if (targetBlock.type === 'report_title') builderConfig.customTitle = e.target.value;
+            else if (targetBlock.type === 'report_sub') builderConfig.customSubtitle = e.target.value;
+
+            document.querySelectorAll(`.header-block-input[data-block-id="${blockId}"]`).forEach((otherInp) => {
+              if (otherInp !== e.target) otherInp.value = e.target.value;
+            });
+          }
+        });
+        inp.addEventListener('blur', saveBuilderState);
+      });
+
+      const attachAlignBtn = (btnClass, alignVal) => {
+        document.querySelectorAll(btnClass).forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const blockId = e.currentTarget.dataset.blockId;
+            const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
+            if (targetBlock) {
+              targetBlock.align = alignVal;
+              saveBuilderState();
+              renderExportTab();
+              setupExcelEngine();
+            }
+          });
+        });
+      };
+      attachAlignBtn('.btn-align-left', 'left');
+      attachAlignBtn('.btn-align-center', 'center');
+      attachAlignBtn('.btn-align-right', 'right');
+
+      document.querySelectorAll('.header-action-btn.btn-del').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const blockId = e.currentTarget.dataset.blockId;
+          saveBuilderState();
+          builderConfig.headerBlocks = (builderConfig.headerBlocks || []).filter((b) => b.id !== blockId);
+          renderExportTab();
+          setupExcelEngine();
+        });
+      });
+
+      document.getElementById('btn-add-header-box')?.addEventListener('click', () => {
+        saveBuilderState();
+        if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
+        builderConfig.headerBlocks.push({
+          id: `hb_${Date.now()}`,
+          type: 'custom_box',
+          text: '',
+          placeholder: 'Custom header box (click to edit)...',
+          fontSize: '13px',
+          fontWeight: '700',
+          align: 'center'
+        });
+        renderExportTab();
+        setupExcelEngine();
+      });
+
+      document.querySelectorAll('.sig-line-item').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const role = e.currentTarget.dataset.sigRole;
+          if (role === 'left') builderConfig.sigLeft = e.currentTarget.innerText;
+          else if (role === 'center') builderConfig.sigCenter = e.currentTarget.innerText;
+          else if (role === 'right') builderConfig.sigRight = e.currentTarget.innerText;
+        });
+        el.addEventListener('blur', saveBuilderState);
+      });
     };
 
     const attachBuilderListeners = () => {
@@ -4684,11 +4964,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       document.getElementById('builder-paper')?.addEventListener('change', (e) => {
         builderConfig.paper = e.target.value;
-        updateCanvasStyle();
+        renderExportTab();
+        setupExcelEngine();
       });
       document.getElementById('builder-orient')?.addEventListener('change', (e) => {
         builderConfig.orientation = e.target.value;
-        updateCanvasStyle();
+        renderExportTab();
+        setupExcelEngine();
       });
       document.getElementById('builder-density')?.addEventListener('change', (e) => {
         builderConfig.rowDensity = e.target.value;
@@ -4718,29 +5000,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }
       }, { passive: false });
 
-      // Live Header Inputs Two-Way Synchronization
-      const bindHeaderLiveInput = (canvasId, ribbonId, configKey) => {
-        const canvasEl = document.getElementById(canvasId);
-        const ribbonEl = document.getElementById(ribbonId);
-
-        canvasEl?.addEventListener('input', (e) => {
-          builderConfig[configKey] = e.target.value;
-          if (ribbonEl && ribbonEl !== e.target) ribbonEl.value = e.target.value;
-        });
-        canvasEl?.addEventListener('blur', saveBuilderState);
-
-        ribbonEl?.addEventListener('input', (e) => {
-          builderConfig[configKey] = e.target.value;
-          if (canvasEl && canvasEl !== e.target) canvasEl.value = e.target.value;
-        });
-        ribbonEl?.addEventListener('blur', saveBuilderState);
-      };
-
-      bindHeaderLiveInput('hdr-inst-name', 'builder-inst-name', 'instNameOverride');
-      bindHeaderLiveInput('hdr-inst-sub', 'builder-inst-sub', 'instSubOverride');
-      bindHeaderLiveInput('hdr-inst-reg', 'builder-inst-reg', 'instRegOverride');
-      bindHeaderLiveInput('hdr-report-title', 'builder-custom-title', 'customTitle');
-      bindHeaderLiveInput('hdr-report-sub', 'builder-custom-subtitle', 'customSubtitle');
+      document.getElementById('builder-rows-per-page')?.addEventListener('change', (e) => {
+        builderConfig.rowsPerPage = e.target.value;
+        renderExportTab();
+        setupExcelEngine();
+      });
       document.getElementById('builder-border-mode')?.addEventListener('change', (e) => {
         builderConfig.borderMode = e.target.value;
         renderExportTab();
@@ -4757,21 +5021,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         renderExportTab();
         setupExcelEngine();
       });
+      document.getElementById('builder-show-footer')?.addEventListener('change', (e) => {
+        builderConfig.showFooter = e.target.checked;
+        renderExportTab();
+        setupExcelEngine();
+      });
       document.getElementById('builder-show-signatures')?.addEventListener('change', (e) => {
         builderConfig.showSignatures = e.target.checked;
         renderExportTab();
         setupExcelEngine();
       });
 
-      document.getElementById('builder-custom-title')?.addEventListener('input', (e) => {
-        builderConfig.customTitle = e.target.value;
-        const el = document.querySelector('.print-custom-title');
-        if (el) el.textContent = e.target.value;
-      });
-
-      document.getElementById('builder-custom-subtitle')?.addEventListener('input', (e) => {
-        builderConfig.customSubtitle = e.target.value;
-      });
+      attachHeaderCanvasEvents();
 
       rebindAllColumnListeners();
 
@@ -4802,11 +5063,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       document.getElementById('btn-sum-row')?.addEventListener('click', () => {
         saveBuilderState();
-        const tbodys = document.querySelectorAll('#builder-table tbody');
+        const tbodys = document.querySelectorAll('#print-canvas tbody');
         if (tbodys.length === 0) return;
         const targetTbody = tbodys[tbodys.length - 1];
         const colsCount = builderConfig.columns.length;
-        const nextRowIdx = document.querySelectorAll('#builder-table tr[data-index]').length;
+        const nextRowIdx = document.querySelectorAll('#print-canvas tr[data-index]').length;
 
         const sums = Array.from({ length: colsCount }, (_, cIndex) => {
           const colField = builderConfig.columns[cIndex]?.field;
@@ -4814,7 +5075,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           if (cIndex === 1 || colField === 'name') return 'TOTAL';
           let sum = 0;
           let numericCount = 0;
-          document.querySelectorAll(`#builder-table .builder-cell[data-col="${cIndex}"]`).forEach((td) => {
+          document.querySelectorAll(`#print-canvas .builder-cell[data-col="${cIndex}"]`).forEach((td) => {
             const raw = td.innerText.replace(/[,₹%\s]/g, '').trim();
             if (raw !== '' && !isNaN(Number(raw))) {
               sum += Number(raw);
@@ -4966,25 +5227,41 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         });
         document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
         document.body.classList.add('is-printing');
+        const cleanupPrint = () => {
+          document.body.classList.remove('is-printing');
+          window.removeEventListener('afterprint', cleanupPrint);
+        };
+        window.addEventListener('afterprint', cleanupPrint);
         window.print();
-        setTimeout(() => document.body.classList.remove('is-printing'), 500);
+        setTimeout(cleanupPrint, 1500);
       });
 
       document.getElementById('btn-export-excel')?.addEventListener('click', () => {
         if (typeof XLSX === 'undefined') return;
-        const tableClone = document.getElementById('builder-table').cloneNode(true);
-        tableClone.querySelectorAll('.no-print').forEach((el) => el.remove());
-        tableClone.querySelectorAll('td[style*="display: none"]').forEach((el) => el.remove());
-        tableClone.querySelectorAll('.header-live-input').forEach((inp) => {
-          const span = document.createElement('span');
-          span.textContent = inp.value;
-          inp.parentNode.replaceChild(span, inp);
-        });
-        tableClone.querySelectorAll('th').forEach((th) => {
-          const heading = th.querySelector('.print-only-heading');
-          if (heading) th.textContent = heading.textContent;
-        });
-        const wb = XLSX.utils.table_to_book(tableClone, { sheet: 'Worksheet' });
+        const exportTable = document.createElement('table');
+        if (builderConfig.showHeader) {
+          const headerRows = [];
+          (builderConfig.headerBlocks || []).forEach((b) => {
+            if (b.text && String(b.text).trim()) {
+              headerRows.push(`<tr><th colspan="${builderConfig.columns.length}">${escapeHtml(b.text)}</th></tr>`);
+            }
+          });
+          if (headerRows.length > 0) {
+            exportTable.innerHTML += `<thead>${headerRows.join('')}</thead>`;
+          }
+        }
+        const colHeadings = builderConfig.columns.map((c) => `<th>${escapeHtml(c.title || c.field)}</th>`).join('');
+        exportTable.innerHTML += `<thead><tr>${colHeadings}</tr></thead>`;
+        const allTrs = Array.from(document.querySelectorAll('#print-canvas tbody tr[data-index]'));
+        const bodyRows = allTrs.map((tr) => {
+          const cells = Array.from(tr.querySelectorAll('td.builder-cell')).map((td) => {
+            return `<td>${escapeHtml(td.innerText || '')}</td>`;
+          }).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('');
+        exportTable.innerHTML += `<tbody>${bodyRows}</tbody>`;
+
+        const wb = XLSX.utils.table_to_book(exportTable, { sheet: 'Worksheet' });
         const prefix = builderConfig.sourceType.toUpperCase();
         const sub = builderConfig.sourceType === 'staff' ? builderConfig.staffCategory : (builderConfig.classId || 'Sheet');
         XLSX.writeFile(wb, `${prefix}_${sub}_${formatDate(new Date())}.xlsx`);
@@ -4998,12 +5275,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const appendNewRowToTable = () => {
       saveBuilderState();
-      const tbodys = document.querySelectorAll('#builder-table tbody');
+      const tbodys = document.querySelectorAll('#print-canvas tbody');
       if (tbodys.length === 0) return null;
       const targetTbody = tbodys[tbodys.length - 1];
       const colsCount = builderConfig.columns.length;
       const tr = document.createElement('tr');
-      const nextRowIdx = document.querySelectorAll('#builder-table tr[data-index]').length;
+      const nextRowIdx = document.querySelectorAll('#print-canvas tr[data-index]').length;
       tr.dataset.index = nextRowIdx;
       tr.dataset.studentId = '';
       const densityPadding = builderConfig.rowDensity === 'compact' ? '2px 5px' : (builderConfig.rowDensity === 'comfortable' ? '9px 10px' : '5px 8px');
@@ -5083,8 +5360,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
 
     const setupExcelEngine = () => {
-      const table = document.getElementById('builder-table');
-      if (!table) return;
+      const printCanvas = document.getElementById('print-canvas');
+      if (!printCanvas) return;
 
       attachTableFormatListeners();
 
@@ -5110,6 +5387,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             const colIndex = resizingCol.querySelector('.col-resizer').dataset.colIndex;
             if (builderConfig.columns[colIndex]) {
               builderConfig.columns[colIndex].width = newWidth + 'px';
+              document.querySelectorAll(`th.config-row-th .col-resizer[data-col-index="${colIndex}"]`).forEach((resizer) => {
+                const th = resizer.closest('th');
+                if (th && th !== resizingCol) th.style.width = newWidth + 'px';
+              });
             }
           }
         }
@@ -5129,7 +5410,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const clearSelection = () => document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
 
-      table.onmousedown = (e) => {
+      printCanvas.onmousedown = (e) => {
         if (e.target.classList.contains('col-resizer') || e.target.classList.contains('delete-col-btn')) return;
 
         const colHeader = e.target.closest('th.col-header');
@@ -5232,7 +5513,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }
       };
 
-      table.onmouseover = (e) => {
+      printCanvas.onmouseover = (e) => {
         if (isSelecting && startCell) {
           const td = e.target.closest('td.builder-cell');
           if (td) {
@@ -5268,7 +5549,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         isSelecting = false;
       };
 
-      table.onkeydown = (e) => {
+      printCanvas.onkeydown = (e) => {
         const activeCell = e.target.closest('td.builder-cell');
         if (!activeCell) return;
 
@@ -5351,10 +5632,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }
       };
 
-      table.addEventListener('focusin', (e) => {
+      printCanvas.addEventListener('focusin', (e) => {
         if (e.target.classList.contains('builder-cell')) e.target.dataset.original = e.target.innerHTML;
       });
-      table.addEventListener('focusout', (e) => {
+      printCanvas.addEventListener('focusout', (e) => {
         if (e.target.classList.contains('builder-cell')) {
           if (e.target.dataset.original !== e.target.innerHTML) saveBuilderState();
         }
@@ -5395,7 +5676,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           rowsData.forEach((rowData, i) => {
             let tr = document.querySelector(`.builder-cell[data-row="${startR + i}"]`)?.parentElement;
             if (!tr) {
-              const targetTbody = document.querySelector('#builder-table tbody:last-child');
+              const targetTbody = document.querySelector('#print-canvas tbody:last-child');
               if (targetTbody) {
                 tr = document.createElement('tr');
                 const nextRowIdx = startR + i;
