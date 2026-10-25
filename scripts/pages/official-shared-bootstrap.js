@@ -1280,7 +1280,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       ];
 
       const headerCells = coreAdminColumns.map((col) =>
-        `<th class="${col.key === 'name' ? 'stu-sticky-col-3' : ''} px-2.5 py-2.5 whitespace-nowrap text-left font-extrabold text-slate-700">${escapeHtml(col.label)}</th>`
+        `<th class="${col.key === 'name' ? 'stu-sticky-col-3' : ''} px-2 py-2 whitespace-nowrap text-left font-extrabold text-slate-700">${escapeHtml(col.label)}</th>`
       ).join('');
 
       const getStudentColValue = (student, key) => {
@@ -1310,32 +1310,32 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const serialNo = startIdx + idx + 1;
         const group = getStudentGroup(student.id);
         const status = getStudentStatus(student);
-        return `<tr class="hover:bg-blue-50/80 cursor-pointer official-student-row transition-colors odd:bg-white even:bg-slate-50/40" data-student-id="${escapeHtml(student.id)}">
-          <td class="stu-sticky-col-1 px-2.5 py-2 text-center font-extrabold text-slate-700">${serialNo}</td>
-          <td class="stu-sticky-col-2 px-2 py-1.5 text-center align-middle">
-            ${renderAvatarMarkup(student, student.name, 'w-9 h-9 rounded-xl text-xs')}
+        return `<tr class="hover:bg-blue-50/80 cursor-pointer official-student-row transition-colors odd:bg-white even:bg-slate-50/40 text-[11px] sm:text-xs" data-student-id="${escapeHtml(student.id)}">
+          <td class="stu-sticky-col-1 px-1.5 py-1.5 text-center font-extrabold text-slate-700">${serialNo}</td>
+          <td class="stu-sticky-col-2 px-1 py-1 text-center align-middle">
+            ${renderAvatarMarkup(student, student.name, 'w-8 h-8 rounded-lg text-xs')}
           </td>
           ${coreAdminColumns.map((col) => {
             const val = getStudentColValue(student, col.key);
             if (col.key === 'name') {
-              return `<td class="stu-sticky-col-3 px-2.5 py-2 align-middle font-extrabold text-slate-900 whitespace-nowrap truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
+              return `<td class="stu-sticky-col-3 px-2 py-1.5 align-middle font-extrabold text-slate-900 whitespace-nowrap truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
             }
             if (col.key === 'class') {
-              return `<td class="px-2.5 py-2 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-xs">Class ${escapeHtml(val)}</span></td>`;
+              return `<td class="px-2 py-1.5 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-xs">Class ${escapeHtml(val)}</span></td>`;
             }
             if (col.key === 'status') {
-              return `<td class="px-2.5 py-2 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">${escapeHtml(status)}</span></td>`;
+              return `<td class="px-2 py-1.5 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">${escapeHtml(status)}</span></td>`;
             }
             if (col.key === 'group') {
-              return `<td class="px-2.5 py-2 align-middle whitespace-nowrap text-center">${group ? `<span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200">Group ₹${escapeHtml(String(group.fee || 0))}</span>` : '<span class="text-slate-400">--</span>'}</td>`;
+              return `<td class="px-2 py-1.5 align-middle whitespace-nowrap text-center">${group ? `<span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200">Group ₹${escapeHtml(String(group.fee || 0))}</span>` : '<span class="text-slate-400">--</span>'}</td>`;
             }
             if (col.key === 'concessionFee') {
-              return `<td class="px-2.5 py-2 align-middle whitespace-nowrap text-center">${hasStudentConcession(student) ? `<span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">₹${escapeHtml(String(student.concessionFee))}</span>` : '<span class="text-slate-400">--</span>'}</td>`;
+              return `<td class="px-2 py-1.5 align-middle whitespace-nowrap text-center">${hasStudentConcession(student) ? `<span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">₹${escapeHtml(String(student.concessionFee))}</span>` : '<span class="text-slate-400">--</span>'}</td>`;
             }
             if (col.key === 'address') {
-              return `<td class="px-2.5 py-2 align-middle min-w-[180px] max-w-[260px] truncate text-slate-700" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
+              return `<td class="px-2 py-1.5 align-middle min-w-[150px] max-w-[220px] truncate text-slate-700" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
             }
-            return `<td class="px-2.5 py-2 align-middle whitespace-nowrap text-slate-700">${escapeHtml(val)}</td>`;
+            return `<td class="px-2 py-1.5 align-middle whitespace-nowrap text-slate-700">${escapeHtml(val)}</td>`;
           }).join('')}
         </tr>`;
       }).join('');
@@ -1403,7 +1403,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const emptyStudentMessage = 'No student records match the selected filters.';
 
       stuTarget.innerHTML = `
-        <div class="card p-3 sm:p-5 rounded-2xl shadow-sm w-full max-w-none">
+        <div class="card p-2.5 sm:p-3.5 lg:p-4 rounded-2xl shadow-sm w-full max-w-none">
           <!-- Top Header & Export Buttons -->
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
             <div>
@@ -1508,11 +1508,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
           <!-- Full-Screen Responsive Data Table with Sticky Header & Sticky Left Columns (Desktop only) -->
           <div class="stu-reg-scroll-wrap hidden md:block w-full rounded-xl border border-slate-200">
-            <table class="stu-reg-table w-full text-xs min-w-[1400px]">
+            <table class="stu-reg-table w-full text-[11px] sm:text-xs min-w-[1050px] xl:min-w-full">
               <thead>
                 <tr class="bg-slate-100 text-slate-700">
-                  <th class="stu-sticky-col-1 px-2.5 py-2.5 w-12 text-center font-extrabold">NO</th>
-                  <th class="stu-sticky-col-2 px-2 py-2.5 text-center w-14 font-extrabold">Profile</th>
+                  <th class="stu-sticky-col-1 px-1.5 py-2 w-11 text-center font-extrabold">NO</th>
+                  <th class="stu-sticky-col-2 px-1 py-2 text-center w-12 font-extrabold">Profile</th>
                   ${headerCells}
                 </tr>
               </thead>
@@ -1780,7 +1780,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }).join('');
 
       alumniTarget.innerHTML = `
-        <div class="card p-3 sm:p-5 rounded-2xl shadow-sm w-full max-w-none space-y-4">
+        <div class="card p-2.5 sm:p-3.5 lg:p-4 rounded-2xl shadow-sm w-full max-w-none space-y-3">
           <!-- Top Header Strip -->
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
@@ -1832,7 +1832,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
           <!-- Alumni Table -->
           <div class="overflow-x-auto w-full rounded-xl border border-slate-200 bg-white shadow-2xs">
-            <table class="w-full text-xs sm:text-sm border-collapse min-w-[950px]">
+            <table class="w-full text-xs border-collapse min-w-[850px] lg:min-w-full">
               <thead>
                 <tr class="bg-amber-50/70 text-amber-950 font-bold">
                   <th class="border border-slate-200 p-2.5 w-12 text-center">NO</th>
@@ -2063,7 +2063,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         : `<option value="">Current Academic Year</option>`;
 
       summaryTarget.innerHTML = `
-        <div class="card p-3 sm:p-5 rounded-2xl shadow-sm w-full max-w-none space-y-4">
+        <div class="card p-2.5 sm:p-3.5 lg:p-4 rounded-2xl shadow-sm w-full max-w-none space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
               <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
@@ -2112,7 +2112,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <div class="overflow-x-auto w-full rounded-xl border border-slate-200">
-            <table class="w-full text-xs sm:text-sm border-collapse min-w-[950px]">
+            <table class="w-full text-xs sm:text-sm border-collapse min-w-[800px] lg:min-w-full">
               <thead>
                 <tr class="bg-slate-100 text-slate-700">
                   <th class="border border-slate-200 p-2.5 w-12 text-center">NO</th>
@@ -2183,7 +2183,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
 
             <div class="overflow-x-auto w-full rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <table class="w-full text-xs sm:text-sm border-collapse min-w-[700px]">
+              <table class="w-full text-xs sm:text-sm border-collapse min-w-[650px] lg:min-w-full">
                 <thead>
                   <tr class="bg-amber-50/70 text-amber-950 font-bold">
                     <th class="border border-slate-200 p-2.5 w-12 text-center">NO</th>
@@ -2480,30 +2480,30 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const addrVal = staff.address || customVals.address || '--';
 
         return `
-          <tr class="hover:bg-indigo-50/70 cursor-pointer transition-colors odd:bg-white even:bg-slate-50/40" data-staff-id="${escapeHtml(staff.id)}">
-            <td class="border border-slate-200 px-2.5 py-2 text-center font-extrabold text-slate-600">${idx + 1}</td>
-            <td class="border border-slate-200 px-2 py-1.5 text-center align-middle">
-              ${renderAvatarMarkup(staff, staff.name, 'w-9 h-9 rounded-xl text-xs')}
+          <tr class="hover:bg-indigo-50/70 cursor-pointer transition-colors odd:bg-white even:bg-slate-50/40 text-[11px] sm:text-xs" data-staff-id="${escapeHtml(staff.id)}">
+            <td class="border border-slate-200 px-2 py-1.5 text-center font-extrabold text-slate-600">${idx + 1}</td>
+            <td class="border border-slate-200 px-1.5 py-1 text-center align-middle">
+              ${renderAvatarMarkup(staff, staff.name, 'w-8 h-8 rounded-lg text-xs')}
             </td>
-            <td class="border border-slate-200 px-3 py-2 align-middle font-extrabold text-slate-900 whitespace-nowrap">${escapeHtml(staff.name || '--')}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle font-semibold text-slate-700 whitespace-nowrap">${escapeHtml(roleLabel)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle text-center whitespace-nowrap">
+            <td class="border border-slate-200 px-2.5 py-1.5 align-middle font-extrabold text-slate-900 whitespace-nowrap">${escapeHtml(staff.name || '--')}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle font-semibold text-slate-700 whitespace-nowrap">${escapeHtml(roleLabel)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle text-center whitespace-nowrap">
               <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-xs">${escapeHtml(staff.type || '--')}</span>
             </td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle text-center font-mono text-slate-700 whitespace-nowrap">${escapeHtml(msrVal)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle font-mono font-bold text-slate-800 whitespace-nowrap">${escapeHtml(phoneVal)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle text-slate-700 whitespace-nowrap">${escapeHtml(qualVal)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle text-indigo-700 font-bold whitespace-nowrap">${escapeHtml(dutyClasses)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle text-slate-600 whitespace-nowrap">${escapeHtml(joinVal)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle max-w-[200px] truncate text-slate-600" title="${escapeHtml(addrVal)}">${escapeHtml(addrVal)}</td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle whitespace-nowrap">
+            <td class="border border-slate-200 px-2 py-1.5 align-middle text-center font-mono text-slate-700 whitespace-nowrap">${escapeHtml(msrVal)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle font-mono font-bold text-slate-800 whitespace-nowrap">${escapeHtml(phoneVal)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle text-slate-700 whitespace-nowrap">${escapeHtml(qualVal)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle text-indigo-700 font-bold whitespace-nowrap">${escapeHtml(dutyClasses)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle text-slate-600 whitespace-nowrap">${escapeHtml(joinVal)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle max-w-[180px] truncate text-slate-600" title="${escapeHtml(addrVal)}">${escapeHtml(addrVal)}</td>
+            <td class="border border-slate-200 px-2 py-1.5 align-middle whitespace-nowrap">
               <div class="flex items-center gap-1">
                 ${staff.canCollect !== false ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Fee</span>` : ''}
                 ${staff.canManageResults === true ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Result</span>` : ''}
                 ${staff.canAccessWorksheet !== false ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">Sheet</span>` : ''}
               </div>
             </td>
-            <td class="border border-slate-200 px-2.5 py-2 align-middle text-center whitespace-nowrap">
+            <td class="border border-slate-200 px-2 py-1.5 align-middle text-center whitespace-nowrap">
               <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">
                 ${isActive ? 'Active' : 'Inactive'}
               </span>
@@ -2556,7 +2556,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (!staffTarget) return;
 
       staffTarget.innerHTML = `
-        <div class="card p-3 sm:p-5 rounded-2xl shadow-sm w-full max-w-none">
+        <div class="card p-2.5 sm:p-3.5 lg:p-4 rounded-2xl shadow-sm w-full max-w-none">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
             <div>
               <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
@@ -2606,7 +2606,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           <!-- Staff Register Table -->
           <div class="mb-6">
             <div class="overflow-x-auto w-full rounded-xl border border-slate-200">
-              <table class="w-full text-xs border-collapse min-w-[1150px]">
+              <table class="w-full text-xs border-collapse min-w-[980px] xl:min-w-full">
                 <thead>
                   <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
                     <th class="border border-slate-200 px-2.5 py-2.5 w-12 text-center font-extrabold">NO</th>
