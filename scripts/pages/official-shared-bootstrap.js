@@ -994,11 +994,173 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         .sort((a, b) => getStudentClass(a).localeCompare(getStudentClass(b), undefined, { numeric: true }) || String(a.name || '').localeCompare(String(b.name || '')));
     };
 
-    const exportStudentsToExcel = (studentsToExport = []) => {
+    const exportUnifiedRegisterToExcel = ({
+      filename = 'Register_Export.xlsx',
+      sheetName = 'Register',
+      data = []
+    }) => {
       if (typeof XLSX === 'undefined') {
         openOfficialDetailModal('Export Notice', '<p class="text-sm text-slate-600 p-4">Excel library is still loading. Please try again in a moment.</p>');
         return;
       }
+      if (!data || !data.length) {
+        openOfficialDetailModal('Export Notice', '<p class="text-sm text-slate-600 p-4">No records to export matching current filters.</p>');
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(data);
+
+      const colWidths = [];
+      const keys = Object.keys(data[0] || {});
+      keys.forEach((key) => {
+        let maxLen = String(key).length;
+        data.forEach((row) => {
+          const valStr = String(row[key] || '');
+          if (valStr.length > maxLen) maxLen = valStr.length;
+        });
+        colWidths.push({ wch: Math.min(Math.max(maxLen + 3, 10), 45) });
+      });
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, filename);
+    };
+
+    const printUnifiedOfficialRegisterPdf = ({
+      reportTitle = 'OFFICIAL REGISTER',
+      categoryBadge = '',
+      metaBadges = [],
+      columns = [],
+      rows = [],
+      totalCount = 0
+    }) => {
+      const instName = resolveInstitutionName(institutionConfig) || 'Institution Official Portal';
+      const instReg = institutionConfig?.regNo || institutionConfig?.code || '';
+      const instPlace = institutionConfig?.place || institutionConfig?.subtitle || '';
+      const generatedAt = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+
+      let printContainer = document.getElementById('unified-official-print-area');
+      if (!printContainer) {
+        printContainer = document.createElement('div');
+        printContainer.id = 'unified-official-print-area';
+        printContainer.className = 'hidden';
+        document.body.appendChild(printContainer);
+      }
+
+      const metaBadgesHtml = [
+        ...metaBadges,
+        { label: 'Generated', value: generatedAt },
+        { label: 'Total Records', value: String(totalCount) }
+      ].map((item) => `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-300 font-bold text-[10px]">
+          <span class="text-slate-500 uppercase tracking-wider">${escapeHtml(item.label)}:</span>
+          <span>${escapeHtml(item.value)}</span>
+        </span>
+      `).join('');
+
+      const theadHtml = columns.map((col) => `
+        <th class="border border-slate-400 p-1.5 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'} uppercase tracking-wider text-[9px] font-black bg-slate-100 text-slate-800" ${col.width ? `style="width: ${col.width}"` : ''}>
+          ${escapeHtml(col.label)}
+        </th>
+      `).join('');
+
+      const tbodyHtml = rows.length
+        ? rows.map((row, rIdx) => `
+          <tr class="${rIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}">
+            ${row.map((cell, cIdx) => {
+              const col = columns[cIdx] || {};
+              const alignClass = col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left';
+              const fontClass = col.bold ? 'font-bold' : '';
+              return `<td class="border border-slate-300 p-1 text-[9px] ${alignClass} ${fontClass} text-slate-900 break-words">${cell}</td>`;
+            }).join('')}
+          </tr>
+        `).join('')
+        : `<tr><td colspan="${columns.length}" class="border border-slate-300 p-6 text-center text-slate-500 font-bold">No records found matching current criteria.</td></tr>`;
+
+      printContainer.innerHTML = `
+        <div class="p-6 bg-white text-slate-900 font-sans printable-unified-area">
+          <div class="border-b-2 border-slate-900 pb-3 mb-3 text-center">
+            <h1 class="text-xl font-black uppercase tracking-wide text-slate-900">${escapeHtml(instName)}</h1>
+            ${instPlace || instReg ? `<p class="text-xs font-semibold text-slate-600 mt-0.5">${escapeHtml([instPlace, instReg ? `Reg No: ${instReg}` : ''].filter(Boolean).join(' • '))}</p>` : ''}
+            <div class="mt-2 flex items-center justify-center gap-2">
+              <span class="inline-block px-3 py-1 rounded-md bg-slate-900 text-white font-black text-xs uppercase tracking-widest">
+                ${escapeHtml(reportTitle)}
+              </span>
+              ${categoryBadge ? `<span class="inline-block px-2.5 py-1 rounded-md bg-slate-200 text-slate-800 font-bold text-xs">${escapeHtml(categoryBadge)}</span>` : ''}
+            </div>
+            <div class="mt-2.5 flex flex-wrap items-center justify-center gap-2">
+              ${metaBadgesHtml}
+            </div>
+          </div>
+
+          <table class="w-full border-collapse border border-slate-400 table-auto">
+            <thead>
+              <tr>${theadHtml}</tr>
+            </thead>
+            <tbody>${tbodyHtml}</tbody>
+          </table>
+
+          <div class="mt-6 pt-4 border-t-2 border-slate-300 flex items-end justify-between text-[10px] text-slate-600 font-bold">
+            <div>
+              <div>Total Records Count: <b class="text-slate-900">${totalCount}</b></div>
+              <div class="text-slate-400 font-normal mt-0.5">Computer-Generated Official Register • Valid without physical signature for internal audit</div>
+            </div>
+            <div class="text-right">
+              <div class="mb-8">Authorized Official Signature / Seal:</div>
+              <div class="border-t border-slate-400 w-48 inline-block pt-1 font-semibold text-slate-500">Principal / Head of Institution</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const styleEl = document.createElement('style');
+      styleEl.id = 'unified-register-print-style';
+      styleEl.textContent = `
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 8mm;
+          }
+          body.printing-unified-register > *:not(#unified-official-print-area) {
+            display: none !important;
+          }
+          body.printing-unified-register #unified-official-print-area {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            background: #ffffff !important;
+          }
+          body.printing-unified-register table {
+            page-break-inside: auto;
+          }
+          body.printing-unified-register tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          body.printing-unified-register thead {
+            display: table-header-group;
+          }
+          body.printing-unified-register tfoot {
+            display: table-footer-group;
+          }
+        }
+      `;
+      document.head.appendChild(styleEl);
+      document.body.classList.add('printing-unified-register');
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing-unified-register');
+        styleEl.remove();
+        printContainer.innerHTML = '';
+      }, 700);
+    };
+
+    const exportStudentsToExcel = (studentsToExport = []) => {
+      const yearLabel = officialFilters.academicYearId || activeAcademicYearId || 'Current';
+      const classLabel = officialFilters.studentClass && officialFilters.studentClass !== 'ALL' ? `Class_${officialFilters.studentClass}` : 'All_Classes';
+      const dateStr = formatDate(new Date()).replace(/-/g, '_');
+      const filename = `Students_Register_${yearLabel}_${classLabel}_${dateStr}.xlsx`;
+
       const rowsData = studentsToExport.map((s, idx) => {
         const grp = getStudentGroup(s.id);
         return {
@@ -1021,94 +1183,66 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           'Address': s.address || ''
         };
       });
-      const ws = XLSX.utils.json_to_sheet(rowsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Students Register');
-      const yearLabel = officialFilters.academicYearId || activeAcademicYearId || 'Current';
-      const classLabel = officialFilters.studentClass && officialFilters.studentClass !== 'ALL' ? `Class_${officialFilters.studentClass}` : 'All_Classes';
-      XLSX.writeFile(wb, `Students_Register_${yearLabel}_${classLabel}.xlsx`);
+
+      exportUnifiedRegisterToExcel({
+        filename,
+        sheetName: 'Students Register',
+        data: rowsData
+      });
     };
 
     const printStudentsRegisterPdf = (studentsToPrint = []) => {
-      const instName = resolveInstitutionName(institutionConfig) || 'Institution Official Portal';
       const yearObj = academicYears.find((y) => y.id === (officialFilters.academicYearId || activeAcademicYearId));
       const yearTitle = yearObj ? (yearObj.name || yearObj.id) : (officialFilters.academicYearId || activeAcademicYearId || 'Current Academic Year');
       const classTitle = (!officialFilters.studentClass || officialFilters.studentClass === 'ALL') ? 'All Classes' : `Class ${officialFilters.studentClass}`;
 
-      let printContainer = document.getElementById('students-register-print-area');
-      if (!printContainer) {
-        printContainer = document.createElement('div');
-        printContainer.id = 'students-register-print-area';
-        printContainer.className = 'hidden';
-        document.body.appendChild(printContainer);
-      }
+      const columns = [
+        { label: 'No', align: 'center', width: '35px', bold: true },
+        { label: 'Class', align: 'center', width: '50px' },
+        { label: 'UID', align: 'center', width: '65px' },
+        { label: 'Student Name', align: 'left', bold: true },
+        { label: 'Father Name', align: 'left' },
+        { label: 'Mother Name', align: 'left' },
+        { label: 'Gender', align: 'center', width: '45px' },
+        { label: 'Adm No', align: 'center', width: '55px' },
+        { label: 'DOB', align: 'center', width: '65px' },
+        { label: 'Adm Date', align: 'center', width: '65px' },
+        { label: 'Status', align: 'center', width: '50px' },
+        { label: 'Aadhaar', align: 'center', width: '75px' },
+        { label: "Father's Phone", align: 'center', width: '80px' },
+        { label: "Mother's Phone", align: 'center', width: '80px' },
+        { label: 'Address', align: 'left' }
+      ];
 
-      printContainer.innerHTML = `
-        <div class="p-4 bg-white text-slate-900">
-          <div class="text-center border-b-2 border-slate-800 pb-3 mb-4">
-            <h1 class="text-xl font-black uppercase">${escapeHtml(instName)}</h1>
-            <p class="text-xs font-bold text-slate-600 mt-0.5">Students Register • Academic Year: ${escapeHtml(yearTitle)} • ${escapeHtml(classTitle)} (${studentsToPrint.length} Students)</p>
-          </div>
-          <table class="w-full text-[10px] border-collapse border border-slate-400">
-            <thead>
-              <tr class="bg-slate-100">
-                <th class="border border-slate-400 p-1">No</th>
-                <th class="border border-slate-400 p-1">Class</th>
-                <th class="border border-slate-400 p-1">UID</th>
-                <th class="border border-slate-400 p-1 text-left">Student Name</th>
-                <th class="border border-slate-400 p-1 text-left">Father Name</th>
-                <th class="border border-slate-400 p-1 text-left">Mother Name</th>
-                <th class="border border-slate-400 p-1">Gender</th>
-                <th class="border border-slate-400 p-1">Adm No</th>
-                <th class="border border-slate-400 p-1">DOB</th>
-                <th class="border border-slate-400 p-1">Adm Date</th>
-                <th class="border border-slate-400 p-1">Status</th>
-                <th class="border border-slate-400 p-1">Aadhaar</th>
-                <th class="border border-slate-400 p-1">Father Phone</th>
-                <th class="border border-slate-400 p-1">Mother Phone</th>
-                <th class="border border-slate-400 p-1 text-left">Address</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${studentsToPrint.map((s, idx) => `
-                <tr>
-                  <td class="border border-slate-400 p-1 text-center font-bold">${idx + 1}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.class || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.uid || '--')}</td>
-                  <td class="border border-slate-400 p-1 font-bold">${escapeHtml(s.name || '--')}</td>
-                  <td class="border border-slate-400 p-1">${escapeHtml(s.father || '--')}</td>
-                  <td class="border border-slate-400 p-1">${escapeHtml(s.mother || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.gender || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.adm || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.dob || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.adm_date || s.admDate || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(getStudentStatus(s))}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.adhaar || s.aadhaar || s.aadhar || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.mobile || s.phone || '--')}</td>
-                  <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.motherMobile || s.mother_mobile || '--')}</td>
-                  <td class="border border-slate-400 p-1">${escapeHtml(s.address || '--')}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
+      const rows = studentsToPrint.map((s, idx) => [
+        idx + 1,
+        escapeHtml(s.class || '--'),
+        escapeHtml(s.uid || '--'),
+        escapeHtml(s.name || '--'),
+        escapeHtml(s.father || '--'),
+        escapeHtml(s.mother || '--'),
+        escapeHtml(s.gender || '--'),
+        escapeHtml(s.adm || '--'),
+        escapeHtml(s.dob || '--'),
+        escapeHtml(s.adm_date || s.admDate || '--'),
+        escapeHtml(getStudentStatus(s)),
+        escapeHtml(s.adhaar || s.aadhaar || s.aadhar || '--'),
+        escapeHtml(s.mobile || s.phone || '--'),
+        escapeHtml(s.motherMobile || s.mother_mobile || '--'),
+        escapeHtml(s.address || '--')
+      ]);
 
-      const styleEl = document.createElement('style');
-      styleEl.id = 'students-register-print-style';
-      styleEl.textContent = `
-        @media print {
-          body.printing-students-register > *:not(#students-register-print-area) { display: none !important; }
-          body.printing-students-register #students-register-print-area { display: block !important; position: static !important; width: 100% !important; }
-        }
-      `;
-      document.head.appendChild(styleEl);
-      document.body.classList.add('printing-students-register');
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('printing-students-register');
-        styleEl.remove();
-      }, 600);
+      printUnifiedOfficialRegisterPdf({
+        reportTitle: 'OFFICIAL STUDENTS REGISTER',
+        categoryBadge: classTitle,
+        metaBadges: [
+          { label: 'Academic Year', value: yearTitle },
+          { label: 'Class Scope', value: classTitle }
+        ],
+        columns,
+        rows,
+        totalCount: studentsToPrint.length
+      });
     };
 
     const renderStudents = () => {
@@ -1271,23 +1405,23 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       stuTarget.innerHTML = `
         <div class="card p-3 sm:p-5 rounded-2xl shadow-sm w-full max-w-none">
           <!-- Top Header & Export Buttons -->
-          <div class="flex items-center justify-between gap-2 sm:gap-3 mb-3 pb-2.5 border-b border-slate-100">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
             <div>
-              <h3 class="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-1.5 sm:gap-2">
+              <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
                 <i class="fas fa-user-graduate text-blue-600"></i>
                 <span>Students Register</span>
-                <span class="text-[11px] sm:text-xs font-extrabold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">${totalCount}</span>
+                <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">${totalCount} Students</span>
               </h3>
-              <p class="text-[11px] sm:text-xs text-slate-500 font-semibold mt-0.5 hidden sm:block">Complete admin-entered student details with Academic Year filter, pagination, and Excel/PDF export.</p>
+              <p class="text-xs text-slate-500 font-semibold mt-0.5">Complete admin-entered student details with Academic Year filter, pagination, and unified Excel/PDF export.</p>
             </div>
-            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <button type="button" id="btn-students-export-pdf" class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all cursor-pointer">
+            <div class="flex items-center gap-2">
+              <button type="button" id="btn-students-export-pdf" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all cursor-pointer">
                 <i class="fas fa-file-pdf"></i>
-                <span>PDF<span class="hidden sm:inline"> / Print</span></span>
+                <span>PDF / Print</span>
               </button>
-              <button type="button" id="btn-students-export-excel" class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all cursor-pointer">
+              <button type="button" id="btn-students-export-excel" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all cursor-pointer">
                 <i class="fas fa-file-excel"></i>
-                <span><span class="hidden sm:inline">Export </span>Excel</span>
+                <span>Export Excel</span>
               </button>
             </div>
           </div>
@@ -1482,10 +1616,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
 
     const exportAlumniToExcel = (alumniToExport = []) => {
-      if (typeof XLSX === 'undefined') {
-        openOfficialDetailModal('Export Notice', '<p class="text-sm text-slate-600 p-4">Excel library is still loading. Please try again in a moment.</p>');
-        return;
-      }
+      const yearLabel = officialFilters.alumniYear || 'All_Years';
+      const dateStr = formatDate(new Date()).replace(/-/g, '_');
+      const filename = `Alumni_Register_${yearLabel}_${dateStr}.xlsx`;
+
       const rowsData = alumniToExport.map((s, idx) => ({
         'No': idx + 1,
         'Adm No': s.adm || '',
@@ -1495,90 +1629,56 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         'Completed Class': s.finalClass || s.promotedFrom || 'Completed',
         'Father / Guardian': s.father || s.guardian || '',
         'Mobile Number': s.mobile || s.phone || '',
-        'Address': s.address || s.place || '',
+        'Address': s.address || '',
         'Status': 'Alumni'
       }));
-      const ws = XLSX.utils.json_to_sheet(rowsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Alumni Register');
-      const yearLabel = officialFilters.alumniYear || 'All_Years';
-      XLSX.writeFile(wb, `Alumni_Register_${yearLabel}.xlsx`);
+
+      exportUnifiedRegisterToExcel({
+        filename,
+        sheetName: 'Alumni Register',
+        data: rowsData
+      });
     };
 
     const printAlumniRegisterPdf = (alumniToPrint = []) => {
-      const instName = resolveInstitutionName(institutionConfig) || 'Institution Official Portal';
       const yearTitle = (!officialFilters.alumniYear || officialFilters.alumniYear === 'ALL')
         ? 'All Alumni Years'
-        : `Alumni Year: ${officialFilters.alumniYear}`;
+        : `Cohort: ${officialFilters.alumniYear}`;
 
-      let printContainer = document.getElementById('alumni-register-print-area');
-      if (!printContainer) {
-        printContainer = document.createElement('div');
-        printContainer.id = 'alumni-register-print-area';
-        printContainer.className = 'hidden';
-        document.body.appendChild(printContainer);
-      }
+      const columns = [
+        { label: 'No', align: 'center', width: '35px', bold: true },
+        { label: 'Adm No', align: 'center', width: '65px' },
+        { label: 'Student Name', align: 'left', bold: true },
+        { label: 'Gender', align: 'center', width: '50px' },
+        { label: 'Alumni Year', align: 'center', width: '75px' },
+        { label: 'Completed Class', align: 'center', width: '80px' },
+        { label: 'Guardian / Father', align: 'left' },
+        { label: 'Mobile', align: 'center', width: '85px' },
+        { label: 'Address', align: 'left' }
+      ];
 
-      const rowsHtml = alumniToPrint.map((s, idx) => `
-        <tr class="border-b border-slate-300">
-          <td class="p-2 text-center text-xs">${idx + 1}</td>
-          <td class="p-2 font-mono text-xs font-bold text-center">${escapeHtml(s.adm || '-')}</td>
-          <td class="p-2 text-xs font-bold">${escapeHtml(s.name || '-')}</td>
-          <td class="p-2 text-xs text-center">${escapeHtml(s.gender || '-')}</td>
-          <td class="p-2 text-xs text-center font-semibold">${escapeHtml(getAlumniGraduatedYear(s))}</td>
-          <td class="p-2 text-xs text-center font-semibold">${escapeHtml(s.finalClass || s.promotedFrom || 'Completed')}</td>
-          <td class="p-2 text-xs">${escapeHtml(s.father || s.guardian || '-')}</td>
-          <td class="p-2 text-xs font-mono text-center">${escapeHtml(s.mobile || '-')}</td>
-          <td class="p-2 text-xs">${escapeHtml(s.address || s.place || '-')}</td>
-        </tr>
-      `).join('');
+      const rows = alumniToPrint.map((s, idx) => [
+        idx + 1,
+        escapeHtml(s.adm || '--'),
+        escapeHtml(s.name || '--'),
+        escapeHtml(s.gender || '--'),
+        escapeHtml(getAlumniGraduatedYear(s)),
+        escapeHtml(s.finalClass || s.promotedFrom || 'Completed'),
+        escapeHtml(s.father || s.guardian || '--'),
+        escapeHtml(s.mobile || s.phone || '--'),
+        escapeHtml(s.address || '--')
+      ]);
 
-      printContainer.innerHTML = `
-        <div class="p-6 bg-white text-slate-900 printable-area">
-          <div class="text-center pb-4 mb-4 border-b-2 border-slate-900">
-            <h1 class="text-xl font-black uppercase tracking-wide">${escapeHtml(instName)}</h1>
-            <h2 class="text-sm font-bold text-slate-700 mt-1">OFFICIAL ALUMNI REGISTER</h2>
-            <p class="text-xs font-semibold text-slate-500 mt-0.5">${escapeHtml(yearTitle)} • Generated on ${new Date().toLocaleDateString()}</p>
-          </div>
-          <table class="w-full text-left border-collapse border border-slate-300">
-            <thead>
-              <tr class="bg-slate-100 text-slate-800 text-xs uppercase font-extrabold border-b border-slate-400">
-                <th class="p-2 text-center w-10">No</th>
-                <th class="p-2 text-center w-20">Adm No</th>
-                <th class="p-2">Student Name</th>
-                <th class="p-2 text-center w-16">Gender</th>
-                <th class="p-2 text-center w-28">Alumni Year</th>
-                <th class="p-2 text-center w-24">Final Class</th>
-                <th class="p-2">Guardian</th>
-                <th class="p-2 text-center w-28">Mobile</th>
-                <th class="p-2">Address</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml || '<tr><td colspan="9" class="p-4 text-center text-slate-500">No alumni records found</td></tr>'}
-            </tbody>
-          </table>
-          <div class="mt-8 flex justify-between items-center text-xs font-bold text-slate-600 pt-6 border-t border-slate-200">
-            <div>Total Alumni Students: <b>${alumniToPrint.length}</b></div>
-            <div>Principal / Headmaster Signature: ___________________</div>
-          </div>
-        </div>
-      `;
-
-      const styleEl = document.createElement('style');
-      styleEl.textContent = `
-        @media print {
-          body * { visibility: hidden !important; }
-          #alumni-register-print-area, #alumni-register-print-area * { visibility: visible !important; }
-          #alumni-register-print-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; display: block !important; }
-        }
-      `;
-      document.head.appendChild(styleEl);
-      window.print();
-      setTimeout(() => {
-        styleEl.remove();
-        printContainer.innerHTML = '';
-      }, 600);
+      printUnifiedOfficialRegisterPdf({
+        reportTitle: 'OFFICIAL ALUMNI REGISTER',
+        categoryBadge: 'Alumni Archive',
+        metaBadges: [
+          { label: 'Alumni Cohort', value: yearTitle }
+        ],
+        columns,
+        rows,
+        totalCount: alumniToPrint.length
+      });
     };
 
     const renderAlumniTab = () => {
@@ -1685,49 +1785,47 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
               <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                <span class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-sm font-bold border border-amber-200">
-                  <i class="fas fa-user-graduate"></i>
-                </span>
+                <i class="fas fa-graduation-cap text-amber-600"></i>
                 <span>Alumni Register</span>
+                <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">${totalCount} Alumni</span>
               </h3>
-              <p class="text-xs text-slate-500 font-semibold mt-0.5">Permanent historical archive of all alumni students across academic years.</p>
+              <p class="text-xs text-slate-500 font-semibold mt-0.5">Permanent historical archive of all graduated and alumni students across academic years.</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-xs font-extrabold px-3 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
-                Total Alumni: <b>${allAlumni.length}</b> (Filtered: ${totalCount})
-              </span>
-              <button id="btn-alumni-export-excel" type="button" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs cursor-pointer flex items-center gap-1.5 transition">
-                <i class="fas fa-file-excel"></i> Export Excel
+            <div class="flex items-center gap-2">
+              <button type="button" id="btn-alumni-export-pdf" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all cursor-pointer">
+                <i class="fas fa-file-pdf"></i>
+                <span>PDF / Print</span>
               </button>
-              <button id="btn-alumni-export-pdf" type="button" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-2xs cursor-pointer flex items-center gap-1.5 transition">
-                <i class="fas fa-print"></i> Print / PDF
+              <button type="button" id="btn-alumni-export-excel" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all cursor-pointer">
+                <i class="fas fa-file-excel"></i>
+                <span>Export Excel</span>
               </button>
             </div>
           </div>
 
-          <!-- Filter Toolbar -->
-          <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-2.5">
-              <div class="flex items-center gap-1.5">
-                <label for="alumni-filter-year" class="text-xs font-bold text-slate-700">Alumni Year:</label>
-                <select id="alumni-filter-year" class="p-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-bold text-slate-800 shadow-2xs min-w-[200px]">
-                  ${yearOptionsHtml}
-                </select>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <label for="alumni-page-size" class="text-xs font-bold text-slate-700">Show:</label>
-                <select id="alumni-page-size" class="p-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-bold text-slate-800 shadow-2xs">
-                  <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
-                  <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
-                  <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
-                  <option value="0" ${officialFilters.alumniPageSize === 0 ? 'selected' : ''}>All</option>
-                </select>
-              </div>
+          <!-- Clearly Visible Filter Input Controls -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3 bg-slate-50/80 p-3 rounded-2xl border border-slate-200/80">
+            <div>
+              <label for="alumni-filter-year" class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Alumni Cohort Year</label>
+              <select id="alumni-filter-year" class="w-full py-2 px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs focus:border-blue-500">
+                ${yearOptionsHtml}
+              </select>
             </div>
-            <div class="w-full sm:w-auto">
+            <div>
+              <label for="alumni-page-size" class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Page Rows</label>
+              <select id="alumni-page-size" class="w-full py-2 px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs focus:border-blue-500">
+                <option value="10" ${pageSize === 10 ? 'selected' : ''}>10 Rows</option>
+                <option value="25" ${pageSize === 25 ? 'selected' : ''}>25 Rows</option>
+                <option value="50" ${pageSize === 50 ? 'selected' : ''}>50 Rows</option>
+                <option value="100" ${pageSize === 100 ? 'selected' : ''}>100 Rows</option>
+                <option value="0" ${officialFilters.alumniPageSize === 0 ? 'selected' : ''}>All (${totalCount})</option>
+              </select>
+            </div>
+            <div>
+              <label for="alumni-search-input" class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Search Alumni</label>
               <div class="relative">
-                <input id="alumni-search-input" type="text" value="${escapeHtml(officialFilters.alumniSearch || '')}" placeholder="Search name, adm no, guardian..." class="w-full sm:w-72 pl-9 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-amber-500 shadow-2xs">
-                <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input id="alumni-search-input" type="text" value="${escapeHtml(officialFilters.alumniSearch || '')}" placeholder="Search name, adm no, guardian..." class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-2xs focus:border-blue-500">
               </div>
             </div>
           </div>
@@ -2281,10 +2379,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
 
     const exportStaffToExcel = (staffList = []) => {
-      if (typeof XLSX === 'undefined') {
-        openOfficialDetailModal('Export Notice', '<p class="text-sm text-slate-600 p-4">Excel library is still loading. Please try again in a moment.</p>');
-        return;
-      }
+      const categoryLabel = officialFilters.staffType && officialFilters.staffType !== 'ALL' ? officialFilters.staffType.replace(/\s+/g, '_') : 'All_Staff';
+      const dateStr = formatDate(new Date()).replace(/-/g, '_');
+      const filename = `Staff_Directory_${categoryLabel}_${dateStr}.xlsx`;
+
       const rowsData = staffList.map((s, idx) => {
         const customVals = (s.customValues && typeof s.customValues === 'object') ? s.customValues : {};
         return {
@@ -2303,82 +2401,58 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           'Address': s.address || customVals.address || ''
         };
       });
-      const ws = XLSX.utils.json_to_sheet(rowsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Staff Directory');
-      XLSX.writeFile(wb, `Staff_Directory_${formatDate(new Date())}.xlsx`);
+
+      exportUnifiedRegisterToExcel({
+        filename,
+        sheetName: 'Staff Directory',
+        data: rowsData
+      });
     };
 
     const printStaffDirectoryPdf = (staffList = []) => {
-      const instName = resolveInstitutionName(institutionConfig) || 'Institution Official Portal';
-      let printContainer = document.getElementById('staff-register-print-area');
-      if (!printContainer) {
-        printContainer = document.createElement('div');
-        printContainer.id = 'staff-register-print-area';
-        printContainer.className = 'hidden';
-        document.body.appendChild(printContainer);
-      }
+      const categoryTitle = (!officialFilters.staffType || officialFilters.staffType === 'ALL') ? 'All Staff Types' : officialFilters.staffType;
 
-      printContainer.innerHTML = `
-        <div class="p-4 bg-white text-slate-900">
-          <div class="text-center border-b-2 border-slate-800 pb-3 mb-4">
-            <h1 class="text-xl font-black uppercase">${escapeHtml(instName)}</h1>
-            <p class="text-xs font-bold text-slate-600 mt-0.5">Staff Directory Register (${staffList.length} Members)</p>
-          </div>
-          <table class="w-full text-[10px] border-collapse border border-slate-400">
-            <thead>
-              <tr class="bg-slate-100">
-                <th class="border border-slate-400 p-1">No</th>
-                <th class="border border-slate-400 p-1 text-left">Full Name</th>
-                <th class="border border-slate-400 p-1 text-left">Designation / Role</th>
-                <th class="border border-slate-400 p-1">Category</th>
-                <th class="border border-slate-400 p-1">MSR / ID</th>
-                <th class="border border-slate-400 p-1">Phone</th>
-                <th class="border border-slate-400 p-1">Qualification</th>
-                <th class="border border-slate-400 p-1">Duty Classes</th>
-                <th class="border border-slate-400 p-1">Status</th>
-                <th class="border border-slate-400 p-1 text-left">Address</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${staffList.map((s, idx) => {
-                const customVals = (s.customValues && typeof s.customValues === 'object') ? s.customValues : {};
-                const duty = Array.isArray(s.dutyClasses) && s.dutyClasses.length ? s.dutyClasses.join(', ') : 'All';
-                return `
-                  <tr>
-                    <td class="border border-slate-400 p-1 text-center font-bold">${idx + 1}</td>
-                    <td class="border border-slate-400 p-1 font-bold">${escapeHtml(s.name || customVals.name || '--')}</td>
-                    <td class="border border-slate-400 p-1">${escapeHtml(s.role || s.designation || customVals.role || s.type || '--')}</td>
-                    <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.type || '--')}</td>
-                    <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.msr || customVals.msr || '--')}</td>
-                    <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.phone || s.mobile || customVals.phone || '--')}</td>
-                    <td class="border border-slate-400 p-1 text-center">${escapeHtml(s.qualification || customVals.qualification || '--')}</td>
-                    <td class="border border-slate-400 p-1 text-center">${escapeHtml(duty)}</td>
-                    <td class="border border-slate-400 p-1 text-center">${s.isActive !== false ? 'Active' : 'Inactive'}</td>
-                    <td class="border border-slate-400 p-1">${escapeHtml(s.address || customVals.address || '--')}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
+      const columns = [
+        { label: 'No', align: 'center', width: '35px', bold: true },
+        { label: 'Full Name', align: 'left', bold: true },
+        { label: 'Designation / Role', align: 'left' },
+        { label: 'Category', align: 'center', width: '65px' },
+        { label: 'MSR / ID', align: 'center', width: '65px' },
+        { label: 'Phone', align: 'center', width: '80px' },
+        { label: 'Qualification', align: 'center', width: '75px' },
+        { label: 'Duty Classes', align: 'center', width: '70px' },
+        { label: 'Status', align: 'center', width: '55px' },
+        { label: 'Address', align: 'left' }
+      ];
 
-      const styleEl = document.createElement('style');
-      styleEl.id = 'staff-register-print-style';
-      styleEl.textContent = `
-        @media print {
-          body.printing-staff-register > *:not(#staff-register-print-area) { display: none !important; }
-          body.printing-staff-register #staff-register-print-area { display: block !important; position: static !important; width: 100% !important; }
-        }
-      `;
-      document.head.appendChild(styleEl);
-      document.body.classList.add('printing-staff-register');
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('printing-staff-register');
-        styleEl.remove();
-      }, 600);
+      const rows = staffList.map((s, idx) => {
+        const customVals = (s.customValues && typeof s.customValues === 'object') ? s.customValues : {};
+        const duty = Array.isArray(s.dutyClasses) && s.dutyClasses.length ? s.dutyClasses.join(', ') : 'All';
+        return [
+          idx + 1,
+          escapeHtml(s.name || customVals.name || '--'),
+          escapeHtml(s.role || s.designation || customVals.role || s.type || '--'),
+          escapeHtml(s.type || '--'),
+          escapeHtml(s.msr || customVals.msr || '--'),
+          escapeHtml(s.phone || s.mobile || customVals.phone || '--'),
+          escapeHtml(s.qualification || customVals.qualification || '--'),
+          escapeHtml(duty),
+          s.isActive !== false ? 'Active' : 'Inactive',
+          escapeHtml(s.address || customVals.address || '--')
+        ];
+      });
+
+      printUnifiedOfficialRegisterPdf({
+        reportTitle: 'OFFICIAL STAFF & DIRECTORY REGISTER',
+        categoryBadge: categoryTitle,
+        metaBadges: [
+          { label: 'Staff Category', value: categoryTitle },
+          { label: 'Status Scope', value: officialFilters.staffStatus || 'All' }
+        ],
+        columns,
+        rows,
+        totalCount: staffList.length
+      });
     };
 
     const renderStaffTab = () => {
