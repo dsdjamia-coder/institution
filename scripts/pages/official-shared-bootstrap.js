@@ -39,7 +39,96 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       alumniYear: 'ALL',
       alumniSearch: '',
       alumniPage: 1,
-      alumniPageSize: 25
+      alumniPageSize: 25,
+      summaryAvailabilityMode: 'available', // 'available' | 'missing'
+      summaryCustomField1: 'mobile',
+      summaryCustomField2: 'uid',
+      summaryFilterField: '',
+      summaryFilterMode: ''
+    };
+
+    const SUMMARY_CHECK_FIELDS = [
+      { key: 'mobile', label: "Father's Phone" },
+      { key: 'uid', label: 'ID / UID' },
+      { key: 'adhaar', label: 'Aadhaar No' },
+      { key: 'photo', label: 'Student Photo' },
+      { key: 'adm', label: 'Adm No' },
+      { key: 'adm_date', label: 'Admission Date' },
+      { key: 'dob', label: 'Date of Birth' },
+      { key: 'father', label: "Father's Name" },
+      { key: 'mother', label: "Mother's Name" },
+      { key: 'motherMobile', label: "Mother's Phone" },
+      { key: 'address', label: 'Permanent Address' },
+      { key: 'bloodGroup', label: 'Blood Group' },
+      { key: 'gender', label: 'Gender' },
+      { key: 'place', label: 'Place / House' },
+      { key: 'group', label: 'Student Group' }
+    ];
+
+    const isStudentFieldAvailable = (student = {}, key = '') => {
+      if (!student) return false;
+      const prof = (student.profile && typeof student.profile === 'object') ? student.profile : {};
+      if (key === 'photo') {
+        const p = student.photo || student.image || prof.photo || prof.image || '';
+        return Boolean(p && String(p).trim() && !String(p).includes('logo.png'));
+      }
+      if (key === 'group') {
+        return Boolean(getStudentGroup(student.id));
+      }
+      if (key === 'mobile') {
+        const val = student.mobile || student.phone || student.fatherMobile || prof.mobile || prof.phone || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'motherMobile') {
+        const val = student.motherMobile || student.mother_mobile || prof.motherMobile || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'uid') {
+        const val = student.uid || prof.uid || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'adhaar') {
+        const val = student.adhaar || student.aadhaar || student.aadhar || prof.adhaar || prof.aadhaar || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'adm') {
+        const val = student.adm || prof.admNo || prof.adm || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'adm_date') {
+        const val = student.adm_date || student.admDate || prof.admDate || prof.adm_date || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'dob') {
+        const val = student.dob || prof.dob || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'father') {
+        const val = student.father || prof.father || student.guardian || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'mother') {
+        const val = student.mother || prof.mother || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'address') {
+        const val = student.address || prof.address || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'bloodGroup') {
+        const val = student.bloodGroup || student.blood || prof.bloodGroup || prof.blood || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'gender') {
+        const val = student.gender || prof.gender || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'place') {
+        const val = student.place || student.house || prof.place || prof.house || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      const genericVal = student[key] !== undefined ? student[key] : prof[key];
+      return Boolean(genericVal && String(genericVal).trim() !== '' && String(genericVal).trim() !== '--');
     };
 
     const isAlumniStudent = (student = {}) => {
@@ -107,11 +196,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const yearRecord = student.academicYears?.[targetYear];
       if (yearRecord && typeof yearRecord === 'object') {
+        const rawStatus = yearRecord.status || student.status || 'Active';
+        const isAct = String(rawStatus).trim().toLowerCase() === 'active';
         const merged = {
           ...student,
           class: yearRecord.class || student.class,
-          status: yearRecord.status || student.status,
-          isActive: yearRecord.status ? yearRecord.status === 'active' : student.isActive,
+          status: rawStatus,
+          isActive: yearRecord.isActive !== undefined ? Boolean(yearRecord.isActive) : isAct,
           concessionFee: yearRecord.concessionFee !== undefined ? yearRecord.concessionFee : student.concessionFee
         };
         if (isAlumniStudent(merged)) return null;
@@ -277,7 +368,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
     const getStudentClass = (student = {}) => String(student.class || '--').trim() || '--';
     const getStudentGender = (student = {}) => String(student.gender || '').trim();
-    const getStudentStatus = (student = {}) => student.isActive === false || student.status === 'inactive' || student.left === true ? 'Inactive' : 'Active';
+    const getStudentStatus = (student = {}) => {
+      if (student.left === true) return 'Inactive';
+      const s = String(student.status || '').trim().toLowerCase();
+      if (s === 'alumni' || s === 'graduated') return 'Alumni';
+      if (s === 'discontinued') return 'Discontinued';
+      if (s === 'inactive' || student.isActive === false) return 'Inactive';
+      return 'Active';
+    };
     const hasStudentConcession = (student = {}) => student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '';
     const getStudentGroup = (studentId = '') => studentGroups.find((group) => Array.isArray(group.memberIds) && group.memberIds.includes(studentId));
     const getGroupMemberRows = (group = {}) => (group.memberIds || []).map((memberId) => allStudents.find((student) => student.id === memberId)).filter(Boolean);
@@ -883,7 +981,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             || (officialFilters.studentInfo === 'CONCESSION' && hasStudentConcession(student))
             || (officialFilters.studentInfo === 'MISSING_MOBILE' && !student.mobile)
             || (officialFilters.studentInfo === 'MISSING_UID' && !student.uid);
-          return classOk && genderOk && statusOk && searchOk && infoOk;
+
+          let customFilterOk = true;
+          if (officialFilters.summaryFilterField) {
+            const isAvail = isStudentFieldAvailable(student, officialFilters.summaryFilterField);
+            customFilterOk = officialFilters.summaryFilterMode === 'available' ? isAvail : !isAvail;
+          }
+
+          return classOk && genderOk && statusOk && searchOk && infoOk && customFilterOk;
         })
         .sort((a, b) => getStudentClass(a).localeCompare(getStudentClass(b), undefined, { numeric: true }) || String(a.name || '').localeCompare(String(b.name || '')));
     };
@@ -1186,6 +1291,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
           </div>
 
+          ${officialFilters.summaryFilterField ? `
+            <div class="flex items-center justify-between p-2.5 px-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 font-semibold mb-3 shadow-2xs">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-filter text-blue-600"></i>
+                <span>Summary Filter Active: <b>${escapeHtml((SUMMARY_CHECK_FIELDS.find(f => f.key === officialFilters.summaryFilterField) || {}).label || officialFilters.summaryFilterField)} (${officialFilters.summaryFilterMode === 'available' ? 'Available' : 'Missing'})</b></span>
+              </div>
+              <button type="button" id="clear-summary-drilldown-btn" class="px-2.5 py-1 bg-white hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-300 text-xs font-bold transition cursor-pointer">
+                <i class="fas fa-times mr-1"></i> Clear Filter
+              </button>
+            </div>
+          ` : ''}
+
           <!-- Clearly Visible Filter Input Controls (2-column compact grid on mobile) -->
           <div class="grid grid-cols-2 lg:grid-cols-6 gap-2 mb-3 bg-slate-50/80 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200/80">
             <div>
@@ -1289,6 +1406,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
           </div>
         </div>`;
+
+      document.getElementById('clear-summary-drilldown-btn')?.addEventListener('click', () => {
+        officialFilters.summaryFilterField = '';
+        officialFilters.summaryFilterMode = '';
+        renderStudents();
+      });
 
       document.getElementById('official-student-year')?.addEventListener('change', (e) => {
         officialFilters.academicYearId = e.target.value;
@@ -1700,24 +1823,63 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const buildClassSummary = () => {
       const yearStudents = getStudentsForCurrentAcademicYear();
+      const isAvailableMode = officialFilters.summaryAvailabilityMode !== 'missing';
+      const field1Key = officialFilters.summaryCustomField1 || 'mobile';
+      const field2Key = officialFilters.summaryCustomField2 || 'uid';
+
+      const field1Obj = SUMMARY_CHECK_FIELDS.find((f) => f.key === field1Key) || SUMMARY_CHECK_FIELDS[0];
+      const field2Obj = SUMMARY_CHECK_FIELDS.find((f) => f.key === field2Key) || SUMMARY_CHECK_FIELDS[1];
+
       const map = new Map();
       yearStudents.forEach((student) => {
         const cls = getStudentClass(student);
-        if (!map.has(cls)) map.set(cls, { boys: 0, girls: 0, total: 0, active: 0, inactive: 0, missingMobile: 0, missingUid: 0, grouped: 0, concession: 0 });
+        if (!map.has(cls)) {
+          map.set(cls, {
+            boys: 0,
+            girls: 0,
+            total: 0,
+            active: 0,
+            inactive: 0,
+            concession: 0,
+            grouped: 0,
+            custom1: 0,
+            custom2: 0
+          });
+        }
         const row = map.get(cls);
         row.total += 1;
         const gender = normalizeText(student.gender);
         if (gender === 'male') row.boys += 1;
         else if (gender === 'female') row.girls += 1;
+
         if (getStudentStatus(student) === 'Active') row.active += 1;
         else row.inactive += 1;
-        if (!student.mobile) row.missingMobile += 1;
-        if (!student.uid) row.missingUid += 1;
-        if (getStudentGroup(student.id)) row.grouped += 1;
+
         if (hasStudentConcession(student)) row.concession += 1;
+        if (getStudentGroup(student.id)) row.grouped += 1;
+
+        const f1Avail = isStudentFieldAvailable(student, field1Key);
+        const f1Matches = isAvailableMode ? f1Avail : !f1Avail;
+        if (f1Matches) row.custom1 += 1;
+
+        const f2Avail = isStudentFieldAvailable(student, field2Key);
+        const f2Matches = isAvailableMode ? f2Avail : !f2Avail;
+        if (f2Matches) row.custom2 += 1;
       });
+
       const keys = [...map.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      const totals = { boys: 0, girls: 0, total: 0, active: 0, inactive: 0, missingMobile: 0, missingUid: 0, grouped: 0, concession: 0 };
+      const totals = {
+        boys: 0,
+        girls: 0,
+        total: 0,
+        active: 0,
+        inactive: 0,
+        concession: 0,
+        grouped: 0,
+        custom1: 0,
+        custom2: 0
+      };
+
       const rows = keys.map((cls, idx) => {
         const row = map.get(cls);
         Object.keys(totals).forEach((key) => { totals[key] += row[key]; });
@@ -1731,10 +1893,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           <td class="border border-slate-200 p-2.5 text-center font-extrabold text-slate-900 bg-slate-50">${row.total}</td>
           <td class="border border-slate-200 p-2.5 text-center text-emerald-700 font-bold">${row.active}</td>
           <td class="border border-slate-200 p-2.5 text-center text-rose-600 font-semibold">${row.inactive}</td>
-          <td class="border border-slate-200 p-2.5 text-center">${row.grouped}</td>
           <td class="border border-slate-200 p-2.5 text-center">${row.concession}</td>
-          <td class="border border-slate-200 p-2.5 text-center">${row.missingMobile}</td>
-          <td class="border border-slate-200 p-2.5 text-center">${row.missingUid}</td>
+          <td class="border border-slate-200 p-2.5 text-center">${row.grouped}</td>
+          <td class="border border-slate-200 p-2.5 text-center font-bold">
+            <button type="button" class="summary-drilldown-btn ${isAvailableMode ? 'text-emerald-700 hover:text-emerald-900' : 'text-rose-600 hover:text-rose-800'} hover:underline cursor-pointer" data-class="${escapeHtml(cls)}" data-field="${escapeHtml(field1Key)}" data-mode="${isAvailableMode ? 'available' : 'missing'}">
+              ${row.custom1}
+            </button>
+          </td>
+          <td class="border border-slate-200 p-2.5 text-center font-bold">
+            <button type="button" class="summary-drilldown-btn ${isAvailableMode ? 'text-emerald-700 hover:text-emerald-900' : 'text-rose-600 hover:text-rose-800'} hover:underline cursor-pointer" data-class="${escapeHtml(cls)}" data-field="${escapeHtml(field2Key)}" data-mode="${isAvailableMode ? 'available' : 'missing'}">
+              ${row.custom2}
+            </button>
+          </td>
         </tr>`;
       }).join('');
 
@@ -1811,6 +1981,41 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
           </div>
 
+          <!-- Dynamic Verification Toolbar (Toggle & 15 Field Selectors) -->
+          <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+              <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fas fa-filter text-blue-600"></i> Check Mode:
+              </span>
+              <div class="inline-flex p-0.5 bg-slate-200 rounded-xl border border-slate-300 shadow-2xs">
+                <button type="button" id="summary-toggle-available" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${isAvailableMode ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Available (ഉള്ളവ)</span>
+                </button>
+                <button type="button" id="summary-toggle-missing" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${!isAvailableMode ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}">
+                  <i class="fas fa-times-circle"></i>
+                  <span>Not Available (ഇല്ലാത്തവ)</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div class="flex items-center gap-1.5">
+                <label for="summary-field-1" class="text-xs font-bold text-slate-600">Field 1:</label>
+                <select id="summary-field-1" class="p-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs cursor-pointer">
+                  ${SUMMARY_CHECK_FIELDS.map((f) => `<option value="${escapeHtml(f.key)}" ${f.key === field1Key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                </select>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <label for="summary-field-2" class="text-xs font-bold text-slate-600">Field 2:</label>
+                <select id="summary-field-2" class="p-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs cursor-pointer">
+                  ${SUMMARY_CHECK_FIELDS.map((f) => `<option value="${escapeHtml(f.key)}" ${f.key === field2Key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div class="official-metric-grid">
             ${metricCard('Total Students', totals.total, 'blue', 'fa-user-graduate')}
             ${metricCard('Total Classes', keys.length, 'indigo', 'fa-chalkboard')}
@@ -1831,10 +2036,20 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                   <th class="border border-slate-200 p-2.5 text-center">Total</th>
                   <th class="border border-slate-200 p-2.5 text-center">Active</th>
                   <th class="border border-slate-200 p-2.5 text-center">Inactive</th>
-                  <th class="border border-slate-200 p-2.5 text-center">Grouped</th>
                   <th class="border border-slate-200 p-2.5 text-center">Concession</th>
-                  <th class="border border-slate-200 p-2.5 text-center">No Mobile</th>
-                  <th class="border border-slate-200 p-2.5 text-center">No UID</th>
+                  <th class="border border-slate-200 p-2.5 text-center">Group</th>
+                  <th class="border border-slate-200 p-2.5 text-center">
+                    <span class="block">${escapeHtml(field1Obj.label)}</span>
+                    <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isAvailableMode ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                      ${isAvailableMode ? 'Available' : 'Missing'}
+                    </span>
+                  </th>
+                  <th class="border border-slate-200 p-2.5 text-center">
+                    <span class="block">${escapeHtml(field2Obj.label)}</span>
+                    <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isAvailableMode ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                      ${isAvailableMode ? 'Available' : 'Missing'}
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1847,10 +2062,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                   <td class="border border-slate-200 p-2.5 text-center">${totals.total}</td>
                   <td class="border border-slate-200 p-2.5 text-center">${totals.active}</td>
                   <td class="border border-slate-200 p-2.5 text-center">${totals.inactive}</td>
-                  <td class="border border-slate-200 p-2.5 text-center">${totals.grouped}</td>
                   <td class="border border-slate-200 p-2.5 text-center">${totals.concession}</td>
-                  <td class="border border-slate-200 p-2.5 text-center">${totals.missingMobile}</td>
-                  <td class="border border-slate-200 p-2.5 text-center">${totals.missingUid}</td>
+                  <td class="border border-slate-200 p-2.5 text-center">${totals.grouped}</td>
+                  <td class="border border-slate-200 p-2.5 text-center">${totals.custom1}</td>
+                  <td class="border border-slate-200 p-2.5 text-center">${totals.custom2}</td>
                 </tr>
               </tbody>
             </table>
@@ -1908,8 +2123,43 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         renderStudents();
       });
 
+      document.getElementById('summary-toggle-available')?.addEventListener('click', () => {
+        if (officialFilters.summaryAvailabilityMode !== 'available') {
+          officialFilters.summaryAvailabilityMode = 'available';
+          buildClassSummary();
+        }
+      });
+
+      document.getElementById('summary-toggle-missing')?.addEventListener('click', () => {
+        if (officialFilters.summaryAvailabilityMode !== 'missing') {
+          officialFilters.summaryAvailabilityMode = 'missing';
+          buildClassSummary();
+        }
+      });
+
+      document.getElementById('summary-field-1')?.addEventListener('change', (e) => {
+        officialFilters.summaryCustomField1 = e.target.value;
+        buildClassSummary();
+      });
+
+      document.getElementById('summary-field-2')?.addEventListener('change', (e) => {
+        officialFilters.summaryCustomField2 = e.target.value;
+        buildClassSummary();
+      });
+
       document.querySelectorAll('.class-filter-btn').forEach((btn) => btn.addEventListener('click', () => {
         officialFilters.studentClass = btn.dataset.class || 'ALL';
+        officialFilters.summaryFilterField = '';
+        officialFilters.summaryFilterMode = '';
+        officialFilters.studentPage = 1;
+        renderStudents();
+        setTab('students');
+      }));
+
+      document.querySelectorAll('.summary-drilldown-btn').forEach((btn) => btn.addEventListener('click', () => {
+        officialFilters.studentClass = btn.dataset.class || 'ALL';
+        officialFilters.summaryFilterField = btn.dataset.field || '';
+        officialFilters.summaryFilterMode = btn.dataset.mode || '';
         officialFilters.studentPage = 1;
         renderStudents();
         setTab('students');
