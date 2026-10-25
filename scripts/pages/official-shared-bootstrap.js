@@ -1981,11 +1981,20 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
           </div>
 
-          <!-- Dynamic Verification Toolbar (Toggle & 15 Field Selectors) -->
-          <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div class="official-metric-grid">
+            ${metricCard('Total Students', totals.total, 'blue', 'fa-user-graduate')}
+            ${metricCard('Total Classes', keys.length, 'indigo', 'fa-chalkboard')}
+            ${metricCard('Boys / Girls', `${totals.boys} / ${totals.girls}`, 'teal', 'fa-children')}
+            ${metricCard('Active Students', totals.active, 'green', 'fa-user-check')}
+            ${metricCard('Fee Concession', totals.concession, 'amber', 'fa-tags')}
+            ${metricCard('Active Staff', allStaff.filter((s) => s.isActive !== false).length, 'purple', 'fa-users')}
+          </div>
+
+          <!-- Check Mode Switch Directly Above Table -->
+          <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+            <div class="flex items-center gap-2">
               <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <i class="fas fa-filter text-blue-600"></i> Check Mode:
+                <i class="fas fa-filter text-blue-600 text-xs"></i> Check Mode:
               </span>
               <div class="inline-flex p-0.5 bg-slate-200 rounded-xl border border-slate-300 shadow-2xs">
                 <button type="button" id="summary-toggle-available" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${isAvailableMode ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}">
@@ -1998,31 +2007,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 </button>
               </div>
             </div>
-
-            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div class="flex items-center gap-1.5">
-                <label for="summary-field-1" class="text-xs font-bold text-slate-600">Field 1:</label>
-                <select id="summary-field-1" class="p-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs cursor-pointer">
-                  ${SUMMARY_CHECK_FIELDS.map((f) => `<option value="${escapeHtml(f.key)}" ${f.key === field1Key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
-                </select>
-              </div>
-
-              <div class="flex items-center gap-1.5">
-                <label for="summary-field-2" class="text-xs font-bold text-slate-600">Field 2:</label>
-                <select id="summary-field-2" class="p-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs cursor-pointer">
-                  ${SUMMARY_CHECK_FIELDS.map((f) => `<option value="${escapeHtml(f.key)}" ${f.key === field2Key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="official-metric-grid">
-            ${metricCard('Total Students', totals.total, 'blue', 'fa-user-graduate')}
-            ${metricCard('Total Classes', keys.length, 'indigo', 'fa-chalkboard')}
-            ${metricCard('Boys / Girls', `${totals.boys} / ${totals.girls}`, 'teal', 'fa-children')}
-            ${metricCard('Active Students', totals.active, 'green', 'fa-user-check')}
-            ${metricCard('Fee Concession', totals.concession, 'amber', 'fa-tags')}
-            ${metricCard('Active Staff', allStaff.filter((s) => s.isActive !== false).length, 'purple', 'fa-users')}
+            <span class="text-[11px] font-semibold text-slate-500 hidden sm:inline-block">
+              <i class="fas fa-info-circle mr-1 text-slate-400"></i>Select verification columns directly from headers below
+            </span>
           </div>
 
           <div class="overflow-x-auto w-full rounded-xl border border-slate-200">
@@ -2038,17 +2025,25 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                   <th class="border border-slate-200 p-2.5 text-center">Inactive</th>
                   <th class="border border-slate-200 p-2.5 text-center">Concession</th>
                   <th class="border border-slate-200 p-2.5 text-center">Group</th>
-                  <th class="border border-slate-200 p-2.5 text-center">
-                    <span class="block">${escapeHtml(field1Obj.label)}</span>
-                    <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isAvailableMode ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
-                      ${isAvailableMode ? 'Available' : 'Missing'}
-                    </span>
+                  <th class="border border-slate-200 p-2 text-center bg-slate-50/90 min-w-[150px]">
+                    <div class="flex flex-col items-center gap-1">
+                      <select id="summary-header-field-1" class="text-xs font-extrabold text-slate-800 bg-white border border-slate-300 rounded-lg py-1 px-2 shadow-2xs cursor-pointer focus:border-blue-500 max-w-[145px]">
+                        ${SUMMARY_CHECK_FIELDS.map((f) => `<option value="${escapeHtml(f.key)}" ${f.key === field1Key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                      </select>
+                      <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${isAvailableMode ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}">
+                        ${isAvailableMode ? 'Available' : 'Missing'}
+                      </span>
+                    </div>
                   </th>
-                  <th class="border border-slate-200 p-2.5 text-center">
-                    <span class="block">${escapeHtml(field2Obj.label)}</span>
-                    <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isAvailableMode ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
-                      ${isAvailableMode ? 'Available' : 'Missing'}
-                    </span>
+                  <th class="border border-slate-200 p-2 text-center bg-slate-50/90 min-w-[150px]">
+                    <div class="flex flex-col items-center gap-1">
+                      <select id="summary-header-field-2" class="text-xs font-extrabold text-slate-800 bg-white border border-slate-300 rounded-lg py-1 px-2 shadow-2xs cursor-pointer focus:border-blue-500 max-w-[145px]">
+                        ${SUMMARY_CHECK_FIELDS.map((f) => `<option value="${escapeHtml(f.key)}" ${f.key === field2Key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                      </select>
+                      <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${isAvailableMode ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}">
+                        ${isAvailableMode ? 'Available' : 'Missing'}
+                      </span>
+                    </div>
                   </th>
                 </tr>
               </thead>
@@ -2137,12 +2132,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }
       });
 
-      document.getElementById('summary-field-1')?.addEventListener('change', (e) => {
+      document.getElementById('summary-header-field-1')?.addEventListener('change', (e) => {
         officialFilters.summaryCustomField1 = e.target.value;
         buildClassSummary();
       });
 
-      document.getElementById('summary-field-2')?.addEventListener('change', (e) => {
+      document.getElementById('summary-header-field-2')?.addEventListener('change', (e) => {
         officialFilters.summaryCustomField2 = e.target.value;
         buildClassSummary();
       });
