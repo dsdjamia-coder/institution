@@ -1990,11 +1990,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               <div class="inline-flex p-0.5 bg-slate-200 rounded-xl border border-slate-300 shadow-2xs">
                 <button type="button" id="summary-toggle-available" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${isAvailableMode ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}">
                   <i class="fas fa-check-circle"></i>
-                  <span>Available (ഉള്ളവ)</span>
+                  <span>Available</span>
                 </button>
                 <button type="button" id="summary-toggle-missing" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${!isAvailableMode ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}">
                   <i class="fas fa-times-circle"></i>
-                  <span>Not Available (ഇല്ലാത്തവ)</span>
+                  <span>Not Available</span>
                 </button>
               </div>
             </div>
