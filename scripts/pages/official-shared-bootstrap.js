@@ -48,21 +48,21 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
 
     const SUMMARY_CHECK_FIELDS = [
-      { key: 'mobile', label: "Father's Phone" },
-      { key: 'uid', label: 'ID / UID' },
-      { key: 'adhaar', label: 'Aadhaar No' },
-      { key: 'photo', label: 'Student Photo' },
-      { key: 'adm', label: 'Adm No' },
-      { key: 'adm_date', label: 'Admission Date' },
-      { key: 'dob', label: 'Date of Birth' },
-      { key: 'father', label: "Father's Name" },
-      { key: 'mother', label: "Mother's Name" },
-      { key: 'motherMobile', label: "Mother's Phone" },
-      { key: 'address', label: 'Permanent Address' },
-      { key: 'bloodGroup', label: 'Blood Group' },
-      { key: 'gender', label: 'Gender' },
-      { key: 'place', label: 'Place / House' },
-      { key: 'group', label: 'Student Group' }
+      { key: 'photo', label: '1. Student Photo' },
+      { key: 'class', label: '2. Class' },
+      { key: 'uid', label: '3. ID / UID' },
+      { key: 'name', label: '4. Student Name' },
+      { key: 'father', label: "5. Father's Name" },
+      { key: 'mother', label: "6. Mother's Name" },
+      { key: 'gender', label: '7. Gender' },
+      { key: 'adm', label: '8. Admission No' },
+      { key: 'dob', label: '9. Date of Birth' },
+      { key: 'adm_date', label: '10. Admission Date' },
+      { key: 'status', label: '11. Student Status' },
+      { key: 'adhaar', label: '12. Aadhaar No' },
+      { key: 'mobile', label: "13. Father's Phone" },
+      { key: 'motherMobile', label: "14. Mother's Phone" },
+      { key: 'address', label: '15. Permanent Address' }
     ];
 
     const isStudentFieldAvailable = (student = {}, key = '') => {
@@ -72,35 +72,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const p = student.photo || student.image || prof.photo || prof.image || '';
         return Boolean(p && String(p).trim() && !String(p).includes('logo.png'));
       }
-      if (key === 'group') {
-        return Boolean(getStudentGroup(student.id));
-      }
-      if (key === 'mobile') {
-        const val = student.mobile || student.phone || student.fatherMobile || prof.mobile || prof.phone || '';
-        return String(val).trim() !== '' && String(val).trim() !== '--';
-      }
-      if (key === 'motherMobile') {
-        const val = student.motherMobile || student.mother_mobile || prof.motherMobile || '';
+      if (key === 'class') {
+        const val = student.class || student.studentClass || prof.class || '';
         return String(val).trim() !== '' && String(val).trim() !== '--';
       }
       if (key === 'uid') {
         const val = student.uid || prof.uid || '';
         return String(val).trim() !== '' && String(val).trim() !== '--';
       }
-      if (key === 'adhaar') {
-        const val = student.adhaar || student.aadhaar || student.aadhar || prof.adhaar || prof.aadhaar || '';
-        return String(val).trim() !== '' && String(val).trim() !== '--';
-      }
-      if (key === 'adm') {
-        const val = student.adm || prof.admNo || prof.adm || '';
-        return String(val).trim() !== '' && String(val).trim() !== '--';
-      }
-      if (key === 'adm_date') {
-        const val = student.adm_date || student.admDate || prof.admDate || prof.adm_date || '';
-        return String(val).trim() !== '' && String(val).trim() !== '--';
-      }
-      if (key === 'dob') {
-        const val = student.dob || prof.dob || '';
+      if (key === 'name') {
+        const val = student.name || prof.name || '';
         return String(val).trim() !== '' && String(val).trim() !== '--';
       }
       if (key === 'father') {
@@ -111,20 +92,40 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const val = student.mother || prof.mother || '';
         return String(val).trim() !== '' && String(val).trim() !== '--';
       }
-      if (key === 'address') {
-        const val = student.address || prof.address || '';
-        return String(val).trim() !== '' && String(val).trim() !== '--';
-      }
-      if (key === 'bloodGroup') {
-        const val = student.bloodGroup || student.blood || prof.bloodGroup || prof.blood || '';
-        return String(val).trim() !== '' && String(val).trim() !== '--';
-      }
       if (key === 'gender') {
         const val = student.gender || prof.gender || '';
         return String(val).trim() !== '' && String(val).trim() !== '--';
       }
-      if (key === 'place') {
-        const val = student.place || student.house || prof.place || prof.house || '';
+      if (key === 'adm') {
+        const val = student.adm || prof.admNo || prof.adm || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'dob') {
+        const val = student.dob || prof.dob || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'adm_date') {
+        const val = student.adm_date || student.admDate || prof.admDate || prof.adm_date || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'status') {
+        const val = student.status || prof.status || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'adhaar') {
+        const val = student.adhaar || student.aadhaar || student.aadhar || prof.adhaar || prof.aadhaar || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'mobile') {
+        const val = student.mobile || student.phone || student.fatherMobile || prof.mobile || prof.phone || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'motherMobile') {
+        const val = student.motherMobile || student.mother_mobile || prof.motherMobile || '';
+        return String(val).trim() !== '' && String(val).trim() !== '--';
+      }
+      if (key === 'address') {
+        const val = student.address || prof.address || '';
         return String(val).trim() !== '' && String(val).trim() !== '--';
       }
       const genericVal = student[key] !== undefined ? student[key] : prof[key];
