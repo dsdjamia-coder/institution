@@ -265,6 +265,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       sigRightVisible: true,
       footerNote: '',
       headerBlocks: null,
+      floatingBoxes: null,
+      activeFloatingBoxId: null,
       instNameOverride: '',
       instSubOverride: '',
       instRegOverride: '',
@@ -576,6 +578,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         sigCenterVisible: builderConfig.sigCenterVisible !== false,
         sigRightVisible: builderConfig.sigRightVisible !== false,
         headerBlocks: JSON.parse(JSON.stringify(builderConfig.headerBlocks || [])),
+        floatingBoxes: JSON.parse(JSON.stringify(builderConfig.floatingBoxes || [])),
         footerNote: builderConfig.footerNote || '',
         instNameOverride: builderConfig.instNameOverride || '',
         instSubOverride: builderConfig.instSubOverride || '',
@@ -636,6 +639,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         builderConfig.headerBlocks = JSON.parse(JSON.stringify(template.headerBlocks));
       } else {
         builderConfig.headerBlocks = null;
+      }
+      if (template.floatingBoxes && Array.isArray(template.floatingBoxes)) {
+        builderConfig.floatingBoxes = JSON.parse(JSON.stringify(template.floatingBoxes));
+      } else {
+        builderConfig.floatingBoxes = null;
       }
       if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
       if (template.showFooter !== undefined) builderConfig.showFooter = template.showFooter;
@@ -3883,6 +3891,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     const applyBuilderPreset = (presetId) => {
       saveBuilderState();
       builderConfig.headerBlocks = null;
+      builderConfig.floatingBoxes = null;
       if (presetId === 'attendance') {
         builderConfig.sourceType = 'students';
         builderConfig.customTitle = 'MONTHLY ATTENDANCE REGISTER';
@@ -4122,6 +4131,134 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           if (b.repeatOnEveryPage === undefined) b.repeatOnEveryPage = true;
         });
       }
+
+      builderConfig.columns.forEach((col) => {
+        if (!col.width || col.width === 'auto') {
+          if (col.field === 'SNO') col.width = '50px';
+          else if (col.field === 'adm') col.width = '90px';
+          else if (col.field === 'name') col.width = '180px';
+          else if (col.field === 'class') col.width = '75px';
+          else col.width = '120px';
+        }
+      });
+
+      const getDefaultFloatingBoxes = () => {
+        return [
+          {
+            id: 'fbox_inst_name',
+            pageIndex: 'all',
+            x: 35,
+            y: 16,
+            width: 720,
+            height: 38,
+            rotation: 0,
+            content: effectiveInstName,
+            fontSize: 22,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '900',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center',
+            color: '#0f172a',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderStyle: 'none'
+          },
+          {
+            id: 'fbox_inst_sub',
+            pageIndex: 'all',
+            x: 35,
+            y: 54,
+            width: 720,
+            height: 24,
+            rotation: 0,
+            content: effectiveInstSub,
+            fontSize: 13,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '600',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center',
+            color: '#334155',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderStyle: 'none'
+          },
+          {
+            id: 'fbox_report_title',
+            pageIndex: 'all',
+            x: 35,
+            y: 80,
+            width: 720,
+            height: 28,
+            rotation: 0,
+            content: effectiveCustomTitle,
+            fontSize: 16,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '900',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center',
+            color: '#1e3a8a',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderStyle: 'none'
+          }
+        ];
+      };
+
+      if (!builderConfig.floatingBoxes || !Array.isArray(builderConfig.floatingBoxes)) {
+        builderConfig.floatingBoxes = getDefaultFloatingBoxes();
+      }
+
+      const renderFloatingBoxesHtml = (pageIndex = 0) => {
+        const boxes = (builderConfig.floatingBoxes || []).filter((b) => {
+          if (b.pageIndex === 'all') return true;
+          return b.pageIndex === pageIndex;
+        });
+
+        return boxes.map((box) => {
+          const isSelected = builderConfig.activeFloatingBoxId === box.id;
+          const cleanPreview = box.content ? box.content.replace(/<[^>]*>/g, '').trim().substring(0, 16) : 'Text Box';
+
+          return `
+            <div class="floating-box-item ${isSelected ? 'selected' : ''}"
+                 data-box-id="${escapeHtml(box.id)}"
+                 data-page-index="${pageIndex}"
+                 style="left: ${box.x || 30}px; top: ${box.y || 20}px; width: ${box.width || 250}px; height: ${box.height || 40}px; transform: rotate(${box.rotation || 0}deg); ${box.backgroundColor ? `background-color: ${box.backgroundColor};` : ''} ${box.borderColor ? `border-color: ${box.borderColor}; border-width: ${box.borderWidth || 1}px; border-style: ${box.borderStyle || 'solid'};` : ''}">
+              
+              <div class="box-drag-bar no-print" title="Click and drag to move box anywhere">
+                <i class="fas fa-arrows-alt text-[9px]"></i>
+                <span>${escapeHtml(cleanPreview)}</span>
+                ${box.pageIndex === 'all' ? '<i class="fas fa-clone text-[8px] ml-1 text-emerald-200" title="Repeats on all pages"></i>' : ''}
+              </div>
+
+              <div class="box-rotate-stem no-print"></div>
+              <div class="box-rotate-handle no-print" title="Drag to rotate box"><i class="fas fa-sync-alt"></i></div>
+
+              <div class="box-resize-handle handle-nw no-print" data-dir="nw"></div>
+              <div class="box-resize-handle handle-n  no-print" data-dir="n"></div>
+              <div class="box-resize-handle handle-ne no-print" data-dir="ne"></div>
+              <div class="box-resize-handle handle-e  no-print" data-dir="e"></div>
+              <div class="box-resize-handle handle-se no-print" data-dir="se"></div>
+              <div class="box-resize-handle handle-s  no-print" data-dir="s"></div>
+              <div class="box-resize-handle handle-sw no-print" data-dir="sw"></div>
+              <div class="box-resize-handle handle-w  no-print" data-dir="w"></div>
+
+              <div class="box-content-editable"
+                   contenteditable="true"
+                   data-box-id="${escapeHtml(box.id)}"
+                   data-align="${escapeHtml(box.textAlign || 'center')}"
+                   style="font-family: ${escapeHtml(box.fontFamily || "'Plus Jakarta Sans', sans-serif")}; font-size: ${box.fontSize || 14}px; font-weight: ${escapeHtml(box.fontWeight || 'normal')}; font-style: ${escapeHtml(box.fontStyle || 'normal')}; text-decoration: ${escapeHtml(box.textDecoration || 'none')}; color: ${escapeHtml(box.color || '#0f172a')}; text-align: ${escapeHtml(box.textAlign || 'center')};">
+                ${box.content || 'Click to edit text...'}
+              </div>
+            </div>
+          `;
+        }).join('');
+      };
 
       const renderHeaderHtml = (pageIndex = 0) => {
         if (!builderConfig.showHeader) return '';
@@ -4441,6 +4578,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
         return `
           <div class="print-canvas-page" data-page-index="${pIdx}" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}">
+            <div class="floating-boxes-layer" data-page-index="${pIdx}">
+              ${renderFloatingBoxesHtml(pIdx)}
+            </div>
             ${shouldShowHeader ? renderHeaderHtml(pIdx) : ''}
             ${pageTableHtml}
             ${builderConfig.showFooter ? renderFooterHtml(pageNumber, totalPages) : ''}
@@ -4528,9 +4668,85 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               <button id="btn-add-col" class="excel-btn-ribbon text-emerald-700" title="Insert Blank Column"><i class="fas fa-columns"></i><span>+ Col</span></button>
               <button id="btn-add-row" class="excel-btn-ribbon text-emerald-700" title="Insert Blank Row"><i class="fas fa-plus-square"></i><span>+ Row</span></button>
               <button id="btn-del-row" class="excel-btn-ribbon text-rose-700" title="Delete Selected Row(s)"><i class="fas fa-trash-alt"></i><span>Del Row</span></button>
+              <button id="btn-autofit-cols" class="excel-btn-ribbon text-blue-700" title="Auto-Fit all column widths based on contents"><i class="fas fa-arrows-alt-h"></i><span>Auto-Fit All</span></button>
               <button id="btn-sum-row" class="excel-btn-ribbon text-indigo-700" title="Append Auto Total / Summary Row"><i class="fas fa-calculator"></i><span>Auto Total</span></button>
             </div>
-            <span class="ribbon-label">Cells & Totals</span>
+            <span class="ribbon-label">Cells & Auto-Fit</span>
+          </div>
+        </div>
+      `;
+
+      const ribbonInsert = `
+        <div id="ribbon-insert" class="ribbon-panel ${builderConfig.activeTab === 'insert' ? 'active' : ''}">
+          <div class="ribbon-group">
+            <div class="ribbon-row h-full gap-1 items-center">
+              <button id="btn-insert-textbox" class="excel-btn-ribbon text-indigo-700" title="Insert Word-Style Free Floating Text Box">
+                <i class="fas fa-i-cursor"></i>
+                <span>Text Box</span>
+              </button>
+              <button id="btn-insert-inst-title" class="excel-btn-ribbon text-slate-800" title="Insert Institution Header Box">
+                <i class="fas fa-university"></i>
+                <span>Inst. Title</span>
+              </button>
+              <button id="btn-insert-report-title" class="excel-btn-ribbon text-blue-700" title="Insert Large Report / Register Title Box">
+                <i class="fas fa-heading"></i>
+                <span>Report Title</span>
+              </button>
+              <button id="btn-insert-date-box" class="excel-btn-ribbon text-emerald-700" title="Insert Date / Academic Session Info Box">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Date / Session</span>
+              </button>
+            </div>
+            <span class="ribbon-label">Floating Text Boxes</span>
+          </div>
+
+          <div class="ribbon-group">
+            <div class="ribbon-row h-full gap-1 items-center">
+              <button id="btn-insert-sig-line" class="excel-btn-ribbon text-slate-700" title="Insert Floating Signature Block">
+                <i class="fas fa-file-signature"></i>
+                <span>Signature</span>
+              </button>
+              <button id="btn-insert-pagenum-box" class="excel-btn-ribbon text-slate-700" title="Insert Floating Page Number Box">
+                <i class="fas fa-pager"></i>
+                <span>Page #</span>
+              </button>
+              <button id="btn-insert-stamp-box" class="excel-btn-ribbon text-rose-700" title="Insert Institutional Seal / Stamp Box">
+                <i class="fas fa-certificate"></i>
+                <span>Stamp / Seal</span>
+              </button>
+            </div>
+            <span class="ribbon-label">Footer & Signatures</span>
+          </div>
+
+          <div class="ribbon-group">
+            <div class="ribbon-row h-full gap-1 items-center">
+              <button id="btn-box-duplicate" class="excel-btn-ribbon text-sky-700" title="Duplicate Selected Floating Box">
+                <i class="fas fa-clone"></i>
+                <span>Duplicate</span>
+              </button>
+              <button id="btn-box-rotate-90" class="excel-btn-ribbon text-amber-700" title="Rotate Selected Box 90° Clockwise">
+                <i class="fas fa-redo-alt"></i>
+                <span>Rotate 90°</span>
+              </button>
+              <button id="btn-box-toggle-repeat" class="excel-btn-ribbon text-purple-700" title="Toggle box repeating on every page or single page only">
+                <i class="fas fa-copy"></i>
+                <span>Repeat All</span>
+              </button>
+              <button id="btn-box-delete" class="excel-btn-ribbon text-rose-700" title="Delete Selected Floating Box">
+                <i class="fas fa-trash-alt"></i>
+                <span>Delete Box</span>
+              </button>
+            </div>
+            <span class="ribbon-label">Box Arrangement & Tools</span>
+          </div>
+
+          <div class="ribbon-group">
+            <div class="ribbon-row h-full gap-1 items-center">
+              <button id="btn-insert-add-col" class="excel-btn-ribbon text-emerald-700" title="Insert Blank Column"><i class="fas fa-columns"></i><span>+ Col</span></button>
+              <button id="btn-insert-add-row" class="excel-btn-ribbon text-emerald-700" title="Insert Blank Row"><i class="fas fa-plus-square"></i><span>+ Row</span></button>
+              <button id="btn-insert-autofit" class="excel-btn-ribbon text-blue-700" title="Auto-Fit all columns"><i class="fas fa-arrows-alt-h"></i><span>Auto-Fit</span></button>
+            </div>
+            <span class="ribbon-label">Table Insertions</span>
           </div>
         </div>
       `;
@@ -4798,6 +5014,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           <div class="excel-tabs">
             <button class="excel-tab ${builderConfig.activeTab === 'data' ? 'active' : ''}" data-ribbon="data"><i class="fas fa-database mr-1"></i>Data & Templates</button>
             <button class="excel-tab ${builderConfig.activeTab === 'home' ? 'active' : ''}" data-ribbon="home"><i class="fas fa-pen-nib mr-1"></i>Home & Formatting</button>
+            <button class="excel-tab ${builderConfig.activeTab === 'insert' ? 'active' : ''}" data-ribbon="insert"><i class="fas fa-plus-circle mr-1"></i>Insert</button>
             <button class="excel-tab ${builderConfig.activeTab === 'layout' ? 'active' : ''}" data-ribbon="layout"><i class="fas fa-file-invoice mr-1"></i>Page Layout & Print</button>
             <div class="flex-grow"></div>
             <div class="flex gap-2 items-center pr-3 mb-1">
@@ -4814,6 +5031,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           <div class="excel-ribbon-container">
             ${ribbonData}
             ${ribbonHome}
+            ${ribbonInsert}
             ${ribbonLayout}
           </div>
 
@@ -5421,6 +5639,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         attachTableFormatListeners();
       });
 
+      const getTargetFloatingBox = () => {
+        const selBox = document.querySelector('.floating-box-item.selected');
+        if (!selBox) return null;
+        const boxId = selBox.dataset.boxId;
+        const boxData = (builderConfig.floatingBoxes || []).find((b) => b.id === boxId);
+        return { el: selBox, data: boxData, contentEl: selBox.querySelector('.box-content-editable') };
+      };
+
       const getTargetCellsForFormat = () => {
         const selected = document.querySelectorAll('.builder-cell.selected');
         if (selected.length > 0) return Array.from(selected);
@@ -5429,6 +5655,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       };
 
       const applyFormat = (styleProp, valueFn) => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.contentEl) {
+          saveBuilderState();
+          const curVal = targetBox.contentEl.style[styleProp] || (targetBox.data ? targetBox.data[styleProp] : '');
+          const newVal = typeof valueFn === 'function' ? valueFn(curVal, targetBox.contentEl) : valueFn;
+          targetBox.contentEl.style[styleProp] = newVal;
+          if (targetBox.data) {
+            targetBox.data[styleProp] = newVal;
+          }
+          return;
+        }
+
         const cells = getTargetCellsForFormat();
         if (cells.length === 0) return;
         saveBuilderState();
@@ -5445,18 +5683,112 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       document.getElementById('fmt-italic')?.addEventListener('click', () => applyFormat('fontStyle', toggleStyle('italic', 'normal')));
       document.getElementById('fmt-underline')?.addEventListener('click', () => applyFormat('textDecoration', toggleStyle('underline', 'none')));
 
-      document.getElementById('fmt-align-left')?.addEventListener('click', () => applyFormat('textAlign', 'left'));
-      document.getElementById('fmt-align-center')?.addEventListener('click', () => applyFormat('textAlign', 'center'));
-      document.getElementById('fmt-align-right')?.addEventListener('click', () => applyFormat('textAlign', 'right'));
+      document.getElementById('fmt-align-left')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.contentEl) {
+          saveBuilderState();
+          targetBox.contentEl.style.textAlign = 'left';
+          targetBox.contentEl.dataset.align = 'left';
+          if (targetBox.data) targetBox.data.textAlign = 'left';
+          return;
+        }
+        applyFormat('textAlign', 'left');
+      });
+      document.getElementById('fmt-align-center')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.contentEl) {
+          saveBuilderState();
+          targetBox.contentEl.style.textAlign = 'center';
+          targetBox.contentEl.dataset.align = 'center';
+          if (targetBox.data) targetBox.data.textAlign = 'center';
+          return;
+        }
+        applyFormat('textAlign', 'center');
+      });
+      document.getElementById('fmt-align-right')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.contentEl) {
+          saveBuilderState();
+          targetBox.contentEl.style.textAlign = 'right';
+          targetBox.contentEl.dataset.align = 'right';
+          if (targetBox.data) targetBox.data.textAlign = 'right';
+          return;
+        }
+        applyFormat('textAlign', 'right');
+      });
       document.getElementById('fmt-wrap')?.addEventListener('click', () =>
         applyFormat('whiteSpace', (cur) => (cur === 'normal' ? 'nowrap' : 'normal'))
       );
 
-      document.getElementById('fmt-border-all')?.addEventListener('click', () => applyFormat('border', '1px solid #000000'));
-      document.getElementById('fmt-border-thick')?.addEventListener('click', () => applyFormat('border', '2px solid #000000'));
-      document.getElementById('fmt-border-none')?.addEventListener('click', () => applyFormat('border', '1px solid transparent'));
+      document.getElementById('fmt-border-all')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.el) {
+          saveBuilderState();
+          targetBox.el.style.border = '1.5px solid #000000';
+          if (targetBox.data) {
+            targetBox.data.borderWidth = 1.5;
+            targetBox.data.borderStyle = 'solid';
+            targetBox.data.borderColor = '#000000';
+          }
+          return;
+        }
+        applyFormat('border', '1px solid #000000');
+      });
+      document.getElementById('fmt-border-thick')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.el) {
+          saveBuilderState();
+          targetBox.el.style.border = '2.5px solid #000000';
+          if (targetBox.data) {
+            targetBox.data.borderWidth = 2.5;
+            targetBox.data.borderStyle = 'solid';
+            targetBox.data.borderColor = '#000000';
+          }
+          return;
+        }
+        applyFormat('border', '2px solid #000000');
+      });
+      document.getElementById('fmt-border-none')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.el) {
+          saveBuilderState();
+          targetBox.el.style.border = '1.5px dashed transparent';
+          if (targetBox.data) {
+            targetBox.data.borderWidth = 0;
+            targetBox.data.borderStyle = 'none';
+            targetBox.data.borderColor = 'transparent';
+          }
+          return;
+        }
+        applyFormat('border', '1px solid transparent');
+      });
 
       document.getElementById('fmt-clear')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.contentEl) {
+          saveBuilderState();
+          targetBox.contentEl.style.fontWeight = 'normal';
+          targetBox.contentEl.style.fontStyle = 'normal';
+          targetBox.contentEl.style.textDecoration = 'none';
+          targetBox.contentEl.style.backgroundColor = '';
+          targetBox.contentEl.style.color = '#0f172a';
+          targetBox.contentEl.style.textAlign = 'left';
+          targetBox.contentEl.dataset.align = 'left';
+          targetBox.el.style.backgroundColor = 'transparent';
+          targetBox.el.style.border = '1.5px dashed transparent';
+          if (targetBox.data) {
+            targetBox.data.fontWeight = 'normal';
+            targetBox.data.fontStyle = 'normal';
+            targetBox.data.textDecoration = 'none';
+            targetBox.data.backgroundColor = 'transparent';
+            targetBox.data.color = '#0f172a';
+            targetBox.data.textAlign = 'left';
+            targetBox.data.borderColor = 'transparent';
+            targetBox.data.borderWidth = 0;
+            targetBox.data.borderStyle = 'none';
+          }
+          return;
+        }
         const cells = getTargetCellsForFormat();
         if (cells.length === 0) return;
         saveBuilderState();
@@ -5516,27 +5848,296 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       document.getElementById('fmt-color')?.addEventListener('input', (e) => {
         const indicator = e.target.parentElement.querySelector('.indicator-color');
         if (indicator) indicator.style.backgroundColor = e.target.value;
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.contentEl) {
+          targetBox.contentEl.style.color = e.target.value;
+          if (targetBox.data) targetBox.data.color = e.target.value;
+          return;
+        }
         applyFormat('color', e.target.value);
       });
       document.getElementById('fmt-bg')?.addEventListener('input', (e) => {
         const indicator = e.target.parentElement.querySelector('.indicator-bg');
         if (indicator) indicator.style.backgroundColor = e.target.value;
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.el) {
+          targetBox.el.style.backgroundColor = e.target.value;
+          if (targetBox.data) targetBox.data.backgroundColor = e.target.value;
+          return;
+        }
         applyFormat('backgroundColor', e.target.value);
       });
 
       document.getElementById('fmt-size-plus')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.data) {
+          const curSize = parseInt(targetBox.data.fontSize, 10) || 14;
+          const newSize = curSize + 1;
+          targetBox.data.fontSize = newSize;
+          targetBox.contentEl.style.fontSize = newSize + 'px';
+          const sizeInp = document.getElementById('fmt-size-input');
+          if (sizeInp) sizeInp.value = newSize;
+          saveBuilderState();
+          return;
+        }
         const size = getActiveFontSize() + 1;
         document.getElementById('fmt-size-input').value = size;
         applyFormat('fontSize', size + 'px');
       });
       document.getElementById('fmt-size-minus')?.addEventListener('click', () => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.data) {
+          const curSize = parseInt(targetBox.data.fontSize, 10) || 14;
+          const newSize = Math.max(8, curSize - 1);
+          targetBox.data.fontSize = newSize;
+          targetBox.contentEl.style.fontSize = newSize + 'px';
+          const sizeInp = document.getElementById('fmt-size-input');
+          if (sizeInp) sizeInp.value = newSize;
+          saveBuilderState();
+          return;
+        }
         const size = Math.max(8, getActiveFontSize() - 1);
         document.getElementById('fmt-size-input').value = size;
         applyFormat('fontSize', size + 'px');
       });
       document.getElementById('fmt-size-input')?.addEventListener('change', (e) => {
+        const targetBox = getTargetFloatingBox();
+        if (targetBox && targetBox.data) {
+          const newSize = parseInt(e.target.value, 10) || 14;
+          targetBox.data.fontSize = newSize;
+          targetBox.contentEl.style.fontSize = newSize + 'px';
+          saveBuilderState();
+          return;
+        }
         applyFormat('fontSize', e.target.value + 'px');
       });
+
+      const autoFitColumnWidth = (colIndex) => {
+        const col = builderConfig.columns[colIndex];
+        if (!col) return;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+        let maxW = ctx.measureText(col.title || col.field || '').width + 36;
+
+        ctx.font = '13px "Plus Jakarta Sans", sans-serif';
+        document.querySelectorAll(`.builder-cell[data-col="${colIndex}"]`).forEach((cell) => {
+          const text = cell.innerText || '';
+          if (text) {
+            const w = ctx.measureText(text).width + 24;
+            if (w > maxW) maxW = w;
+          }
+        });
+
+        const optimalWidth = Math.max(50, Math.min(500, Math.round(maxW))) + 'px';
+        col.width = optimalWidth;
+
+        document.querySelectorAll(`th.col-header[data-col="${colIndex}"]`).forEach((th) => {
+          th.style.width = optimalWidth;
+        });
+        document.querySelectorAll(`th.config-row-th .col-resizer[data-col-index="${colIndex}"]`).forEach((resizer) => {
+          const th = resizer.closest('th');
+          if (th) th.style.width = optimalWidth;
+        });
+      };
+
+      const autoFitAllColumns = () => {
+        saveBuilderState();
+        for (let i = 0; i < builderConfig.columns.length; i++) {
+          autoFitColumnWidth(i);
+        }
+        showToastNotification('Auto-fitted all column widths based on contents!');
+      };
+
+      const insertNewFloatingBox = (boxPartial) => {
+        saveBuilderState();
+        if (!builderConfig.floatingBoxes) builderConfig.floatingBoxes = [];
+        const newId = `fbox_${Date.now()}`;
+        const newBox = {
+          id: newId,
+          pageIndex: 'all',
+          x: 50,
+          y: 120,
+          width: 300,
+          height: 50,
+          rotation: 0,
+          content: 'Type text here...',
+          fontSize: 14,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontWeight: 'normal',
+          fontStyle: 'normal',
+          textDecoration: 'none',
+          textAlign: 'left',
+          color: '#0f172a',
+          backgroundColor: '#ffffff',
+          borderColor: '#94a3b8',
+          borderWidth: 1,
+          borderStyle: 'dashed',
+          ...boxPartial
+        };
+        builderConfig.floatingBoxes.push(newBox);
+        builderConfig.activeFloatingBoxId = newId;
+        builderConfig.activeTab = 'insert';
+        renderExportTab();
+        setupExcelEngine();
+        setTimeout(() => {
+          selectFloatingBox(newId);
+          const boxEl = document.querySelector(`.floating-box-item[data-box-id="${newId}"] .box-content-editable`);
+          boxEl?.focus();
+        }, 60);
+      };
+
+      document.getElementById('btn-insert-textbox')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: 'Text Box (Double click to edit)',
+          backgroundColor: '#ffffff',
+          borderColor: '#cbd5e1',
+          borderWidth: 1,
+          borderStyle: 'dashed'
+        });
+      });
+
+      document.getElementById('btn-insert-inst-title')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: effectiveInstName,
+          fontSize: 22,
+          fontWeight: '900',
+          textAlign: 'center',
+          width: 600,
+          height: 42,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-insert-report-title')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: effectiveCustomTitle,
+          fontSize: 16,
+          fontWeight: '900',
+          textAlign: 'center',
+          color: '#1e3a8a',
+          width: 600,
+          height: 34,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-insert-date-box')?.addEventListener('click', () => {
+        const todayStr = new Date().toLocaleDateString('en-GB');
+        insertNewFloatingBox({
+          content: `Date: ${todayStr}  |  Session: 2026-2027`,
+          fontSize: 12,
+          fontWeight: '700',
+          textAlign: 'left',
+          width: 280,
+          height: 32,
+          borderColor: '#cbd5e1',
+          backgroundColor: '#f8fafc'
+        });
+      });
+
+      document.getElementById('btn-insert-sig-line')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: `<div style="border-top: 1.5px solid #000; padding-top: 4px; text-align: center; font-weight: bold; width: 100%;">Authorized Signatory</div>`,
+          fontSize: 12,
+          textAlign: 'center',
+          width: 200,
+          height: 45,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-insert-pagenum-box')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: 'Page 1 of 1',
+          fontSize: 11,
+          fontWeight: '600',
+          textAlign: 'right',
+          width: 140,
+          height: 28,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-insert-stamp-box')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: '<div style="width: 100%; height: 100%; border: 2px dashed #94a3b8; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; line-height: 1.2;">OFFICIAL<br>SEAL / STAMP</div>',
+          width: 110,
+          height: 110,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-box-duplicate')?.addEventListener('click', () => {
+        const curBox = (builderConfig.floatingBoxes || []).find((b) => b.id === builderConfig.activeFloatingBoxId);
+        if (curBox) {
+          saveBuilderState();
+          const dupBox = JSON.parse(JSON.stringify(curBox));
+          dupBox.id = `fbox_${Date.now()}`;
+          dupBox.x = (dupBox.x || 30) + 20;
+          dupBox.y = (dupBox.y || 20) + 20;
+          builderConfig.floatingBoxes.push(dupBox);
+          builderConfig.activeFloatingBoxId = dupBox.id;
+          renderExportTab();
+          setupExcelEngine();
+          setTimeout(() => selectFloatingBox(dupBox.id), 50);
+        } else {
+          showToastNotification('Please select a text box first to duplicate');
+        }
+      });
+
+      document.getElementById('btn-box-rotate-90')?.addEventListener('click', () => {
+        const curBox = (builderConfig.floatingBoxes || []).find((b) => b.id === builderConfig.activeFloatingBoxId);
+        if (curBox) {
+          saveBuilderState();
+          curBox.rotation = ((curBox.rotation || 0) + 90) % 360;
+          const boxEl = document.querySelector(`.floating-box-item[data-box-id="${curBox.id}"]`);
+          if (boxEl) boxEl.style.transform = `rotate(${curBox.rotation}deg)`;
+        } else {
+          showToastNotification('Please select a text box first to rotate');
+        }
+      });
+
+      document.getElementById('btn-box-toggle-repeat')?.addEventListener('click', () => {
+        const curBox = (builderConfig.floatingBoxes || []).find((b) => b.id === builderConfig.activeFloatingBoxId);
+        if (curBox) {
+          saveBuilderState();
+          curBox.pageIndex = (curBox.pageIndex === 'all') ? 0 : 'all';
+          renderExportTab();
+          setupExcelEngine();
+          setTimeout(() => selectFloatingBox(curBox.id), 50);
+          showToastNotification(curBox.pageIndex === 'all' ? 'Box will repeat on every page' : 'Box will appear on Page 1 only');
+        } else {
+          showToastNotification('Please select a text box first');
+        }
+      });
+
+      document.getElementById('btn-box-delete')?.addEventListener('click', () => {
+        if (builderConfig.activeFloatingBoxId) {
+          saveBuilderState();
+          builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== builderConfig.activeFloatingBoxId);
+          builderConfig.activeFloatingBoxId = null;
+          renderExportTab();
+          setupExcelEngine();
+        } else {
+          showToastNotification('Please select a text box first to delete');
+        }
+      });
+
+      document.getElementById('btn-insert-add-col')?.addEventListener('click', () => {
+        document.getElementById('btn-add-col')?.click();
+      });
+      document.getElementById('btn-insert-add-row')?.addEventListener('click', () => {
+        document.getElementById('btn-add-row')?.click();
+      });
+      document.getElementById('btn-autofit-cols')?.addEventListener('click', autoFitAllColumns);
+      document.getElementById('btn-insert-autofit')?.addEventListener('click', autoFitAllColumns);
 
       document.getElementById('fmt-undo')?.addEventListener('click', undoBuilder);
       document.getElementById('fmt-redo')?.addEventListener('click', redoBuilder);
@@ -5634,6 +6235,32 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     };
 
+    const selectFloatingBox = (boxId) => {
+      builderConfig.activeFloatingBoxId = boxId;
+      document.querySelectorAll('.floating-box-item').forEach((b) => {
+        if (b.dataset.boxId === boxId) {
+          b.classList.add('selected');
+        } else {
+          b.classList.remove('selected');
+        }
+      });
+
+      if (boxId) {
+        document.querySelectorAll('.builder-cell, .col-header, .row-header').forEach((c) => c.classList.remove('selected', 'cell-focused'));
+        const boxData = (builderConfig.floatingBoxes || []).find((b) => b.id === boxId);
+        if (boxData) {
+          const cellIdEl = document.getElementById('active-cell-id');
+          if (cellIdEl) cellIdEl.textContent = 'Box';
+          const fInput = document.getElementById('formula-input');
+          if (fInput) fInput.value = boxData.content ? boxData.content.replace(/<[^>]*>/g, '').trim() : '';
+          const sizeInput = document.getElementById('fmt-size-input');
+          if (sizeInput && boxData.fontSize) sizeInput.value = boxData.fontSize;
+          const fontFamSelect = document.getElementById('fmt-font-family');
+          if (fontFamSelect && boxData.fontFamily) fontFamSelect.value = boxData.fontFamily;
+        }
+      }
+    };
+
     const attachTableFormatListeners = () => {
       const fInput = document.getElementById('formula-input');
       if (!fInput) return;
@@ -5658,6 +6285,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       });
 
       fInput.oninput = (e) => {
+        const activeFBox = document.querySelector('.floating-box-item.selected');
+        if (activeFBox) {
+          const contentEl = activeFBox.querySelector('.box-content-editable');
+          if (contentEl) {
+            contentEl.innerText = e.target.value;
+            const bData = (builderConfig.floatingBoxes || []).find((b) => b.id === activeFBox.dataset.boxId);
+            if (bData) bData.content = e.target.value;
+          }
+          return;
+        }
         const activeCell = document.querySelector('.builder-cell.cell-focused') || document.querySelector('.builder-cell.selected');
         if (activeCell) activeCell.innerText = e.target.value;
       };
@@ -5678,7 +6315,43 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           }
         }
       };
+
+      document.querySelectorAll('.box-content-editable').forEach((el) => {
+        el.oninput = (e) => {
+          const boxId = e.currentTarget.dataset.boxId;
+          const bData = (builderConfig.floatingBoxes || []).find((b) => b.id === boxId);
+          if (bData) {
+            bData.content = e.currentTarget.innerHTML;
+            const formulaInp = document.getElementById('formula-input');
+            if (formulaInp && builderConfig.activeFloatingBoxId === boxId) {
+              formulaInp.value = e.currentTarget.innerText;
+            }
+          }
+        };
+        el.onblur = () => { saveBuilderState(); };
+      });
     };
+
+    let resizingColIndex = null;
+    let resizingTh = null;
+    let startX = 0;
+    let startWidth = 0;
+
+    let resizingTr = null;
+    let startY = 0;
+    let startHeight = 0;
+
+    let draggingBox = null;
+    let dragStartX = 0, dragStartY = 0;
+    let boxStartX = 0, boxStartY = 0;
+
+    let resizingBox = null;
+    let resizeDir = null;
+    let resizeStartX = 0, resizeStartY = 0;
+    let boxStartW = 0, boxStartH = 0, boxStartL = 0, boxStartT = 0;
+
+    let rotatingBox = null;
+    let rotCenterX = 0, rotCenterY = 0;
 
     const setupExcelEngine = () => {
       const printCanvas = document.getElementById('print-canvas');
@@ -5686,79 +6359,225 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       attachTableFormatListeners();
 
-      let resizingColIndex = null;
-      let resizingTh = null;
-      let startX = 0;
-      let startWidth = 0;
+      if (!window.__worksheetGlobalListenersBound) {
+        window.__worksheetGlobalListenersBound = true;
 
-      let resizingTr = null;
-      let startY = 0;
-      let startHeight = 0;
-
-      document.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('col-resizer')) {
-          saveBuilderState();
-          e.preventDefault();
-          e.stopPropagation();
-          const colResizer = e.target;
-          resizingColIndex = parseInt(colResizer.dataset.colIndex, 10);
-          resizingTh = colResizer.closest('th');
-          startX = e.pageX;
-          startWidth = resizingTh ? resizingTh.offsetWidth : 80;
-          colResizer.classList.add('is-resizing');
-          document.body.style.cursor = 'col-resize';
-          document.body.style.userSelect = 'none';
-        } else if (e.target.classList.contains('row-resizer')) {
-          saveBuilderState();
-          e.preventDefault();
-          e.stopPropagation();
-          const rowResizer = e.target;
-          resizingTr = rowResizer.closest('tr');
-          startY = e.pageY;
-          startHeight = resizingTr ? resizingTr.offsetHeight : 28;
-          rowResizer.classList.add('is-resizing');
-          document.body.style.cursor = 'row-resize';
-          document.body.style.userSelect = 'none';
-        }
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        const zoomFactor = (builderConfig.zoom || 100) / 100;
-        if (resizingColIndex !== null && !isNaN(resizingColIndex)) {
-          const deltaX = (e.pageX - startX) / zoomFactor;
-          const newWidth = Math.max(35, Math.round(startWidth + deltaX));
-          const newWidthStr = newWidth + 'px';
-
-          if (builderConfig.columns[resizingColIndex]) {
-            builderConfig.columns[resizingColIndex].width = newWidthStr;
+        document.addEventListener('mousedown', (e) => {
+          const rotHandle = e.target.closest('.box-rotate-handle');
+          if (rotHandle) {
+            saveBuilderState();
+            e.preventDefault();
+            e.stopPropagation();
+            const boxEl = rotHandle.closest('.floating-box-item');
+            selectFloatingBox(boxEl.dataset.boxId);
+            rotatingBox = boxEl;
+            const rect = boxEl.getBoundingClientRect();
+            rotCenterX = rect.left + rect.width / 2;
+            rotCenterY = rect.top + rect.height / 2;
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'crosshair';
+            return;
           }
-          // Update all matching th elements across tables
-          document.querySelectorAll(`th.col-header[data-col="${resizingColIndex}"]`).forEach((th) => {
-            th.style.width = newWidthStr;
-          });
-          document.querySelectorAll(`th.config-row-th .col-resizer[data-col-index="${resizingColIndex}"]`).forEach((resizer) => {
-            const th = resizer.closest('th');
-            if (th) th.style.width = newWidthStr;
-          });
-        } else if (resizingTr) {
-          const deltaY = (e.pageY - startY) / zoomFactor;
-          const newHeight = Math.max(20, Math.round(startHeight + deltaY));
-          resizingTr.style.height = newHeight + 'px';
-        }
-      });
 
-      document.addEventListener('mouseup', () => {
-        if (resizingColIndex !== null || resizingTr !== null) {
-          document.querySelectorAll('.col-resizer.is-resizing, .row-resizer.is-resizing').forEach((el) => {
-            el.classList.remove('is-resizing');
-          });
-          document.body.style.cursor = '';
-          document.body.style.userSelect = '';
-          resizingColIndex = null;
-          resizingTh = null;
-          resizingTr = null;
-        }
-      });
+          const resizeHandle = e.target.closest('.box-resize-handle');
+          if (resizeHandle) {
+            saveBuilderState();
+            e.preventDefault();
+            e.stopPropagation();
+            const boxEl = resizeHandle.closest('.floating-box-item');
+            selectFloatingBox(boxEl.dataset.boxId);
+            resizingBox = boxEl;
+            resizeDir = resizeHandle.dataset.dir;
+            resizeStartX = e.pageX;
+            resizeStartY = e.pageY;
+            boxStartW = boxEl.offsetWidth;
+            boxStartH = boxEl.offsetHeight;
+            boxStartL = parseFloat(boxEl.style.left) || 0;
+            boxStartT = parseFloat(boxEl.style.top) || 0;
+            document.body.style.userSelect = 'none';
+            return;
+          }
+
+          const dragBar = e.target.closest('.box-drag-bar');
+          if (dragBar) {
+            saveBuilderState();
+            e.preventDefault();
+            e.stopPropagation();
+            const boxEl = dragBar.closest('.floating-box-item');
+            selectFloatingBox(boxEl.dataset.boxId);
+            draggingBox = boxEl;
+            dragStartX = e.pageX;
+            dragStartY = e.pageY;
+            boxStartX = parseFloat(boxEl.style.left) || 0;
+            boxStartY = parseFloat(boxEl.style.top) || 0;
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'move';
+            return;
+          }
+
+          const boxItem = e.target.closest('.floating-box-item');
+          if (boxItem) {
+            selectFloatingBox(boxItem.dataset.boxId);
+            return;
+          }
+
+          if (!e.target.closest('.excel-ribbon-container') && !e.target.closest('.excel-tabs') && !e.target.closest('.formula-bar') && !e.target.closest('.header-quick-bar') && !e.target.closest('.modal') && !e.target.closest('.official-detail-modal')) {
+            selectFloatingBox(null);
+          }
+
+          if (e.target.classList.contains('col-resizer')) {
+            saveBuilderState();
+            e.preventDefault();
+            e.stopPropagation();
+            const colResizer = e.target;
+            resizingColIndex = parseInt(colResizer.dataset.colIndex, 10);
+            resizingTh = colResizer.closest('th');
+            startX = e.pageX;
+            startWidth = resizingTh ? resizingTh.offsetWidth : 80;
+            colResizer.classList.add('is-resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+          } else if (e.target.classList.contains('row-resizer')) {
+            saveBuilderState();
+            e.preventDefault();
+            e.stopPropagation();
+            const rowResizer = e.target;
+            resizingTr = rowResizer.closest('tr');
+            startY = e.pageY;
+            startHeight = resizingTr ? resizingTr.offsetHeight : 28;
+            rowResizer.classList.add('is-resizing');
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+          }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          const zoomFactor = (builderConfig.zoom || 100) / 100;
+          if (draggingBox) {
+            const dx = (e.pageX - dragStartX) / zoomFactor;
+            const dy = (e.pageY - dragStartY) / zoomFactor;
+            const newX = Math.round(boxStartX + dx);
+            const newY = Math.max(0, Math.round(boxStartY + dy));
+            draggingBox.style.left = newX + 'px';
+            draggingBox.style.top = newY + 'px';
+            const bData = (builderConfig.floatingBoxes || []).find((b) => b.id === draggingBox.dataset.boxId);
+            if (bData) {
+              bData.x = newX;
+              bData.y = newY;
+            }
+          } else if (resizingBox) {
+            const dx = (e.pageX - resizeStartX) / zoomFactor;
+            const dy = (e.pageY - resizeStartY) / zoomFactor;
+            let newW = boxStartW;
+            let newH = boxStartH;
+            let newL = boxStartL;
+            let newT = boxStartT;
+
+            if (resizeDir.includes('e')) newW = Math.max(60, Math.round(boxStartW + dx));
+            if (resizeDir.includes('s')) newH = Math.max(20, Math.round(boxStartH + dy));
+            if (resizeDir.includes('w')) {
+              const proposedW = Math.max(60, Math.round(boxStartW - dx));
+              newL = Math.round(boxStartL + (boxStartW - proposedW));
+              newW = proposedW;
+            }
+            if (resizeDir.includes('n')) {
+              const proposedH = Math.max(20, Math.round(boxStartH - dy));
+              newT = Math.max(0, Math.round(boxStartT + (boxStartH - proposedH)));
+              newH = proposedH;
+            }
+
+            resizingBox.style.width = newW + 'px';
+            resizingBox.style.height = newH + 'px';
+            resizingBox.style.left = newL + 'px';
+            resizingBox.style.top = newT + 'px';
+
+            const bData = (builderConfig.floatingBoxes || []).find((b) => b.id === resizingBox.dataset.boxId);
+            if (bData) {
+              bData.width = newW;
+              bData.height = newH;
+              bData.x = newL;
+              bData.y = newT;
+            }
+          } else if (rotatingBox) {
+            const angle = Math.atan2(e.clientY - rotCenterY, e.clientX - rotCenterX) * (180 / Math.PI);
+            let deg = Math.round((angle + 90) % 360);
+            if (deg < 0) deg += 360;
+            [0, 45, 90, 180, 270, 360].forEach((snap) => {
+              if (Math.abs(deg - snap) <= 3) deg = snap % 360;
+            });
+            rotatingBox.style.transform = `rotate(${deg}deg)`;
+            const bData = (builderConfig.floatingBoxes || []).find((b) => b.id === rotatingBox.dataset.boxId);
+            if (bData) bData.rotation = deg;
+          } else if (resizingColIndex !== null && !isNaN(resizingColIndex)) {
+            const deltaX = (e.pageX - startX) / zoomFactor;
+            const newWidth = Math.max(35, Math.round(startWidth + deltaX));
+            const newWidthStr = newWidth + 'px';
+
+            if (builderConfig.columns[resizingColIndex]) {
+              builderConfig.columns[resizingColIndex].width = newWidthStr;
+            }
+            // Update all matching th elements across tables
+            document.querySelectorAll(`th.col-header[data-col="${resizingColIndex}"]`).forEach((th) => {
+              th.style.width = newWidthStr;
+            });
+            document.querySelectorAll(`th.config-row-th .col-resizer[data-col-index="${resizingColIndex}"]`).forEach((resizer) => {
+              const th = resizer.closest('th');
+              if (th) th.style.width = newWidthStr;
+            });
+          } else if (resizingTr) {
+            const deltaY = (e.pageY - startY) / zoomFactor;
+            const newHeight = Math.max(20, Math.round(startHeight + deltaY));
+            resizingTr.style.height = newHeight + 'px';
+          }
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (draggingBox || resizingBox || rotatingBox) {
+            saveBuilderState();
+            draggingBox = null;
+            resizingBox = null;
+            rotatingBox = null;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+          }
+          if (resizingColIndex !== null || resizingTr !== null) {
+            document.querySelectorAll('.col-resizer.is-resizing, .row-resizer.is-resizing').forEach((el) => {
+              el.classList.remove('is-resizing');
+            });
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            resizingColIndex = null;
+            resizingTh = null;
+            resizingTr = null;
+          }
+        });
+
+        document.addEventListener('dblclick', (e) => {
+          if (e.target.classList.contains('col-resizer')) {
+            e.preventDefault();
+            e.stopPropagation();
+            const colIdx = parseInt(e.target.dataset.colIndex, 10);
+            if (!isNaN(colIdx)) {
+              saveBuilderState();
+              autoFitColumnWidth(colIdx);
+              showToastNotification(`Auto-fitted Column ${getExcelColumnLabel(colIdx)}`);
+            }
+          }
+        });
+
+        document.addEventListener('keydown', (e) => {
+          if (builderConfig.activeFloatingBoxId && (e.key === 'Delete' || e.key === 'Backspace')) {
+            if (document.activeElement && document.activeElement.classList.contains('box-content-editable')) return;
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+            e.preventDefault();
+            saveBuilderState();
+            builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== builderConfig.activeFloatingBoxId);
+            builderConfig.activeFloatingBoxId = null;
+            renderExportTab();
+            setupExcelEngine();
+          }
+        });
+      }
 
       let isSelecting = false;
       let startCell = null;

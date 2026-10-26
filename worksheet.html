@@ -667,7 +667,136 @@
         color: #475569;
     }
 
-    .excel-table { border-collapse: collapse; min-width: 100%; width: 100%; table-layout: auto;}
+    /* Floating Movable, Resizable & Rotatable Text Box Layer */
+    .floating-boxes-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: visible;
+        z-index: 25;
+    }
+    .floating-box-item {
+        position: absolute;
+        pointer-events: auto;
+        box-sizing: border-box;
+        border: 1.5px dashed transparent;
+        padding: 4px;
+        border-radius: 4px;
+        user-select: none;
+        transform-origin: center center;
+        transition: border-color 0.15s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    .floating-box-item:hover {
+        border-color: #93c5fd;
+        background-color: rgba(239, 246, 255, 0.45);
+    }
+    .floating-box-item.selected {
+        border-color: #2563eb !important;
+        background-color: rgba(239, 246, 255, 0.6) !important;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+    }
+    .box-content-editable {
+        outline: none;
+        width: 100%;
+        height: 100%;
+        min-height: 20px;
+        cursor: text;
+        user-select: text;
+        word-break: break-word;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+    }
+    .box-content-editable[data-align="center"] { justify-content: center; text-align: center; }
+    .box-content-editable[data-align="left"] { justify-content: flex-start; text-align: left; }
+    .box-content-editable[data-align="right"] { justify-content: flex-end; text-align: right; }
+
+    /* Drag bar */
+    .box-drag-bar {
+        position: absolute;
+        top: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 16px;
+        padding: 0 8px;
+        background: #2563eb;
+        color: #ffffff;
+        border-radius: 4px;
+        font-size: 10px;
+        cursor: move;
+        display: none;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+        font-weight: 800;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        z-index: 35;
+    }
+    .floating-box-item.selected .box-drag-bar {
+        display: flex;
+    }
+
+    /* Rotation Handle */
+    .box-rotate-handle {
+        position: absolute;
+        top: -36px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ffffff;
+        border: 2px solid #2563eb;
+        color: #2563eb;
+        font-size: 9px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: crosshair;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 36;
+    }
+    .box-rotate-stem {
+        position: absolute;
+        top: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1.5px;
+        height: 18px;
+        background: #2563eb;
+        display: none;
+    }
+    .floating-box-item.selected .box-rotate-handle,
+    .floating-box-item.selected .box-rotate-stem {
+        display: flex;
+    }
+
+    /* 8 Resize Handles */
+    .box-resize-handle {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: #ffffff;
+        border: 1.5px solid #2563eb;
+        border-radius: 1.5px;
+        display: none;
+        z-index: 34;
+    }
+    .floating-box-item.selected .box-resize-handle {
+        display: block;
+    }
+    .handle-nw { top: -4px; left: -4px; cursor: nwse-resize; }
+    .handle-n  { top: -4px; left: calc(50% - 4px); cursor: ns-resize; }
+    .handle-ne { top: -4px; right: -4px; cursor: nesw-resize; }
+    .handle-e  { top: calc(50% - 4px); right: -4px; cursor: ew-resize; }
+    .handle-se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+    .handle-s  { bottom: -4px; left: calc(50% - 4px); cursor: ns-resize; }
+    .handle-sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+    .handle-w  { top: calc(50% - 4px); left: -4px; cursor: ew-resize; }
+
+    .excel-table { border-collapse: collapse; min-width: 100%; width: max-content !important; table-layout: fixed !important;}
     .excel-table th, .excel-table td { border: 1px solid #d4d4d4; padding: 4px 6px; font-size: 13px; color: #000; background: #fff; vertical-align: middle;}
     .excel-table.hide-gridlines td.excel-cell { border-color: transparent; }
     .excel-table.print-gridlines-off td.excel-cell { border-color: #e5e7eb; }
@@ -828,8 +957,17 @@
         body.is-printing .header-quick-bar,
         body.is-printing .col-resizer,
         body.is-printing .row-resizer,
+        body.is-printing .box-drag-bar,
+        body.is-printing .box-rotate-handle,
+        body.is-printing .box-rotate-stem,
+        body.is-printing .box-resize-handle,
         body.is-printing .no-print {
             display: none !important;
+        }
+        body.is-printing .floating-box-item {
+            border-color: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
         }
         body.is-printing .col-header,
         body.is-printing .row-header,
