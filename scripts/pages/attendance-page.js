@@ -27,7 +27,7 @@ let calendarConfig = {
 let selectedDailyClass = '';
 let selectedDailyDate = new Date().toISOString().split('T')[0];
 let currentDailyAttendanceDoc = null;
-let dailyAttendanceMap = {}; // studentId -> { status: 'P'|'A'|'L'|'E', remarks: '' }
+let dailyAttendanceMap = {}; // studentId -> { status: 'P'|'A'|'L', remarks: '' }
 let hasUnsavedChanges = false;
 
 // Monthly State
@@ -36,8 +36,10 @@ let selectedMonthlyMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 let monthlyAttendanceDocs = [];
 
 // Analytics State
-let selectedAnalyticsClass = '';
-let defaulterBenchmark = 75;
+let selectedAnalyticsClass = 'ALL';
+
+// Holiday Edit State
+let editingHolidayIndex = -1;
 
 // Helper: Normalize Date String
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
@@ -97,9 +99,111 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     return Array.from(classesSet).map(c => c.trim()).filter(Boolean);
 };
 
+// --- Sidebar Management (Admin Style) ---
+const isDesktop = () => window.innerWidth >= 1024;
+
+const setSidebarCollapsed = (collapsed) => {
+    const appEl = document.getElementById('attendance-app');
+    const overlay = document.getElementById('drawer-overlay');
+    if (!appEl) return;
+
+    appEl.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('attendance_sidebar_collapsed', collapsed ? 'true' : 'false');
+
+    if (!isDesktop() && overlay) {
+        if (!collapsed) {
+            overlay.classList.remove('hidden');
+            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+        } else {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+        }
+    }
+};
+
+const toggleSidebarState = () => {
+    const appEl = document.getElementById('attendance-app');
+    const isCollapsed = appEl?.classList.contains('sidebar-collapsed');
+    setSidebarCollapsed(!isCollapsed);
+};
+
+const initSidebarState = () => {
+    const overlay = document.getElementById('drawer-overlay');
+    if (!isDesktop()) {
+        setSidebarCollapsed(true);
+        if (overlay) {
+            overlay.classList.add('opacity-0', 'hidden');
+        }
+    } else {
+        const stored = localStorage.getItem('attendance_sidebar_collapsed');
+        setSidebarCollapsed(stored === 'true');
+    }
+};
+
+// --- Navigation Tabs ---
+const activateTab = (targetTabId) => {
+    const drawerLinks = document.querySelectorAll('.drawer-link');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    drawerLinks.forEach(link => {
+        const isActive = link.dataset.tab === targetTabId;
+        link.classList.toggle('active', isActive);
+    });
+
+    tabContents.forEach(content => {
+        if (content.id === targetTabId) {
+            content.classList.remove('hidden');
+        } else {
+            content.classList.add('hidden');
+        }
+    });
+
+    // Close mobile drawer on item selection
+    if (!isDesktop()) {
+        setSidebarCollapsed(true);
+    }
+
+    // Lazy load tab data
+    if (targetTabId === 'tab-monthly') {
+        loadMonthlyRegister();
+    } else if (targetTabId === 'tab-analytics') {
+        loadAnalytics();
+    }
+};
+
+const setupNavigationTabs = () => {
+    const drawerLinks = document.querySelectorAll('.drawer-link');
+    drawerLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetTabId = link.dataset.tab;
+            if (targetTabId) {
+                activateTab(targetTabId);
+                const hash = link.getAttribute('href');
+                if (hash) {
+                    history.replaceState(null, '', hash);
+                }
+            }
+        });
+    });
+
+    // Initial tab based on URL hash
+    const currentHash = window.location.hash;
+    if (currentHash === '#monthly') {
+        activateTab('tab-monthly');
+    } else if (currentHash === '#analytics') {
+        activateTab('tab-analytics');
+    } else if (currentHash === '#calendar') {
+        activateTab('tab-calendar');
+    } else {
+        activateTab('tab-daily');
+    }
+};
+
 // --- Initialization & Auth ---
 const initApp = async () => {
     startLiveClock();
+    initSidebarState();
     setupNavigationTabs();
     setupEventListeners();
 
@@ -138,13 +242,9 @@ const initApp = async () => {
 const updateUserHeaderDisplays = () => {
     const nameEl = document.getElementById('header-user-name');
     const roleEl = document.getElementById('header-user-role');
-    const mobNameEl = document.getElementById('mobile-dropdown-user-name');
-    const mobRoleEl = document.getElementById('mobile-dropdown-user-role');
 
     if (nameEl) nameEl.textContent = currentStaffName;
     if (roleEl) roleEl.textContent = currentStaffRole;
-    if (mobNameEl) mobNameEl.textContent = currentStaffName;
-    if (mobRoleEl) mobRoleEl.textContent = currentStaffRole;
 };
 
 const startLiveClock = () => {
@@ -157,45 +257,6 @@ const startLiveClock = () => {
     };
     tick();
     setInterval(tick, 1000);
-};
-
-// --- Navigation Tabs ---
-const setupNavigationTabs = () => {
-    const tabButtons = document.querySelectorAll('.tab-pill');
-    const tabContents = document.querySelectorAll('.tab-content');
-    const saveBar = document.getElementById('daily-save-bar');
-
-    tabButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.dataset.tab;
-            tabButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            tabContents.forEach(content => {
-                if (content.id === targetId) {
-                    content.classList.remove('hidden');
-                } else {
-                    content.classList.add('hidden');
-                }
-            });
-
-            // Toggle save bar visibility
-            if (saveBar) {
-                if (targetId === 'tab-daily') {
-                    saveBar.classList.remove('translate-y-full', 'hidden');
-                } else {
-                    saveBar.classList.add('translate-y-full');
-                }
-            }
-
-            // Trigger specific tab loads
-            if (targetId === 'tab-monthly') {
-                loadMonthlyRegister();
-            } else if (targetId === 'tab-analytics') {
-                loadAnalytics();
-            }
-        });
-    });
 };
 
 // --- Firestore Data Sync ---
@@ -276,25 +337,29 @@ const setupFirestoreListeners = () => {
 
 // --- Dropdowns Population ---
 const populateAcademicYearDropdowns = () => {
-    const yearSelect = document.getElementById('daily-academic-year');
-    if (!yearSelect) return;
+    const dropdownIds = ['daily-academic-year', 'analytics-academic-year'];
+    
+    dropdownIds.forEach(id => {
+        const yearSelect = document.getElementById(id);
+        if (!yearSelect) return;
 
-    const currentVal = yearSelect.value;
-    const yearSet = new Set();
-    if (currentAcademicYear) yearSet.add(currentAcademicYear);
-    (availableAcademicYears || []).forEach(y => {
-        const yStr = (typeof y === 'object' && y !== null) ? (y.label || y.year || '') : String(y || '');
-        if (yStr) yearSet.add(yStr.trim());
+        const currentVal = yearSelect.value;
+        const yearSet = new Set();
+        if (currentAcademicYear) yearSet.add(currentAcademicYear);
+        (availableAcademicYears || []).forEach(y => {
+            const yStr = (typeof y === 'object' && y !== null) ? (y.label || y.year || '') : String(y || '');
+            if (yStr) yearSet.add(yStr.trim());
+        });
+
+        const sortedYears = Array.from(yearSet).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
+        yearSelect.innerHTML = sortedYears.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join('');
+
+        if (currentVal && sortedYears.includes(currentVal)) {
+            yearSelect.value = currentVal;
+        } else if (currentAcademicYear) {
+            yearSelect.value = currentAcademicYear;
+        }
     });
-
-    const sortedYears = Array.from(yearSet).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
-    yearSelect.innerHTML = sortedYears.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join('');
-
-    if (currentVal && sortedYears.includes(currentVal)) {
-        yearSelect.value = currentVal;
-    } else if (currentAcademicYear) {
-        yearSelect.value = currentAcademicYear;
-    }
 };
 
 const getAllowedClassesForTeacher = () => {
@@ -307,9 +372,9 @@ const getAllowedClassesForTeacher = () => {
 
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
-    const dropdownIds = ['daily-class-select', 'monthly-class-select', 'analytics-class-select'];
 
-    dropdownIds.forEach(id => {
+    // Daily & Monthly selects
+    ['daily-class-select', 'monthly-class-select'].forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
 
@@ -324,9 +389,25 @@ const populateClassDropdowns = () => {
         }
     });
 
+    // Analytics select (includes All Classes option)
+    const analyticsSelect = document.getElementById('analytics-class-select');
+    if (analyticsSelect) {
+        const prevAnalytics = analyticsSelect.value;
+        const allOpts = [`<option value="ALL">All Classes</option>`]
+            .concat(allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`))
+            .join('');
+        analyticsSelect.innerHTML = allOpts;
+
+        if (prevAnalytics && (prevAnalytics === 'ALL' || allowed.includes(prevAnalytics))) {
+            analyticsSelect.value = prevAnalytics;
+        } else {
+            analyticsSelect.value = 'ALL';
+        }
+    }
+
     selectedDailyClass = document.getElementById('daily-class-select')?.value || '';
     selectedMonthlyClass = document.getElementById('monthly-class-select')?.value || '';
-    selectedAnalyticsClass = document.getElementById('analytics-class-select')?.value || '';
+    selectedAnalyticsClass = document.getElementById('analytics-class-select')?.value || 'ALL';
 
     const rosterClassPill = document.getElementById('roster-class-pill');
     if (rosterClassPill) rosterClassPill.textContent = selectedDailyClass ? `Class ${selectedDailyClass}` : '--';
@@ -454,17 +535,17 @@ const renderDailyStudentRows = (classStudents) => {
     let pCount = 0;
     let aCount = 0;
     let lCount = 0;
-    let eCount = 0;
 
     tbody.innerHTML = classStudents.map((student, idx) => {
         const record = dailyAttendanceMap[student.id] || {};
-        const status = record.status || '';
+        let status = record.status || '';
+        // Map legacy 'E' to 'L'
+        if (status === 'E') status = 'L';
         const remarks = record.remarks || '';
 
         if (status === 'P') pCount++;
         else if (status === 'A') aCount++;
         else if (status === 'L') lCount++;
-        else if (status === 'E') eCount++;
 
         const photo = student.photo || student.profile?.photo || '';
         const roll = student.rollNo || student.roll || (idx + 1);
@@ -487,11 +568,10 @@ const renderDailyStudentRows = (classStudents) => {
                     </div>
                 </td>
                 <td class="py-3 px-4 text-center">
-                    <div class="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200" data-toggle-group="${escapeHtml(student.id)}">
-                        <button type="button" class="att-toggle-btn ${status === 'P' ? 'active-p' : ''}" data-status="P" title="Present (P)">P</button>
-                        <button type="button" class="att-toggle-btn ${status === 'A' ? 'active-a' : ''}" data-status="A" title="Absent (A)">A</button>
-                        <button type="button" class="att-toggle-btn ${status === 'L' ? 'active-l' : ''}" data-status="L" title="Late (L)">L</button>
-                        <button type="button" class="att-toggle-btn ${status === 'E' ? 'active-e' : ''}" data-status="E" title="Leave (E)">E</button>
+                    <div class="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200" data-toggle-group="${escapeHtml(student.id)}">
+                        <button type="button" class="att-toggle-btn ${status === 'P' ? 'active-p' : ''}" data-status="P" title="Present (P): Attended class">P</button>
+                        <button type="button" class="att-toggle-btn ${status === 'A' ? 'active-a' : ''}" data-status="A" title="Absent (A): Absent without prior notice">A</button>
+                        <button type="button" class="att-toggle-btn ${status === 'L' ? 'active-l' : ''}" data-status="L" title="Leave (L): Informed leave in advance">L</button>
                     </div>
                 </td>
                 <td class="py-3 px-4">
@@ -501,14 +581,14 @@ const renderDailyStudentRows = (classStudents) => {
         `;
     }).join('');
 
-    updateDailyMetrics(classStudents.length, pCount, aCount, lCount + eCount);
+    updateDailyMetrics(classStudents.length, pCount, aCount, lCount);
 };
 
-const updateDailyMetrics = (total, present, absent, lateOrLeave) => {
+const updateDailyMetrics = (total, present, absent, leave) => {
     document.getElementById('stat-total-students').textContent = total;
     document.getElementById('stat-present-count').textContent = present;
     document.getElementById('stat-absent-count').textContent = absent;
-    document.getElementById('stat-late-count').textContent = lateOrLeave;
+    document.getElementById('stat-late-count').textContent = leave;
 
     const pct = total > 0 ? Math.round((present / total) * 100) : 0;
     const pctBadge = document.getElementById('stat-present-pct');
@@ -525,7 +605,7 @@ const setStudentStatus = (studentId, status) => {
     const group = document.querySelector(`[data-toggle-group="${studentId}"]`);
     if (group) {
         group.querySelectorAll('.att-toggle-btn').forEach(btn => {
-            btn.classList.remove('active-p', 'active-a', 'active-l', 'active-e');
+            btn.classList.remove('active-p', 'active-a', 'active-l');
             if (btn.dataset.status === status) {
                 btn.classList.add(`active-${status.toLowerCase()}`);
             }
@@ -548,17 +628,16 @@ const recalculateDailyTotals = () => {
     let pCount = 0;
     let aCount = 0;
     let lCount = 0;
-    let eCount = 0;
 
     Object.values(dailyAttendanceMap).forEach(rec => {
-        if (rec.status === 'P') pCount++;
-        else if (rec.status === 'A') aCount++;
-        else if (rec.status === 'L') lCount++;
-        else if (rec.status === 'E') eCount++;
+        const s = rec.status === 'E' ? 'L' : rec.status;
+        if (s === 'P') pCount++;
+        else if (s === 'A') aCount++;
+        else if (s === 'L') lCount++;
     });
 
     const total = document.querySelectorAll('#daily-roster-tbody tr[data-student-id]').length;
-    updateDailyMetrics(total, pCount, aCount, lCount + eCount);
+    updateDailyMetrics(total, pCount, aCount, lCount);
 };
 
 const markAllStudents = (status) => {
@@ -577,7 +656,7 @@ const markAllStudents = (status) => {
         const group = row.querySelector(`[data-toggle-group="${studentId}"]`);
         if (group) {
             group.querySelectorAll('.att-toggle-btn').forEach(btn => {
-                btn.classList.remove('active-p', 'active-a', 'active-l', 'active-e');
+                btn.classList.remove('active-p', 'active-a', 'active-l');
                 if (btn.dataset.status === status) {
                     btn.classList.add(`active-${status.toLowerCase()}`);
                 }
@@ -597,7 +676,7 @@ const clearAllStudents = () => {
         const group = row.querySelector(`[data-toggle-group="${studentId}"]`);
         if (group) {
             group.querySelectorAll('.att-toggle-btn').forEach(btn => {
-                btn.classList.remove('active-p', 'active-a', 'active-l', 'active-e');
+                btn.classList.remove('active-p', 'active-a', 'active-l');
             });
         }
         const remarksInput = row.querySelector('.student-remarks-input');
@@ -635,13 +714,12 @@ const saveDailyAttendance = async () => {
         let pCount = 0;
         let aCount = 0;
         let lCount = 0;
-        let eCount = 0;
 
         Object.values(dailyAttendanceMap).forEach(rec => {
-            if (rec.status === 'P') pCount++;
-            else if (rec.status === 'A') aCount++;
-            else if (rec.status === 'L') lCount++;
-            else if (rec.status === 'E') eCount++;
+            const s = rec.status === 'E' ? 'L' : rec.status;
+            if (s === 'P') pCount++;
+            else if (s === 'A') aCount++;
+            else if (s === 'L') lCount++;
         });
 
         const totalEnrolled = document.querySelectorAll('#daily-roster-tbody tr[data-student-id]').length;
@@ -659,8 +737,8 @@ const saveDailyAttendance = async () => {
             totalStudents: totalEnrolled,
             presentCount: pCount,
             absentCount: aCount,
-            lateCount: lCount,
-            leaveCount: eCount,
+            leaveCount: lCount,
+            lateCount: 0,
             isHoliday: Boolean(isHoliday),
             holidayReason: reason || '',
             records: dailyAttendanceMap
@@ -695,7 +773,6 @@ const loadMonthlyRegister = async () => {
     const monthVal = document.getElementById('monthly-month-input')?.value || selectedMonthlyMonth;
     selectedMonthlyMonth = monthVal;
 
-    const wrapper = document.getElementById('monthly-matrix-wrapper');
     const table = document.getElementById('monthly-matrix-table');
     const thead = document.getElementById('monthly-matrix-thead');
     const tbody = document.getElementById('monthly-matrix-tbody');
@@ -777,6 +854,7 @@ const loadMonthlyRegister = async () => {
                 <th class="bg-slate-100 font-extrabold text-slate-800 min-w-[50px]">Work</th>
                 <th class="bg-emerald-50 font-extrabold text-emerald-800 min-w-[50px]">Pres</th>
                 <th class="bg-rose-50 font-extrabold text-rose-800 min-w-[50px]">Abs</th>
+                <th class="bg-blue-50 font-extrabold text-blue-900 min-w-[50px]">Leave</th>
                 <th class="bg-indigo-50 font-extrabold text-indigo-900 min-w-[60px]">%</th>
             </tr>
         `;
@@ -794,6 +872,7 @@ const loadMonthlyRegister = async () => {
         tbody.innerHTML = classStudents.map((student, idx) => {
             let presentCount = 0;
             let absentCount = 0;
+            let leaveCount = 0;
             let dayCellsHtml = '';
 
             for (let day = 1; day <= daysInMonth; day++) {
@@ -801,7 +880,8 @@ const loadMonthlyRegister = async () => {
                 const { isHoliday } = isDateHoliday(dateStr);
                 const dayDoc = monthDayMap[day];
                 const studentRecord = dayDoc?.records?.[student.id];
-                const status = studentRecord?.status;
+                const rawStatus = studentRecord?.status;
+                const status = rawStatus === 'E' ? 'L' : rawStatus;
 
                 let cellContent = '-';
                 let cellClass = '';
@@ -821,18 +901,15 @@ const loadMonthlyRegister = async () => {
                     cellClass = 'bg-rose-100/70 text-rose-800 font-black';
                     cellContent = 'A';
                 } else if (status === 'L') {
-                    presentCount++;
-                    cellClass = 'bg-amber-100/70 text-amber-900 font-black';
-                    cellContent = 'L';
-                } else if (status === 'E') {
+                    leaveCount++;
                     cellClass = 'bg-blue-100/70 text-blue-800 font-black';
-                    cellContent = 'E';
+                    cellContent = 'L';
                 }
 
                 dayCellsHtml += `<td class="${cellClass} text-center px-1 py-1.5 text-[11px]">${cellContent}</td>`;
             }
 
-            const effectiveTotalDays = markedWorkingDaysCount > 0 ? markedWorkingDaysCount : (presentCount + absentCount);
+            const effectiveTotalDays = markedWorkingDaysCount > 0 ? markedWorkingDaysCount : (presentCount + absentCount + leaveCount);
             const percentage = effectiveTotalDays > 0 ? Math.round((presentCount / effectiveTotalDays) * 100) : 0;
             const pctBadgeColor = percentage >= 85 ? 'text-emerald-700 bg-emerald-50' : (percentage >= 75 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50 font-black');
 
@@ -845,6 +922,7 @@ const loadMonthlyRegister = async () => {
                     <td class="font-bold text-slate-600 text-center">${effectiveTotalDays}</td>
                     <td class="font-black text-emerald-600 text-center">${presentCount}</td>
                     <td class="font-black text-rose-600 text-center">${absentCount}</td>
+                    <td class="font-black text-blue-600 text-center">${leaveCount}</td>
                     <td class="text-center"><span class="px-1.5 py-0.5 rounded text-xs ${pctBadgeColor}">${percentage}%</span></td>
                 </tr>
             `;
@@ -878,103 +956,159 @@ const exportMonthlyRegisterToExcel = () => {
 
 // --- Analytics & Defaulters ---
 const loadAnalytics = async () => {
-    selectedAnalyticsClass = document.getElementById('analytics-class-select')?.value || selectedDailyClass || '';
-    defaulterBenchmark = Number(document.getElementById('defaulter-threshold-select')?.value || 75);
-    const tbody = document.getElementById('defaulters-tbody');
-    const badge = document.getElementById('analytics-summary-badge');
-    const countBadge = document.getElementById('defaulter-count-badge');
-    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
+    const yearSelect = document.getElementById('analytics-academic-year');
+    const classSelect = document.getElementById('analytics-class-select');
+    const compSelect = document.getElementById('analytics-comparator-select');
+    const pctInput = document.getElementById('analytics-percentage-input');
 
-    if (!selectedAnalyticsClass) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400">Please select a class.</td></tr>`;
-        return;
+    const year = yearSelect?.value || currentAcademicYear;
+    const selectedClass = classSelect?.value || 'ALL';
+    const comparator = compSelect?.value || 'below'; // 'below' | 'above'
+    let targetPct = Number(pctInput?.value);
+    if (isNaN(targetPct) || targetPct < 0) targetPct = 0;
+    if (targetPct > 100) targetPct = 100;
+
+    const tbody = document.getElementById('defaulters-tbody');
+    const summaryBadge = document.getElementById('analytics-summary-badge');
+    const countBadge = document.getElementById('defaulter-count-badge');
+    const tableHeading = document.getElementById('analytics-table-heading');
+
+    if (tableHeading) {
+        const compSymbol = comparator === 'below' ? '<' : '≥';
+        const classTitle = selectedClass === 'ALL' ? 'All Classes' : `Class ${selectedClass}`;
+        tableHeading.textContent = `${classTitle} Attendance (${compSymbol} ${targetPct}%)`;
+    }
+
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>Analyzing attendance records...</td></tr>`;
     }
 
     try {
-        // Query all attendance docs for this class & year
-        const q = query(
-            collection(db, `${BASE_PATH}/attendance`),
-            where('classLabel', '==', selectedAnalyticsClass),
-            where('academicYear', '==', year)
-        );
+        // Query attendance records
+        let q;
+        if (selectedClass === 'ALL') {
+            q = query(
+                collection(db, `${BASE_PATH}/attendance`),
+                where('academicYear', '==', year)
+            );
+        } else {
+            q = query(
+                collection(db, `${BASE_PATH}/attendance`),
+                where('academicYear', '==', year),
+                where('classLabel', '==', selectedClass)
+            );
+        }
+
         const snap = await getDocs(q);
         const docs = snap.docs.map(d => d.data());
 
-        // Count totals per student
-        const studentStats = {}; // studentId -> { present, absent, total }
-        let totalWorkingDays = 0;
+        // Calculate working days per class & student statistics
+        const classWorkingDays = {}; // classLabel -> count of non-holiday marked days
+        const studentStats = {}; // studentId -> { present, absent, leave }
+        let totalDocsEvaluated = 0;
 
         docs.forEach(d => {
             if (!d.isHoliday) {
-                totalWorkingDays++;
+                const cLabel = d.classLabel || '';
+                classWorkingDays[cLabel] = (classWorkingDays[cLabel] || 0) + 1;
+                totalDocsEvaluated++;
+
                 const records = d.records || {};
                 Object.entries(records).forEach(([stuId, rec]) => {
-                    if (!studentStats[stuId]) studentStats[stuId] = { present: 0, absent: 0, late: 0 };
-                    if (rec.status === 'P' || rec.status === 'L') studentStats[stuId].present++;
-                    else if (rec.status === 'A') studentStats[stuId].absent++;
+                    if (!studentStats[stuId]) studentStats[stuId] = { present: 0, absent: 0, leave: 0 };
+                    const s = rec.status === 'E' ? 'L' : rec.status;
+                    if (s === 'P') studentStats[stuId].present++;
+                    else if (s === 'A') studentStats[stuId].absent++;
+                    else if (s === 'L') studentStats[stuId].leave++;
                 });
             }
         });
 
-        // Filter class students
-        const classStudents = allStudents.filter(s => {
+        // Filter students to evaluate
+        const allowed = getAllowedClassesForTeacher();
+        const targetClasses = selectedClass === 'ALL' ? allowed : [selectedClass];
+
+        const relevantStudents = allStudents.filter(s => {
             if (s.status === 'alumni' || s.isAlumni) return false;
-            const matchesClass = s.class === selectedAnalyticsClass;
-            const matchesYear = (!s.academicYear || s.academicYear === year);
-            const historyMatch = s.academicYears && typeof s.academicYears === 'object' && s.academicYears[year]?.class === selectedAnalyticsClass;
-            return (matchesClass && matchesYear) || historyMatch;
+            const stuClass = s.academicYears?.[year]?.class || s.class || '';
+            const matchesYear = (!s.academicYear || s.academicYear === year || s.academicYears?.[year]);
+            return targetClasses.includes(stuClass) && matchesYear;
         });
 
-        const defaulters = [];
+        const filteredList = [];
         let grandPresent = 0;
         let grandTotal = 0;
 
-        classStudents.forEach(student => {
-            const st = studentStats[student.id] || { present: 0, absent: 0 };
-            const effectiveTotal = totalWorkingDays > 0 ? totalWorkingDays : (st.present + st.absent);
+        relevantStudents.forEach(student => {
+            const stuClass = student.academicYears?.[year]?.class || student.class || '';
+            const st = studentStats[student.id] || { present: 0, absent: 0, leave: 0 };
+            const classDays = classWorkingDays[stuClass] || 0;
+            const effectiveTotal = classDays > 0 ? classDays : (st.present + st.absent + st.leave);
             const pct = effectiveTotal > 0 ? Math.round((st.present / effectiveTotal) * 100) : 0;
 
             grandPresent += st.present;
             grandTotal += effectiveTotal;
 
-            if (pct < defaulterBenchmark && effectiveTotal > 0) {
-                defaulters.push({
+            const matchesCondition = comparator === 'below' 
+                ? (pct < targetPct && effectiveTotal > 0)
+                : (pct >= targetPct && effectiveTotal > 0);
+
+            if (matchesCondition) {
+                filteredList.push({
                     student,
+                    studentClass: stuClass,
                     totalDays: effectiveTotal,
                     presentDays: st.present,
                     absentDays: st.absent,
+                    leaveDays: st.leave,
                     percentage: pct
                 });
             }
         });
 
-        defaulters.sort((a, b) => a.percentage - b.percentage);
+        // Sort: if below, ascending percentage; if above, descending percentage
+        if (comparator === 'below') {
+            filteredList.sort((a, b) => a.percentage - b.percentage);
+        } else {
+            filteredList.sort((a, b) => b.percentage - a.percentage);
+        }
 
-        // Update Summary Badge
-        const classPct = grandTotal > 0 ? Math.round((grandPresent / grandTotal) * 100) : 0;
-        if (badge) badge.textContent = `Class Health: ${classPct}% Average Attendance (${totalWorkingDays} Working Days Recorded)`;
-        if (countBadge) countBadge.textContent = `${defaulters.length} Students`;
+        // Summary badges
+        const averagePct = grandTotal > 0 ? Math.round((grandPresent / grandTotal) * 100) : 0;
+        if (summaryBadge) {
+            summaryBadge.textContent = `Overall Average: ${averagePct}% (${relevantStudents.length} Students Evaluated)`;
+        }
+        if (countBadge) {
+            countBadge.textContent = `${filteredList.length} Students`;
+        }
 
-        if (!defaulters.length) {
-            tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-emerald-700 font-extrabold bg-emerald-50/50"><i class="fas fa-check-circle mr-1"></i> Excellent! No students are below the ${defaulterBenchmark}% attendance benchmark.</td></tr>`;
+        if (!tbody) return;
+
+        if (filteredList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-emerald-700 font-extrabold bg-emerald-50/50"><i class="fas fa-check-circle mr-1"></i> No students match the condition (${comparator === 'below' ? '<' : '≥'} ${targetPct}%).</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = defaulters.map((item, idx) => {
+        tbody.innerHTML = filteredList.map((item, idx) => {
             const stu = item.student;
             const phone = stu.mobile || stu.profile?.mobile || stu.parentMobile || stu.whatsapp || '';
             const cleanPhone = String(phone).replace(/\D/g, '');
-            const waLink = cleanPhone ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(`Dear Parent, Attendance alert from Noorul Islam Madrasa for ${stu.name || 'Student'}: Current attendance is ${item.percentage}% (${item.presentDays}/${item.totalDays} days). Please ensure regular attendance.`)}` : '';
+            const waLink = cleanPhone ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(`Dear Parent, Attendance notification from Noorul Islam Madrasa for ${stu.name || 'Student'}: Current attendance is ${item.percentage}% (${item.presentDays}/${item.totalDays} days). Please ensure regular attendance.`)}` : '';
+
+            const badgeColor = item.percentage >= 75 
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                : (item.percentage >= 60 ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300');
 
             return `
-                <tr class="hover:bg-rose-50/40">
+                <tr class="hover:bg-slate-50/80">
                     <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 font-extrabold text-slate-700 text-xs">Class ${escapeHtml(item.studentClass)}</span></td>
                     <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${escapeHtml(stu.adm || stu.admNo || '-')}</td>
                     <td class="py-2.5 px-4 font-extrabold text-slate-900">${escapeHtml(stu.name || '--')}</td>
                     <td class="py-2.5 px-3 text-center font-bold text-slate-600">${item.totalDays}</td>
                     <td class="py-2.5 px-3 text-center font-bold text-emerald-600">${item.presentDays}</td>
                     <td class="py-2.5 px-3 text-center font-black text-rose-600">${item.absentDays}</td>
-                    <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">${item.percentage}%</span></td>
+                    <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-black ${badgeColor} border">${item.percentage}%</span></td>
                     <td class="py-2.5 px-4 font-mono text-slate-600">${escapeHtml(phone || 'N/A')}</td>
                     <td class="py-2.5 px-3 text-center">
                         ${waLink ? `<a href="${waLink}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition"><i class="fab fa-whatsapp"></i> Alert</a>` : `<span class="text-slate-400 text-xs">-</span>`}
@@ -984,6 +1118,7 @@ const loadAnalytics = async () => {
         }).join('');
     } catch (err) {
         console.error('Failed to load analytics:', err);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-rose-600 font-bold">Failed to load analytics: ${escapeHtml(err.message)}</td></tr>`;
     }
 };
 
@@ -997,7 +1132,7 @@ const renderCalendarSettingsUI = () => {
         });
     }
 
-    // 2. Holidays Table
+    // 2. Holidays Table (with Edit & Delete buttons)
     const tbody = document.getElementById('holidays-tbody');
     if (tbody) {
         const holidays = calendarConfig.holidays || [];
@@ -1011,9 +1146,14 @@ const renderCalendarSettingsUI = () => {
                 <td class="py-2 px-4 font-bold text-slate-800">${escapeHtml(formatDisplayDate(h.date))}</td>
                 <td class="py-2 px-4 font-extrabold text-slate-900">${escapeHtml(h.title || 'Official Holiday')}</td>
                 <td class="py-2 px-4 text-center">
-                    <button type="button" class="btn-del-holiday text-rose-600 hover:text-rose-800 font-bold text-xs" data-index="${idx}" title="Delete holiday">
-                        <i class="fas fa-trash-can"></i>
-                    </button>
+                    <div class="inline-flex items-center gap-3">
+                        <button type="button" class="btn-edit-holiday text-indigo-600 hover:text-indigo-800 font-bold text-xs" data-index="${idx}" title="Edit holiday">
+                            <i class="fas fa-pen-to-square"></i> Edit
+                        </button>
+                        <button type="button" class="btn-del-holiday text-rose-600 hover:text-rose-800 font-bold text-xs" data-index="${idx}" title="Delete holiday">
+                            <i class="fas fa-trash-can"></i> Delete
+                        </button>
+                    </div>
                 </td>
             </tr>
         `).join('');
@@ -1035,7 +1175,41 @@ const saveWeekendConfig = async () => {
     }
 };
 
-const addHoliday = async () => {
+const startEditHoliday = (idx) => {
+    const holidays = calendarConfig.holidays || [];
+    if (idx < 0 || idx >= holidays.length) return;
+    editingHolidayIndex = idx;
+    const h = holidays[idx];
+
+    const dateInput = document.getElementById('holiday-date-input');
+    const titleInput = document.getElementById('holiday-title-input');
+    const cardTitle = document.getElementById('holiday-card-title');
+    const addBtnLabel = document.getElementById('btn-add-holiday-label');
+    const cancelBtn = document.getElementById('btn-cancel-holiday-edit');
+
+    if (dateInput) dateInput.value = h.date || '';
+    if (titleInput) titleInput.value = h.title || '';
+    if (cardTitle) cardTitle.textContent = 'Edit Scheduled Holiday';
+    if (addBtnLabel) addBtnLabel.textContent = 'Update Holiday';
+    if (cancelBtn) cancelBtn.classList.remove('hidden');
+};
+
+const cancelEditHoliday = () => {
+    editingHolidayIndex = -1;
+    const dateInput = document.getElementById('holiday-date-input');
+    const titleInput = document.getElementById('holiday-title-input');
+    const cardTitle = document.getElementById('holiday-card-title');
+    const addBtnLabel = document.getElementById('btn-add-holiday-label');
+    const cancelBtn = document.getElementById('btn-cancel-holiday-edit');
+
+    if (dateInput) dateInput.value = '';
+    if (titleInput) titleInput.value = '';
+    if (cardTitle) cardTitle.textContent = 'Declare Institutional Holiday';
+    if (addBtnLabel) addBtnLabel.textContent = 'Add Holiday';
+    if (cancelBtn) cancelBtn.classList.add('hidden');
+};
+
+const addOrUpdateHoliday = async () => {
     const dateInput = document.getElementById('holiday-date-input');
     const titleInput = document.getElementById('holiday-title-input');
 
@@ -1046,11 +1220,21 @@ const addHoliday = async () => {
     if (!titleVal) return alert('Please enter the holiday title or occasion.');
 
     const updatedHolidays = [...(calendarConfig.holidays || [])];
-    if (updatedHolidays.some(h => h.date === dateVal)) {
-        return alert('A holiday is already declared on this date.');
+
+    if (editingHolidayIndex >= 0) {
+        // Edit mode
+        if (updatedHolidays.some((h, i) => i !== editingHolidayIndex && h.date === dateVal)) {
+            return alert('Another holiday is already declared on this date.');
+        }
+        updatedHolidays[editingHolidayIndex] = { date: dateVal, title: titleVal };
+    } else {
+        // New mode
+        if (updatedHolidays.some(h => h.date === dateVal)) {
+            return alert('A holiday is already declared on this date.');
+        }
+        updatedHolidays.push({ date: dateVal, title: titleVal });
     }
 
-    updatedHolidays.push({ date: dateVal, title: titleVal });
     updatedHolidays.sort((a, b) => a.date.localeCompare(b.date));
 
     try {
@@ -1058,12 +1242,12 @@ const addHoliday = async () => {
             holidays: updatedHolidays
         }, { merge: true });
 
-        dateInput.value = '';
-        titleInput.value = '';
-        showToast(`Holiday "${titleVal}" added.`, 'success');
+        const isEditing = editingHolidayIndex >= 0;
+        cancelEditHoliday();
+        showToast(isEditing ? `Holiday "${titleVal}" updated.` : `Holiday "${titleVal}" added.`, 'success');
         updateDailyDateDisplay();
     } catch (err) {
-        alert('Failed to declare holiday: ' + err.message);
+        alert('Failed to save holiday: ' + err.message);
     }
 };
 
@@ -1078,6 +1262,9 @@ const deleteHoliday = async (idx) => {
         await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), {
             holidays: updatedHolidays
         }, { merge: true });
+        if (editingHolidayIndex === idx) {
+            cancelEditHoliday();
+        }
         showToast('Holiday removed.', 'success');
         updateDailyDateDisplay();
     } catch (err) {
@@ -1087,11 +1274,18 @@ const deleteHoliday = async (idx) => {
 
 // --- Setup Event Listeners ---
 const setupEventListeners = () => {
-    // 1. Mobile Menu Toggle
-    const mobileBtn = document.getElementById('mobile-menu-btn');
-    const navDropdown = document.getElementById('nav-dropdown-menu');
-    mobileBtn?.addEventListener('click', () => {
-        navDropdown?.classList.toggle('active');
+    // 1. Sidebar Collapse & Mobile Menu
+    document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
+    document.getElementById('attendance-mobile-menu-btn')?.addEventListener('click', () => setSidebarCollapsed(false));
+    document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
+
+    window.addEventListener('resize', () => {
+        if (isDesktop()) {
+            const overlay = document.getElementById('drawer-overlay');
+            if (overlay && !overlay.classList.contains('hidden')) {
+                overlay.classList.add('opacity-0', 'hidden');
+            }
+        }
     });
 
     // 2. Daily Class & Date Selection
@@ -1113,7 +1307,8 @@ const setupEventListeners = () => {
         const cur = new Date(selectedDailyDate);
         cur.setDate(cur.getDate() - 1);
         selectedDailyDate = cur.toISOString().split('T')[0];
-        document.getElementById('daily-date-input').value = selectedDailyDate;
+        const dateInput = document.getElementById('daily-date-input');
+        if (dateInput) dateInput.value = selectedDailyDate;
         loadDailyAttendanceRoster();
     });
 
@@ -1121,19 +1316,22 @@ const setupEventListeners = () => {
         const cur = new Date(selectedDailyDate);
         cur.setDate(cur.getDate() + 1);
         selectedDailyDate = cur.toISOString().split('T')[0];
-        document.getElementById('daily-date-input').value = selectedDailyDate;
+        const dateInput = document.getElementById('daily-date-input');
+        if (dateInput) dateInput.value = selectedDailyDate;
         loadDailyAttendanceRoster();
     });
 
     document.getElementById('btn-today')?.addEventListener('click', () => {
         selectedDailyDate = getTodayDateString();
-        document.getElementById('daily-date-input').value = selectedDailyDate;
+        const dateInput = document.getElementById('daily-date-input');
+        if (dateInput) dateInput.value = selectedDailyDate;
         loadDailyAttendanceRoster();
     });
 
-    // 3. Batch Actions
+    // 3. Daily Batch Actions (P, A, L, Clear)
     document.getElementById('btn-mark-all-p')?.addEventListener('click', () => markAllStudents('P'));
     document.getElementById('btn-mark-all-a')?.addEventListener('click', () => markAllStudents('A'));
+    document.getElementById('btn-mark-all-l')?.addEventListener('click', () => markAllStudents('L'));
     document.getElementById('btn-clear-all')?.addEventListener('click', clearAllStudents);
 
     // 4. Individual Toggle Delegation
@@ -1158,29 +1356,39 @@ const setupEventListeners = () => {
     // Save Attendance Button
     document.getElementById('btn-save-daily')?.addEventListener('click', saveDailyAttendance);
 
-    // Monthly Actions
+    // 5. Monthly Actions
     document.getElementById('btn-load-monthly')?.addEventListener('click', loadMonthlyRegister);
     document.getElementById('monthly-class-select')?.addEventListener('change', loadMonthlyRegister);
     document.getElementById('monthly-month-input')?.addEventListener('change', loadMonthlyRegister);
     document.getElementById('btn-export-excel')?.addEventListener('click', exportMonthlyRegisterToExcel);
     document.getElementById('btn-print-register')?.addEventListener('click', () => window.print());
 
-    // Analytics Actions
+    // 6. Analytics Actions
+    document.getElementById('btn-refresh-analytics')?.addEventListener('click', loadAnalytics);
+    document.getElementById('analytics-academic-year')?.addEventListener('change', loadAnalytics);
     document.getElementById('analytics-class-select')?.addEventListener('change', loadAnalytics);
-    document.getElementById('defaulter-threshold-select')?.addEventListener('change', loadAnalytics);
+    document.getElementById('analytics-comparator-select')?.addEventListener('change', loadAnalytics);
+    document.getElementById('analytics-percentage-input')?.addEventListener('change', loadAnalytics);
 
-    // Calendar Actions
+    // 7. Calendar Actions
     document.getElementById('btn-save-weekends')?.addEventListener('click', saveWeekendConfig);
-    document.getElementById('btn-add-holiday')?.addEventListener('click', addHoliday);
+    document.getElementById('btn-add-holiday')?.addEventListener('click', addOrUpdateHoliday);
+    document.getElementById('btn-cancel-holiday-edit')?.addEventListener('click', cancelEditHoliday);
+
     document.getElementById('holidays-tbody')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-del-holiday');
-        if (btn) {
-            deleteHoliday(Number(btn.dataset.index));
+        const editBtn = e.target.closest('.btn-edit-holiday');
+        if (editBtn) {
+            startEditHoliday(Number(editBtn.dataset.index));
+            return;
+        }
+        const delBtn = e.target.closest('.btn-del-holiday');
+        if (delBtn) {
+            deleteHoliday(Number(delBtn.dataset.index));
         }
     });
 
-    // Logout
-    document.getElementById('header-logout-btn')?.addEventListener('click', () => {
+    // 8. Sign Out
+    document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
     });
 };
