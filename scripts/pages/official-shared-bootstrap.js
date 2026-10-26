@@ -251,6 +251,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       rowDensity: 'normal', // 'compact' | 'normal' | 'comfortable'
       showHeader: true,
       showFooter: false,
+      showHeaderBand: false,
+      headerBandHeight: 90,
+      showFooterBand: false,
+      footerBandHeight: 60,
       headerHeight: 'auto', // 'auto' | 'compact' | 'normal' | 'tall'
       footerHeight: 'normal', // 'auto' | 'compact' | 'normal' | 'tall'
       pageNumberPos: 'none', // 'right' | 'center' | 'left' | 'none'
@@ -566,6 +570,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         borderMode: builderConfig.borderMode || 'grid',
         showHeader: builderConfig.showHeader !== false,
         showFooter: builderConfig.showFooter !== false,
+        showHeaderBand: Boolean(builderConfig.showHeaderBand),
+        headerBandHeight: builderConfig.headerBandHeight || 90,
+        showFooterBand: Boolean(builderConfig.showFooterBand),
+        footerBandHeight: builderConfig.footerBandHeight || 60,
         repeatHeader: builderConfig.repeatHeader !== false,
         headerHeight: builderConfig.headerHeight || 'auto',
         footerHeight: builderConfig.footerHeight || 'normal',
@@ -639,6 +647,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }
       if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
       if (template.showFooter !== undefined) builderConfig.showFooter = template.showFooter;
+      if (template.showHeaderBand !== undefined) builderConfig.showHeaderBand = template.showHeaderBand;
+      if (template.headerBandHeight !== undefined) builderConfig.headerBandHeight = template.headerBandHeight;
+      if (template.showFooterBand !== undefined) builderConfig.showFooterBand = template.showFooterBand;
+      if (template.footerBandHeight !== undefined) builderConfig.footerBandHeight = template.footerBandHeight;
       if (template.repeatHeader !== undefined) builderConfig.repeatHeader = template.repeatHeader;
       if (template.headerHeight) builderConfig.headerHeight = template.headerHeight;
       if (template.footerHeight) builderConfig.footerHeight = template.footerHeight;
@@ -4073,20 +4085,40 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           return b.pageIndex === pageIndex;
         });
 
+        const totalPagesCount = totalPages || 1;
+        const currentPageNum = pageIndex + 1;
+
         return boxes.map((box) => {
           const isSelected = builderConfig.activeFloatingBoxId === box.id;
           const cleanPreview = box.content ? box.content.replace(/<[^>]*>/g, '').trim().substring(0, 16) : 'Text Box';
 
+          let displayContent = box.content || 'Click to edit text...';
+          if (typeof displayContent === 'string' && (displayContent.includes('{P}') || displayContent.includes('{N}'))) {
+            displayContent = displayContent.replace(/\{P\}/g, String(currentPageNum)).replace(/\{N\}/g, String(totalPagesCount));
+          }
+
+          const shape = box.shape || 'rect';
+          const shapeClass = shape === 'circle' ? 'shape-circle' : (shape === 'triangle' ? 'shape-triangle' : 'shape-rect');
+
+          const triangleSvg = shape === 'triangle' ? `
+            <svg class="triangle-svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polygon points="50,4 96,96 4,96" fill="${box.backgroundColor || '#f0fdfa'}" stroke="${box.borderColor || '#0d9488'}" stroke-width="${box.borderWidth !== undefined ? box.borderWidth : 2}" stroke-dasharray="${box.borderStyle === 'dashed' ? '5,5' : (box.borderStyle === 'dotted' ? '2,2' : 'none')}" />
+            </svg>
+          ` : '';
+
           return `
-            <div class="floating-box-item ${isSelected ? 'selected' : ''}"
+            <div class="floating-box-item ${shapeClass} ${isSelected ? 'selected' : ''}"
                  data-box-id="${escapeHtml(box.id)}"
                  data-page-index="${pageIndex}"
-                 style="left: ${box.x || 30}px; top: ${box.y || 20}px; width: ${box.width || 250}px; height: ${box.height || 40}px; transform: rotate(${box.rotation || 0}deg); ${box.backgroundColor ? `background-color: ${box.backgroundColor};` : ''} ${box.borderColor ? `border-color: ${box.borderColor}; border-width: ${box.borderWidth || 1}px; border-style: ${box.borderStyle || 'solid'};` : ''}">
+                 style="left: ${box.x || 30}px; top: ${box.y || 20}px; width: ${box.width || 250}px; height: ${box.height || 40}px; transform: rotate(${box.rotation || 0}deg); ${shape !== 'triangle' && box.backgroundColor ? `background-color: ${box.backgroundColor};` : ''} ${shape !== 'triangle' && box.borderColor ? `border-color: ${box.borderColor}; border-width: ${box.borderWidth !== undefined ? box.borderWidth : 1}px; border-style: ${box.borderStyle || 'solid'};` : ''}">
               
+              ${triangleSvg}
+
               <div class="box-drag-bar no-print" title="Click and drag to move box anywhere">
                 <i class="fas fa-arrows-alt text-[9px]"></i>
                 <span>${escapeHtml(cleanPreview)}</span>
                 ${box.pageIndex === 'all' ? '<i class="fas fa-clone text-[8px] ml-1 text-emerald-200" title="Repeats on all pages"></i>' : ''}
+                <button type="button" class="box-bar-menu-btn no-print" data-box-id="${escapeHtml(box.id)}" title="Box Settings (Background, Border, Auto-Fit, Rotate, etc.)"><i class="fas fa-ellipsis-v"></i></button>
                 <button type="button" class="box-bar-del-btn no-print" data-box-id="${escapeHtml(box.id)}" title="Delete this box"><i class="fas fa-times"></i></button>
               </div>
 
@@ -4107,7 +4139,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                    data-box-id="${escapeHtml(box.id)}"
                    data-align="${escapeHtml(box.textAlign || 'center')}"
                    style="font-family: ${escapeHtml(box.fontFamily || "'Plus Jakarta Sans', sans-serif")}; font-size: ${box.fontSize || 14}px; font-weight: ${escapeHtml(box.fontWeight || 'normal')}; font-style: ${escapeHtml(box.fontStyle || 'normal')}; text-decoration: ${escapeHtml(box.textDecoration || 'none')}; color: ${escapeHtml(box.color || '#0f172a')}; text-align: ${escapeHtml(box.textAlign || 'center')};">
-                ${box.content || 'Click to edit text...'}
+                ${displayContent}
               </div>
             </div>
           `;
@@ -4381,9 +4413,19 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             <div class="floating-boxes-layer" data-page-index="${pIdx}">
               ${renderFloatingBoxesHtml(pIdx)}
             </div>
-            ${headerSpacerHeight > 0 ? `<div class="worksheet-header-spacer" style="height: ${headerSpacerHeight}px; width: 100%;"></div>` : ''}
+            ${builderConfig.showHeaderBand ? `
+              <div class="page-header-band is-active" style="height: ${builderConfig.headerBandHeight || 90}px;">
+                <span class="band-tag no-print">HEADER AREA</span>
+              </div>
+            ` : ''}
+            ${headerSpacerHeight > 0 && !builderConfig.showHeaderBand ? `<div class="worksheet-header-spacer" style="height: ${headerSpacerHeight}px; width: 100%;"></div>` : ''}
             ${pageTableHtml}
-            ${builderConfig.showFooter ? renderFooterHtml(pageNumber, totalPages) : ''}
+            ${builderConfig.showFooterBand ? `
+              <div class="page-footer-band is-active" style="height: ${builderConfig.footerBandHeight || 60}px;">
+                <span class="band-tag no-print">FOOTER AREA</span>
+              </div>
+            ` : ''}
+            ${builderConfig.showFooter && !builderConfig.showFooterBand ? renderFooterHtml(pageNumber, totalPages) : ''}
           </div>
           ${dividerHtml}
         `;
@@ -4478,138 +4520,81 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const ribbonInsert = `
         <div id="ribbon-insert" class="ribbon-panel ${builderConfig.activeTab === 'insert' ? 'active' : ''}">
+          <!-- HEADER GROUP -->
           <div class="ribbon-group">
             <div class="ribbon-row h-full gap-1 items-center">
-              <button id="btn-insert-inst-title" class="excel-btn-ribbon text-slate-800" title="Insert Institution Header Box at Top Center">
-                <i class="fas fa-university"></i>
-                <span>Inst. Title</span>
+              <button id="btn-header-rect" class="excel-btn-ribbon text-blue-700" title="Insert Rectangle Box in Header Area">
+                <i class="far fa-square"></i>
+                <span>Rectangle</span>
               </button>
-              <button id="btn-insert-inst-sub" class="excel-btn-ribbon text-slate-600" title="Insert Institution Subtitle / Place Box">
-                <i class="fas fa-map-marker-alt"></i>
-                <span>Subtitle</span>
+              <button id="btn-header-circle" class="excel-btn-ribbon text-indigo-700" title="Insert Circle / Oval Shape in Header Area">
+                <i class="far fa-circle"></i>
+                <span>Circle</span>
               </button>
-              <button id="btn-insert-report-title" class="excel-btn-ribbon text-blue-700" title="Insert Report / Register Title Box">
-                <i class="fas fa-heading"></i>
-                <span>Report Title</span>
+              <button id="btn-header-triangle" class="excel-btn-ribbon text-teal-700" title="Insert Triangle Shape in Header Area">
+                <i class="fas fa-play -rotate-90"></i>
+                <span>Triangle</span>
               </button>
-              <button id="btn-insert-date-box" class="excel-btn-ribbon text-emerald-700" title="Insert Date / Academic Session Box">
-                <i class="fas fa-calendar-alt"></i>
-                <span>Date / Session</span>
+              <button id="btn-header-date" class="excel-btn-ribbon text-emerald-700" title="Insert Date with Format Selector in Header Area">
+                <i class="far fa-calendar-alt"></i>
+                <span>Date</span>
               </button>
-              <button id="btn-insert-header-bundle" class="excel-btn-ribbon text-indigo-700 font-bold" title="1-Click Insert Full Coordinated Header Bundle (Title, Subtitle, Report Name, Date)">
-                <i class="fas fa-layer-group"></i>
-                <span>Header Pack</span>
-              </button>
-            </div>
-            <span class="ribbon-label">Header Elements (Top)</span>
-          </div>
-
-          <div class="ribbon-group">
-            <div class="ribbon-row h-full gap-1 items-center">
-              <button id="btn-insert-sig-line" class="excel-btn-ribbon text-slate-700" title="Insert Signature Block at Bottom">
-                <i class="fas fa-file-signature"></i>
-                <span>Signature</span>
-              </button>
-              <button id="btn-insert-stamp-box" class="excel-btn-ribbon text-rose-700" title="Insert Official Seal / Stamp Box at Bottom">
-                <i class="fas fa-certificate"></i>
-                <span>Stamp / Seal</span>
-              </button>
-              <button id="btn-insert-pagenum-box" class="excel-btn-ribbon text-slate-700" title="Insert Page Number Box at Bottom">
-                <i class="fas fa-pager"></i>
+              <button id="btn-header-pagenum" class="excel-btn-ribbon text-purple-700" title="Insert Page Number with Design Selector in Header Area">
+                <i class="fas fa-hashtag"></i>
                 <span>Page #</span>
               </button>
-              <button id="btn-insert-footer-note" class="excel-btn-ribbon text-amber-700" title="Insert Bottom Note / Remark Box">
-                <i class="fas fa-comment-alt"></i>
-                <span>Footer Note</span>
-              </button>
             </div>
-            <span class="ribbon-label">Footer Elements (Bottom)</span>
+            <div class="flex items-center justify-between w-full px-1">
+              <span class="ribbon-label !p-0">Header (Top)</span>
+              <label class="switch-toggle" title="Toggle Header Area ON/OFF">
+                <input type="checkbox" id="toggle-header-band" ${builderConfig.showHeaderBand ? 'checked' : ''}>
+                <span class="slider-round"></span>
+              </label>
+            </div>
           </div>
 
-          <div class="ribbon-group">
-            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
-              <div class="flex items-center gap-2.5">
-                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                  <input type="checkbox" id="builder-repeat-header" ${builderConfig.repeatHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Repeat All Pages
-                </label>
-                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
-                  <input type="checkbox" id="builder-show-footer" ${builderConfig.showFooter ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Footer Strip
-                </label>
-                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showFooter ? 'opacity-50 pointer-events-none' : ''}">
-                  <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Signatures
-                </label>
-              </div>
-              <div class="flex items-center gap-2 mt-0.5">
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] font-semibold text-slate-600">Head:</span>
-                  <select id="builder-header-height" class="excel-input-ribbon w-16 text-[11px]" title="Top clearance space above table for header elements">
-                    <option value="auto" ${builderConfig.headerHeight === 'auto' || !builderConfig.headerHeight ? 'selected' : ''}>Auto</option>
-                    <option value="none" ${builderConfig.headerHeight === 'none' ? 'selected' : ''}>0px</option>
-                    <option value="compact" ${builderConfig.headerHeight === 'compact' ? 'selected' : ''}>Compact</option>
-                    <option value="normal" ${builderConfig.headerHeight === 'normal' ? 'selected' : ''}>Normal</option>
-                    <option value="tall" ${builderConfig.headerHeight === 'tall' ? 'selected' : ''}>Spacious</option>
-                  </select>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] font-semibold text-slate-600">Page #:</span>
-                  <select id="builder-page-num-pos" class="excel-input-ribbon w-16 text-[11px]">
-                    <option value="right" ${builderConfig.pageNumberPos === 'right' || !builderConfig.pageNumberPos ? 'selected' : ''}>Right</option>
-                    <option value="center" ${builderConfig.pageNumberPos === 'center' ? 'selected' : ''}>Center</option>
-                    <option value="left" ${builderConfig.pageNumberPos === 'left' ? 'selected' : ''}>Left</option>
-                    <option value="none" ${builderConfig.pageNumberPos === 'none' ? 'selected' : ''}>None</option>
-                  </select>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] font-semibold text-slate-600">Foot:</span>
-                  <select id="builder-footer-height" class="excel-input-ribbon w-16 text-[11px]">
-                    <option value="auto" ${builderConfig.footerHeight === 'auto' ? 'selected' : ''}>Auto</option>
-                    <option value="compact" ${builderConfig.footerHeight === 'compact' ? 'selected' : ''}>Compact</option>
-                    <option value="normal" ${builderConfig.footerHeight === 'normal' || !builderConfig.footerHeight ? 'selected' : ''}>Normal</option>
-                    <option value="tall" ${builderConfig.footerHeight === 'tall' ? 'selected' : ''}>Spacious</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <span class="ribbon-label">Header & Footer Setup</span>
-          </div>
-
+          <!-- FOOTER GROUP -->
           <div class="ribbon-group">
             <div class="ribbon-row h-full gap-1 items-center">
-              <button id="btn-insert-textbox" class="excel-btn-ribbon text-indigo-700" title="Insert Free Floating Text Box">
-                <i class="fas fa-i-cursor"></i>
-                <span>Text Box</span>
+              <button id="btn-footer-rect" class="excel-btn-ribbon text-blue-700" title="Insert Rectangle Box in Footer Area">
+                <i class="far fa-square"></i>
+                <span>Rectangle</span>
               </button>
-              <button id="btn-box-duplicate" class="excel-btn-ribbon text-sky-700" title="Duplicate Selected Floating Box">
-                <i class="fas fa-clone"></i>
-                <span>Duplicate</span>
+              <button id="btn-footer-circle" class="excel-btn-ribbon text-indigo-700" title="Insert Circle / Oval Shape in Footer Area">
+                <i class="far fa-circle"></i>
+                <span>Circle</span>
               </button>
-              <button id="btn-box-rotate-90" class="excel-btn-ribbon text-amber-700" title="Rotate Selected Box 90° Clockwise">
-                <i class="fas fa-redo-alt"></i>
-                <span>Rotate 90°</span>
+              <button id="btn-footer-triangle" class="excel-btn-ribbon text-teal-700" title="Insert Triangle Shape in Footer Area">
+                <i class="fas fa-play -rotate-90"></i>
+                <span>Triangle</span>
               </button>
-              <button id="btn-box-toggle-repeat" class="excel-btn-ribbon text-purple-700" title="Toggle box repeating on every page or single page only">
-                <i class="fas fa-copy"></i>
-                <span>Repeat All</span>
+              <button id="btn-footer-date" class="excel-btn-ribbon text-emerald-700" title="Insert Date with Format Selector in Footer Area">
+                <i class="far fa-calendar-alt"></i>
+                <span>Date</span>
               </button>
-              <button id="btn-box-delete" class="excel-btn-ribbon text-rose-700" title="Delete Selected Floating Box">
-                <i class="fas fa-trash-alt"></i>
-                <span>Delete Box</span>
-              </button>
-              <button id="btn-box-clear-all" class="excel-btn-ribbon text-rose-600 hover:text-rose-800" title="Clear all floating boxes from canvas">
-                <i class="fas fa-eraser"></i>
-                <span>Clear All</span>
+              <button id="btn-footer-pagenum" class="excel-btn-ribbon text-purple-700" title="Insert Page Number with Design Selector in Footer Area">
+                <i class="fas fa-hashtag"></i>
+                <span>Page #</span>
               </button>
             </div>
-            <span class="ribbon-label">Box Tools</span>
+            <div class="flex items-center justify-between w-full px-1">
+              <span class="ribbon-label !p-0">Footer (Bottom)</span>
+              <label class="switch-toggle" title="Toggle Footer Area ON/OFF">
+                <input type="checkbox" id="toggle-footer-band" ${builderConfig.showFooterBand ? 'checked' : ''}>
+                <span class="slider-round"></span>
+              </label>
+            </div>
           </div>
 
+          <!-- TABLE TOOLS -->
           <div class="ribbon-group">
             <div class="ribbon-row h-full gap-1 items-center">
               <button id="btn-insert-add-col" class="excel-btn-ribbon text-emerald-700" title="Insert Blank Column"><i class="fas fa-columns"></i><span>+ Col</span></button>
               <button id="btn-insert-add-row" class="excel-btn-ribbon text-emerald-700" title="Insert Blank Row"><i class="fas fa-plus-square"></i><span>+ Row</span></button>
-              <button id="btn-insert-autofit" class="excel-btn-ribbon text-blue-700" title="Auto-Fit all columns"><i class="fas fa-arrows-alt-h"></i><span>Auto-Fit</span></button>
+              <button id="btn-autofit-cols" class="excel-btn-ribbon text-blue-700" title="Auto-Fit Columns Width"><i class="fas fa-arrows-alt-h"></i><span>Fit Width</span></button>
+              <button id="btn-autofit-rows" class="excel-btn-ribbon text-blue-700" title="Auto-Fit Rows Height"><i class="fas fa-arrows-alt-v"></i><span>Fit Height</span></button>
             </div>
-            <span class="ribbon-label">Table Insertions</span>
+            <span class="ribbon-label">Table Tools</span>
           </div>
         </div>
       `;
@@ -4768,6 +4753,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 </select>
               </div>
               <div class="flex flex-col">
+                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Table Grid</label>
+                <select id="builder-border-mode" class="excel-input-ribbon w-24">
+                  <option value="grid" ${builderConfig.borderMode === 'grid' ? 'selected' : ''}>Full Grid</option>
+                  <option value="none" ${builderConfig.borderMode === 'none' ? 'selected' : ''}>Borderless</option>
+                </select>
+              </div>
+              <div class="flex flex-col">
                 <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Canvas Zoom</label>
                 <select id="builder-zoom" class="excel-input-ribbon w-24 font-bold text-indigo-900">
                   <option value="40" ${builderConfig.zoom === 40 ? 'selected' : ''}>40%</option>
@@ -4786,30 +4778,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               </div>
             </div>
             <span class="ribbon-label">Page Setup & Orientation</span>
-          </div>
-
-          <div class="ribbon-group">
-            <div class="ribbon-row h-full gap-2 items-center">
-              <div class="flex flex-col">
-                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Rows Per Page</label>
-                <select id="builder-rows-per-page" class="excel-input-ribbon w-36 font-bold text-slate-800">
-                  <option value="auto" ${builderConfig.rowsPerPage === 'auto' ? 'selected' : ''}>Auto (${builderConfig.orientation === 'landscape' ? '18' : '26'} Rows)</option>
-                  <option value="15" ${builderConfig.rowsPerPage === '15' ? 'selected' : ''}>15 Rows / Page</option>
-                  <option value="20" ${builderConfig.rowsPerPage === '20' ? 'selected' : ''}>20 Rows / Page</option>
-                  <option value="25" ${builderConfig.rowsPerPage === '25' ? 'selected' : ''}>25 Rows / Page</option>
-                  <option value="30" ${builderConfig.rowsPerPage === '30' ? 'selected' : ''}>30 Rows / Page</option>
-                  <option value="all" ${builderConfig.rowsPerPage === 'all' ? 'selected' : ''}>Continuous (All Rows)</option>
-                </select>
-              </div>
-              <div class="flex flex-col">
-                <label class="text-[10px] font-semibold text-slate-600 mb-0.5">Table Grid</label>
-                <select id="builder-border-mode" class="excel-input-ribbon w-24">
-                  <option value="grid" ${builderConfig.borderMode === 'grid' ? 'selected' : ''}>Full Grid</option>
-                  <option value="none" ${builderConfig.borderMode === 'none' ? 'selected' : ''}>Borderless</option>
-                </select>
-              </div>
-            </div>
-            <span class="ribbon-label">Paging & Gridlines</span>
           </div>
         </div>
       `;
@@ -5663,302 +5631,381 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         return Math.max(100, pageH - offsetFromBottom);
       };
 
-      document.getElementById('btn-insert-textbox')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: 'Text Box (Double click to edit)',
-          backgroundColor: '#ffffff',
-          borderColor: '#cbd5e1',
-          borderWidth: 1,
-          borderStyle: 'dashed'
-        });
-      });
-
-      document.getElementById('btn-insert-inst-title')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: effectiveInstName,
-          fontSize: 22,
-          fontWeight: '900',
-          textAlign: 'center',
-          x: 35,
-          y: 16,
-          width: 640,
-          height: 40,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
-      });
-
-      document.getElementById('btn-insert-inst-sub')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: effectiveInstSub || 'Govt. Recognized Institution',
-          fontSize: 13,
-          fontWeight: '600',
-          textAlign: 'center',
-          color: '#475569',
-          x: 35,
-          y: 54,
-          width: 640,
-          height: 26,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
-      });
-
-      document.getElementById('btn-insert-report-title')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: effectiveCustomTitle || 'STUDENT REGISTER',
-          fontSize: 16,
-          fontWeight: '900',
-          textAlign: 'center',
-          color: '#1e3a8a',
-          x: 35,
-          y: 80,
-          width: 640,
-          height: 32,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
-      });
-
-      document.getElementById('btn-insert-date-box')?.addEventListener('click', () => {
-        const todayStr = new Date().toLocaleDateString('en-GB');
-        insertNewFloatingBox({
-          content: `Date: ${todayStr}  |  Session: ${yearLabel || '2026-2027'}`,
-          fontSize: 11,
-          fontWeight: '700',
-          textAlign: 'left',
-          color: '#334155',
-          x: 35,
-          y: 112,
-          width: 340,
-          height: 28,
-          borderColor: '#cbd5e1',
-          backgroundColor: '#f8fafc'
-        });
-      });
-
-      document.getElementById('btn-insert-header-bundle')?.addEventListener('click', () => {
+      const autoFitAllRows = () => {
         saveBuilderState();
-        if (!builderConfig.floatingBoxes) builderConfig.floatingBoxes = [];
-        const todayStr = new Date().toLocaleDateString('en-GB');
-        const now = Date.now();
-        builderConfig.floatingBoxes.push(
-          {
-            id: `fbox_${now}_1`,
-            pageIndex: 'all',
-            x: 35,
-            y: 16,
-            width: 640,
-            height: 40,
-            rotation: 0,
-            content: effectiveInstName,
-            fontSize: 22,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: '900',
-            fontStyle: 'normal',
-            textDecoration: 'none',
+        document.querySelectorAll('#print-canvas tbody tr[data-index]').forEach((tr) => {
+          tr.style.height = '';
+        });
+        showToastNotification('Auto-fitted all row heights based on contents!');
+      };
+
+      const showPickerModal = ({ title, subtitle, icon, options, onSelect }) => {
+        const existing = document.getElementById('picker-modal-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'picker-modal-overlay';
+        overlay.className = 'picker-modal-overlay';
+
+        const optionsHtml = options.map((opt, i) => `
+          <div class="picker-option-card" data-opt-index="${i}">
+            <div class="flex flex-col">
+              <span class="font-bold text-slate-800 text-xs">${escapeHtml(opt.label)}</span>
+              <span class="text-[11px] text-slate-500 font-mono mt-0.5">${escapeHtml(opt.format || '')}</span>
+            </div>
+            <div class="px-2.5 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold text-xs font-mono">
+              ${escapeHtml(opt.preview)}
+            </div>
+          </div>
+        `).join('');
+
+        overlay.innerHTML = `
+          <div class="picker-modal-card">
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm">
+                  <i class="${escapeHtml(icon)}"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-sm text-slate-800">${escapeHtml(title)}</h4>
+                  <p class="text-[11px] text-slate-500">${escapeHtml(subtitle)}</p>
+                </div>
+              </div>
+              <button type="button" class="text-slate-400 hover:text-slate-700 text-base font-bold px-2 py-0.5 rounded close-picker-btn">&times;</button>
+            </div>
+            <div class="p-3.5 flex flex-col gap-2 max-h-[360px] overflow-y-auto">
+              ${optionsHtml}
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const close = () => overlay.remove();
+
+        overlay.querySelector('.close-picker-btn')?.addEventListener('click', close);
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) close();
+        });
+
+        overlay.querySelectorAll('.picker-option-card').forEach((card) => {
+          card.addEventListener('click', () => {
+            const idx = parseInt(card.dataset.optIndex, 10);
+            const chosen = options[idx];
+            close();
+            if (chosen && onSelect) {
+              onSelect(chosen);
+            }
+          });
+        });
+
+        const escHandler = (e) => {
+          if (e.key === 'Escape') {
+            close();
+            window.removeEventListener('keydown', escHandler);
+          }
+        };
+        window.addEventListener('keydown', escHandler);
+      };
+
+      const openDatePickerModal = (targetArea = 'header') => {
+        const today = new Date();
+        const d = String(today.getDate()).padStart(2, '0');
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthNamesLong = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const mShort = monthNamesShort[today.getMonth()];
+        const mLong = monthNamesLong[today.getMonth()];
+
+        const dateOptions = [
+          { label: 'Standard Slash', format: `${d}/${m}/${yyyy}`, preview: `${d}/${m}/${yyyy}` },
+          { label: 'Hyphen Separated', format: `${d}-${m}-${yyyy}`, preview: `${d}-${m}-${yyyy}` },
+          { label: 'Medium Official', format: `${d} ${mShort} ${yyyy}`, preview: `${d} ${mShort} ${yyyy}` },
+          { label: 'Full Long Format', format: `${d} ${mLong} ${yyyy}`, preview: `${d} ${mLong} ${yyyy}` },
+          { label: 'Date with Session', format: `Date: ${d}/${m}/${yyyy} | Session: ${yearLabel || (yyyy + '-' + (yyyy + 1))}`, preview: `Date: ${d}/${m}/${yyyy} | Session: ${yearLabel || '2026-2027'}` },
+          { label: 'Official Print Stamp', format: `Printed on: ${d}/${m}/${yyyy}`, preview: `Printed on: ${d}/${m}/${yyyy}` }
+        ];
+
+        showPickerModal({
+          title: targetArea === 'header' ? 'Insert Header Date' : 'Insert Footer Date',
+          subtitle: 'Select your preferred date style & layout format',
+          icon: 'far fa-calendar-alt',
+          options: dateOptions,
+          onSelect: (opt) => {
+            if (targetArea === 'header') {
+              builderConfig.showHeaderBand = true;
+              insertNewFloatingBox({
+                shape: 'rect',
+                content: opt.format,
+                fontSize: 11,
+                fontWeight: '600',
+                textAlign: 'left',
+                color: '#334155',
+                x: 35,
+                y: 20,
+                width: 220,
+                height: 32,
+                borderColor: '#cbd5e1',
+                borderWidth: 1,
+                borderStyle: 'solid',
+                backgroundColor: '#f8fafc',
+                pageIndex: 'all'
+              });
+            } else {
+              builderConfig.showFooterBand = true;
+              insertNewFloatingBox({
+                shape: 'rect',
+                content: opt.format,
+                fontSize: 11,
+                fontWeight: '600',
+                textAlign: 'left',
+                color: '#475569',
+                x: 35,
+                y: getFooterPlacementY(50),
+                width: 220,
+                height: 30,
+                borderColor: '#cbd5e1',
+                borderWidth: 1,
+                borderStyle: 'solid',
+                backgroundColor: '#f8fafc',
+                pageIndex: 'all'
+              });
+            }
+          }
+        });
+      };
+
+      const openPageNumPickerModal = (targetArea = 'header') => {
+        const pageNumOptions = [
+          { label: 'Page X of Y', format: 'Page {P} of {N}', preview: 'Page 1 of 3' },
+          { label: 'Slash Fraction', format: '{P} / {N}', preview: '1 / 3' },
+          { label: 'Hyphen Surrounded', format: '- {P} -', preview: '- 1 -' },
+          { label: 'Simple Page Number', format: 'Page {P}', preview: 'Page 1' },
+          { label: 'Bracket Enclosed', format: '[ Page {P} of {N} ]', preview: '[ Page 1 / 3 ]' },
+          { label: 'Sheet & Total Count', format: 'Sheet {P} | Total {N}', preview: 'Sheet 1 | Total 3' }
+        ];
+
+        showPickerModal({
+          title: targetArea === 'header' ? 'Insert Header Page Number' : 'Insert Footer Page Number',
+          subtitle: 'Select design model for multi-page counter',
+          icon: 'fas fa-hashtag',
+          options: pageNumOptions,
+          onSelect: (opt) => {
+            const posX = builderConfig.orientation === 'landscape' ? 880 : 620;
+            if (targetArea === 'header') {
+              builderConfig.showHeaderBand = true;
+              insertNewFloatingBox({
+                shape: 'rect',
+                content: opt.format,
+                fontSize: 11,
+                fontWeight: '700',
+                textAlign: 'right',
+                color: '#1e293b',
+                x: posX,
+                y: 20,
+                width: 140,
+                height: 30,
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderStyle: 'none',
+                backgroundColor: 'transparent',
+                pageIndex: 'all'
+              });
+            } else {
+              builderConfig.showFooterBand = true;
+              insertNewFloatingBox({
+                shape: 'rect',
+                content: opt.format,
+                fontSize: 11,
+                fontWeight: '700',
+                textAlign: 'right',
+                color: '#1e293b',
+                x: posX,
+                y: getFooterPlacementY(48),
+                width: 140,
+                height: 30,
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderStyle: 'none',
+                backgroundColor: 'transparent',
+                pageIndex: 'all'
+              });
+            }
+          }
+        });
+      };
+
+      const insertHeaderShape = (shapeType = 'rect') => {
+        builderConfig.showHeaderBand = true;
+        if (shapeType === 'rect') {
+          insertNewFloatingBox({
+            shape: 'rect',
+            content: 'Header Box',
+            fontSize: 14,
+            fontWeight: '700',
             textAlign: 'center',
             color: '#0f172a',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderStyle: 'none'
-          },
-          {
-            id: `fbox_${now}_2`,
-            pageIndex: 'all',
-            x: 35,
-            y: 54,
-            width: 640,
-            height: 24,
-            rotation: 0,
-            content: effectiveInstSub || 'Govt. Recognized Institution',
+            x: 40,
+            y: 20,
+            width: 240,
+            height: 42,
+            borderColor: '#94a3b8',
+            borderWidth: 1,
+            borderStyle: 'solid',
+            backgroundColor: '#ffffff',
+            pageIndex: 'all'
+          });
+        } else if (shapeType === 'circle') {
+          insertNewFloatingBox({
+            shape: 'circle',
+            content: 'Logo',
             fontSize: 12,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '700',
+            textAlign: 'center',
+            color: '#1d4ed8',
+            x: 40,
+            y: 15,
+            width: 60,
+            height: 60,
+            borderColor: '#3b82f6',
+            borderWidth: 2,
+            borderStyle: 'solid',
+            backgroundColor: '#eff6ff',
+            pageIndex: 'all'
+          });
+        } else if (shapeType === 'triangle') {
+          insertNewFloatingBox({
+            shape: 'triangle',
+            content: '▲',
+            fontSize: 14,
+            fontWeight: 'bold',
+            textAlign: 'center',
+            color: '#0f766e',
+            x: 40,
+            y: 15,
+            width: 70,
+            height: 60,
+            borderColor: '#0d9488',
+            borderWidth: 2,
+            borderStyle: 'solid',
+            backgroundColor: '#f0fdfa',
+            pageIndex: 'all'
+          });
+        }
+      };
+
+      const insertFooterShape = (shapeType = 'rect') => {
+        builderConfig.showFooterBand = true;
+        const footY = getFooterPlacementY(shapeType === 'rect' ? 55 : 75);
+        if (shapeType === 'rect') {
+          insertNewFloatingBox({
+            shape: 'rect',
+            content: 'Footer Note',
+            fontSize: 11,
             fontWeight: '600',
-            fontStyle: 'normal',
-            textDecoration: 'none',
             textAlign: 'center',
             color: '#475569',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderStyle: 'none'
-          },
-          {
-            id: `fbox_${now}_3`,
-            pageIndex: 'all',
-            x: 35,
-            y: 80,
-            width: 640,
-            height: 32,
-            rotation: 0,
-            content: effectiveCustomTitle || 'STUDENT REGISTER',
-            fontSize: 15,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: '900',
-            fontStyle: 'normal',
-            textDecoration: 'none',
-            textAlign: 'center',
-            color: '#1e3a8a',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderStyle: 'none'
-          },
-          {
-            id: `fbox_${now}_4`,
-            pageIndex: 'all',
-            x: 35,
-            y: 112,
-            width: 340,
-            height: 28,
-            rotation: 0,
-            content: `Date: ${todayStr}  |  Session: ${yearLabel || '2026-2027'}`,
-            fontSize: 11,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: '700',
-            fontStyle: 'normal',
-            textDecoration: 'none',
-            textAlign: 'left',
-            color: '#334155',
-            backgroundColor: '#f8fafc',
+            x: 40,
+            y: footY,
+            width: 240,
+            height: 38,
             borderColor: '#cbd5e1',
             borderWidth: 1,
-            borderStyle: 'solid'
-          }
-        );
-        builderConfig.activeFloatingBoxId = `fbox_${now}_1`;
-        builderConfig.activeTab = 'insert';
+            borderStyle: 'solid',
+            backgroundColor: '#f8fafc',
+            pageIndex: 'all'
+          });
+        } else if (shapeType === 'circle') {
+          insertNewFloatingBox({
+            shape: 'circle',
+            content: 'Seal',
+            fontSize: 11,
+            fontWeight: '700',
+            textAlign: 'center',
+            color: '#be123c',
+            x: 40,
+            y: footY,
+            width: 60,
+            height: 60,
+            borderColor: '#e11d48',
+            borderWidth: 2,
+            borderStyle: 'dashed',
+            backgroundColor: '#fff1f2',
+            pageIndex: 'all'
+          });
+        } else if (shapeType === 'triangle') {
+          insertNewFloatingBox({
+            shape: 'triangle',
+            content: '▲',
+            fontSize: 14,
+            fontWeight: 'bold',
+            textAlign: 'center',
+            color: '#b45309',
+            x: 40,
+            y: footY,
+            width: 70,
+            height: 60,
+            borderColor: '#f59e0b',
+            borderWidth: 2,
+            borderStyle: 'solid',
+            backgroundColor: '#fffbeb',
+            pageIndex: 'all'
+          });
+        }
+      };
+
+      // Header Band & Elements Listeners
+      document.getElementById('toggle-header-band')?.addEventListener('change', (e) => {
+        saveBuilderState();
+        builderConfig.showHeaderBand = e.target.checked;
         renderExportTab();
         setupExcelEngine();
-        setTimeout(() => selectFloatingBox(`fbox_${now}_1`), 60);
-        showToastNotification('Full coordinated header pack added!');
+        showToastNotification(builderConfig.showHeaderBand ? 'Header Area Enabled' : 'Header Area Disabled');
       });
 
-      document.getElementById('btn-insert-sig-line')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: `<div style="border-top: 1.5px solid #000; padding-top: 4px; text-align: center; font-weight: bold; width: 100%;">Authorized Signatory</div>`,
-          fontSize: 12,
-          textAlign: 'center',
-          x: 35,
-          y: getFooterPlacementY(110),
-          width: 220,
-          height: 48,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
+      document.getElementById('btn-header-rect')?.addEventListener('click', () => {
+        insertHeaderShape('rect');
+      });
+      document.getElementById('btn-header-circle')?.addEventListener('click', () => {
+        insertHeaderShape('circle');
+      });
+      document.getElementById('btn-header-triangle')?.addEventListener('click', () => {
+        insertHeaderShape('triangle');
+      });
+      document.getElementById('btn-header-date')?.addEventListener('click', () => {
+        openDatePickerModal('header');
+      });
+      document.getElementById('btn-header-pagenum')?.addEventListener('click', () => {
+        openPageNumPickerModal('header');
       });
 
-      document.getElementById('btn-insert-stamp-box')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: '<div style="width: 100%; height: 100%; border: 2px dashed #94a3b8; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; line-height: 1.2;">OFFICIAL<br>SEAL / STAMP</div>',
-          x: 280,
-          y: getFooterPlacementY(130),
-          width: 110,
-          height: 110,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
+      // Footer Band & Elements Listeners
+      document.getElementById('toggle-footer-band')?.addEventListener('change', (e) => {
+        saveBuilderState();
+        builderConfig.showFooterBand = e.target.checked;
+        renderExportTab();
+        setupExcelEngine();
+        showToastNotification(builderConfig.showFooterBand ? 'Footer Area Enabled' : 'Footer Area Disabled');
       });
 
-      document.getElementById('btn-insert-pagenum-box')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: 'Page 1 of 1',
-          fontSize: 11,
-          fontWeight: '600',
-          textAlign: 'right',
-          x: builderConfig.orientation === 'landscape' ? 880 : 600,
-          y: getFooterPlacementY(50),
-          width: 150,
-          height: 28,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
+      document.getElementById('btn-footer-rect')?.addEventListener('click', () => {
+        insertFooterShape('rect');
+      });
+      document.getElementById('btn-footer-circle')?.addEventListener('click', () => {
+        insertFooterShape('circle');
+      });
+      document.getElementById('btn-footer-triangle')?.addEventListener('click', () => {
+        insertFooterShape('triangle');
+      });
+      document.getElementById('btn-footer-date')?.addEventListener('click', () => {
+        openDatePickerModal('footer');
+      });
+      document.getElementById('btn-footer-pagenum')?.addEventListener('click', () => {
+        openPageNumPickerModal('footer');
       });
 
-      document.getElementById('btn-insert-footer-note')?.addEventListener('click', () => {
-        insertNewFloatingBox({
-          content: 'Note: System generated official document. Valid without physical signature if authenticated.',
-          fontSize: 10,
-          fontStyle: 'italic',
-          color: '#64748b',
-          x: 35,
-          y: getFooterPlacementY(50),
-          width: 460,
-          height: 28,
-          borderColor: 'transparent',
-          backgroundColor: 'transparent'
-        });
-      });
-
-      document.getElementById('btn-box-clear-all')?.addEventListener('click', () => {
-        if (confirm('Clear all floating text boxes, headers, and stamps from the canvas?')) {
-          saveBuilderState();
-          builderConfig.floatingBoxes = [];
-          builderConfig.activeFloatingBoxId = null;
-          renderExportTab();
-          setupExcelEngine();
-          showToastNotification('All floating boxes removed');
-        }
-      });
-
-      document.getElementById('btn-box-duplicate')?.addEventListener('click', () => {
-        const curBox = (builderConfig.floatingBoxes || []).find((b) => b.id === builderConfig.activeFloatingBoxId);
-        if (curBox) {
-          saveBuilderState();
-          const dupBox = JSON.parse(JSON.stringify(curBox));
-          dupBox.id = `fbox_${Date.now()}`;
-          dupBox.x = (dupBox.x || 30) + 20;
-          dupBox.y = (dupBox.y || 20) + 20;
-          builderConfig.floatingBoxes.push(dupBox);
-          builderConfig.activeFloatingBoxId = dupBox.id;
-          renderExportTab();
-          setupExcelEngine();
-          setTimeout(() => selectFloatingBox(dupBox.id), 50);
-        } else {
-          showToastNotification('Please select a text box first to duplicate');
-        }
-      });
-
-      document.getElementById('btn-box-rotate-90')?.addEventListener('click', () => {
-        const curBox = (builderConfig.floatingBoxes || []).find((b) => b.id === builderConfig.activeFloatingBoxId);
-        if (curBox) {
-          saveBuilderState();
-          curBox.rotation = ((curBox.rotation || 0) + 90) % 360;
-          const boxEl = document.querySelector(`.floating-box-item[data-box-id="${curBox.id}"]`);
-          if (boxEl) boxEl.style.transform = `rotate(${curBox.rotation}deg)`;
-        } else {
-          showToastNotification('Please select a text box first to rotate');
-        }
-      });
-
-      document.getElementById('btn-box-toggle-repeat')?.addEventListener('click', () => {
-        const curBox = (builderConfig.floatingBoxes || []).find((b) => b.id === builderConfig.activeFloatingBoxId);
-        if (curBox) {
-          saveBuilderState();
-          curBox.pageIndex = (curBox.pageIndex === 'all') ? 0 : 'all';
-          renderExportTab();
-          setupExcelEngine();
-          setTimeout(() => selectFloatingBox(curBox.id), 50);
-          showToastNotification(curBox.pageIndex === 'all' ? 'Box will repeat on every page' : 'Box will appear on Page 1 only');
-        } else {
-          showToastNotification('Please select a text box first');
-        }
-      });
-
-      document.getElementById('btn-box-delete')?.addEventListener('click', () => {
-        if (builderConfig.activeFloatingBoxId) {
-          saveBuilderState();
-          builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== builderConfig.activeFloatingBoxId);
-          builderConfig.activeFloatingBoxId = null;
-          renderExportTab();
-          setupExcelEngine();
-        } else {
-          showToastNotification('Please select a text box first to delete');
-        }
-      });
-
+      // Table Insertions & Auto-Fit
       document.getElementById('btn-insert-add-col')?.addEventListener('click', () => {
         document.getElementById('btn-add-col')?.click();
       });
@@ -5966,12 +6013,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         document.getElementById('btn-add-row')?.click();
       });
       document.getElementById('btn-autofit-cols')?.addEventListener('click', autoFitAllColumns);
-      document.getElementById('btn-insert-autofit')?.addEventListener('click', autoFitAllColumns);
+      document.getElementById('btn-autofit-rows')?.addEventListener('click', autoFitAllRows);
 
       document.getElementById('fmt-undo')?.addEventListener('click', undoBuilder);
       document.getElementById('fmt-redo')?.addEventListener('click', redoBuilder);
 
       document.getElementById('btn-export-print')?.addEventListener('click', () => {
+        selectFloatingBox(null);
+        closeBoxContextMenu();
         syncDynamicPageOrientationStyle();
         document.querySelectorAll('.header-live-input').forEach((inp) => {
           inp.setAttribute('value', inp.value);
@@ -6094,6 +6143,234 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }
     };
 
+    const autoFitBoxWidth = (boxId) => {
+      const boxData = (builderConfig.floatingBoxes || []).find((b) => b.id === boxId);
+      const boxEl = document.querySelector(`.floating-box-item[data-box-id="${boxId}"]`);
+      if (!boxData || !boxEl) return;
+      saveBuilderState();
+
+      const contentEl = boxEl.querySelector('.box-content-editable');
+      if (!contentEl) return;
+
+      const tempSpan = document.createElement('span');
+      tempSpan.style.fontFamily = window.getComputedStyle(contentEl).fontFamily;
+      tempSpan.style.fontSize = window.getComputedStyle(contentEl).fontSize;
+      tempSpan.style.fontWeight = window.getComputedStyle(contentEl).fontWeight;
+      tempSpan.style.fontStyle = window.getComputedStyle(contentEl).fontStyle;
+      tempSpan.style.letterSpacing = window.getComputedStyle(contentEl).letterSpacing;
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.innerHTML = contentEl.innerHTML || contentEl.innerText;
+      document.body.appendChild(tempSpan);
+      const measuredW = Math.max(50, Math.ceil(tempSpan.offsetWidth) + 32);
+      tempSpan.remove();
+
+      boxData.width = measuredW;
+      boxEl.style.width = `${measuredW}px`;
+      showToastNotification(`Box width fitted (${measuredW}px)`);
+    };
+
+    const autoFitBoxHeight = (boxId) => {
+      const boxData = (builderConfig.floatingBoxes || []).find((b) => b.id === boxId);
+      const boxEl = document.querySelector(`.floating-box-item[data-box-id="${boxId}"]`);
+      if (!boxData || !boxEl) return;
+      saveBuilderState();
+
+      const contentEl = boxEl.querySelector('.box-content-editable');
+      if (!contentEl) return;
+
+      const measuredH = Math.max(26, contentEl.scrollHeight + 14);
+      boxData.height = measuredH;
+      boxEl.style.height = `${measuredH}px`;
+      showToastNotification(`Box height fitted (${measuredH}px)`);
+    };
+
+    const closeBoxContextMenu = () => {
+      const popover = document.getElementById('active-box-context-popover');
+      if (popover) popover.remove();
+    };
+
+    const openBoxContextMenu = (boxId, anchorEl) => {
+      closeBoxContextMenu();
+      const boxData = (builderConfig.floatingBoxes || []).find((b) => b.id === boxId);
+      if (!boxData) return;
+      selectFloatingBox(boxId);
+
+      const popover = document.createElement('div');
+      popover.id = 'active-box-context-popover';
+      popover.className = 'box-context-popover';
+
+      const rect = anchorEl.getBoundingClientRect();
+      const popWidth = 220;
+      let left = rect.left;
+      let top = rect.bottom + 6;
+
+      if (left + popWidth > window.innerWidth - 10) {
+        left = window.innerWidth - popWidth - 10;
+      }
+      if (top + 280 > window.innerHeight) {
+        top = Math.max(10, rect.top - 280);
+      }
+
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
+      popover.style.position = 'fixed';
+
+      popover.innerHTML = `
+        <div class="flex items-center justify-between pb-1 border-b border-slate-200">
+          <span class="font-bold text-[10px] text-slate-500 uppercase tracking-wider">Box Settings</span>
+          <button type="button" class="text-slate-400 hover:text-slate-700 text-sm font-bold leading-none px-1" id="ctx-close-btn">&times;</button>
+        </div>
+
+        <div class="ctx-row">
+          <span class="text-slate-600 font-semibold text-[11px]">Background:</span>
+          <input type="color" id="ctx-bg-color" value="${boxData.backgroundColor && boxData.backgroundColor !== 'transparent' ? boxData.backgroundColor : '#ffffff'}" class="w-6 h-6 p-0 border border-slate-300 rounded cursor-pointer" />
+        </div>
+
+        <div class="ctx-row">
+          <span class="text-slate-600 font-semibold text-[11px]">Border:</span>
+          <div class="flex items-center gap-1">
+            <select id="ctx-border-width" class="text-[10px] p-0.5 border border-slate-300 rounded bg-white">
+              <option value="0" ${boxData.borderWidth === 0 ? 'selected' : ''}>0px</option>
+              <option value="1" ${boxData.borderWidth === 1 || boxData.borderWidth === undefined ? 'selected' : ''}>1px</option>
+              <option value="2" ${boxData.borderWidth === 2 ? 'selected' : ''}>2px</option>
+              <option value="3" ${boxData.borderWidth === 3 ? 'selected' : ''}>3px</option>
+            </select>
+            <select id="ctx-border-style" class="text-[10px] p-0.5 border border-slate-300 rounded bg-white">
+              <option value="solid" ${boxData.borderStyle === 'solid' || !boxData.borderStyle ? 'selected' : ''}>Solid</option>
+              <option value="dashed" ${boxData.borderStyle === 'dashed' ? 'selected' : ''}>Dashed</option>
+              <option value="dotted" ${boxData.borderStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
+            </select>
+            <input type="color" id="ctx-border-color" value="${boxData.borderColor && boxData.borderColor !== 'transparent' ? boxData.borderColor : '#3b82f6'}" class="w-6 h-6 p-0 border border-slate-300 rounded cursor-pointer" />
+          </div>
+        </div>
+
+        <div class="w-full h-px bg-slate-200 my-0.5"></div>
+
+        <div class="grid grid-cols-2 gap-1.5">
+          <button type="button" class="ctx-btn justify-center" id="ctx-fit-w" title="Auto-Fit Width to Text Content">
+            <i class="fas fa-arrows-alt-h text-blue-600"></i> Fit Width
+          </button>
+          <button type="button" class="ctx-btn justify-center" id="ctx-fit-h" title="Auto-Fit Height to Text Content">
+            <i class="fas fa-arrows-alt-v text-blue-600"></i> Fit Height
+          </button>
+        </div>
+
+        <button type="button" class="ctx-btn" id="ctx-rotate">
+          <i class="fas fa-redo-alt text-amber-600"></i> Rotate 90°
+        </button>
+        <button type="button" class="ctx-btn" id="ctx-duplicate">
+          <i class="fas fa-clone text-indigo-600"></i> Duplicate Box
+        </button>
+        <button type="button" class="ctx-btn" id="ctx-repeat">
+          <i class="fas fa-copy text-purple-600"></i> ${boxData.pageIndex === 'all' ? 'Single Page Only' : 'Repeat All Pages'}
+        </button>
+
+        <div class="w-full h-px bg-slate-200 my-0.5"></div>
+
+        <button type="button" class="ctx-btn danger" id="ctx-delete">
+          <i class="fas fa-trash-alt"></i> Delete Box
+        </button>
+      `;
+
+      document.body.appendChild(popover);
+
+      popover.querySelector('#ctx-close-btn')?.addEventListener('click', closeBoxContextMenu);
+
+      popover.querySelector('#ctx-bg-color')?.addEventListener('input', (e) => {
+        saveBuilderState();
+        boxData.backgroundColor = e.target.value;
+        const boxEl = document.querySelector(`.floating-box-item[data-box-id="${boxId}"]`);
+        if (boxEl) {
+          if (boxData.shape === 'triangle') {
+            const poly = boxEl.querySelector('.triangle-svg-bg polygon');
+            if (poly) poly.setAttribute('fill', e.target.value);
+          } else {
+            boxEl.style.backgroundColor = e.target.value;
+          }
+        }
+      });
+
+      const updateBorder = () => {
+        saveBuilderState();
+        const w = parseInt(popover.querySelector('#ctx-border-width')?.value || '1', 10);
+        const s = popover.querySelector('#ctx-border-style')?.value || 'solid';
+        const c = popover.querySelector('#ctx-border-color')?.value || '#3b82f6';
+        boxData.borderWidth = w;
+        boxData.borderStyle = s;
+        boxData.borderColor = c;
+
+        const boxEl = document.querySelector(`.floating-box-item[data-box-id="${boxId}"]`);
+        if (boxEl) {
+          if (boxData.shape === 'triangle') {
+            const poly = boxEl.querySelector('.triangle-svg-bg polygon');
+            if (poly) {
+              poly.setAttribute('stroke', c);
+              poly.setAttribute('stroke-width', String(w));
+              poly.setAttribute('stroke-dasharray', s === 'dashed' ? '5,5' : (s === 'dotted' ? '2,2' : 'none'));
+            }
+          } else {
+            boxEl.style.borderWidth = `${w}px`;
+            boxEl.style.borderStyle = s;
+            boxEl.style.borderColor = c;
+          }
+        }
+      };
+
+      popover.querySelector('#ctx-border-width')?.addEventListener('change', updateBorder);
+      popover.querySelector('#ctx-border-style')?.addEventListener('change', updateBorder);
+      popover.querySelector('#ctx-border-color')?.addEventListener('input', updateBorder);
+
+      popover.querySelector('#ctx-fit-w')?.addEventListener('click', () => {
+        autoFitBoxWidth(boxId);
+      });
+      popover.querySelector('#ctx-fit-h')?.addEventListener('click', () => {
+        autoFitBoxHeight(boxId);
+      });
+
+      popover.querySelector('#ctx-rotate')?.addEventListener('click', () => {
+        saveBuilderState();
+        boxData.rotation = ((boxData.rotation || 0) + 90) % 360;
+        const boxEl = document.querySelector(`.floating-box-item[data-box-id="${boxId}"]`);
+        if (boxEl) boxEl.style.transform = `rotate(${boxData.rotation}deg)`;
+      });
+
+      popover.querySelector('#ctx-duplicate')?.addEventListener('click', () => {
+        saveBuilderState();
+        const dupBox = JSON.parse(JSON.stringify(boxData));
+        dupBox.id = `fbox_${Date.now()}`;
+        dupBox.x = (dupBox.x || 30) + 20;
+        dupBox.y = (dupBox.y || 20) + 20;
+        builderConfig.floatingBoxes.push(dupBox);
+        builderConfig.activeFloatingBoxId = dupBox.id;
+        closeBoxContextMenu();
+        renderExportTab();
+        setupExcelEngine();
+        setTimeout(() => selectFloatingBox(dupBox.id), 50);
+      });
+
+      popover.querySelector('#ctx-repeat')?.addEventListener('click', () => {
+        saveBuilderState();
+        boxData.pageIndex = (boxData.pageIndex === 'all') ? 0 : 'all';
+        closeBoxContextMenu();
+        renderExportTab();
+        setupExcelEngine();
+        setTimeout(() => selectFloatingBox(boxData.id), 50);
+        showToastNotification(boxData.pageIndex === 'all' ? 'Box will repeat on every page' : 'Box will appear on Page 1 only');
+      });
+
+      popover.querySelector('#ctx-delete')?.addEventListener('click', () => {
+        saveBuilderState();
+        builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== boxId);
+        builderConfig.activeFloatingBoxId = null;
+        closeBoxContextMenu();
+        renderExportTab();
+        setupExcelEngine();
+        showToastNotification('Box deleted');
+      });
+    };
+
     const attachTableFormatListeners = () => {
       const fInput = document.getElementById('formula-input');
       if (!fInput) return;
@@ -6196,6 +6473,19 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         window.__worksheetGlobalListenersBound = true;
 
         document.addEventListener('click', (e) => {
+          const menuBtn = e.target.closest('.box-bar-menu-btn');
+          if (menuBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const boxId = menuBtn.dataset.boxId;
+            openBoxContextMenu(boxId, menuBtn);
+            return;
+          }
+
+          if (!e.target.closest('#active-box-context-popover') && !e.target.closest('.box-bar-menu-btn')) {
+            closeBoxContextMenu();
+          }
+
           const delBtn = e.target.closest('.box-bar-del-btn');
           if (delBtn) {
             e.preventDefault();
@@ -6204,6 +6494,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             saveBuilderState();
             builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== boxId);
             builderConfig.activeFloatingBoxId = null;
+            closeBoxContextMenu();
             renderExportTab();
             setupExcelEngine();
             showToastNotification('Box deleted');
@@ -6211,6 +6502,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         });
 
         document.addEventListener('mousedown', (e) => {
+          if (e.target.closest('#active-box-context-popover') || e.target.closest('.box-bar-menu-btn')) {
+            return;
+          }
+
           const delBtn = e.target.closest('.box-bar-del-btn');
           if (delBtn) {
             e.preventDefault();
@@ -6219,6 +6514,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             saveBuilderState();
             builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== boxId);
             builderConfig.activeFloatingBoxId = null;
+            closeBoxContextMenu();
             renderExportTab();
             setupExcelEngine();
             showToastNotification('Box deleted');
