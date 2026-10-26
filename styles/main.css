@@ -1798,6 +1798,66 @@ body:has(#fee-page:not(.hidden)) main {
     margin: 0 auto !important;
 }
 
+/* Worksheet Full-Width Layout Across All Tabs on Desktop & Laptop */
+body[data-page-type="worksheet"] #official-app,
+body.collection-shell[data-page-type="worksheet"] #official-app,
+html[data-session-guard="worksheet"] #official-app {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body[data-page-type="worksheet"] header,
+body.collection-shell[data-page-type="worksheet"] header,
+html[data-session-guard="worksheet"] header {
+    max-width: 99vw !important;
+    width: 99vw !important;
+    margin: 10px auto !important;
+}
+
+body[data-page-type="worksheet"] main,
+body.collection-shell[data-page-type="worksheet"] main,
+html[data-session-guard="worksheet"] body main,
+#official-app main#app {
+    max-width: 99vw !important;
+    width: 99vw !important;
+    margin: 0 auto 10px auto !important;
+    padding: 0 !important;
+    flex-grow: 1;
+}
+
+body[data-page-type="worksheet"] #page-content,
+body[data-page-type="worksheet"] .official-tab,
+body[data-page-type="worksheet"] #official-tab-export,
+html[data-session-guard="worksheet"] #page-content,
+html[data-session-guard="worksheet"] .official-tab {
+    max-width: 100% !important;
+    width: 100% !important;
+}
+
+body.worksheet-fullscreen-mode header.no-print {
+    display: none !important;
+}
+
+body.worksheet-fullscreen-mode #official-app {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+body.worksheet-fullscreen-mode #official-app main#app,
+body.worksheet-fullscreen-mode #official-tab-export {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+}
+
 #master-ledger-page table th,
 #master-ledger-page table td,
 #fee-page table th,
