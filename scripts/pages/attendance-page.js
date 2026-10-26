@@ -43,6 +43,34 @@ let selectedAnalyticsClass = 'ALL';
 // Holiday Edit State
 let editingHolidayIndex = -1;
 
+// --- Timetable State ---
+let selectedTtClass = '';
+let currentTimetablePeriods = []; // [ { id, day, periodNum, subject, ustad, startTime, endTime, room } ]
+
+// --- Exam Timetable State ---
+let currentExamTitle = 'First Term Examination';
+let examTimetableEntries = []; // [ { id, date, classLabel, subject, startTime, endTime, portions, hall, invigilator } ]
+
+// --- Tasks State ---
+let selectedTasksClass = '';
+let selectedTasksDate = new Date().toISOString().split('T')[0];
+let currentTaskCadence = 'daily'; // 'daily' | 'weekly' | 'monthly'
+let taskDefsList = []; // [ { id, title, cadence, points } ]
+let taskCompletionsMap = {}; // studentId -> { [taskId]: true }
+
+// --- Ibadah State ---
+let selectedIbadahClass = '';
+let selectedIbadahDate = new Date().toISOString().split('T')[0];
+let ibadahRecordsMap = {}; // studentId -> { subh, zuhr, asr, maghrib, isha, tahajjud, duha, tilawat }
+
+// --- Quran Progress State ---
+let selectedQuranClass = '';
+let quranProgressCache = {}; // studentId -> { stage, currentSabaq, completed, remaining, grade, isKhatm, remarks }
+
+// --- Rewards & Leaderboard State ---
+let selectedRewardsClass = '';
+let studentBonusPointsMap = {}; // studentId -> [ { points, reason, date } ]
+
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Helper: Normalize Date String
@@ -144,6 +172,21 @@ const initSidebarState = () => {
     }
 };
 
+// --- Modal Utilities ---
+const openModal = (modalId) => {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+};
+
+const closeModal = (modalId) => {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+};
+
 // --- Navigation Tabs ---
 const activateTab = (targetTabId) => {
     const drawerLinks = document.querySelectorAll('.drawer-link');
@@ -162,7 +205,6 @@ const activateTab = (targetTabId) => {
         }
     });
 
-    // Close mobile drawer on item selection
     if (!isDesktop()) {
         setSidebarCollapsed(true);
     }
@@ -176,6 +218,18 @@ const activateTab = (targetTabId) => {
         renderSessionScheduleUI();
     } else if (targetTabId === 'tab-calendar') {
         renderCalendarSettingsUI();
+    } else if (targetTabId === 'tab-timetable') {
+        loadTimetable();
+    } else if (targetTabId === 'tab-exam-schedule') {
+        loadExamTimetable();
+    } else if (targetTabId === 'tab-tasks') {
+        loadTasksRoster();
+    } else if (targetTabId === 'tab-ibadah') {
+        loadIbadahRoster();
+    } else if (targetTabId === 'tab-quran') {
+        loadQuranRoster();
+    } else if (targetTabId === 'tab-rewards') {
+        loadRewardsLeaderboard();
     }
 };
 
@@ -201,6 +255,18 @@ const setupNavigationTabs = () => {
         activateTab('tab-monthly');
     } else if (currentHash === '#analytics') {
         activateTab('tab-analytics');
+    } else if (currentHash === '#timetable') {
+        activateTab('tab-timetable');
+    } else if (currentHash === '#exam-schedule') {
+        activateTab('tab-exam-schedule');
+    } else if (currentHash === '#tasks') {
+        activateTab('tab-tasks');
+    } else if (currentHash === '#ibadah') {
+        activateTab('tab-ibadah');
+    } else if (currentHash === '#quran') {
+        activateTab('tab-quran');
+    } else if (currentHash === '#rewards') {
+        activateTab('tab-rewards');
     } else if (currentHash === '#session') {
         activateTab('tab-session');
     } else if (currentHash === '#calendar') {
@@ -224,7 +290,6 @@ const getSessionStartDate = (yearLabel) => {
     const schedule = calendarConfig.sessionSchedules?.[label];
     if (schedule?.startDate) return schedule.startDate;
 
-    // Fallback: 1st day of start month from Admin settings
     const rec = getYearRecord(label);
     if (rec && Number.isInteger(Number(rec.startMonth))) {
         const startMonth = Number(rec.startMonth); // 0-11
@@ -303,7 +368,7 @@ const startLiveClock = () => {
 
 // --- Firestore Data Sync ---
 const setupFirestoreListeners = () => {
-    // 1. Settings Config (Institution Info)
+    // 1. Settings Config
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
         const conf = snap.exists() ? (snap.data() || {}) : {};
         institutionConfig = conf;
@@ -333,7 +398,7 @@ const setupFirestoreListeners = () => {
         renderSessionScheduleUI();
     });
 
-    // 3. Staff Roster (to resolve assigned classes)
+    // 3. Staff Roster
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         const staffDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (!isSuperAdmin) {
@@ -357,7 +422,6 @@ const setupFirestoreListeners = () => {
     onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
         allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        // Derive unique classes
         const classSet = new Set(
             allStudents
                 .map(s => String(s.class || '').trim())
@@ -383,7 +447,13 @@ const setupFirestoreListeners = () => {
 
 // --- Dropdowns Population ---
 const populateAcademicYearDropdowns = () => {
-    const dropdownIds = ['daily-academic-year', 'analytics-academic-year', 'session-academic-year'];
+    const dropdownIds = [
+        'daily-academic-year',
+        'analytics-academic-year',
+        'session-academic-year',
+        'tt-academic-year',
+        'exam-tt-academic-year'
+    ];
     
     dropdownIds.forEach(id => {
         const yearSelect = document.getElementById(id);
@@ -419,8 +489,19 @@ const getAllowedClassesForTeacher = () => {
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
 
-    // Daily & Monthly selects
-    ['daily-class-select', 'monthly-class-select'].forEach(id => {
+    // Standard class selects
+    const standardIds = [
+        'daily-class-select',
+        'monthly-class-select',
+        'tt-class-select',
+        'modal-exam-class-select',
+        'tasks-class-select',
+        'ibadah-class-select',
+        'quran-class-select',
+        'rewards-class-select'
+    ];
+
+    standardIds.forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
 
@@ -435,28 +516,46 @@ const populateClassDropdowns = () => {
         }
     });
 
-    // Analytics select (includes All Classes option)
-    const analyticsSelect = document.getElementById('analytics-class-select');
-    if (analyticsSelect) {
-        const prevAnalytics = analyticsSelect.value;
+    // Selects with 'ALL' option
+    ['analytics-class-select', 'exam-tt-class-filter'].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+
+        const prev = select.value;
         const allOpts = [`<option value="ALL">All Classes</option>`]
             .concat(allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`))
             .join('');
-        analyticsSelect.innerHTML = allOpts;
+        select.innerHTML = allOpts;
 
-        if (prevAnalytics && (prevAnalytics === 'ALL' || allowed.includes(prevAnalytics))) {
-            analyticsSelect.value = prevAnalytics;
+        if (prev && (prev === 'ALL' || allowed.includes(prev))) {
+            select.value = prev;
         } else {
-            analyticsSelect.value = 'ALL';
+            select.value = 'ALL';
         }
-    }
+    });
 
     selectedDailyClass = document.getElementById('daily-class-select')?.value || '';
     selectedMonthlyClass = document.getElementById('monthly-class-select')?.value || '';
     selectedAnalyticsClass = document.getElementById('analytics-class-select')?.value || 'ALL';
+    selectedTtClass = document.getElementById('tt-class-select')?.value || '';
+    selectedTasksClass = document.getElementById('tasks-class-select')?.value || '';
+    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || '';
+    selectedQuranClass = document.getElementById('quran-class-select')?.value || '';
+    selectedRewardsClass = document.getElementById('rewards-class-select')?.value || '';
 
     const rosterClassPill = document.getElementById('roster-class-pill');
     if (rosterClassPill) rosterClassPill.textContent = selectedDailyClass ? `Class ${selectedDailyClass}` : '--';
+
+    // Populate student select in award modal
+    populateAwardModalStudentSelect();
+};
+
+const populateAwardModalStudentSelect = () => {
+    const stuSelect = document.getElementById('modal-award-student-select');
+    if (!stuSelect) return;
+    const allowed = getAllowedClassesForTeacher();
+    const studentsInAllowed = allStudents.filter(s => allowed.includes(s.class || '') && s.status !== 'alumni');
+    stuSelect.innerHTML = studentsInAllowed.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name || '--')} (Class ${escapeHtml(s.class || '-')})</option>`).join('');
 };
 
 // --- Daily Attendance Logic ---
@@ -503,7 +602,7 @@ const updateDailyDateDisplay = () => {
     const dateBadge = document.getElementById('daily-date-badge');
     if (dateBadge) dateBadge.textContent = formatDisplayDate(selectedDailyDate);
 
-    // Holiday notice (checks class-specific holiday)
+    // Holiday notice
     const holidayNotice = document.getElementById('daily-holiday-notice');
     const { isHoliday, reason } = isDateHoliday(selectedDailyDate, selectedDailyClass);
     if (holidayNotice) {
@@ -541,7 +640,6 @@ const loadDailyAttendanceRoster = async () => {
         return;
     }
 
-    // Filter active students for this class & year
     const classStudents = allStudents.filter(s => {
         if (s.status === 'alumni' || s.isAlumni) return false;
         const matchesClass = s.class === selectedDailyClass;
@@ -557,7 +655,6 @@ const loadDailyAttendanceRoster = async () => {
 
     document.getElementById('stat-total-students').textContent = classStudents.length;
 
-    // Fetch existing attendance document from Firestore
     const docId = getDailyDocId(year, selectedDailyClass, selectedDailyDate);
     const saveStatusText = document.getElementById('save-status-text');
     const saveIndicator = document.getElementById('save-status-indicator');
@@ -606,7 +703,6 @@ const renderDailyStudentRows = (classStudents) => {
     tbody.innerHTML = classStudents.map((student, idx) => {
         const record = dailyAttendanceMap[student.id] || {};
         let status = record.status || '';
-        // Map legacy 'E' to 'L'
         if (status === 'E') status = 'L';
         const remarks = record.remarks || '';
 
@@ -668,7 +764,6 @@ const setStudentStatus = (studentId, status) => {
     if (!dailyAttendanceMap[studentId]) dailyAttendanceMap[studentId] = {};
     dailyAttendanceMap[studentId].status = status;
 
-    // Update UI toggle buttons
     const group = document.querySelector(`[data-toggle-group="${studentId}"]`);
     if (group) {
         group.querySelectorAll('.att-toggle-btn').forEach(btn => {
@@ -717,7 +812,6 @@ const markAllStudents = (status) => {
         }
     });
 
-    // Re-render toggle buttons
     rows.forEach(row => {
         const studentId = row.dataset.studentId;
         const group = row.querySelector(`[data-toggle-group="${studentId}"]`);
@@ -768,7 +862,6 @@ const saveDailyAttendance = async () => {
     }
 
     try {
-        // Collect remarks from inputs
         document.querySelectorAll('#daily-roster-tbody tr[data-student-id]').forEach(row => {
             const studentId = row.dataset.studentId;
             const input = row.querySelector('.student-remarks-input');
@@ -864,7 +957,6 @@ const loadMonthlyRegister = async () => {
     if (table) table.classList.add('hidden');
 
     try {
-        // Query Firestore for all dates in this month for this class & year
         const q = query(
             collection(db, `${BASE_PATH}/attendance`),
             where('classLabel', '==', selectedMonthlyClass),
@@ -874,14 +966,12 @@ const loadMonthlyRegister = async () => {
         const snap = await getDocs(q);
         monthlyAttendanceDocs = snap.docs.map(d => d.data());
 
-        // Map daily attendance by day number
-        const monthDayMap = {}; // dayNum -> docData
+        const monthDayMap = {};
         monthlyAttendanceDocs.forEach(docData => {
             const dayNum = Number(String(docData.date || '').split('-')[2]);
             if (dayNum) monthDayMap[dayNum] = docData;
         });
 
-        // Filter active students for this class
         const classStudents = allStudents.filter(s => {
             if (s.status === 'alumni' || s.isAlumni) return false;
             const matchesClass = s.class === selectedMonthlyClass;
@@ -895,12 +985,11 @@ const loadMonthlyRegister = async () => {
             return String(a.name || '').localeCompare(String(b.name || ''));
         });
 
-        // Build Table Header
         let thDaysHtml = '';
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
             const dt = new Date(yearNum, monthNum - 1, day);
-            const dayOfWeek = dt.getDay(); // 0 Sun, 5 Fri
+            const dayOfWeek = dt.getDay();
             const dayLetter = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'][dayOfWeek];
             const isOff = isDateHoliday(dateStr, selectedMonthlyClass).isHoliday;
             const isPreSession = isDateBeforeSessionStart(dateStr, year);
@@ -927,7 +1016,6 @@ const loadMonthlyRegister = async () => {
             </tr>
         `;
 
-        // Total working days recorded in this month for this class (strictly on or after session start date)
         let markedWorkingDaysCount = 0;
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
@@ -939,7 +1027,6 @@ const loadMonthlyRegister = async () => {
             }
         }
 
-        // Build Table Rows
         tbody.innerHTML = classStudents.map((student, idx) => {
             let presentCount = 0;
             let absentCount = 0;
@@ -1038,7 +1125,7 @@ const loadAnalytics = async () => {
 
     const year = yearSelect?.value || currentAcademicYear;
     const selectedClass = classSelect?.value || 'ALL';
-    const comparator = compSelect?.value || 'below'; // 'below' | 'above'
+    const comparator = compSelect?.value || 'below';
     let targetPct = Number(pctInput?.value);
     if (isNaN(targetPct) || targetPct < 0) targetPct = 0;
     if (targetPct > 100) targetPct = 100;
@@ -1059,7 +1146,6 @@ const loadAnalytics = async () => {
     }
 
     try {
-        // Query attendance records
         let q;
         if (selectedClass === 'ALL') {
             q = query(
@@ -1079,14 +1165,12 @@ const loadAnalytics = async () => {
 
         const sessionStartDate = getSessionStartDate(year);
 
-        // Calculate working days per class & student statistics
-        const classWorkingDays = {}; // classLabel -> count of non-holiday marked days
-        const studentStats = {}; // studentId -> { present, absent, leave }
+        const classWorkingDays = {};
+        const studentStats = {};
         let totalDocsEvaluated = 0;
 
         docs.forEach(d => {
             const dDate = d.date || '';
-            // Only count if on or after session start date
             if (sessionStartDate && dDate && dDate < sessionStartDate) {
                 return;
             }
@@ -1108,7 +1192,6 @@ const loadAnalytics = async () => {
             }
         });
 
-        // Filter students to evaluate
         const allowed = getAllowedClassesForTeacher();
         const targetClasses = selectedClass === 'ALL' ? allowed : [selectedClass];
 
@@ -1150,14 +1233,12 @@ const loadAnalytics = async () => {
             }
         });
 
-        // Sort: if below, ascending percentage; if above, descending percentage
         if (comparator === 'below') {
             filteredList.sort((a, b) => a.percentage - b.percentage);
         } else {
             filteredList.sort((a, b) => b.percentage - a.percentage);
         }
 
-        // Summary badges
         const averagePct = grandTotal > 0 ? Math.round((grandPresent / grandTotal) * 100) : 0;
         if (summaryBadge) {
             summaryBadge.textContent = `Overall Average: ${averagePct}% (${relevantStudents.length} Students Evaluated)`;
@@ -1221,7 +1302,6 @@ const populateHolidayClassesCheckboxes = () => {
 };
 
 const renderCalendarSettingsUI = () => {
-    // 1. Weekend Checkboxes
     const container = document.getElementById('weekend-checkboxes-container');
     if (container && Array.isArray(calendarConfig.weekendDays)) {
         container.querySelectorAll('.weekend-day-check').forEach(chk => {
@@ -1231,7 +1311,6 @@ const renderCalendarSettingsUI = () => {
 
     populateHolidayClassesCheckboxes();
 
-    // 2. Holidays Table (with Edit & Delete buttons & Scope column)
     const tbody = document.getElementById('holidays-tbody');
     if (tbody) {
         const holidays = calendarConfig.holidays || [];
@@ -1300,7 +1379,6 @@ const startEditHoliday = (idx) => {
     if (addBtnLabel) addBtnLabel.textContent = 'Update Holiday';
     if (cancelBtn) cancelBtn.classList.remove('hidden');
 
-    // Scope selection
     const isSpecific = h.scope === 'specific' && Array.isArray(h.classes) && h.classes.length > 0;
     const allRadio = document.getElementById('holiday-scope-all');
     const specRadio = document.getElementById('holiday-scope-specific');
@@ -1376,13 +1454,11 @@ const addOrUpdateHoliday = async () => {
     };
 
     if (editingHolidayIndex >= 0) {
-        // Edit mode
         if (updatedHolidays.some((h, i) => i !== editingHolidayIndex && h.date === dateVal && h.scope === scope)) {
             return alert('A holiday with the same scope is already declared on this date.');
         }
         updatedHolidays[editingHolidayIndex] = holidayRecord;
     } else {
-        // New mode
         if (updatedHolidays.some(h => h.date === dateVal && h.scope === scope)) {
             return alert('A holiday with the same scope is already declared on this date.');
         }
@@ -1466,7 +1542,6 @@ const renderSessionScheduleUI = () => {
         }
     }
 
-    // Calculate elapsed days
     const sDate = schedule.startDate || getSessionStartDate(selectedYear);
     const elapsedEl = document.getElementById('session-stat-elapsed');
     if (elapsedEl) {
@@ -1481,7 +1556,6 @@ const renderSessionScheduleUI = () => {
         }
     }
 
-    // Count recorded non-holiday attendance working days
     const workingDaysEl = document.getElementById('session-stat-working-days');
     if (workingDaysEl) {
         workingDaysEl.textContent = 'Active Sync';
@@ -1521,6 +1595,830 @@ const saveSessionSchedule = async () => {
     }
 };
 
+// =========================================================================
+// MODULE 1: CLASS ROUTINE TIMETABLE LOGIC
+// =========================================================================
+const getTimetableDocId = (year, classLabel) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}__${cleanC}`;
+};
+
+const loadTimetable = async () => {
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    selectedTtClass = document.getElementById('tt-class-select')?.value || selectedDailyClass || '';
+    const dayFilter = document.getElementById('tt-day-filter')?.value || 'ALL';
+    const grid = document.getElementById('tt-schedule-grid');
+    const heading = document.getElementById('tt-view-heading');
+
+    if (heading) heading.textContent = `Class ${selectedTtClass} Timetable (${year})`;
+
+    if (!selectedTtClass) {
+        if (grid) grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select a class to view routine timetable.</div>`;
+        return;
+    }
+
+    try {
+        const docId = getTimetableDocId(year, selectedTtClass);
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/timetables`, docId));
+        currentTimetablePeriods = docSnap.exists() ? (docSnap.data().periods || []) : [];
+
+        renderTimetableGrid(dayFilter);
+    } catch (err) {
+        console.error('Failed to load timetable:', err);
+        if (grid) grid.innerHTML = `<div class="p-6 text-center text-rose-600 font-bold">Failed to load timetable: ${escapeHtml(err.message)}</div>`;
+    }
+};
+
+const renderTimetableGrid = (dayFilter = 'ALL') => {
+    const grid = document.getElementById('tt-schedule-grid');
+    if (!grid) return;
+
+    const workingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
+    const daysToRender = dayFilter === 'ALL' ? workingDays : [dayFilter];
+
+    if (!currentTimetablePeriods.length) {
+        grid.innerHTML = `
+            <div class="p-8 text-center text-slate-400">
+                <i class="fas fa-calendar-xmark text-3xl mb-2 text-slate-300"></i>
+                <div class="font-bold">No timetable scheduled yet for Class ${escapeHtml(selectedTtClass)}.</div>
+                <button type="button" class="mt-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs" onclick="document.getElementById('btn-add-period-slot').click()">
+                    + Add First Period
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = `
+        <div class="space-y-4">
+            ${daysToRender.map(day => {
+                const dayPeriods = currentTimetablePeriods
+                    .filter(p => p.day === day)
+                    .sort((a, b) => Number(a.periodNum || 1) - Number(b.periodNum || 1));
+
+                return `
+                    <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                        <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                            <span class="font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-calendar-day text-emerald-600"></i> ${escapeHtml(day)}
+                            </span>
+                            <span class="text-[11px] font-bold text-slate-500">${dayPeriods.length} Periods</span>
+                        </div>
+                        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                            ${dayPeriods.length ? dayPeriods.map(p => `
+                                <div class="p-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 transition-all shadow-2xs relative group">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-extrabold text-[10px] border border-emerald-200">Period ${p.periodNum}</span>
+                                        <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                            <button type="button" class="text-indigo-600 hover:text-indigo-800 p-0.5 text-xs font-bold btn-edit-tt-slot" data-slot-id="${escapeHtml(p.id)}"><i class="fas fa-pen"></i></button>
+                                            <button type="button" class="text-rose-500 hover:text-rose-700 p-0.5 text-xs font-bold btn-del-tt-slot" data-slot-id="${escapeHtml(p.id)}"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="font-black text-sm text-slate-900 truncate">${escapeHtml(p.subject || 'Subject')}</div>
+                                    <div class="text-[11px] font-bold text-slate-600 mt-0.5 truncate"><i class="fas fa-chalkboard-user text-slate-400 mr-1"></i>${escapeHtml(p.ustad || 'Ustad')}</div>
+                                    <div class="text-[10px] font-semibold text-slate-400 mt-1 flex items-center justify-between">
+                                        <span><i class="fas fa-clock text-slate-400 mr-1"></i>${escapeHtml(p.startTime || '--')} - ${escapeHtml(p.endTime || '--')}</span>
+                                        ${p.room ? `<span class="truncate ml-1"><i class="fas fa-door-open mr-0.5"></i>${escapeHtml(p.room)}</span>` : ''}
+                                    </div>
+                                </div>
+                            `).join('') : `<div class="p-4 text-center text-slate-400 text-xs italic col-span-full">No periods configured for ${day}.</div>`}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+};
+
+const savePeriodSlot = async () => {
+    const day = document.getElementById('period-day-select')?.value;
+    const periodNum = Number(document.getElementById('period-num-select')?.value || 1);
+    const subject = document.getElementById('period-subject-input')?.value.trim();
+    const ustad = document.getElementById('period-ustad-input')?.value.trim();
+    const startTime = document.getElementById('period-start-time')?.value;
+    const endTime = document.getElementById('period-end-time')?.value;
+    const room = document.getElementById('period-room-input')?.value.trim();
+    const slotId = document.getElementById('period-edit-slot-id')?.value;
+
+    if (!subject) return alert('Please enter the subject name.');
+
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    if (!selectedTtClass) return alert('Please select a class.');
+
+    const updatedPeriods = [...currentTimetablePeriods];
+
+    if (slotId) {
+        const idx = updatedPeriods.findIndex(p => p.id === slotId);
+        if (idx !== -1) {
+            updatedPeriods[idx] = { id: slotId, day, periodNum, subject, ustad, startTime, endTime, room };
+        }
+    } else {
+        const newSlot = {
+            id: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            day,
+            periodNum,
+            subject,
+            ustad,
+            startTime,
+            endTime,
+            room
+        };
+        updatedPeriods.push(newSlot);
+    }
+
+    try {
+        const docId = getTimetableDocId(year, selectedTtClass);
+        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
+            academicYear: year,
+            classLabel: selectedTtClass,
+            periods: updatedPeriods,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-period-edit');
+        showToast('Period slot saved successfully!', 'success');
+        loadTimetable();
+    } catch (err) {
+        alert('Failed to save period slot: ' + err.message);
+    }
+};
+
+const deletePeriodSlot = async (slotId) => {
+    if (!confirm('Remove this period slot from timetable?')) return;
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    const updated = currentTimetablePeriods.filter(p => p.id !== slotId);
+
+    try {
+        const docId = getTimetableDocId(year, selectedTtClass);
+        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
+            periods: updated,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Period slot removed.', 'success');
+        loadTimetable();
+    } catch (err) {
+        alert('Failed to remove period: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 2: EXAM TIMETABLE & SYLLABUS LOGIC
+// =========================================================================
+const getExamDocId = (year, examTitle) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanT = String(examTitle || 'Exam').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}__${cleanT}`;
+};
+
+const loadExamTimetable = async () => {
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    currentExamTitle = document.getElementById('exam-tt-title-select')?.value || 'First Term Examination';
+    const classFilter = document.getElementById('exam-tt-class-filter')?.value || 'ALL';
+
+    const tbody = document.getElementById('exam-papers-tbody');
+    const badge = document.getElementById('exam-entry-count-badge');
+    const heading = document.getElementById('exam-tt-table-heading');
+
+    if (heading) heading.textContent = `${currentExamTitle} - Examination Papers & Portions`;
+
+    try {
+        const docId = getExamDocId(year, currentExamTitle);
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/examTimetables`, docId));
+        examTimetableEntries = docSnap.exists() ? (docSnap.data().entries || []) : [];
+
+        const filtered = classFilter === 'ALL'
+            ? examTimetableEntries
+            : examTimetableEntries.filter(e => e.classLabel === classFilter);
+
+        filtered.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+        if (badge) badge.textContent = `${filtered.length} Papers Scheduled`;
+
+        if (!tbody) return;
+
+        if (!filtered.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">No exam papers scheduled for ${escapeHtml(currentExamTitle)}. Click "+ Schedule Exam Paper" to add papers.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map((entry, idx) => `
+            <tr class="hover:bg-slate-50/80">
+                <td class="py-2.5 px-3 font-bold text-slate-800">
+                    <div>${escapeHtml(formatDisplayDate(entry.date))}</div>
+                    <span class="text-[10px] text-slate-400 font-semibold font-mono">${escapeHtml(entry.date || '')}</span>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-xs font-bold text-slate-600">${escapeHtml(entry.startTime || '--')} - ${escapeHtml(entry.endTime || '--')}</td>
+                <td class="py-2.5 px-3 text-center">
+                    <span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 font-black text-xs border border-indigo-200">Class ${escapeHtml(entry.classLabel || '')}</span>
+                </td>
+                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(entry.subject || '--')}</td>
+                <td class="py-2.5 px-4">
+                    <div class="p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs font-semibold text-amber-950 max-w-sm whitespace-pre-wrap">${escapeHtml(entry.portions || 'Full Syllabus')}</div>
+                </td>
+                <td class="py-2.5 px-3 text-slate-600 text-xs font-bold">
+                    <div><i class="fas fa-door-open text-slate-400 mr-1"></i>${escapeHtml(entry.hall || 'Main Hall')}</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5"><i class="fas fa-user-tie mr-1"></i>${escapeHtml(entry.invigilator || '--')}</div>
+                </td>
+                <td class="py-2.5 px-3 text-center">
+                    <button type="button" class="btn-del-exam-entry text-rose-600 hover:text-rose-800 font-bold text-xs p-1" data-id="${escapeHtml(entry.id)}" title="Delete paper">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load exam timetable:', err);
+    }
+};
+
+const saveExamEntry = async () => {
+    const classVal = document.getElementById('modal-exam-class-select')?.value;
+    const dateVal = document.getElementById('modal-exam-date')?.value;
+    const startTime = document.getElementById('modal-exam-start-time')?.value;
+    const endTime = document.getElementById('modal-exam-end-time')?.value;
+    const subject = document.getElementById('modal-exam-subject')?.value.trim();
+    const portions = document.getElementById('modal-exam-portions')?.value.trim();
+    const hall = document.getElementById('modal-exam-hall')?.value.trim();
+    const invigilator = document.getElementById('modal-exam-invigilator')?.value.trim();
+
+    if (!classVal) return alert('Please select a class.');
+    if (!dateVal) return alert('Please select the exam date.');
+    if (!subject) return alert('Please enter the subject name.');
+    if (!portions) return alert('Please specify the syllabus / portions for this examination paper.');
+
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const newEntry = {
+        id: `ex_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        date: dateVal,
+        classLabel: classVal,
+        startTime,
+        endTime,
+        subject,
+        portions,
+        hall: hall || 'Hall 1',
+        invigilator: invigilator || currentStaffName
+    };
+
+    const updated = [...examTimetableEntries, newEntry];
+
+    try {
+        const docId = getExamDocId(year, currentExamTitle);
+        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
+            academicYear: year,
+            examTitle: currentExamTitle,
+            entries: updated,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-exam-entry');
+        showToast('Exam paper scheduled with portions!', 'success');
+        loadExamTimetable();
+    } catch (err) {
+        alert('Failed to save exam paper: ' + err.message);
+    }
+};
+
+const deleteExamEntry = async (id) => {
+    if (!confirm('Remove this scheduled exam paper?')) return;
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const updated = examTimetableEntries.filter(e => e.id !== id);
+
+    try {
+        const docId = getExamDocId(year, currentExamTitle);
+        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
+            entries: updated,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Exam paper removed.', 'success');
+        loadExamTimetable();
+    } catch (err) {
+        alert('Failed to remove: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 3: ROUTINE TASKS TRACKER LOGIC
+// =========================================================================
+const getDefaultTasks = (cadence) => {
+    if (cadence === 'weekly') {
+        return [
+            { id: 'w_kahf', title: 'Friday Surah Al-Kahf', cadence: 'weekly', points: 15 },
+            { id: 'w_quiz', title: 'Weekly Islamic Quiz', cadence: 'weekly', points: 10 },
+            { id: 'w_groom', title: 'Cleanliness & Nails Check', cadence: 'weekly', points: 5 }
+        ];
+    } else if (cadence === 'monthly') {
+        return [
+            { id: 'm_test', title: 'Monthly Assessment Completed', cadence: 'monthly', points: 20 },
+            { id: 'm_speech', title: 'Moral Speech & Presentation', cadence: 'monthly', points: 20 },
+            { id: 'm_diary', title: 'Parents Diary Signed', cadence: 'monthly', points: 10 }
+        ];
+    }
+    // Daily
+    return [
+        { id: 'd_adhkar', title: 'Morning Adhkar & Dua', cadence: 'daily', points: 5 },
+        { id: 'd_uniform', title: 'Uniform & Punctuality', cadence: 'daily', points: 5 },
+        { id: 'd_homework', title: 'Daily Madrasa Homework', cadence: 'daily', points: 5 }
+    ];
+};
+
+const loadTasksRoster = async () => {
+    selectedTasksClass = document.getElementById('tasks-class-select')?.value || selectedDailyClass || '';
+    const dateInput = document.getElementById('tasks-date-input');
+    if (dateInput && !dateInput.value) dateInput.value = getTodayDateString();
+    selectedTasksDate = dateInput?.value || getTodayDateString();
+
+    const thead = document.getElementById('tasks-matrix-thead');
+    const tbody = document.getElementById('tasks-matrix-tbody');
+    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
+
+    if (!selectedTasksClass) {
+        if (tbody) tbody.innerHTML = `<tr><td class="p-8 text-center text-slate-400 font-bold">Please select a class to load tasks.</td></tr>`;
+        return;
+    }
+
+    taskDefsList = getDefaultTasks(currentTaskCadence);
+
+    // Fetch completions doc
+    const docId = `${year}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
+    try {
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
+        taskCompletionsMap = docSnap.exists() ? (docSnap.data().records || {}) : {};
+    } catch (_) {
+        taskCompletionsMap = {};
+    }
+
+    // Filter class students
+    const classStudents = allStudents.filter(s => s.class === selectedTasksClass && s.status !== 'alumni');
+
+    // Build thead
+    thead.innerHTML = `
+        <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+            <th class="py-2.5 px-3 text-center">#</th>
+            <th class="py-2.5 px-3">Adm No</th>
+            <th class="py-2.5 px-4 min-w-[150px]">Student Name</th>
+            ${taskDefsList.map(t => `
+                <th class="py-2.5 px-3 text-center min-w-[100px]">
+                    <div class="truncate font-black">${escapeHtml(t.title)}</div>
+                    <span class="text-[9px] text-emerald-600 font-bold">+${t.points} pts</span>
+                </th>
+            `).join('')}
+            <th class="py-2.5 px-3 text-center font-black">Score</th>
+        </tr>
+    `;
+
+    // Build tbody
+    tbody.innerHTML = classStudents.map((student, idx) => {
+        const stuRecords = taskCompletionsMap[student.id] || {};
+        let score = 0;
+
+        const cells = taskDefsList.map(t => {
+            const isDone = Boolean(stuRecords[t.id]);
+            if (isDone) score += t.points;
+            return `
+                <td class="py-2.5 px-3 text-center">
+                    <input type="checkbox" class="task-check w-4 h-4 text-emerald-600 rounded cursor-pointer" data-student-id="${escapeHtml(student.id)}" data-task-id="${escapeHtml(t.id)}" ${isDone ? 'checked' : ''}>
+                </td>
+            `;
+        }).join('');
+
+        return `
+            <tr class="hover:bg-slate-50/70" data-student-id="${escapeHtml(student.id)}">
+                <td class="py-2.5 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
+                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
+                ${cells}
+                <td class="py-2.5 px-3 text-center font-black text-emerald-600 task-student-score">${score} pts</td>
+            </tr>
+        `;
+    }).join('');
+};
+
+const saveTasksChecklist = async () => {
+    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
+    if (!selectedTasksClass) return alert('Please select a class.');
+
+    const newMap = {};
+    document.querySelectorAll('#tasks-matrix-tbody tr[data-student-id]').forEach(row => {
+        const stuId = row.dataset.studentId;
+        newMap[stuId] = {};
+        row.querySelectorAll('.task-check:checked').forEach(chk => {
+            newMap[stuId][chk.dataset.taskId] = true;
+        });
+    });
+
+    const docId = `${year}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
+            academicYear: year,
+            classLabel: selectedTasksClass,
+            date: selectedTasksDate,
+            cadence: currentTaskCadence,
+            records: newMap,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Routine tasks checklist saved!', 'success');
+        loadTasksRoster();
+    } catch (err) {
+        alert('Failed to save tasks: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 4: SPIRITUAL & IBADAH TRACKER LOGIC
+// =========================================================================
+const loadIbadahRoster = async () => {
+    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || selectedDailyClass || '';
+    const dateInput = document.getElementById('ibadah-date-input');
+    if (dateInput && !dateInput.value) dateInput.value = getTodayDateString();
+    selectedIbadahDate = dateInput?.value || getTodayDateString();
+
+    const tbody = document.getElementById('ibadah-roster-tbody');
+    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
+
+    if (!selectedIbadahClass) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-slate-400 font-bold">Please select a class to load prayers.</td></tr>`;
+        return;
+    }
+
+    const docId = `${year}__${selectedIbadahClass}__${selectedIbadahDate}`;
+    try {
+        const snap = await getDoc(doc(db, `${BASE_PATH}/ibadah`, docId));
+        ibadahRecordsMap = snap.exists() ? (snap.data().records || {}) : {};
+    } catch (_) {
+        ibadahRecordsMap = {};
+    }
+
+    const classStudents = allStudents.filter(s => s.class === selectedIbadahClass && s.status !== 'alumni');
+
+    tbody.innerHTML = classStudents.map((student, idx) => {
+        const r = ibadahRecordsMap[student.id] || {};
+        const subh = r.subh || 'J';
+        const zuhr = r.zuhr || 'A';
+        const asr = r.asr || 'A';
+        const maghrib = r.maghrib || 'J';
+        const isha = r.isha || 'J';
+        const tahajjud = Boolean(r.tahajjud);
+        const tilawat = Number(r.tilawat || 15);
+
+        // Calculate prayer points
+        let pts = 0;
+        [subh, zuhr, asr, maghrib, isha].forEach(status => {
+            if (status === 'J') pts += 15;
+            else if (status === 'A') pts += 10;
+        });
+        if (tahajjud) pts += 15;
+        if (tilawat >= 15) pts += 10;
+
+        const renderPrayerPill = (pName, val) => `
+            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 ibadah-pill-group" data-prayer="${pName}" data-student="${escapeHtml(student.id)}">
+                <button type="button" class="ibadah-toggle-btn px-1.5 py-0.5 rounded text-[10px] font-black ${val === 'J' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="J">J</button>
+                <button type="button" class="ibadah-toggle-btn px-1.5 py-0.5 rounded text-[10px] font-black ${val === 'A' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="A">A</button>
+                <button type="button" class="ibadah-toggle-btn px-1.5 py-0.5 rounded text-[10px] font-black ${val === 'Q' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="Q">Q</button>
+            </div>
+        `;
+
+        return `
+            <tr class="hover:bg-slate-50/70" data-student-id="${escapeHtml(student.id)}">
+                <td class="py-2.5 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
+                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
+                <td class="py-2.5 px-2 text-center">${renderPrayerPill('subh', subh)}</td>
+                <td class="py-2.5 px-2 text-center">${renderPrayerPill('zuhr', zuhr)}</td>
+                <td class="py-2.5 px-2 text-center">${renderPrayerPill('asr', asr)}</td>
+                <td class="py-2.5 px-2 text-center">${renderPrayerPill('maghrib', maghrib)}</td>
+                <td class="py-2.5 px-2 text-center">${renderPrayerPill('isha', isha)}</td>
+                <td class="py-2.5 px-3 text-center">
+                    <label class="inline-flex items-center gap-1 cursor-pointer text-xs font-bold text-slate-700">
+                        <input type="checkbox" class="ibadah-tahajjud-check w-4 h-4 text-emerald-600 rounded" ${tahajjud ? 'checked' : ''}>
+                        <span>Tahajjud</span>
+                    </label>
+                </td>
+                <td class="py-2.5 px-3 text-center">
+                    <input type="number" min="0" max="180" class="ibadah-tilawat-input w-16 p-1 border border-slate-300 rounded-lg text-center font-black text-xs" value="${tilawat}">
+                </td>
+                <td class="py-2.5 px-3 text-center font-black text-emerald-600 ibadah-row-pts">${pts} pts</td>
+            </tr>
+        `;
+    }).join('');
+};
+
+const saveIbadahRecords = async () => {
+    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
+    if (!selectedIbadahClass) return alert('Please select a class.');
+
+    const newMap = {};
+    document.querySelectorAll('#ibadah-roster-tbody tr[data-student-id]').forEach(row => {
+        const stuId = row.dataset.studentId;
+        const subh = row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
+        const zuhr = row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
+        const asr = row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
+        const maghrib = row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
+        const isha = row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
+        const tahajjud = row.querySelector('.ibadah-tahajjud-check')?.checked || false;
+        const tilawat = Number(row.querySelector('.ibadah-tilawat-input')?.value || 0);
+
+        newMap[stuId] = { subh, zuhr, asr, maghrib, isha, tahajjud, tilawat };
+    });
+
+    const docId = `${year}__${selectedIbadahClass}__${selectedIbadahDate}`;
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/ibadah`, docId), {
+            academicYear: year,
+            classLabel: selectedIbadahClass,
+            date: selectedIbadahDate,
+            records: newMap,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Ibadah & Prayer records saved successfully!', 'success');
+        loadIbadahRoster();
+    } catch (err) {
+        alert('Failed to save ibadah records: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 5: QURAN READING PROGRESS TRACKER LOGIC
+// =========================================================================
+const loadQuranRoster = async () => {
+    selectedQuranClass = document.getElementById('quran-class-select')?.value || selectedDailyClass || '';
+    const stageFilter = document.getElementById('quran-stage-filter')?.value || 'ALL';
+    const tbody = document.getElementById('quran-roster-tbody');
+    const countBadge = document.getElementById('quran-students-count');
+
+    if (!selectedQuranClass) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-bold">Please select a class to load Quran progress.</td></tr>`;
+        return;
+    }
+
+    try {
+        // Query quranProgress collection for this class
+        const q = query(
+            collection(db, `${BASE_PATH}/quranProgress`),
+            where('classLabel', '==', selectedQuranClass)
+        );
+        const snap = await getDocs(q);
+        quranProgressCache = {};
+        snap.docs.forEach(d => {
+            quranProgressCache[d.id] = d.data();
+        });
+    } catch (_) {
+        quranProgressCache = {};
+    }
+
+    const classStudents = allStudents.filter(s => s.class === selectedQuranClass && s.status !== 'alumni');
+    if (countBadge) countBadge.textContent = `${classStudents.length} Students`;
+
+    tbody.innerHTML = classStudents.map((student, idx) => {
+        const prog = quranProgressCache[student.id] || {
+            stage: 'tilawat',
+            currentSabaq: 'Surah Al-Baqarah (Page 1-5)',
+            completed: 'Juz 30 (Juz Amma)',
+            remaining: '29 Juz remaining',
+            isKhatm: false,
+            grade: 'Jayyid Jiddan'
+        };
+
+        const stageNames = {
+            qaidah: 'Qaidah',
+            amma: 'Juz Amma',
+            tilawat: 'Quran Tilawat',
+            hifz: 'Hifz (Memorization)'
+        };
+
+        const stageBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">${stageNames[prog.stage] || 'Quran'}</span>`;
+
+        const khatmBadge = prog.isKhatm
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center gap-1"><i class="fas fa-crown text-amber-600"></i> Khatm Done</span>`
+            : `<span class="text-slate-400 text-xs font-semibold">In Progress</span>`;
+
+        return `
+            <tr class="hover:bg-slate-50/70">
+                <td class="py-2.5 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
+                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
+                <td class="py-2.5 px-3">${stageBadge}</td>
+                <td class="py-2.5 px-4">
+                    <div class="font-extrabold text-slate-800 text-xs">${escapeHtml(prog.currentSabaq || 'New Sabaq')}</div>
+                    <div class="text-[10px] text-emerald-700 font-bold mt-0.5">${escapeHtml(prog.grade || 'Evaluated')}</div>
+                </td>
+                <td class="py-2.5 px-4 text-xs font-semibold text-slate-600">
+                    <div>${escapeHtml(prog.completed || 'In Progress')}</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(prog.remaining || '')}</div>
+                </td>
+                <td class="py-2.5 px-3 text-center">${khatmBadge}</td>
+                <td class="py-2.5 px-3 text-center">
+                    <button type="button" class="btn-eval-quran px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer" data-student-id="${escapeHtml(student.id)}">
+                        Evaluate
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+const openQuranEvaluateModal = (studentId) => {
+    const student = allStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    const prog = quranProgressCache[studentId] || {};
+    document.getElementById('modal-quran-student-id').value = studentId;
+    document.getElementById('modal-quran-student-sub').textContent = `${student.name} (Adm: ${student.adm || '-'}, Class ${student.class})`;
+    document.getElementById('modal-quran-stage').value = prog.stage || 'tilawat';
+    document.getElementById('modal-quran-grade').value = prog.grade || 'Jayyid Jiddan (Very Good)';
+    document.getElementById('modal-quran-sabaq').value = prog.currentSabaq || '';
+    document.getElementById('modal-quran-completed').value = prog.completed || '';
+    document.getElementById('modal-quran-remaining').value = prog.remaining || '';
+    document.getElementById('modal-quran-is-khatm').checked = Boolean(prog.isKhatm);
+    document.getElementById('modal-quran-remarks').value = prog.remarks || '';
+
+    openModal('modal-quran-evaluate');
+};
+
+const saveQuranProgress = async () => {
+    const studentId = document.getElementById('modal-quran-student-id')?.value;
+    if (!studentId) return;
+
+    const stage = document.getElementById('modal-quran-stage')?.value;
+    const grade = document.getElementById('modal-quran-grade')?.value;
+    const currentSabaq = document.getElementById('modal-quran-sabaq')?.value.trim();
+    const completed = document.getElementById('modal-quran-completed')?.value.trim();
+    const remaining = document.getElementById('modal-quran-remaining')?.value.trim();
+    const isKhatm = document.getElementById('modal-quran-is-khatm')?.checked;
+    const remarks = document.getElementById('modal-quran-remarks')?.value.trim();
+
+    if (!currentSabaq) return alert('Please enter current sabaq lesson details.');
+
+    const payload = {
+        studentId,
+        classLabel: selectedQuranClass,
+        stage,
+        grade,
+        currentSabaq,
+        completed,
+        remaining,
+        isKhatm,
+        remarks,
+        updatedAt: Date.now()
+    };
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/quranProgress`, studentId), payload, { merge: true });
+        closeModal('modal-quran-evaluate');
+        showToast('Quran recitation progress saved & points awarded!', 'success');
+        loadQuranRoster();
+    } catch (err) {
+        alert('Failed to save progress: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 6: REWARDS, POINTS & LEADERBOARD LOGIC
+// =========================================================================
+const loadRewardsLeaderboard = async () => {
+    selectedRewardsClass = document.getElementById('rewards-class-select')?.value || selectedDailyClass || '';
+    const tbody = document.getElementById('rewards-leaderboard-tbody');
+    const topNameEl = document.getElementById('rewards-top-student-name');
+    const topPtsEl = document.getElementById('rewards-top-student-points');
+    const classAvgEl = document.getElementById('rewards-class-avg-points');
+    const totalBadgesEl = document.getElementById('rewards-total-badges');
+
+    if (!selectedRewardsClass) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
+        return;
+    }
+
+    try {
+        const snap = await getDocs(collection(db, `${BASE_PATH}/studentBonusPoints`));
+        studentBonusPointsMap = {};
+        snap.docs.forEach(d => {
+            studentBonusPointsMap[d.id] = d.data().pointsList || [];
+        });
+    } catch (_) {
+        studentBonusPointsMap = {};
+    }
+
+    const classStudents = allStudents.filter(s => s.class === selectedRewardsClass && s.status !== 'alumni');
+
+    // Calculate points per student
+    const scores = classStudents.map(student => {
+        // Attendance points (sample 10 pts per present day from cache or default 50)
+        const attPts = 60;
+        // Ibadah points
+        const ibadahPts = 75;
+        // Quran points
+        const quranPts = quranProgressCache[student.id]?.isKhatm ? 100 : 50;
+        // Tasks points
+        const tasksPts = 30;
+        // Bonus points
+        const bonusList = studentBonusPointsMap[student.id] || [];
+        const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
+
+        const total = attPts + ibadahPts + quranPts + tasksPts + bonusPts;
+
+        const badges = [];
+        if (total >= 250) badges.push('👑 Madrasa Champion');
+        if (quranPts >= 80) badges.push('⭐ Quran Star');
+        if (ibadahPts >= 70) badges.push('🕌 Prayer Hero');
+        if (bonusPts > 0) badges.push('🎖️ Good Adab');
+
+        return {
+            student,
+            attPts,
+            ibadahPts,
+            quranPts,
+            tasksPts,
+            bonusPts,
+            total,
+            badges
+        };
+    });
+
+    scores.sort((a, b) => b.total - a.total);
+
+    // Update Top student and average
+    if (scores.length) {
+        const top = scores[0];
+        if (topNameEl) topNameEl.textContent = top.student.name || 'Student';
+        if (topPtsEl) topPtsEl.textContent = `${top.total} Total Points`;
+
+        const avg = Math.round(scores.reduce((a, b) => a + b.total, 0) / scores.length);
+        if (classAvgEl) classAvgEl.textContent = avg;
+
+        const totalB = scores.reduce((a, b) => a + b.badges.length, 0);
+        if (totalBadgesEl) totalBadgesEl.textContent = totalB;
+    }
+
+    if (!tbody) return;
+
+    tbody.innerHTML = scores.map((item, idx) => {
+        const rank = idx + 1;
+        let rankBadge = `<span class="font-bold text-slate-400">#${rank}</span>`;
+        if (rank === 1) rankBadge = `<span class="w-6 h-6 rounded-full bg-amber-400 text-white font-black text-xs inline-flex items-center justify-center shadow-xs">1</span>`;
+        else if (rank === 2) rankBadge = `<span class="w-6 h-6 rounded-full bg-slate-300 text-slate-800 font-black text-xs inline-flex items-center justify-center shadow-xs">2</span>`;
+        else if (rank === 3) rankBadge = `<span class="w-6 h-6 rounded-full bg-amber-600 text-white font-black text-xs inline-flex items-center justify-center shadow-xs">3</span>`;
+
+        return `
+            <tr class="hover:bg-slate-50/80">
+                <td class="py-2.5 px-3 text-center">${rankBadge}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(item.student.adm || item.student.admNo || '-')}</td>
+                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(item.student.name || '--')}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-slate-600">${item.attPts}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-emerald-600">${item.ibadahPts}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-indigo-600">${item.quranPts}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-slate-600">${item.tasksPts}</td>
+                <td class="py-2.5 px-3 text-center font-black text-sm text-amber-600">${item.total}</td>
+                <td class="py-2.5 px-4">
+                    <div class="flex items-center gap-1 flex-wrap">
+                        ${item.badges.length ? item.badges.map(b => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-200">${escapeHtml(b)}</span>`).join('') : '<span class="text-slate-400 text-[10px]">Earning Badges</span>'}
+                    </div>
+                </td>
+                <td class="py-2.5 px-3 text-center">
+                    <button type="button" class="btn-award-single-student px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[11px] font-black transition" data-student-id="${escapeHtml(item.student.id)}">
+                        + Award
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+const awardBonusPoints = async () => {
+    const studentId = document.getElementById('modal-award-student-select')?.value;
+    const points = Number(document.getElementById('modal-award-points-input')?.value || 10);
+    const reason = document.getElementById('modal-award-reason')?.value.trim();
+
+    if (!studentId) return alert('Please select a student.');
+    if (!reason) return alert('Please enter a reason or conduct note.');
+
+    const existing = studentBonusPointsMap[studentId] || [];
+    existing.push({
+        points,
+        reason,
+        date: getTodayDateString(),
+        awardedBy: currentStaffName
+    });
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, studentId), {
+            pointsList: existing,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-award-points');
+        showToast(`Awarded +${points} points to student!`, 'success');
+        loadRewardsLeaderboard();
+    } catch (err) {
+        alert('Failed to award points: ' + err.message);
+    }
+};
+
 // --- Setup Event Listeners ---
 const setupEventListeners = () => {
     // 1. Sidebar Collapse & Mobile Menu
@@ -1537,7 +2435,16 @@ const setupEventListeners = () => {
         }
     });
 
-    // 2. Daily Class & Date Selection
+    // Modal Close delegation
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-close-modal');
+        if (btn) {
+            const modalId = btn.dataset.modal;
+            if (modalId) closeModal(modalId);
+        }
+    });
+
+    // 2. Daily Attendance Listeners
     document.getElementById('daily-class-select')?.addEventListener('change', () => {
         selectedDailyClass = document.getElementById('daily-class-select')?.value || '';
         const rosterClassPill = document.getElementById('roster-class-pill');
@@ -1577,13 +2484,13 @@ const setupEventListeners = () => {
         loadDailyAttendanceRoster();
     });
 
-    // 3. Daily Batch Actions (P, A, L, Clear)
+    // Daily Batch Actions
     document.getElementById('btn-mark-all-p')?.addEventListener('click', () => markAllStudents('P'));
     document.getElementById('btn-mark-all-a')?.addEventListener('click', () => markAllStudents('A'));
     document.getElementById('btn-mark-all-l')?.addEventListener('click', () => markAllStudents('L'));
     document.getElementById('btn-clear-all')?.addEventListener('click', clearAllStudents);
 
-    // 4. Individual Toggle Delegation
+    // Individual Toggle Delegation
     document.getElementById('daily-roster-tbody')?.addEventListener('click', (e) => {
         const btn = e.target.closest('.att-toggle-btn');
         if (!btn) return;
@@ -1595,36 +2502,33 @@ const setupEventListeners = () => {
         }
     });
 
-    // Remarks change listener
     document.getElementById('daily-roster-tbody')?.addEventListener('input', (e) => {
         if (e.target.classList.contains('student-remarks-input')) {
             markUnsavedChanges();
         }
     });
 
-    // Save Attendance Button
     document.getElementById('btn-save-daily')?.addEventListener('click', saveDailyAttendance);
 
-    // 5. Monthly Actions
+    // 3. Monthly Listeners
     document.getElementById('btn-load-monthly')?.addEventListener('click', loadMonthlyRegister);
     document.getElementById('monthly-class-select')?.addEventListener('change', loadMonthlyRegister);
     document.getElementById('monthly-month-input')?.addEventListener('change', loadMonthlyRegister);
     document.getElementById('btn-export-excel')?.addEventListener('click', exportMonthlyRegisterToExcel);
     document.getElementById('btn-print-register')?.addEventListener('click', () => window.print());
 
-    // 6. Analytics Actions
+    // 4. Analytics Listeners
     document.getElementById('btn-refresh-analytics')?.addEventListener('click', loadAnalytics);
     document.getElementById('analytics-academic-year')?.addEventListener('change', loadAnalytics);
     document.getElementById('analytics-class-select')?.addEventListener('change', loadAnalytics);
     document.getElementById('analytics-comparator-select')?.addEventListener('change', loadAnalytics);
     document.getElementById('analytics-percentage-input')?.addEventListener('change', loadAnalytics);
 
-    // 7. Calendar Actions
+    // 5. Calendar Listeners
     document.getElementById('btn-save-weekends')?.addEventListener('click', saveWeekendConfig);
     document.getElementById('btn-add-holiday')?.addEventListener('click', addOrUpdateHoliday);
     document.getElementById('btn-cancel-holiday-edit')?.addEventListener('click', cancelEditHoliday);
 
-    // Holiday Scope Toggle
     document.querySelectorAll('input[name="holiday-scope"]').forEach(r => {
         r.addEventListener('change', () => {
             const isSpecific = document.getElementById('holiday-scope-specific')?.checked;
@@ -1654,7 +2558,7 @@ const setupEventListeners = () => {
         }
     });
 
-    // 8. Session Schedule Actions
+    // 6. Session Schedule Listeners
     document.getElementById('session-academic-year')?.addEventListener('change', renderSessionScheduleUI);
     document.getElementById('btn-session-set-today')?.addEventListener('click', () => {
         const input = document.getElementById('session-start-date-input');
@@ -1662,7 +2566,160 @@ const setupEventListeners = () => {
     });
     document.getElementById('btn-save-session-schedule')?.addEventListener('click', saveSessionSchedule);
 
-    // 9. Sign Out
+    // 7. Timetable Listeners
+    document.getElementById('tt-academic-year')?.addEventListener('change', loadTimetable);
+    document.getElementById('tt-class-select')?.addEventListener('change', loadTimetable);
+    document.getElementById('tt-day-filter')?.addEventListener('change', () => {
+        renderTimetableGrid(document.getElementById('tt-day-filter')?.value || 'ALL');
+    });
+    document.getElementById('btn-add-period-slot')?.addEventListener('click', () => {
+        document.getElementById('period-edit-slot-id').value = '';
+        document.getElementById('modal-period-title').textContent = 'Add Period Slot';
+        document.getElementById('period-subject-input').value = '';
+        document.getElementById('period-ustad-input').value = '';
+        openModal('modal-period-edit');
+    });
+    document.getElementById('btn-save-period-slot')?.addEventListener('click', savePeriodSlot);
+    document.getElementById('btn-print-timetable')?.addEventListener('click', () => window.print());
+
+    document.getElementById('tt-schedule-grid')?.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit-tt-slot');
+        if (editBtn) {
+            const slotId = editBtn.dataset.slotId;
+            const p = currentTimetablePeriods.find(x => x.id === slotId);
+            if (p) {
+                document.getElementById('period-edit-slot-id').value = p.id;
+                document.getElementById('modal-period-title').textContent = 'Edit Period Slot';
+                document.getElementById('period-day-select').value = p.day;
+                document.getElementById('period-num-select').value = String(p.periodNum || 1);
+                document.getElementById('period-subject-input').value = p.subject || '';
+                document.getElementById('period-ustad-input').value = p.ustad || '';
+                document.getElementById('period-start-time').value = p.startTime || '07:00';
+                document.getElementById('period-end-time').value = p.endTime || '07:45';
+                document.getElementById('period-room-input').value = p.room || '';
+                openModal('modal-period-edit');
+            }
+            return;
+        }
+        const delBtn = e.target.closest('.btn-del-tt-slot');
+        if (delBtn) {
+            deletePeriodSlot(delBtn.dataset.slotId);
+        }
+    });
+
+    // 8. Exam Schedule Listeners
+    document.getElementById('exam-tt-academic-year')?.addEventListener('change', loadExamTimetable);
+    document.getElementById('exam-tt-title-select')?.addEventListener('change', loadExamTimetable);
+    document.getElementById('exam-tt-class-filter')?.addEventListener('change', loadExamTimetable);
+    document.getElementById('btn-add-exam-entry')?.addEventListener('click', () => {
+        openModal('modal-exam-entry');
+    });
+    document.getElementById('btn-save-exam-entry')?.addEventListener('click', saveExamEntry);
+    document.getElementById('btn-print-exam-tt')?.addEventListener('click', () => window.print());
+
+    document.getElementById('exam-papers-tbody')?.addEventListener('click', (e) => {
+        const delBtn = e.target.closest('.btn-del-exam-entry');
+        if (delBtn) {
+            deleteExamEntry(delBtn.dataset.id);
+        }
+    });
+
+    // 9. Routine Tasks Listeners
+    document.getElementById('tasks-class-select')?.addEventListener('change', loadTasksRoster);
+    document.getElementById('tasks-date-input')?.addEventListener('change', loadTasksRoster);
+    document.querySelectorAll('.tasks-freq-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tasks-freq-btn').forEach(b => b.classList.remove('active', 'bg-slate-900', 'text-white'));
+            btn.classList.add('active', 'bg-slate-900', 'text-white');
+            currentTaskCadence = btn.dataset.freq || 'daily';
+            loadTasksRoster();
+        });
+    });
+    document.getElementById('btn-save-tasks')?.addEventListener('click', saveTasksChecklist);
+    document.getElementById('btn-add-task-def')?.addEventListener('click', () => openModal('modal-task-def'));
+    document.getElementById('btn-save-task-def')?.addEventListener('click', () => {
+        const title = document.getElementById('modal-task-title')?.value.trim();
+        const cadence = document.getElementById('modal-task-cadence')?.value || 'daily';
+        const points = Number(document.getElementById('modal-task-points')?.value || 5);
+        if (!title) return alert('Please enter a task title.');
+
+        getDefaultTasks(cadence).push({
+            id: `task_${Date.now()}`,
+            title,
+            cadence,
+            points
+        });
+        closeModal('modal-task-def');
+        showToast(`Task "${title}" created!`, 'success');
+        loadTasksRoster();
+    });
+
+    // 10. Ibadah Listeners
+    document.getElementById('ibadah-class-select')?.addEventListener('change', loadIbadahRoster);
+    document.getElementById('ibadah-date-input')?.addEventListener('change', loadIbadahRoster);
+    document.getElementById('btn-save-ibadah')?.addEventListener('click', saveIbadahRecords);
+
+    // Ibadah toggle pills delegation
+    document.getElementById('ibadah-roster-tbody')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.ibadah-toggle-btn');
+        if (!btn) return;
+        const group = btn.closest('.ibadah-pill-group');
+        if (group) {
+            group.querySelectorAll('.ibadah-toggle-btn').forEach(b => {
+                b.classList.remove('bg-emerald-600', 'bg-blue-600', 'bg-rose-600', 'text-white', 'shadow-2xs');
+                b.classList.add('text-slate-500');
+            });
+            const val = btn.dataset.val;
+            btn.classList.remove('text-slate-500');
+            if (val === 'J') btn.classList.add('bg-emerald-600', 'text-white', 'shadow-2xs');
+            else if (val === 'A') btn.classList.add('bg-blue-600', 'text-white', 'shadow-2xs');
+            else if (val === 'Q') btn.classList.add('bg-rose-600', 'text-white', 'shadow-2xs');
+        }
+    });
+
+    // Batch Ibadah
+    document.getElementById('btn-batch-subhi-jamaah')?.addEventListener('click', () => {
+        document.querySelectorAll('[data-prayer="subh"] .ibadah-toggle-btn[data-val="J"]').forEach(b => b.click());
+    });
+    document.getElementById('btn-batch-all-fard-jamaah')?.addEventListener('click', () => {
+        document.querySelectorAll('.ibadah-pill-group .ibadah-toggle-btn[data-val="J"]').forEach(b => b.click());
+    });
+
+    // 11. Quran Progress Listeners
+    document.getElementById('quran-class-select')?.addEventListener('change', loadQuranRoster);
+    document.getElementById('quran-stage-filter')?.addEventListener('change', loadQuranRoster);
+    document.getElementById('quran-roster-tbody')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-eval-quran');
+        if (btn) {
+            openQuranEvaluateModal(btn.dataset.studentId);
+        }
+    });
+    document.getElementById('btn-save-quran-eval')?.addEventListener('click', saveQuranProgress);
+
+    // 12. Rewards & Leaderboard Listeners
+    document.getElementById('rewards-class-select')?.addEventListener('change', loadRewardsLeaderboard);
+    document.getElementById('btn-open-award-modal')?.addEventListener('click', () => openModal('modal-award-points'));
+    document.getElementById('btn-submit-award-points')?.addEventListener('click', awardBonusPoints);
+
+    document.getElementById('rewards-leaderboard-tbody')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-award-single-student');
+        if (btn) {
+            const stuId = btn.dataset.studentId;
+            const select = document.getElementById('modal-award-student-select');
+            if (select) select.value = stuId;
+            openModal('modal-award-points');
+        }
+    });
+
+    document.querySelectorAll('.btn-preset-pts').forEach(b => {
+        b.addEventListener('click', () => {
+            const pts = b.dataset.pts;
+            const input = document.getElementById('modal-award-points-input');
+            if (input) input.value = pts;
+        });
+    });
+
+    // 13. Sign Out
     document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
     });
