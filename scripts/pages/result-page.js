@@ -18,17 +18,32 @@ let resultSchemas = [];
 let examResultsCache = [];
 let resultCenterSettings = { publishAt: '', examLabel: '', locked: false };
 let institutionConfig = {};
-let currentAcademicYear = '';
+const getInitialAcademicYear = () => {
+    try {
+        const cached = localStorage.getItem('app_current_academic_year') || localStorage.getItem('current_academic_year');
+        if (cached) return cached;
+    } catch (_) {}
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    return currentMonth >= 4 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+};
+let currentAcademicYear = getInitialAcademicYear();
 let availableAcademicYears = [];
 let allStaff = [];
 let currentDraftFilter = 'all';
 let currentPublishedFilter = 'all';
 let viewingResultId = '';
-window.addEventListener('load', () => {
+
+const dismissLoadingScreen = () => {
     const loader = document.getElementById('loading-screen');
-    if (!loader) return;
+    if (!loader || loader.style.display === 'none') return;
     loader.style.opacity = '0';
-    setTimeout(() => { loader.style.display = 'none'; }, 300);
+    setTimeout(() => { loader.style.display = 'none'; }, 200);
+};
+
+window.addEventListener('load', () => {
+    dismissLoadingScreen();
 });
 
 const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
@@ -515,16 +530,137 @@ const computeLiveGradeBadge = (val = '', maxMarks = 100, passMarks = 35) => {
     return { text: 'PASS', badgeClass: 'grade-badge-p' };
 };
 
-// --- Authentication & Guard (Username Based) ---
+// --- Access Controls & Live Session Guards ---
+function grantResultAccess(accessInfo) {
+    hasResultAccess = true;
+    const sessionStaffAccess = window.AppSession?.getStaffAccess?.() || {};
+    const isFullAdmin = isCurrentAdmin || accessInfo?.isAdmin || sessionStaffAccess?.actLikeSuperAdmin === true || sessionStaffAccess?.canAccessAdmin === true;
+    roleScope = isFullAdmin ? 'admin' : 'staff';
+    currentStaffDoc = (accessInfo && typeof accessInfo === 'object') ? accessInfo.staffDoc : null;
+
+    // Extract assigned classes
+    if (isFullAdmin) {
+        teacherAssignedClasses = [];
+    } else {
+        teacherAssignedClasses = getStaffAssignedClasses(currentStaffDoc, sessionStaffAccess);
+    }
+
+    document.getElementById('access-denied-block')?.classList.add('hidden');
+    document.getElementById('page-content')?.classList.remove('hidden');
+
+    const displayName = typeof accessInfo === 'string' ? accessInfo : (accessInfo?.label || window.AppSession?.getStaffName?.() || 'RESULT OPERATOR');
+    const staffDisplay = document.getElementById('staff-name-display');
+    if (staffDisplay) staffDisplay.textContent = displayName;
+
+    const roleBadge = document.getElementById('staff-role-badge');
+    if (roleBadge) {
+        roleBadge.textContent = sessionStaffAccess?.actLikeSuperAdmin
+            ? 'Super Administrator'
+            : (currentStaffDoc?.role || currentStaffDoc?.designation || currentStaffDoc?.type || sessionStaffAccess?.role || (isFullAdmin ? 'Administrator' : 'Class Teacher'));
+    }
+
+    // Teacher assigned banner in Overview
+    const banner = document.getElementById('teacher-assigned-banner');
+    const bannerText = document.getElementById('teacher-assigned-classes-text');
+    if (banner && bannerText) {
+        if (!isFullAdmin && teacherAssignedClasses.length > 0) {
+            bannerText.textContent = teacherAssignedClasses.join(', ');
+            banner.classList.remove('hidden');
+        } else if (!isFullAdmin) {
+            bannerText.textContent = 'All Classes (General Teacher Access)';
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+
+    applyRoleTabVisibility();
+    
+    if (!window.isResultInitialized) {
+        initializeDataListeners();
+        window.isResultInitialized = true;
+    } else {
+        if (typeof populateDropdowns === 'function') populateDropdowns();
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof renderPublishedDraftTables === 'function') {
+            renderPublishedDraftTables();
+        }
+    }
+}
+
+function denyResultAccess() {
+    hasResultAccess = false;
+    document.getElementById('access-denied-block')?.classList.remove('hidden');
+    document.getElementById('page-content')?.classList.add('hidden');
+}
+
+function applyRoleTabVisibility() {
+    // Toggle nav items, subpanels, and controls scoped to admin-only
+    const adminOnlyNavItems = Array.from(document.querySelectorAll('[data-role-scope="admin-only"]:not(.page-content)'));
+    adminOnlyNavItems.forEach((item) => item.classList.toggle('hidden', roleScope !== 'admin'));
+
+    if (roleScope !== 'admin') {
+        const adminSections = document.querySelectorAll('.page-content[data-role-scope="admin-only"], .settings-subpanel[data-role-scope="admin-only"]');
+        adminSections.forEach((section) => section.classList.add('hidden'));
+
+        const activeTab = document.querySelector('.tab-link.active');
+        const activeTarget = activeTab?.dataset?.target || '';
+        const blockedTargets = new Set(['published-page', 'report-cards-page', 'snapshot-page']);
+        if (blockedTargets.has(activeTarget)) {
+            const dashboardLink = document.querySelector('.tab-link[data-target="dashboard-page"]');
+            dashboardLink?.click();
+        }
+
+        // If settings page is active, ensure a teacher-accessible subpanel is visible
+        const settingsPage = document.getElementById('settings-page');
+        if (settingsPage && !settingsPage.classList.contains('hidden')) {
+            const activeSubpanel = document.querySelector('.settings-subpanel:not(.hidden)');
+            if (!activeSubpanel || activeSubpanel.id === 'subpanel-publish' || activeSubpanel.id === 'subpanel-promotion') {
+                if (typeof activateSettingsSubpanel === 'function') {
+                    activateSettingsSubpanel('subpanel-subjects');
+                }
+            }
+        }
+    }
+}
+
+// Immediate Synchronous Session Bootstrap from Local Session Cache (Instant Refresh)
+const bootstrapSessionAccess = () => {
+    if (window.AppSession && window.AppSession.isFresh()) {
+        const sessionStaffAccess = window.AppSession?.getStaffAccess?.() || {};
+        const sessionRole = window.AppSession?.getRole?.() || '';
+        const isFullAdmin = (sessionRole === 'admin')
+            || (sessionStaffAccess?.actLikeSuperAdmin === true)
+            || (sessionStaffAccess?.canAccessAdmin === true)
+            || (sessionStaffAccess?.admin === true);
+
+        const hasResult = isFullAdmin || sessionStaffAccess?.result === true || sessionStaffAccess?.canManageResults === true;
+        if (hasResult) {
+            isCurrentAdmin = isFullAdmin;
+            grantResultAccess({
+                isAdmin: isFullAdmin,
+                label: window.AppSession?.getStaffName?.() || (isFullAdmin ? 'ADMINISTRATOR' : 'RESULT OPERATOR'),
+                staffDoc: sessionStaffAccess
+            });
+        }
+    }
+};
+
+bootstrapSessionAccess();
+
+// --- Authentication & Guard (Username Based) in Background ---
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
-        try {
-            await signInAnonymously(auth);
-            return;
-        } catch (_err) {
-            window.location.replace('index.html');
-            return;
+        if (window.AppSession && window.AppSession.isFresh()) {
+            try {
+                await signInAnonymously(auth);
+                return;
+            } catch (_err) {
+                console.warn('Anonymous session recovery failed', _err);
+            }
         }
+        window.location.replace('index.html');
+        return;
     }
 
     // Get login ID (Username) from current session, exactly like collection-page.js
@@ -556,100 +692,10 @@ onAuthStateChanged(auth, async (user) => {
         
     } catch (e) {
         console.error("Auth check failed", e);
-        denyResultAccess();
+        if (!hasResultAccess) denyResultAccess();
     }
 });
 
-const grantResultAccess = (accessInfo) => {
-    hasResultAccess = true;
-    const sessionStaffAccess = window.AppSession?.getStaffAccess?.() || {};
-    const isFullAdmin = isCurrentAdmin || accessInfo?.isAdmin || sessionStaffAccess?.actLikeSuperAdmin === true || sessionStaffAccess?.canAccessAdmin === true;
-    roleScope = isFullAdmin ? 'admin' : 'staff';
-    currentStaffDoc = (accessInfo && typeof accessInfo === 'object') ? accessInfo.staffDoc : null;
-
-    // Extract assigned classes
-    if (isFullAdmin) {
-        teacherAssignedClasses = [];
-    } else {
-        teacherAssignedClasses = getStaffAssignedClasses(currentStaffDoc, sessionStaffAccess);
-    }
-
-    document.getElementById('access-denied-block').classList.add('hidden');
-    document.getElementById('page-content').classList.remove('hidden');
-
-    const displayName = typeof accessInfo === 'string' ? accessInfo : (accessInfo?.label || window.AppSession?.getStaffName?.() || 'RESULT OPERATOR');
-    document.getElementById('staff-name-display').textContent = displayName;
-
-    const roleBadge = document.getElementById('staff-role-badge');
-    if (roleBadge) {
-        roleBadge.textContent = sessionStaffAccess?.actLikeSuperAdmin
-            ? 'Super Administrator'
-            : (currentStaffDoc?.role || currentStaffDoc?.designation || currentStaffDoc?.type || sessionStaffAccess?.role || (isFullAdmin ? 'Administrator' : 'Class Teacher'));
-    }
-
-    // Teacher assigned banner in Overview
-    const banner = document.getElementById('teacher-assigned-banner');
-    const bannerText = document.getElementById('teacher-assigned-classes-text');
-    if (banner && bannerText) {
-        if (!isFullAdmin && teacherAssignedClasses.length > 0) {
-            bannerText.textContent = teacherAssignedClasses.join(', ');
-            banner.classList.remove('hidden');
-        } else if (!isFullAdmin) {
-            bannerText.textContent = 'All Classes (General Teacher Access)';
-            banner.classList.remove('hidden');
-        } else {
-            banner.classList.add('hidden');
-        }
-    }
-
-    applyRoleTabVisibility();
-    
-    if (!window.isResultInitialized) {
-        initializeDataListeners();
-        window.isResultInitialized = true;
-    } else {
-        populateDropdowns();
-        updateDashboard();
-        if (typeof renderPublishedDraftTables === 'function') {
-            renderPublishedDraftTables();
-        }
-    }
-};
-
-const denyResultAccess = () => {
-    hasResultAccess = false;
-    document.getElementById('access-denied-block').classList.remove('hidden');
-    document.getElementById('page-content').classList.add('hidden');
-};
-const applyRoleTabVisibility = () => {
-    // Toggle nav items, subpanels, and controls scoped to admin-only
-    const adminOnlyNavItems = Array.from(document.querySelectorAll('[data-role-scope="admin-only"]:not(.page-content)'));
-    adminOnlyNavItems.forEach((item) => item.classList.toggle('hidden', roleScope !== 'admin'));
-
-    if (roleScope !== 'admin') {
-        const adminSections = document.querySelectorAll('.page-content[data-role-scope="admin-only"], .settings-subpanel[data-role-scope="admin-only"]');
-        adminSections.forEach((sec) => sec.classList.add('hidden'));
-
-        const activeTab = document.querySelector('.tab-link.active');
-        const activeTarget = activeTab?.dataset?.target || '';
-        const blockedTargets = new Set(['published-page', 'report-cards-page', 'snapshot-page']);
-        if (blockedTargets.has(activeTarget)) {
-            const dashboardLink = document.querySelector('.tab-link[data-target="dashboard-page"]');
-            dashboardLink?.click();
-        }
-
-        // If settings page is active, ensure a teacher-accessible subpanel is visible
-        const settingsPage = document.getElementById('settings-page');
-        if (settingsPage && !settingsPage.classList.contains('hidden')) {
-            const activeSubpanel = document.querySelector('.settings-subpanel:not(.hidden)');
-            if (!activeSubpanel || activeSubpanel.id === 'subpanel-publish' || activeSubpanel.id === 'subpanel-promotion') {
-                if (typeof activateSettingsSubpanel === 'function') {
-                    activateSettingsSubpanel('subpanel-subjects');
-                }
-            }
-        }
-    }
-};
 
 document.getElementById('logout-btn')?.addEventListener('click', () => {
     signOut(auth).then(async () => {
@@ -816,7 +862,7 @@ if (window.location.hash) {
 
 
 // --- Data Listeners ---
-const initializeDataListeners = () => {
+function initializeDataListeners() {
     const scheduleRefresh = debounce(() => {
         try {
             populateDropdowns();
@@ -827,13 +873,32 @@ const initializeDataListeners = () => {
             if (typeof renderPublishedDraftTables === 'function') {
                 renderPublishedDraftTables();
             }
+            const activeReportCards = document.getElementById('report-cards-page');
+            if (activeReportCards && !activeReportCards.classList.contains('hidden')) {
+                if (typeof updateReportPreview === 'function') updateReportPreview();
+            }
+            const activeMarks = document.getElementById('marks-page');
+            if (activeMarks && !activeMarks.classList.contains('hidden')) {
+                const classSelect = document.getElementById('entry-class-select');
+                const examSelect = document.getElementById('entry-exam-select');
+                if (classSelect?.value && examSelect?.value && typeof loadMarksTable === 'function') {
+                    loadMarksTable();
+                }
+            }
+            dismissLoadingScreen();
         } catch (error) {
             reportFatalResultError(error, 'scheduleRefresh');
         }
     }, 150);
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const payload = snap.exists() ? snap.data() : {};
-        currentAcademicYear = payload.currentYear || '';
+        if (payload.currentYear) {
+            currentAcademicYear = payload.currentYear;
+            try {
+                localStorage.setItem('app_current_academic_year', currentAcademicYear);
+                localStorage.setItem('current_academic_year', currentAcademicYear);
+            } catch (_) {}
+        }
         const rawYears = Array.isArray(payload.years) ? payload.years.filter(Boolean) : (payload.currentYear ? [payload.currentYear] : []);
         availableAcademicYears = rawYears.filter((y) => {
             if (typeof y === 'object' && y !== null) {
@@ -1505,7 +1570,7 @@ const populateReportYears = () => {
     el.innerHTML = `<option value="">-- Select Academic Year --</option>` + source.map((year) => `<option value="${escapeHtml(year)}">${escapeHtml(year)}</option>`).join('');
     el.value = previous && source.includes(previous) ? previous : (source[0] || '');
 };
-const populateDropdowns = () => {
+function populateDropdowns() {
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
     const teacherAllowedClasses = isTeacherScope ? classes.filter((c) => teacherAssignedClasses.includes(c)) : classes;
     const entryClassOpts = `<option value="">-- Choose Class --</option>` + teacherAllowedClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -1574,7 +1639,7 @@ const populateDropdowns = () => {
 };
 
 // --- Dashboard ---
-const updateDashboard = () => {
+function updateDashboard() {
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
     const targetClasses = isTeacherScope ? classes.filter(c => teacherAssignedClasses.includes(c)) : classes;
     const yearStudents = students.filter((s) => (!isTeacherScope || teacherAssignedClasses.includes(s.class)) && (s.academicYear === currentAcademicYear || !s.academicYear) && String(s.class || '').trim().toLowerCase() !== 'alumni' && s.status !== 'alumni' && s.status !== 'graduated');
@@ -1687,18 +1752,6 @@ const updateDashboard = () => {
         }
     }
 
-    const recentExamsEl = document.getElementById('dash-recent-exams');
-    const recent = resultSchemas.slice(-3);
-    if(recent.length === 0) {
-        recentExamsEl.innerHTML = '<p class="text-gray-500 text-sm">No exams created yet.</p>';
-    } else {
-        recentExamsEl.innerHTML = recent.map(e => `
-            <div class="flex justify-between items-center p-3 border rounded-lg bg-gray-50">
-                <span class="font-bold text-gray-800">${escapeHtml(e.classLabel || e.name || 'Class Schema')}</span>
-                <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-bold">${getSchemaSubjectRows(e).length || 0} Subjects</span>
-            </div>
-        `).join('');
-    }
     renderPublishedDraftTables();
     updateReportPreview();
     renderPublishControls();
