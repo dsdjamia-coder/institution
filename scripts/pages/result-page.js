@@ -36,6 +36,7 @@ let currentPublishedFilter = 'all';
 let viewingResultId = '';
 
 const dismissLoadingScreen = () => {
+    document.getElementById('result-fatal-error')?.classList.add('hidden');
     const loader = document.getElementById('loading-screen');
     if (!loader || loader.style.display === 'none') return;
     loader.style.opacity = '0';
@@ -545,6 +546,7 @@ function grantResultAccess(accessInfo) {
         teacherAssignedClasses = getStaffAssignedClasses(currentStaffDoc, sessionStaffAccess);
     }
 
+    document.getElementById('result-fatal-error')?.classList.add('hidden');
     document.getElementById('access-denied-block')?.classList.add('hidden');
     document.getElementById('page-content')?.classList.remove('hidden');
 
@@ -553,11 +555,18 @@ function grantResultAccess(accessInfo) {
     if (staffDisplay) staffDisplay.textContent = displayName;
 
     const roleBadge = document.getElementById('staff-role-badge');
-    if (roleBadge) {
-        roleBadge.textContent = sessionStaffAccess?.actLikeSuperAdmin
-            ? 'Super Administrator'
-            : (currentStaffDoc?.role || currentStaffDoc?.designation || currentStaffDoc?.type || sessionStaffAccess?.role || (isFullAdmin ? 'Administrator' : 'Class Teacher'));
-    }
+    const roleBadgeText = sessionStaffAccess?.actLikeSuperAdmin
+        ? 'Super Administrator'
+        : (currentStaffDoc?.role || currentStaffDoc?.designation || currentStaffDoc?.type || sessionStaffAccess?.role || (isFullAdmin ? 'Administrator' : 'Class Teacher'));
+    if (roleBadge) roleBadge.textContent = roleBadgeText;
+
+    // Synchronize Top Header Badges so user ALWAYS sees which portal, active year, and user
+    const headerUserName = document.getElementById('header-user-name');
+    if (headerUserName) headerUserName.textContent = displayName;
+    const headerUserRole = document.getElementById('header-user-role');
+    if (headerUserRole) headerUserRole.textContent = roleBadgeText;
+    const headerActiveYear = document.getElementById('header-active-year');
+    if (headerActiveYear) headerActiveYear.textContent = currentAcademicYear || 'Academic Year';
 
     // Teacher assigned banner in Overview
     const banner = document.getElementById('teacher-assigned-banner');
@@ -645,8 +654,6 @@ const bootstrapSessionAccess = () => {
         }
     }
 };
-
-bootstrapSessionAccess();
 
 // --- Authentication & Guard (Username Based) in Background ---
 onAuthStateChanged(auth, async (user) => {
@@ -863,33 +870,47 @@ if (window.location.hash) {
 
 // --- Data Listeners ---
 function initializeDataListeners() {
+    const syncHeaderDisplays = () => {
+        const yearEl = document.getElementById('header-active-year');
+        if (yearEl) yearEl.textContent = currentAcademicYear || 'All Years';
+        const yearBadge = document.getElementById('academic-year-badge');
+        if (yearBadge) yearBadge.textContent = currentAcademicYear || 'All Years';
+    };
+
     const scheduleRefresh = debounce(() => {
         try {
-            populateDropdowns();
-            updateDashboard();
-            if (typeof renderSnapshotPanelUI === 'function') {
-                renderSnapshotPanelUI();
-            }
-            if (typeof renderPublishedDraftTables === 'function') {
-                renderPublishedDraftTables();
-            }
-            const activeReportCards = document.getElementById('report-cards-page');
-            if (activeReportCards && !activeReportCards.classList.contains('hidden')) {
-                if (typeof updateReportPreview === 'function') updateReportPreview();
-            }
-            const activeMarks = document.getElementById('marks-page');
-            if (activeMarks && !activeMarks.classList.contains('hidden')) {
-                const classSelect = document.getElementById('entry-class-select');
-                const examSelect = document.getElementById('entry-exam-select');
-                if (classSelect?.value && examSelect?.value && typeof loadMarksTable === 'function') {
-                    loadMarksTable();
+            document.getElementById('result-fatal-error')?.classList.add('hidden');
+            syncHeaderDisplays();
+            try { populateDropdowns(); } catch (err) { console.warn('populateDropdowns warning:', err); }
+            try { updateDashboard(); } catch (err) { console.warn('updateDashboard warning:', err); }
+            try {
+                if (typeof renderSnapshotPanelUI === 'function') renderSnapshotPanelUI();
+            } catch (err) { console.warn('renderSnapshotPanelUI warning:', err); }
+            try {
+                if (typeof renderPublishedDraftTables === 'function') renderPublishedDraftTables();
+            } catch (err) { console.warn('renderPublishedDraftTables warning:', err); }
+            try {
+                const activeReportCards = document.getElementById('report-cards-page');
+                if (activeReportCards && !activeReportCards.classList.contains('hidden')) {
+                    if (typeof updateReportPreview === 'function') updateReportPreview();
                 }
-            }
+            } catch (err) { console.warn('updateReportPreview warning:', err); }
+            try {
+                const activeMarks = document.getElementById('marks-page');
+                if (activeMarks && !activeMarks.classList.contains('hidden')) {
+                    const classSelect = document.getElementById('entry-class-select');
+                    const examSelect = document.getElementById('entry-exam-select');
+                    if (classSelect?.value && examSelect?.value && typeof loadMarksTable === 'function') {
+                        loadMarksTable();
+                    }
+                }
+            } catch (err) { console.warn('loadMarksTable warning:', err); }
             dismissLoadingScreen();
         } catch (error) {
-            reportFatalResultError(error, 'scheduleRefresh');
+            console.warn('scheduleRefresh general error:', error);
         }
-    }, 150);
+    }, 120);
+
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const payload = snap.exists() ? snap.data() : {};
         if (payload.currentYear) {
@@ -906,8 +927,7 @@ function initializeDataListeners() {
             }
             return true;
         });
-        const badge = document.getElementById('academic-year-badge');
-        if (badge) badge.textContent = currentAcademicYear || 'All Years';
+        syncHeaderDisplays();
         populateReportYears();
         if (typeof renderSnapshotPanelUI === 'function') {
             renderSnapshotPanelUI();
@@ -1760,6 +1780,53 @@ function updateDashboard() {
 const getStudentNameById = (studentId = '') => students.find((entry) => entry.id === studentId)?.name || 'Unknown';
 const getStudentById = (studentId = '') => students.find((entry) => entry.id === studentId) || {};
 const getExamNameById = (examId = '', row = {}) => row.examLabel || getExamContext(examId, row.classLabel || '', row.academicYear || currentAcademicYear)?.label || resultSchemas.find((entry) => entry.id === examId)?.name || 'Unknown Exam';
+
+const compareAdmissionNo = (a = {}, b = {}) => {
+    const admA = String(a?.student?.adm || a?.student?.admissionNo || a?.student?.uid || a?.row?.admissionNo || '');
+    const admB = String(b?.student?.adm || b?.student?.admissionNo || b?.student?.uid || b?.row?.admissionNo || '');
+    return admA.localeCompare(admB, undefined, { numeric: true, sensitivity: 'base' });
+};
+const genderRank = (student = {}) => {
+    const gender = String(student?.gender || '').trim().toLowerCase();
+    if (gender.startsWith('m') || gender.includes('boy')) return 0;
+    if (gender.startsWith('f') || gender.includes('girl')) return 1;
+    return 2;
+};
+const genderRankReverse = (student = {}) => {
+    const gender = String(student?.gender || '').trim().toLowerCase();
+    if (gender.startsWith('f') || gender.includes('girl')) return 0;
+    if (gender.startsWith('m') || gender.includes('boy')) return 1;
+    return 2;
+};
+const sortReportRows = (rows = [], order = 'rank') => {
+    const alphaAsc = (a, b) => String(a?.student?.name || a?.row?.studentName || '').localeCompare(String(b?.student?.name || b?.row?.studentName || ''), undefined, { numeric: true, sensitivity: 'base' });
+    const alphaDesc = (a, b) => String(b?.student?.name || b?.row?.studentName || '').localeCompare(String(a?.student?.name || a?.row?.studentName || ''), undefined, { numeric: true, sensitivity: 'base' });
+    const admAsc = (a, b) => compareAdmissionNo(a, b) || alphaAsc(a, b);
+    const admDesc = (a, b) => compareAdmissionNo(b, a) || alphaAsc(a, b);
+    return [...rows].sort((a, b) => {
+        if (order === 'gender') {
+            const diff = genderRank(a?.student) - genderRank(b?.student);
+            if (diff !== 0) return diff;
+            return admAsc(a, b);
+        }
+        if (order === 'gender_girls') {
+            const diff = genderRankReverse(a?.student) - genderRankReverse(b?.student);
+            if (diff !== 0) return diff;
+            return admAsc(a, b);
+        }
+        if (order === 'admission') return admAsc(a, b);
+        if (order === 'admission_desc') return admDesc(a, b);
+        if (order === 'alpha') return alphaAsc(a, b);
+        if (order === 'alpha_desc') return alphaDesc(a, b);
+        if (order === 'rank') {
+            const obtA = Number(a?.row?.totals?.obtained ?? a?.totals?.obtained ?? 0);
+            const obtB = Number(b?.row?.totals?.obtained ?? b?.totals?.obtained ?? 0);
+            return (obtB - obtA) || admAsc(a, b);
+        }
+        return admAsc(a, b);
+    });
+};
+
 const sortResultRows = (rows = [], order = 'admission') => {
     const wrapped = rows.map((row) => ({ row, student: getStudentById(row.studentId) }));
     return sortReportRows(wrapped, order).map((entry) => entry.row);
@@ -5009,47 +5076,7 @@ const getConfiguredGrade = (total = 0, maximum = 0) => {
     if (percentage >= 35) return 'C';
     return 'FAIL';
 };
-const compareAdmissionNo = (a = {}, b = {}) => String(a.student.adm || a.student.admissionNo || a.student.uid || '').localeCompare(String(b.student.adm || b.student.admissionNo || b.student.uid || ''), undefined, { numeric: true, sensitivity: 'base' });
-const genderRank = (student = {}) => {
-    const gender = String(student.gender || '').trim().toLowerCase();
-    if (gender.startsWith('m') || gender.includes('boy')) return 0;
-    if (gender.startsWith('f') || gender.includes('girl')) return 1;
-    return 2;
-};
-const genderRankReverse = (student = {}) => {
-    const gender = String(student.gender || '').trim().toLowerCase();
-    if (gender.startsWith('f') || gender.includes('girl')) return 0;
-    if (gender.startsWith('m') || gender.includes('boy')) return 1;
-    return 2;
-};
-const sortReportRows = (rows = [], order = 'rank') => {
-    const alphaAsc = (a, b) => String(a.student.name || '').localeCompare(String(b.student.name || ''), undefined, { numeric: true, sensitivity: 'base' });
-    const alphaDesc = (a, b) => String(b.student.name || '').localeCompare(String(a.student.name || ''), undefined, { numeric: true, sensitivity: 'base' });
-    const admAsc = (a, b) => compareAdmissionNo(a, b) || alphaAsc(a, b);
-    const admDesc = (a, b) => compareAdmissionNo(b, a) || alphaAsc(a, b);
-    return [...rows].sort((a, b) => {
-        if (order === 'gender') {
-            const diff = genderRank(a.student) - genderRank(b.student);
-            if (diff !== 0) return diff;
-            return admAsc(a, b);
-        }
-        if (order === 'gender_girls') {
-            const diff = genderRankReverse(a.student) - genderRankReverse(b.student);
-            if (diff !== 0) return diff;
-            return admAsc(a, b);
-        }
-        if (order === 'admission') return admAsc(a, b);
-        if (order === 'admission_desc') return admDesc(a, b);
-        if (order === 'alpha') return alphaAsc(a, b);
-        if (order === 'alpha_desc') return alphaDesc(a, b);
-        if (order === 'rank') {
-            const obtA = Number(a.row?.totals?.obtained ?? a.totals?.obtained ?? 0);
-            const obtB = Number(b.row?.totals?.obtained ?? b.totals?.obtained ?? 0);
-            return (obtB - obtA) || admAsc(a, b);
-        }
-        return admAsc(a, b);
-    });
-};
+
 const getAttendanceLabel = (row = {}) => {
     const attendance = row?.attendance || {};
     if (attendance.presentDays !== undefined || attendance.workingDays !== undefined) return `${attendance.presentDays ?? '-'}/${attendance.workingDays ?? '-'}`;
@@ -5202,8 +5229,8 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
             </th>`).join('');
 
         const rowsHtml = cr.rows.map((row, idx) => {
-            const adm = row.student.adm || row.student.admissionNo || row.student.uid || '-';
-            const genderBadge = String(row.student.gender || '').toLowerCase().startsWith('f')
+            const adm = row.student?.adm || row.student?.admissionNo || row.student?.uid || '-';
+            const genderBadge = String(row.student?.gender || '').toLowerCase().startsWith('f')
                 ? '<span class="text-[10px] font-bold text-pink-700 bg-pink-50 border border-pink-200 px-1 py-0.5 rounded ml-1">F</span>'
                 : '<span class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.5 rounded ml-1">M</span>';
 
@@ -5218,7 +5245,7 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
                     <td class="p-2 text-center font-mono text-xs text-slate-400 border border-slate-200">${idx + 1}</td>
                     <td class="p-2 font-mono text-xs font-bold text-slate-700 border border-slate-200">${escapeHtml(adm)}</td>
                     <td class="p-2 text-xs font-bold text-slate-900 border border-slate-200 whitespace-nowrap">
-                        <div class="flex items-center">${escapeHtml(row.student.name || '-')} ${genderBadge}</div>
+                        <div class="flex items-center">${escapeHtml(row.student?.name || '-')} ${genderBadge}</div>
                     </td>
                     ${subCells}
                     <td class="p-2 text-center font-mono text-xs font-extrabold text-slate-900 bg-slate-100/70 border border-slate-200">
@@ -5324,12 +5351,12 @@ const renderIndividualCanvas = (canvasEl, data) => {
 
     const studentOptionsHtml = allStudents.map((r, i) => `
         <option value="${i}" ${i === currentIdx ? 'selected' : ''}>
-            ${i + 1}. ${escapeHtml(r.student.name || 'Unnamed')} (${escapeHtml(r.className)} - Adm: ${escapeHtml(r.student.adm || r.student.admissionNo || '-')})
+            ${i + 1}. ${escapeHtml(r.student?.name || 'Unnamed')} (${escapeHtml(r.className)} - Adm: ${escapeHtml(r.student?.adm || r.student?.admissionNo || '-')})
         </option>`).join('');
 
     const renderSingleCardHtml = (row) => {
-        const adm = row.student.adm || row.student.admissionNo || row.student.uid || '-';
-        const stName = row.student.name || '-';
+        const adm = row.student?.adm || row.student?.admissionNo || row.student?.uid || '-';
+        const stName = row.student?.name || '-';
         const crExam = data.classReports.find(cr => cr.className === row.className)?.examContext?.label || data.examId;
 
         const subRowsHtml = row.subjectValues.map((item, sIdx) => {
@@ -5557,7 +5584,7 @@ updateReportPreview = () => {
                 <span class="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">Passed: ${data.totalPassed}</span>
                 <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold">Failed: ${data.totalFailed}</span>
                 <span class="px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 font-bold">Pass: ${data.overallPassPercent}%</span>
-                ${data.topScorer ? `<span class="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">Top: ${escapeHtml(data.topScorer.student.name)} (${data.topScorer.total}/${data.topScorer.maximum})</span>` : ''}
+                ${data.topScorer && data.topScorer.student ? `<span class="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">Top: ${escapeHtml(data.topScorer.student?.name || 'Student')} (${data.topScorer.total}/${data.topScorer.maximum})</span>` : ''}
             </div>`;
     }
 
@@ -6477,9 +6504,14 @@ const setupModalObserver = () => {
     syncBodyScrollLockState();
 };
 
+// Initialize Session and Live Data Stream safely after full module evaluation
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupModalObserver, { once: true });
+    document.addEventListener('DOMContentLoaded', () => {
+        setupModalObserver();
+        bootstrapSessionAccess();
+    }, { once: true });
 } else {
     setupModalObserver();
+    bootstrapSessionAccess();
 }
 

@@ -80,11 +80,24 @@
             </div>
             
             <div class="header-center-box">
-                <h1 id="header-title">Result Management</h1>
-                <p id="header-subtitle" class="hidden"><span id="header-regno"></span> <span id="header-sep" class="mx-1 hidden">|</span> <span id="header-place"></span></p>
+                <div class="text-[10px] sm:text-[11px] font-extrabold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
+                    <i class="fas fa-square-poll-vertical"></i>
+                    <span>Result Management</span>
+                    <span class="text-slate-300">•</span>
+                    <span id="header-active-year" class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md font-bold text-[10px] border border-indigo-200">Loading Year...</span>
+                </div>
+                <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Noorul Islam Madrasa</h1>
+                <p id="header-subtitle" class="hidden text-xs text-slate-500 font-medium"><span id="header-regno"></span> <span id="header-sep" class="mx-1 hidden">|</span> <span id="header-place"></span></p>
             </div>
 
             <div class="flex items-center gap-2">
+                <div id="header-user-badge" class="hidden sm:flex items-center gap-2 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl text-xs">
+                    <i class="fas fa-user-check text-indigo-600"></i>
+                    <div class="text-left">
+                        <div id="header-user-name" class="font-bold text-slate-800 leading-tight text-[11px] max-w-[130px] truncate">Staff</div>
+                        <div id="header-user-role" class="text-[9px] text-indigo-600 font-semibold leading-tight">Result Operator</div>
+                    </div>
+                </div>
                 <button class="mobile-toggle" id="mobile-menu-btn" type="button">
                     <div class="menu-icon-wrapper">
                         <i class="fas fa-bars icon-bars"></i>
