@@ -250,13 +250,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       borderMode: 'grid', // 'grid' | 'outer' | 'none'
       rowDensity: 'normal', // 'compact' | 'normal' | 'comfortable'
       showHeader: true,
-      showFooter: true,
+      showFooter: false,
       headerHeight: 'auto', // 'auto' | 'compact' | 'normal' | 'tall'
       footerHeight: 'normal', // 'auto' | 'compact' | 'normal' | 'tall'
-      pageNumberPos: 'right', // 'right' | 'center' | 'left' | 'none'
+      pageNumberPos: 'none', // 'right' | 'center' | 'left' | 'none'
       repeatHeader: true,
       rowsPerPage: 'auto', // 'auto' | '15' | '20' | '25' | '30' | 'all'
-      showSignatures: true,
+      showSignatures: false,
       sigLeft: 'Class Teacher',
       sigCenter: 'Checked By',
       sigRight: 'Principal / Head',
@@ -266,6 +266,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       footerNote: '',
       floatingBoxes: [],
       activeFloatingBoxId: null,
+      sideStudioCollapsed: false,
       instNameOverride: '',
       instSubOverride: '',
       instRegOverride: '',
@@ -3882,6 +3883,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     const applyBuilderPreset = (presetId) => {
       saveBuilderState();
       builderConfig.floatingBoxes = [];
+      builderConfig.showFooter = false;
+      builderConfig.showSignatures = false;
+      builderConfig.pageNumberPos = 'none';
+      builderConfig.footerNote = '';
       if (presetId === 'attendance') {
         builderConfig.sourceType = 'students';
         builderConfig.customTitle = 'MONTHLY ATTENDANCE REGISTER';
@@ -4809,69 +4814,102 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         </div>
       `;
 
+      const prevWorkspace = document.querySelector('.excel-workspace');
+      const prevScrollTop = prevWorkspace ? prevWorkspace.scrollTop : 0;
+      const prevScrollLeft = prevWorkspace ? prevWorkspace.scrollLeft : 0;
+
       const exportTarget = document.getElementById('official-tab-export');
       if (!exportTarget) return;
 
       exportTarget.innerHTML = `
-        <div class="excel-ui-header no-print">
-          <div class="excel-tabs">
-            <button class="excel-tab ${builderConfig.activeTab === 'data' ? 'active' : ''}" data-ribbon="data"><i class="fas fa-database mr-1"></i>Data & Templates</button>
-            <button class="excel-tab ${builderConfig.activeTab === 'home' ? 'active' : ''}" data-ribbon="home"><i class="fas fa-pen-nib mr-1"></i>Home & Formatting</button>
-            <button class="excel-tab ${builderConfig.activeTab === 'insert' ? 'active' : ''}" data-ribbon="insert"><i class="fas fa-plus-circle mr-1"></i>Insert</button>
-            <button class="excel-tab ${builderConfig.activeTab === 'layout' ? 'active' : ''}" data-ribbon="layout"><i class="fas fa-file-invoice mr-1"></i>Page Layout & Print</button>
-            <div class="flex-grow"></div>
-            <div class="flex gap-2 items-center pr-3 mb-1">
-              <span class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                <i class="fas fa-table"></i> ${dataRows.length} Rows • ${totalPages} Page${totalPages > 1 ? 's' : ''} • ${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
-              </span>
-              <button id="btn-save-template-top" class="premium-export-btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold text-xs" title="Save this worksheet setup as a named reusable template"><i class="fas fa-save"></i> Save Template</button>
-              <button id="btn-load-template-top" class="premium-export-btn bg-slate-800 hover:bg-slate-900 text-white shadow-sm font-bold text-xs" title="Open saved register templates"><i class="fas fa-folder-open text-amber-400"></i> Templates (<span class="tpl-count-badge font-extrabold text-amber-300">${allWorksheetTemplates.length}</span>)</button>
-              <button id="btn-export-print" class="premium-export-btn btn-pdf-red"><i class="fas fa-print"></i> Print / Save PDF</button>
-              <button id="btn-export-excel" class="premium-export-btn btn-excel-green"><i class="fas fa-file-excel"></i> Export Excel</button>
+        <div class="excel-studio-layout">
+          <!-- Left Side Studio Palette -->
+          <aside id="excel-side-studio" class="excel-side-studio no-print ${builderConfig.sideStudioCollapsed ? 'collapsed' : ''}">
+            <!-- Studio Header -->
+            <div class="side-studio-header">
+              <div class="side-studio-title">
+                <i class="fas fa-layer-group text-indigo-400"></i>
+                <span>Worksheet Studio</span>
+              </div>
+              <div class="side-studio-actions">
+                <button id="btn-toggle-fullscreen" class="side-studio-hdr-btn" title="Toggle Fullscreen (Esc to exit)"><i class="fas fa-expand fullscreen-icon-toggle"></i></button>
+                <button id="btn-toggle-studio-collapse" class="side-studio-hdr-btn" title="Collapse / Expand Sidebar"><i class="fas fa-chevron-left"></i></button>
+              </div>
             </div>
-          </div>
 
-          <div class="excel-ribbon-container">
-            ${ribbonData}
-            ${ribbonHome}
-            ${ribbonInsert}
-            ${ribbonLayout}
-          </div>
-
-          <div class="formula-bar">
-            <div id="active-cell-id" class="formula-name-box">A1</div>
-            <div class="formula-divider"></div>
-            <div class="formula-icon">fx</div>
-            <input type="text" id="formula-input" class="formula-input" placeholder="Click any cell to edit text, or drag across cells to format / merge / copy..." />
-          </div>
-        </div>
-
-        <div class="excel-workspace spreadsheet-container">
-          <div class="canvas-meta-bar no-print flex items-center justify-between mb-3 px-3.5 py-1.5 bg-slate-200/80 rounded-2xl border border-slate-300 max-w-[1200px] mx-auto text-xs text-slate-600 shadow-sm">
-            <div class="flex items-center gap-2.5">
-              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-extrabold text-[11px] shadow-sm">
-                <i class="fas fa-file-invoice text-amber-400"></i>
-                <span id="canvas-paper-badge">${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}</span>
-              </span>
-              <span class="text-[11px] text-slate-600 font-bold hidden sm:inline" id="canvas-dim-desc">${getPaperDimensionDesc(builderConfig.paper, builderConfig.orientation)}</span>
-              <span class="text-[11px] text-indigo-700 font-bold px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">${totalPages} Page${totalPages > 1 ? 's' : ''} (${dataRows.length} Total Rows)</span>
+            <!-- Segmented Ribbon Tabs -->
+            <div class="side-studio-tabs">
+              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'data' ? 'active' : ''}" data-ribbon="data"><i class="fas fa-database"></i><span>Data</span></button>
+              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'home' ? 'active' : ''}" data-ribbon="home"><i class="fas fa-pen-nib"></i><span>Home</span></button>
+              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'insert' ? 'active' : ''}" data-ribbon="insert"><i class="fas fa-plus-circle"></i><span>Insert</span></button>
+              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'layout' ? 'active' : ''}" data-ribbon="layout"><i class="fas fa-sliders-h"></i><span>Layout</span></button>
             </div>
-            <div class="flex items-center gap-1.5 bg-white border border-slate-300 rounded-full px-2.5 py-0.5 shadow-sm">
-              <button id="btn-zoom-out" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom Out (Ctrl + Scroll Down)"><i class="fas fa-minus text-[10px]"></i></button>
-              <span id="canvas-zoom-text" class="px-1.5 font-black text-xs text-indigo-700 min-w-[46px] text-center">${builderConfig.zoom || 100}%</span>
-              <button id="btn-zoom-in" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom In (Ctrl + Scroll Up)"><i class="fas fa-plus text-[10px]"></i></button>
-              <button id="btn-zoom-reset" class="ml-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition-colors" title="Reset Zoom to 100%">100%</button>
-            </div>
-          </div>
 
-          <div id="print-canvas" class="print-canvas" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}" style="zoom: ${(builderConfig.zoom || 100) / 100};">
-            ${pagesHtml}
+            <!-- Scrollable Tool Panels -->
+            <div class="side-studio-body">
+              ${ribbonData}
+              ${ribbonHome}
+              ${ribbonInsert}
+              ${ribbonLayout}
+            </div>
+
+            <!-- Side Studio Footer with Sheet Meta & Zoom -->
+            <div class="side-studio-footer">
+              <div class="side-meta-pills">
+                <span class="side-meta-badge"><i class="fas fa-table text-emerald-600"></i> ${dataRows.length} Rows</span>
+                <span class="side-meta-badge"><i class="fas fa-file-alt text-indigo-600"></i> ${totalPages} Page${totalPages > 1 ? 's' : ''}</span>
+                <span class="side-meta-badge font-mono text-[9px]">${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'L' : 'P'}</span>
+              </div>
+              <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+                <span class="text-[10px] font-bold text-slate-500 uppercase">Zoom:</span>
+                <div class="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-full px-1.5 py-0.5">
+                  <button id="btn-zoom-out" class="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom Out"><i class="fas fa-minus text-[9px]"></i></button>
+                  <span id="canvas-zoom-text" class="px-1 font-black text-xs text-indigo-700 min-w-[38px] text-center">${builderConfig.zoom || 100}%</span>
+                  <button id="btn-zoom-in" class="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom In"><i class="fas fa-plus text-[9px]"></i></button>
+                  <button id="btn-zoom-reset" class="px-1 text-[9px] font-bold text-slate-600 hover:text-slate-900" title="Reset 100%">100%</button>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5 pt-1">
+                <button id="btn-save-template-side" class="side-tool-btn !bg-indigo-600 hover:!bg-indigo-700 !text-white !py-1 text-xs font-bold" title="Save Reusable Template"><i class="fas fa-save"></i> Save Tpl</button>
+                <button id="btn-load-template-side" class="side-tool-btn !bg-slate-800 hover:!bg-slate-900 !text-white !py-1 text-xs font-bold" title="Open Saved Templates"><i class="fas fa-folder-open text-amber-400"></i> Tpls (<span class="tpl-count-badge font-black text-amber-300">${allWorksheetTemplates.length}</span>)</button>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Main Canvas View Area -->
+          <div class="excel-main-area">
+            <!-- Slim Formula & Quick Action Bar (Only 38px tall!) -->
+            <div class="slim-formula-bar no-print">
+              <button id="btn-expand-studio-floating" class="studio-expand-floating-btn ${builderConfig.sideStudioCollapsed ? '' : '!hidden'}" title="Expand Studio Sidebar"><i class="fas fa-bars"></i> Tools</button>
+              <div id="active-cell-id" class="formula-name-box">A1</div>
+              <div class="formula-divider"></div>
+              <div class="formula-icon">fx</div>
+              <input type="text" id="formula-input" class="formula-input" placeholder="Click any cell or box to edit, or drag across cells to format / merge..." />
+              <div class="flex items-center gap-1.5 ml-auto pr-1">
+                <button id="btn-export-print" class="premium-export-btn btn-pdf-red !py-1 !px-2.5 text-xs font-bold" title="Print or Save as PDF"><i class="fas fa-print"></i> Print</button>
+                <button id="btn-export-excel" class="premium-export-btn btn-excel-green !py-1 !px-2.5 text-xs font-bold" title="Export as Excel Sheet"><i class="fas fa-file-excel"></i> Excel</button>
+                <button id="btn-toggle-fullscreen-top" class="premium-export-btn bg-slate-800 hover:bg-slate-900 !py-1 !px-2.5 text-xs font-bold" title="Toggle Fullscreen Mode (Esc to exit)"><i class="fas fa-expand fullscreen-icon-toggle"></i> Fullscreen</button>
+              </div>
+            </div>
+
+            <!-- Full-Height Workspace Container -->
+            <div class="excel-workspace spreadsheet-container">
+              <div id="print-canvas" class="print-canvas" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}" style="zoom: ${(builderConfig.zoom || 100) / 100};">
+                ${pagesHtml}
+              </div>
+            </div>
           </div>
         </div>
       `;
 
       updateCanvasStyle();
       attachBuilderListeners();
+
+      const newWorkspace = document.querySelector('.excel-workspace');
+      if (newWorkspace) {
+        newWorkspace.scrollTop = prevScrollTop;
+        newWorkspace.scrollLeft = prevScrollLeft;
+      }
     };
 
     const bindColumnListeners = (thElement) => {
@@ -5004,15 +5042,61 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       });
     };
 
-    const attachBuilderListeners = () => {
-      document.querySelectorAll('.excel-tab').forEach((tab) =>
+    function attachBuilderListeners() {
+      const toggleWorksheetFullscreen = () => {
+        const isFull = document.body.classList.toggle('worksheet-fullscreen-mode');
+        const icons = document.querySelectorAll('.fullscreen-icon-toggle');
+        icons.forEach((ic) => {
+          if (isFull) {
+            ic.classList.remove('fa-expand');
+            ic.classList.add('fa-compress');
+          } else {
+            ic.classList.remove('fa-compress');
+            ic.classList.add('fa-expand');
+          }
+        });
+        if (isFull) {
+          if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+          showToastNotification('Fullscreen enabled (Press Esc to restore)');
+        } else {
+          if (document.exitFullscreen && document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          }
+          showToastNotification('Exited Fullscreen');
+        }
+      };
+
+      document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', toggleWorksheetFullscreen);
+      document.getElementById('btn-toggle-fullscreen-top')?.addEventListener('click', toggleWorksheetFullscreen);
+
+      const toggleSideStudioCollapse = (collapse) => {
+        const studio = document.getElementById('excel-side-studio');
+        if (!studio) return;
+        const willCollapse = typeof collapse === 'boolean' ? collapse : !studio.classList.contains('collapsed');
+        builderConfig.sideStudioCollapsed = willCollapse;
+        if (willCollapse) {
+          studio.classList.add('collapsed');
+          document.getElementById('btn-expand-studio-floating')?.classList.remove('!hidden');
+        } else {
+          studio.classList.remove('collapsed');
+          document.getElementById('btn-expand-studio-floating')?.classList.add('!hidden');
+        }
+      };
+
+      document.getElementById('btn-toggle-studio-collapse')?.addEventListener('click', () => toggleSideStudioCollapse(true));
+      document.getElementById('btn-expand-studio-floating')?.addEventListener('click', () => toggleSideStudioCollapse(false));
+
+      document.querySelectorAll('.excel-tab, .side-studio-tab').forEach((tab) =>
         tab.addEventListener('click', (e) => {
           const btn = e.currentTarget;
-          document.querySelectorAll('.excel-tab').forEach((t) => t.classList.remove('active'));
+          document.querySelectorAll('.excel-tab, .side-studio-tab').forEach((t) => t.classList.remove('active'));
           document.querySelectorAll('.ribbon-panel').forEach((p) => p.classList.remove('active'));
           btn.classList.add('active');
           const targetId = btn.dataset.ribbon;
           builderConfig.activeTab = targetId;
+          document.querySelectorAll(`.side-studio-tab[data-ribbon="${targetId}"]`).forEach((t) => t.classList.add('active'));
           document.getElementById(`ribbon-${targetId}`)?.classList.add('active');
         })
       );
@@ -5125,11 +5209,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         setupExcelEngine();
       });
 
-      document.getElementById('builder-show-header')?.addEventListener('change', (e) => {
-        builderConfig.showHeader = e.target.checked;
-        renderExportTab();
-        setupExcelEngine();
-      });
       document.getElementById('builder-repeat-header')?.addEventListener('change', (e) => {
         builderConfig.repeatHeader = e.target.checked;
         renderExportTab();
@@ -5943,8 +6022,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       document.getElementById('btn-save-template-top')?.addEventListener('click', openSaveTemplateModal);
       document.getElementById('btn-save-template-ribbon')?.addEventListener('click', openSaveTemplateModal);
+      document.getElementById('btn-save-template-side')?.addEventListener('click', openSaveTemplateModal);
       document.getElementById('btn-load-template-top')?.addEventListener('click', openManageTemplatesModal);
       document.getElementById('btn-load-template-ribbon')?.addEventListener('click', openManageTemplatesModal);
+      document.getElementById('btn-load-template-side')?.addEventListener('click', openManageTemplatesModal);
     };
 
     const appendNewRowToTable = () => {
@@ -6347,6 +6428,17 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         });
 
         document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && document.body.classList.contains('worksheet-fullscreen-mode')) {
+            document.body.classList.remove('worksheet-fullscreen-mode');
+            document.querySelectorAll('.fullscreen-icon-toggle').forEach((ic) => {
+              ic.classList.remove('fa-compress');
+              ic.classList.add('fa-expand');
+            });
+            if (document.exitFullscreen && document.fullscreenElement) {
+              document.exitFullscreen().catch(() => {});
+            }
+            showToastNotification('Exited Fullscreen');
+          }
           if (builderConfig.activeFloatingBoxId && (e.key === 'Delete' || e.key === 'Backspace')) {
             if (document.activeElement && document.activeElement.classList.contains('box-content-editable')) return;
             if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
@@ -6356,6 +6448,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             builderConfig.activeFloatingBoxId = null;
             renderExportTab();
             setupExcelEngine();
+          }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+          if (!document.fullscreenElement && document.body.classList.contains('worksheet-fullscreen-mode')) {
+            document.body.classList.remove('worksheet-fullscreen-mode');
+            document.querySelectorAll('.fullscreen-icon-toggle').forEach((ic) => {
+              ic.classList.remove('fa-compress');
+              ic.classList.add('fa-expand');
+            });
           }
         });
       }
