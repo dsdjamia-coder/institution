@@ -1116,12 +1116,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       let canResult = false;
       let canWorksheet = false;
       let canAdmin = false;
+      let canAttendance = false;
 
       if (isMasterAdmin) {
         canCollection = true;
         canResult = true;
         canWorksheet = true;
         canAdmin = true;
+        canAttendance = true;
       } else if (isStaffSession) {
         const staffProfile = getCurrentSessionProfile() || {};
         const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
@@ -1129,6 +1131,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canResult = staffAccess.result === true || staffProfile.canManageResults === true;
         canWorksheet = staffAccess.worksheet !== false && staffProfile.canAccessWorksheet !== false;
         canAdmin = staffAccess.admin === true || staffAccess.canAccessAdmin === true || staffProfile.canAccessAdmin === true || staffProfile.actLikeSuperAdmin === true;
+        canAttendance = true;
       } else if (userSession?.source === 'directory') {
         const entry = directoryEntries.find((item) => item.id === userSession.id);
         const access = getPageAccessItem(entry?.categoryId || userSession.categoryId, entry?.id || userSession.id);
@@ -1138,16 +1141,19 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canResult = Boolean(access.result);
           canWorksheet = true;
           canAdmin = false;
+          canAttendance = true;
         }
       } else {
         canWorksheet = true;
+        canAttendance = true;
       }
 
       return {
         collection: canCollection,
         result: canResult,
         worksheet: canWorksheet,
-        admin: canAdmin
+        admin: canAdmin,
+        attendance: canAttendance
       };
     };
 
@@ -1192,6 +1198,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           hasAccess: perms.worksheet,
           href: 'worksheet.html',
           isInternalTab: false
+        },
+        {
+          id: 'attendance',
+          title: 'Attendance Register',
+          desc: 'Daily marking, records & analytics',
+          icon: 'fa-calendar-check',
+          iconBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200',
+          badgeText: 'Daily',
+          hasAccess: perms.attendance,
+          href: 'attendance.html'
         },
         {
           id: 'admin',

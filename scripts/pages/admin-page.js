@@ -300,7 +300,7 @@ const enforceResultOperatorModeUI = () => {
     if (!isResultOperatorSession) return;
     document.querySelectorAll('.nav-link').forEach((link) => {
         const href = link.getAttribute('href') || '';
-        const keepVisible = href === '#results' || href === 'result.html' || href === 'collection.html';
+        const keepVisible = href === '#results' || href === 'result.html' || href === 'collection.html' || href === 'attendance.html';
         link.classList.toggle('hidden', !keepVisible);
     });
     document.querySelectorAll('.page').forEach((page) => page.classList.add('hidden'));

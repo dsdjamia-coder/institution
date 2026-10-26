@@ -8,7 +8,8 @@
     result: () => window.AppSession.guardStaffPageAccess?.('result'),
     student: () => window.AppSession.guardStudentPage?.(),
     official: () => window.AppSession.guardStaffOrAdminPage?.(),
-    worksheet: () => window.AppSession.guardStaffOrAdminPage?.()
+    worksheet: () => window.AppSession.guardStaffOrAdminPage?.(),
+    attendance: () => window.AppSession.guardStaffOrAdminPage?.()
   };
 
   const runGuard = guardMap[guardKey];
