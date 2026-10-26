@@ -1146,6 +1146,25 @@ const renderPromotionCandidatesUI = () => {
     const directToggle = document.getElementById('promotion-direct-bypass-toggle');
     if (directToggle) directToggle.checked = directPromotionMode;
 
+    const directStatusBadge = document.getElementById('promotion-direct-status-badge');
+    if (directStatusBadge) {
+        directStatusBadge.textContent = directPromotionMode ? 'ON' : 'OFF';
+        directStatusBadge.className = directPromotionMode
+            ? 'ml-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-600 text-white shadow-2xs'
+            : 'ml-1 text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-amber-200/60 text-amber-800 border border-amber-300/60';
+    }
+
+    const toggleContainer = directToggle?.closest('label');
+    if (toggleContainer) {
+        if (directPromotionMode) {
+            toggleContainer.classList.add('bg-amber-100', 'border-amber-400', 'shadow-xs');
+            toggleContainer.classList.remove('bg-amber-50/90', 'border-amber-200');
+        } else {
+            toggleContainer.classList.remove('bg-amber-100', 'border-amber-400', 'shadow-xs');
+            toggleContainer.classList.add('bg-amber-50/90', 'border-amber-200');
+        }
+    }
+
     const yearSelect = document.getElementById('promotion-target-year');
     if (yearSelect) {
         const normalizeYear = (entry) => {
