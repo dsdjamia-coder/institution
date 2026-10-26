@@ -251,12 +251,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       rowDensity: 'normal', // 'compact' | 'normal' | 'comfortable'
       showHeader: true,
       showFooter: true,
+      headerHeight: 'auto', // 'auto' | 'compact' | 'normal' | 'tall'
+      footerHeight: 'normal', // 'auto' | 'compact' | 'normal' | 'tall'
+      pageNumberPos: 'right', // 'right' | 'center' | 'left' | 'none'
       repeatHeader: true,
       rowsPerPage: 'auto', // 'auto' | '15' | '20' | '25' | '30' | 'all'
       showSignatures: true,
       sigLeft: 'Class Teacher',
       sigCenter: 'Checked By',
       sigRight: 'Principal / Head',
+      sigLeftVisible: true,
+      sigCenterVisible: true,
+      sigRightVisible: true,
       footerNote: '',
       headerBlocks: null,
       instNameOverride: '',
@@ -561,8 +567,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         showHeader: builderConfig.showHeader !== false,
         showFooter: builderConfig.showFooter !== false,
         repeatHeader: builderConfig.repeatHeader !== false,
+        headerHeight: builderConfig.headerHeight || 'auto',
+        footerHeight: builderConfig.footerHeight || 'normal',
+        pageNumberPos: builderConfig.pageNumberPos || 'right',
         rowsPerPage: builderConfig.rowsPerPage || 'auto',
         showSignatures: Boolean(builderConfig.showSignatures),
+        sigLeftVisible: builderConfig.sigLeftVisible !== false,
+        sigCenterVisible: builderConfig.sigCenterVisible !== false,
+        sigRightVisible: builderConfig.sigRightVisible !== false,
         headerBlocks: JSON.parse(JSON.stringify(builderConfig.headerBlocks || [])),
         footerNote: builderConfig.footerNote || '',
         instNameOverride: builderConfig.instNameOverride || '',
@@ -628,9 +640,15 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
       if (template.showFooter !== undefined) builderConfig.showFooter = template.showFooter;
       if (template.repeatHeader !== undefined) builderConfig.repeatHeader = template.repeatHeader;
+      if (template.headerHeight) builderConfig.headerHeight = template.headerHeight;
+      if (template.footerHeight) builderConfig.footerHeight = template.footerHeight;
+      if (template.pageNumberPos) builderConfig.pageNumberPos = template.pageNumberPos;
       if (template.rowsPerPage !== undefined) builderConfig.rowsPerPage = template.rowsPerPage;
       if (template.footerNote !== undefined) builderConfig.footerNote = template.footerNote;
       if (template.showSignatures !== undefined) builderConfig.showSignatures = template.showSignatures;
+      if (template.sigLeftVisible !== undefined) builderConfig.sigLeftVisible = template.sigLeftVisible;
+      if (template.sigCenterVisible !== undefined) builderConfig.sigCenterVisible = template.sigCenterVisible;
+      if (template.sigRightVisible !== undefined) builderConfig.sigRightVisible = template.sigRightVisible;
       if (template.sigLeft) builderConfig.sigLeft = template.sigLeft;
       if (template.sigCenter) builderConfig.sigCenter = template.sigCenter;
       if (template.sigRight) builderConfig.sigRight = template.sigRight;
@@ -4040,7 +4058,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             placeholder: 'Institution / School Name...',
             fontSize: '22px',
             fontWeight: '900',
-            align: 'center'
+            align: 'center',
+            width: '100%',
+            repeatOnEveryPage: true
           },
           {
             id: 'hb_inst_sub',
@@ -4049,7 +4069,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             placeholder: 'Subtitle / Place / Address...',
             fontSize: '13px',
             fontWeight: '600',
-            align: 'center'
+            align: 'center',
+            width: '100%',
+            repeatOnEveryPage: true
           }
         ];
         if (effectiveInstReg) {
@@ -4060,7 +4082,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             placeholder: 'Reg / Affiliation No. (Optional)...',
             fontSize: '11px',
             fontWeight: '700',
-            align: 'center'
+            align: 'center',
+            width: '100%',
+            repeatOnEveryPage: true
           });
         }
         blocks.push({
@@ -4070,7 +4094,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           placeholder: 'Report / Register Heading...',
           fontSize: '16px',
           fontWeight: '900',
-          align: 'center'
+          align: 'center',
+          width: '100%',
+          repeatOnEveryPage: true
         });
         if (effectiveCustomSub) {
           blocks.push({
@@ -4080,7 +4106,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             placeholder: 'Academic Year • Class • Section Details...',
             fontSize: '12px',
             fontWeight: '700',
-            align: 'center'
+            align: 'center',
+            width: '100%',
+            repeatOnEveryPage: true
           });
         }
         return blocks;
@@ -4088,14 +4116,32 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       if (!builderConfig.headerBlocks || !Array.isArray(builderConfig.headerBlocks) || builderConfig.headerBlocks.length === 0) {
         builderConfig.headerBlocks = getDefaultHeaderBlocks();
+      } else {
+        builderConfig.headerBlocks.forEach((b) => {
+          if (!b.width) b.width = '100%';
+          if (b.repeatOnEveryPage === undefined) b.repeatOnEveryPage = true;
+        });
       }
 
       const renderHeaderHtml = (pageIndex = 0) => {
         if (!builderConfig.showHeader) return '';
         const isFirstPage = pageIndex === 0;
-        const blocksHtml = (builderConfig.headerBlocks || []).map((block) => {
+
+        const visibleBlocks = (builderConfig.headerBlocks || []).filter((block) => {
+          if (isFirstPage) return true;
+          return block.repeatOnEveryPage !== false;
+        });
+
+        if (!isFirstPage && visibleBlocks.length === 0) {
+          return '';
+        }
+
+        const blocksHtml = visibleBlocks.map((block) => {
+          const bWidth = block.width || '100%';
+          const isRepeat = block.repeatOnEveryPage !== false;
+
           return `
-            <div class="header-block-item" data-block-id="${escapeHtml(block.id)}" style="text-align: ${escapeHtml(block.align || 'center')};">
+            <div class="header-block-item" data-block-id="${escapeHtml(block.id)}" data-width="${escapeHtml(bWidth)}" style="text-align: ${escapeHtml(block.align || 'center')};">
               <input type="text"
                      class="header-live-input header-block-input"
                      data-block-id="${escapeHtml(block.id)}"
@@ -4105,9 +4151,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                      title="Click to edit header box directly" />
               ${isFirstPage ? `
               <div class="header-block-actions no-print">
-                <button type="button" class="header-action-btn btn-align-left" data-block-id="${escapeHtml(block.id)}" title="Align Left"><i class="fas fa-align-left"></i></button>
-                <button type="button" class="header-action-btn btn-align-center" data-block-id="${escapeHtml(block.id)}" title="Align Center"><i class="fas fa-align-center"></i></button>
-                <button type="button" class="header-action-btn btn-align-right" data-block-id="${escapeHtml(block.id)}" title="Align Right"><i class="fas fa-align-right"></i></button>
+                <button type="button" class="header-action-btn btn-cycle-width" data-block-id="${escapeHtml(block.id)}" title="Cycle Width: 100% → 50% → 33% → 25% → Auto">
+                  <i class="fas fa-arrows-alt-h mr-1 text-[9px]"></i><span>${escapeHtml(bWidth)}</span>
+                </button>
+                <button type="button" class="header-action-btn btn-align-left ${block.align === 'left' ? 'active' : ''}" data-block-id="${escapeHtml(block.id)}" title="Align Left"><i class="fas fa-align-left"></i></button>
+                <button type="button" class="header-action-btn btn-align-center ${(!block.align || block.align === 'center') ? 'active' : ''}" data-block-id="${escapeHtml(block.id)}" title="Align Center"><i class="fas fa-align-center"></i></button>
+                <button type="button" class="header-action-btn btn-align-right ${block.align === 'right' ? 'active' : ''}" data-block-id="${escapeHtml(block.id)}" title="Align Right"><i class="fas fa-align-right"></i></button>
+                <button type="button" class="repeat-badge btn-toggle-repeat ${isRepeat ? 'every-page' : 'page-one'}" data-block-id="${escapeHtml(block.id)}" title="Toggle whether this box repeats on every page or only Page 1">
+                  <i class="fas ${isRepeat ? 'fa-copy' : 'fa-file'}"></i>
+                  <span>${isRepeat ? 'Every Page' : 'Page 1 Only'}</span>
+                </button>
+                <button type="button" class="header-action-btn btn-move-block-prev" data-block-id="${escapeHtml(block.id)}" title="Move Earlier / Left"><i class="fas fa-chevron-left"></i></button>
+                <button type="button" class="header-action-btn btn-move-block-next" data-block-id="${escapeHtml(block.id)}" title="Move Later / Right"><i class="fas fa-chevron-right"></i></button>
                 <button type="button" class="header-action-btn btn-del" data-block-id="${escapeHtml(block.id)}" title="Delete this box"><i class="fas fa-times"></i></button>
               </div>
               ` : ''}
@@ -4115,15 +4170,27 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           `;
         }).join('');
 
+        const headerHeightAttr = builderConfig.headerHeight || 'auto';
+
         return `
-          <div class="header-builder-section">
-            <div class="header-blocks-list">
+          <div class="header-builder-section" data-height="${escapeHtml(headerHeightAttr)}">
+            <div class="header-blocks-row-wrap">
               ${blocksHtml}
             </div>
             ${isFirstPage ? `
-            <div class="no-print text-center mt-2 mb-1">
-              <button type="button" id="btn-add-header-box" class="btn-add-header-block" title="Add a custom text box to header">
-                <i class="fas fa-plus-circle text-blue-600"></i> Add Header Box
+            <div class="no-print header-quick-bar flex flex-wrap items-center justify-center gap-2 mt-2 pt-2 border-t border-dashed border-slate-200">
+              <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add to Header:</span>
+              <button type="button" id="btn-add-full-box" class="header-quick-btn" title="Add a full width (100%) header block">
+                <i class="fas fa-square text-indigo-500"></i> Full Width (100%)
+              </button>
+              <button type="button" id="btn-add-dual-box" class="header-quick-btn" title="Add 2 blocks side-by-side (50% each)">
+                <i class="fas fa-columns text-emerald-500"></i> 2-Box Row (50% | 50%)
+              </button>
+              <button type="button" id="btn-add-triple-box" class="header-quick-btn" title="Add 3 blocks side-by-side (33% each)">
+                <i class="fas fa-th-large text-amber-500"></i> 3-Box Row (33% | 33% | 33%)
+              </button>
+              <button type="button" id="btn-reset-header-blocks" class="header-quick-btn text-rose-600 hover:text-rose-700" title="Reset header blocks to default">
+                <i class="fas fa-undo"></i> Reset Default
               </button>
             </div>
             ` : ''}
@@ -4133,25 +4200,69 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const renderFooterHtml = (pageNumber, totalPages) => {
         if (!builderConfig.showFooter) return '';
+        const fHeight = builderConfig.footerHeight || 'normal';
+        const pagePos = builderConfig.pageNumberPos || 'right';
+
+        const pageNumText = (pagePos !== 'none') ? `Page ${pageNumber} of ${totalPages}` : '';
+
+        let bottomRowHtml = '';
+        if (pagePos === 'left') {
+          bottomRowHtml = `
+            <div class="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-2">
+              <span class="font-bold text-slate-800">${escapeHtml(pageNumText)}</span>
+              <input type="text" class="header-live-input text-right text-xs text-slate-600 font-semibold max-w-[320px] footer-note-input" value="${escapeHtml(builderConfig.footerNote || '')}" placeholder="Optional footer note..." title="Click to edit footer note" />
+            </div>
+          `;
+        } else if (pagePos === 'center') {
+          bottomRowHtml = `
+            <div class="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-2">
+              <input type="text" class="header-live-input text-left text-xs text-slate-600 font-semibold max-w-[200px] footer-note-input" value="${escapeHtml(builderConfig.footerNote || '')}" placeholder="Optional note..." title="Click to edit footer note" />
+              <span class="font-bold text-slate-800">${escapeHtml(pageNumText)}</span>
+              <span class="text-xs text-slate-400 font-medium max-w-[200px] text-right">Official Document</span>
+            </div>
+          `;
+        } else if (pagePos === 'none') {
+          bottomRowHtml = `
+            <div class="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-2">
+              <input type="text" class="header-live-input text-left text-xs text-slate-600 font-semibold max-w-[400px] footer-note-input" value="${escapeHtml(builderConfig.footerNote || '')}" placeholder="Optional footer note..." title="Click to edit footer note" />
+              <span class="text-xs text-slate-400 font-medium">Official Record</span>
+            </div>
+          `;
+        } else {
+          bottomRowHtml = `
+            <div class="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-2">
+              <input type="text" class="header-live-input text-left text-xs text-slate-600 font-semibold max-w-[350px] footer-note-input" value="${escapeHtml(builderConfig.footerNote || '')}" placeholder="Optional footer note / remark..." title="Click to edit footer note" />
+              <span class="font-bold text-slate-800">${escapeHtml(pageNumText)}</span>
+            </div>
+          `;
+        }
+
+        const sigLeftShow = builderConfig.sigLeftVisible !== false;
+        const sigCenterShow = builderConfig.sigCenterVisible !== false;
+        const sigRightShow = builderConfig.sigRightVisible !== false;
+
         return `
-          <div class="worksheet-page-footer mt-6 pt-4 border-t border-slate-300">
+          <div class="worksheet-page-footer border-t border-slate-300" data-height="${escapeHtml(fHeight)}">
             ${builderConfig.showSignatures ? `
-            <div class="grid grid-cols-3 gap-6 text-center text-xs font-bold text-slate-800 mb-4 pt-4">
+            <div class="grid grid-cols-3 gap-6 text-center text-xs font-bold text-slate-800 mb-3 pt-3">
               <div>
+                ${sigLeftShow ? `
                 <div class="border-t border-slate-800 pt-1.5 w-4/5 mx-auto sig-line-item" contenteditable="true" data-sig-role="left" title="Click to edit signature title">${escapeHtml(builderConfig.sigLeft || 'Class Teacher')}</div>
+                ` : ''}
               </div>
               <div>
+                ${sigCenterShow ? `
                 <div class="border-t border-slate-800 pt-1.5 w-4/5 mx-auto sig-line-item" contenteditable="true" data-sig-role="center" title="Click to edit signature title">${escapeHtml(builderConfig.sigCenter || 'Checked By')}</div>
+                ` : ''}
               </div>
               <div>
+                ${sigRightShow ? `
                 <div class="border-t border-slate-800 pt-1.5 w-4/5 mx-auto sig-line-item" contenteditable="true" data-sig-role="right" title="Click to edit signature title">${escapeHtml(builderConfig.sigRight || 'Principal / Head')}</div>
+                ` : ''}
               </div>
             </div>
             ` : ''}
-            <div class="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-2">
-              <span>${escapeHtml(builderConfig.footerNote || '')}</span>
-              <span class="font-bold text-slate-700">Page ${pageNumber} of ${totalPages}</span>
-            </div>
+            ${bottomRowHtml}
           </div>
         `;
       };
@@ -4167,7 +4278,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       };
 
       const excelColHeaders = builderConfig.columns.map((col, i) =>
-        `<th class="no-print col-header" data-col="${i}" title="Select Column ${getExcelColumnLabel(i)}">${getExcelColumnLabel(i)}</th>`
+        `<th class="no-print col-header builder-th" data-col="${i}" style="width: ${col.width || 'auto'}" title="Select Column ${getExcelColumnLabel(i)}">
+           <span class="col-letter-label">${getExcelColumnLabel(i)}</span>
+           <div class="col-resizer" data-col-index="${i}"></div>
+         </th>`
       ).join('');
 
       const colHeadersHtml = builderConfig.columns.map((col, cIndex) => {
@@ -4200,15 +4314,19 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
         const rowsHtml = Array.from({ length: rowCount }).map((_, rIndex) => {
           const rec = records[rIndex] || null;
-          return `<tr data-student-id="${rec ? escapeHtml(String(rec.id)) : ''}" data-index="${startIndex + rIndex}">
-            <td class="no-print row-header" data-row="${startIndex + rIndex}">${startIndex + rIndex + 1}</td>
+          const globalRowIdx = startIndex + rIndex;
+          return `<tr data-student-id="${rec ? escapeHtml(String(rec.id)) : ''}" data-index="${globalRowIdx}">
+            <td class="no-print row-header" data-row="${globalRowIdx}">
+              <span class="row-num-label">${globalRowIdx + 1}</span>
+              <div class="row-resizer" data-row-index="${globalRowIdx}"></div>
+            </td>
             ${builderConfig.columns.map((col, cIndex) => {
               let cellValue = '';
-              if (col.field === 'SNO') cellValue = rec ? startIndex + rIndex + 1 : '';
+              if (col.field === 'SNO') cellValue = rec ? globalRowIdx + 1 : '';
               else if (col.field !== 'CUSTOM' && rec) cellValue = valueToDisplay(rec[col.field]);
               const isNumField = ['SNO', 'feeTotal', 'concession', 'netPayable', 'paidAmount', 'balanceDue', 'obtainedMarks', 'maxMarks', 'rank'].includes(col.field) || String(col.field).startsWith('SUB_');
               const alignStyle = isNumField ? 'text-align: center;' : '';
-              return `<td class="excel-cell builder-cell" contenteditable="true" data-row="${startIndex + rIndex}" data-col="${cIndex}" style="padding: ${densityPadding}; border: ${defaultBorderCss}; ${alignStyle}">${escapeHtml(String(cellValue))}</td>`;
+              return `<td class="excel-cell builder-cell" contenteditable="true" data-row="${globalRowIdx}" data-col="${cIndex}" style="padding: ${densityPadding}; border: ${defaultBorderCss}; ${alignStyle}">${escapeHtml(String(cellValue))}</td>`;
             }).join('')}
           </tr>`;
         }).join('');
@@ -4616,27 +4734,58 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <div class="ribbon-group">
-            <div class="flex flex-col gap-1.5 mt-0.5 justify-center h-full">
+            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
               <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
                 <input type="checkbox" id="builder-show-header" ${builderConfig.showHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Header
               </label>
               <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showHeader ? 'opacity-50 pointer-events-none' : ''}">
-                <input type="checkbox" id="builder-repeat-header" ${builderConfig.repeatHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Repeat Header on Pages
+                <input type="checkbox" id="builder-repeat-header" ${builderConfig.repeatHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Repeat on Pages
               </label>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="text-[10px] font-semibold text-slate-600">Height:</span>
+                <select id="builder-header-height" class="excel-input-ribbon w-24 text-[11px]">
+                  <option value="auto" ${builderConfig.headerHeight === 'auto' ? 'selected' : ''}>Auto</option>
+                  <option value="compact" ${builderConfig.headerHeight === 'compact' ? 'selected' : ''}>Compact</option>
+                  <option value="normal" ${builderConfig.headerHeight === 'normal' || !builderConfig.headerHeight ? 'selected' : ''}>Normal</option>
+                  <option value="tall" ${builderConfig.headerHeight === 'tall' ? 'selected' : ''}>Tall</option>
+                </select>
+              </div>
             </div>
-            <span class="ribbon-label">Header Controls</span>
+            <span class="ribbon-label">Header Studio</span>
           </div>
 
           <div class="ribbon-group">
-            <div class="flex flex-col gap-1.5 mt-0.5 justify-center h-full">
-              <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
-                <input type="checkbox" id="builder-show-footer" ${builderConfig.showFooter ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Footer
-              </label>
-              <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showFooter ? 'opacity-50 pointer-events-none' : ''}">
-                <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Include Signatures
-              </label>
+            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
+              <div class="flex items-center gap-3">
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="builder-show-footer" ${builderConfig.showFooter ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Footer
+                </label>
+                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showFooter ? 'opacity-50 pointer-events-none' : ''}">
+                  <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Signatures
+                </label>
+              </div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] font-semibold text-slate-600">Height:</span>
+                  <select id="builder-footer-height" class="excel-input-ribbon w-20 text-[11px]">
+                    <option value="auto" ${builderConfig.footerHeight === 'auto' ? 'selected' : ''}>Auto</option>
+                    <option value="compact" ${builderConfig.footerHeight === 'compact' ? 'selected' : ''}>Compact</option>
+                    <option value="normal" ${builderConfig.footerHeight === 'normal' || !builderConfig.footerHeight ? 'selected' : ''}>Normal</option>
+                    <option value="tall" ${builderConfig.footerHeight === 'tall' ? 'selected' : ''}>Spacious</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] font-semibold text-slate-600">Page #:</span>
+                  <select id="builder-page-num-pos" class="excel-input-ribbon w-20 text-[11px]">
+                    <option value="right" ${builderConfig.pageNumberPos === 'right' || !builderConfig.pageNumberPos ? 'selected' : ''}>Right</option>
+                    <option value="center" ${builderConfig.pageNumberPos === 'center' ? 'selected' : ''}>Center</option>
+                    <option value="left" ${builderConfig.pageNumberPos === 'left' ? 'selected' : ''}>Left</option>
+                    <option value="none" ${builderConfig.pageNumberPos === 'none' ? 'selected' : ''}>None</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <span class="ribbon-label">Footer Controls</span>
+            <span class="ribbon-label">Footer Studio</span>
           </div>
         </div>
       `;
@@ -4852,6 +5001,71 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       attachAlignBtn('.btn-align-center', 'center');
       attachAlignBtn('.btn-align-right', 'right');
 
+      document.querySelectorAll('.btn-cycle-width').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const blockId = e.currentTarget.dataset.blockId;
+          const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
+          if (targetBlock) {
+            const widthSeq = ['100%', '50%', '33%', '25%', 'auto'];
+            const curIdx = widthSeq.indexOf(targetBlock.width || '100%');
+            const nextWidth = widthSeq[(curIdx + 1) % widthSeq.length];
+            targetBlock.width = nextWidth;
+            saveBuilderState();
+            renderExportTab();
+            setupExcelEngine();
+          }
+        });
+      });
+
+      document.querySelectorAll('.btn-toggle-repeat').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const blockId = e.currentTarget.dataset.blockId;
+          const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
+          if (targetBlock) {
+            targetBlock.repeatOnEveryPage = targetBlock.repeatOnEveryPage === false;
+            saveBuilderState();
+            renderExportTab();
+            setupExcelEngine();
+          }
+        });
+      });
+
+      document.querySelectorAll('.btn-move-block-prev').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const blockId = e.currentTarget.dataset.blockId;
+          const list = builderConfig.headerBlocks || [];
+          const idx = list.findIndex((b) => b.id === blockId);
+          if (idx > 0) {
+            const temp = list[idx];
+            list[idx] = list[idx - 1];
+            list[idx - 1] = temp;
+            saveBuilderState();
+            renderExportTab();
+            setupExcelEngine();
+          }
+        });
+      });
+
+      document.querySelectorAll('.btn-move-block-next').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const blockId = e.currentTarget.dataset.blockId;
+          const list = builderConfig.headerBlocks || [];
+          const idx = list.findIndex((b) => b.id === blockId);
+          if (idx >= 0 && idx < list.length - 1) {
+            const temp = list[idx];
+            list[idx] = list[idx + 1];
+            list[idx + 1] = temp;
+            saveBuilderState();
+            renderExportTab();
+            setupExcelEngine();
+          }
+        });
+      });
+
       document.querySelectorAll('.header-action-btn.btn-del').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -4863,20 +5077,112 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         });
       });
 
-      document.getElementById('btn-add-header-box')?.addEventListener('click', () => {
+      document.getElementById('btn-add-full-box')?.addEventListener('click', () => {
         saveBuilderState();
         if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
         builderConfig.headerBlocks.push({
           id: `hb_${Date.now()}`,
           type: 'custom_box',
           text: '',
-          placeholder: 'Custom header box (click to edit)...',
-          fontSize: '13px',
+          placeholder: 'Full width header box (click to edit)...',
+          fontSize: '14px',
           fontWeight: '700',
-          align: 'center'
+          align: 'center',
+          width: '100%',
+          repeatOnEveryPage: true
         });
         renderExportTab();
         setupExcelEngine();
+      });
+
+      document.getElementById('btn-add-dual-box')?.addEventListener('click', () => {
+        saveBuilderState();
+        if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
+        const now = Date.now();
+        builderConfig.headerBlocks.push({
+          id: `hb_${now}_1`,
+          type: 'custom_box',
+          text: '',
+          placeholder: 'Left box (Session / Info)...',
+          fontSize: '12px',
+          fontWeight: '700',
+          align: 'left',
+          width: '50%',
+          repeatOnEveryPage: true
+        });
+        builderConfig.headerBlocks.push({
+          id: `hb_${now}_2`,
+          type: 'custom_box',
+          text: '',
+          placeholder: 'Right box (Date / Ref)...',
+          fontSize: '12px',
+          fontWeight: '700',
+          align: 'right',
+          width: '50%',
+          repeatOnEveryPage: true
+        });
+        renderExportTab();
+        setupExcelEngine();
+      });
+
+      document.getElementById('btn-add-triple-box')?.addEventListener('click', () => {
+        saveBuilderState();
+        if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
+        const now = Date.now();
+        builderConfig.headerBlocks.push({
+          id: `hb_${now}_1`,
+          type: 'custom_box',
+          text: '',
+          placeholder: 'Left info...',
+          fontSize: '11px',
+          fontWeight: '700',
+          align: 'left',
+          width: '33%',
+          repeatOnEveryPage: true
+        });
+        builderConfig.headerBlocks.push({
+          id: `hb_${now}_2`,
+          type: 'custom_box',
+          text: '',
+          placeholder: 'Center title...',
+          fontSize: '11px',
+          fontWeight: '700',
+          align: 'center',
+          width: '33%',
+          repeatOnEveryPage: true
+        });
+        builderConfig.headerBlocks.push({
+          id: `hb_${now}_3`,
+          type: 'custom_box',
+          text: '',
+          placeholder: 'Right info...',
+          fontSize: '11px',
+          fontWeight: '700',
+          align: 'right',
+          width: '33%',
+          repeatOnEveryPage: true
+        });
+        renderExportTab();
+        setupExcelEngine();
+      });
+
+      document.getElementById('btn-reset-header-blocks')?.addEventListener('click', () => {
+        if (confirm('Reset header blocks to default institution layout?')) {
+          saveBuilderState();
+          builderConfig.headerBlocks = getDefaultHeaderBlocks();
+          renderExportTab();
+          setupExcelEngine();
+        }
+      });
+
+      document.querySelectorAll('.footer-note-input').forEach((inp) => {
+        inp.addEventListener('input', (e) => {
+          builderConfig.footerNote = e.target.value;
+          document.querySelectorAll('.footer-note-input').forEach((other) => {
+            if (other !== e.target) other.value = e.target.value;
+          });
+        });
+        inp.addEventListener('blur', saveBuilderState);
       });
 
       document.querySelectorAll('.sig-line-item').forEach((el) => {
@@ -5031,6 +5337,21 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         renderExportTab();
         setupExcelEngine();
       });
+      document.getElementById('builder-header-height')?.addEventListener('change', (e) => {
+        builderConfig.headerHeight = e.target.value;
+        renderExportTab();
+        setupExcelEngine();
+      });
+      document.getElementById('builder-footer-height')?.addEventListener('change', (e) => {
+        builderConfig.footerHeight = e.target.value;
+        renderExportTab();
+        setupExcelEngine();
+      });
+      document.getElementById('builder-page-num-pos')?.addEventListener('change', (e) => {
+        builderConfig.pageNumberPos = e.target.value;
+        renderExportTab();
+        setupExcelEngine();
+      });
 
       attachHeaderCanvasEvents();
 
@@ -5089,7 +5410,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         tr.dataset.index = nextRowIdx;
         tr.dataset.studentId = '';
         tr.innerHTML =
-          `<td class="no-print row-header font-bold" data-row="${nextRowIdx}">∑</td>` +
+          `<td class="no-print row-header font-bold" data-row="${nextRowIdx}"><span class="row-num-label">∑</span><div class="row-resizer" data-row-index="${nextRowIdx}"></div></td>` +
           sums
             .map(
               (val, cIndex) =>
@@ -5287,7 +5608,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const defaultBorderCss = builderConfig.borderMode === 'none' ? '1px solid transparent' : '1px solid #000000';
 
       tr.innerHTML =
-        `<td class="no-print row-header" data-row="${nextRowIdx}">${nextRowIdx + 1}</td>` +
+        `<td class="no-print row-header" data-row="${nextRowIdx}"><span class="row-num-label">${nextRowIdx + 1}</span><div class="row-resizer" data-row-index="${nextRowIdx}"></div></td>` +
         Array.from({ length: colsCount })
           .map((_, cIndex) => `<td class="excel-cell builder-cell" contenteditable="true" data-row="${nextRowIdx}" data-col="${cIndex}" style="padding: ${densityPadding}; border: ${defaultBorderCss};"></td>`)
           .join('');
@@ -5365,38 +5686,79 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       attachTableFormatListeners();
 
-      let resizingCol = null;
+      let resizingColIndex = null;
+      let resizingTh = null;
       let startX = 0;
       let startWidth = 0;
+
+      let resizingTr = null;
+      let startY = 0;
+      let startHeight = 0;
 
       document.addEventListener('mousedown', (e) => {
         if (e.target.classList.contains('col-resizer')) {
           saveBuilderState();
-          resizingCol = e.target.closest('th');
-          startX = e.pageX;
-          startWidth = resizingCol.offsetWidth;
           e.preventDefault();
+          e.stopPropagation();
+          const colResizer = e.target;
+          resizingColIndex = parseInt(colResizer.dataset.colIndex, 10);
+          resizingTh = colResizer.closest('th');
+          startX = e.pageX;
+          startWidth = resizingTh ? resizingTh.offsetWidth : 80;
+          colResizer.classList.add('is-resizing');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+        } else if (e.target.classList.contains('row-resizer')) {
+          saveBuilderState();
+          e.preventDefault();
+          e.stopPropagation();
+          const rowResizer = e.target;
+          resizingTr = rowResizer.closest('tr');
+          startY = e.pageY;
+          startHeight = resizingTr ? resizingTr.offsetHeight : 28;
+          rowResizer.classList.add('is-resizing');
+          document.body.style.cursor = 'row-resize';
+          document.body.style.userSelect = 'none';
         }
       });
 
       document.addEventListener('mousemove', (e) => {
-        if (resizingCol) {
-          const newWidth = startWidth + (e.pageX - startX);
-          if (newWidth > 30) {
-            resizingCol.style.width = newWidth + 'px';
-            const colIndex = resizingCol.querySelector('.col-resizer').dataset.colIndex;
-            if (builderConfig.columns[colIndex]) {
-              builderConfig.columns[colIndex].width = newWidth + 'px';
-              document.querySelectorAll(`th.config-row-th .col-resizer[data-col-index="${colIndex}"]`).forEach((resizer) => {
-                const th = resizer.closest('th');
-                if (th && th !== resizingCol) th.style.width = newWidth + 'px';
-              });
-            }
+        const zoomFactor = (builderConfig.zoom || 100) / 100;
+        if (resizingColIndex !== null && !isNaN(resizingColIndex)) {
+          const deltaX = (e.pageX - startX) / zoomFactor;
+          const newWidth = Math.max(35, Math.round(startWidth + deltaX));
+          const newWidthStr = newWidth + 'px';
+
+          if (builderConfig.columns[resizingColIndex]) {
+            builderConfig.columns[resizingColIndex].width = newWidthStr;
           }
+          // Update all matching th elements across tables
+          document.querySelectorAll(`th.col-header[data-col="${resizingColIndex}"]`).forEach((th) => {
+            th.style.width = newWidthStr;
+          });
+          document.querySelectorAll(`th.config-row-th .col-resizer[data-col-index="${resizingColIndex}"]`).forEach((resizer) => {
+            const th = resizer.closest('th');
+            if (th) th.style.width = newWidthStr;
+          });
+        } else if (resizingTr) {
+          const deltaY = (e.pageY - startY) / zoomFactor;
+          const newHeight = Math.max(20, Math.round(startHeight + deltaY));
+          resizingTr.style.height = newHeight + 'px';
         }
       });
 
-      document.addEventListener('mouseup', () => { resizingCol = null; });
+      document.addEventListener('mouseup', () => {
+        if (resizingColIndex !== null || resizingTr !== null) {
+          document.querySelectorAll('.col-resizer.is-resizing, .row-resizer.is-resizing').forEach((el) => {
+            el.classList.remove('is-resizing');
+          });
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          resizingColIndex = null;
+          resizingTh = null;
+          resizingTr = null;
+        }
+      });
 
       let isSelecting = false;
       let startCell = null;
@@ -5411,7 +5773,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const clearSelection = () => document.querySelectorAll('.builder-cell, .col-header, .row-header, .select-all-corner').forEach((c) => c.classList.remove('selected', 'cell-focused'));
 
       printCanvas.onmousedown = (e) => {
-        if (e.target.classList.contains('col-resizer') || e.target.classList.contains('delete-col-btn')) return;
+        if (e.target.classList.contains('col-resizer') || e.target.classList.contains('row-resizer') || e.target.classList.contains('delete-col-btn')) return;
 
         const colHeader = e.target.closest('th.col-header');
         if (colHeader) {
