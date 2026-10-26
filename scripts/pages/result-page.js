@@ -758,6 +758,10 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
         populateDropdowns();
         renderExamSelectOptions(document.getElementById('report-exam-select'), document.getElementById('report-class-select')?.value || '', document.getElementById('report-academic-year')?.value || currentAcademicYear, '-- Choose Exam --', true);
         updateReportPreview();
+    } else if (tabEl.dataset.target === 'promotion-page') {
+        if (typeof renderPromotionCandidatesUI === 'function') {
+            renderPromotionCandidatesUI();
+        }
     }
 
     // Toggle full-width layout body class specifically for Marks Entry tab
@@ -792,6 +796,14 @@ window.addEventListener('hashchange', () => {
         if (snapTab) {
             activateResultTab(snapTab, { updateHash: false });
             if (hash !== '#snapshot') history.replaceState({}, '', '#snapshot');
+            return;
+        }
+    }
+    if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
+        const promoTab = document.querySelector('.tab-link[data-target="promotion-page"]');
+        if (promoTab) {
+            activateResultTab(promoTab, { updateHash: false });
+            if (hash !== '#promotion') history.replaceState({}, '', '#promotion');
             return;
         }
     }
@@ -834,6 +846,12 @@ if (window.location.hash) {
         if (snapTab) {
             activateResultTab(snapTab, { updateHash: false });
             if (hash !== '#snapshot') history.replaceState({}, '', '#snapshot');
+        }
+    } else if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
+        const promoTab = document.querySelector('.tab-link[data-target="promotion-page"]');
+        if (promoTab) {
+            activateResultTab(promoTab, { updateHash: false });
+            if (hash !== '#promotion') history.replaceState({}, '', '#promotion');
         }
     } else if (hash === '#settings' || hash === '#settings-page') {
         const settingsPage = document.getElementById('settings-page');
@@ -895,6 +913,12 @@ function initializeDataListeners() {
                     if (typeof updateReportPreview === 'function') updateReportPreview();
                 }
             } catch (err) { console.warn('updateReportPreview warning:', err); }
+            try {
+                const activePromotion = document.getElementById('promotion-page');
+                if (activePromotion && !activePromotion.classList.contains('hidden')) {
+                    if (typeof renderPromotionCandidatesUI === 'function') renderPromotionCandidatesUI();
+                }
+            } catch (err) { console.warn('renderPromotionCandidatesUI warning:', err); }
             try {
                 const activeMarks = document.getElementById('marks-page');
                 if (activeMarks && !activeMarks.classList.contains('hidden')) {
@@ -1112,9 +1136,15 @@ const renderBlockedClasses = () => {
     if (!container) return;
     container.innerHTML = classes.map((cls) => `<label class="text-sm font-medium flex items-center gap-2"><input type="checkbox" class="blocked-class-checkbox" value="${cls}" ${resultCenterSettings.blockedClasses?.includes(cls) ? 'checked' : ''}>${cls}</label>`).join('');
 };
+
+let directPromotionMode = false;
+
 const renderPromotionCandidatesUI = () => {
     const currentYearBadge = document.getElementById('promotion-current-year-badge');
     if (currentYearBadge) currentYearBadge.textContent = currentAcademicYear || 'N/A';
+
+    const directToggle = document.getElementById('promotion-direct-bypass-toggle');
+    if (directToggle) directToggle.checked = directPromotionMode;
 
     const yearSelect = document.getElementById('promotion-target-year');
     if (yearSelect) {
@@ -1157,19 +1187,36 @@ const renderPromotionCandidatesUI = () => {
         return [cls, { pass: 0, fail: 0, total: 0, boys: 0, girls: 0, nextClass: defaultNext }];
     }));
 
-    annualRows.forEach((row) => {
-        const student = students.find((entry) => entry.id === row.studentId);
-        const fromClass = student?.class || row.classLabel || '';
-        if (!fromClass || !summaryMap.has(fromClass)) return;
-        const passed = isPassFromMarks(row);
-        const gender = String(student?.gender || '').toLowerCase();
-        const item = summaryMap.get(fromClass);
-        item.total += 1;
-        if (gender.startsWith('m') || gender.includes('boy')) item.boys += 1;
-        if (gender.startsWith('f') || gender.includes('girl')) item.girls += 1;
-        if (passed) item.pass += 1;
-        else item.fail += 1;
-    });
+    if (directPromotionMode) {
+        // Direct Promotion Mode: scan all active students in class
+        students.forEach((student) => {
+            if (student?.status === 'alumni' || student?.status === 'inactive' || student?.isAlumni) return;
+            const fromClass = student?.class || '';
+            if (!fromClass || !summaryMap.has(fromClass)) return;
+            if (currentAcademicYear && student.academicYear && student.academicYear !== currentAcademicYear) return;
+            const gender = String(student.gender || '').toLowerCase();
+            const item = summaryMap.get(fromClass);
+            item.total += 1;
+            if (gender.startsWith('m') || gender.includes('boy')) item.boys += 1;
+            if (gender.startsWith('f') || gender.includes('girl')) item.girls += 1;
+            item.pass += 1; // All active students in class are directly promotable
+        });
+    } else {
+        // Standard Examination Mode: check published annual exam results
+        annualRows.forEach((row) => {
+            const student = students.find((entry) => entry.id === row.studentId);
+            const fromClass = student?.class || row.classLabel || '';
+            if (!fromClass || !summaryMap.has(fromClass)) return;
+            const passed = isPassFromMarks(row);
+            const gender = String(student?.gender || '').toLowerCase();
+            const item = summaryMap.get(fromClass);
+            item.total += 1;
+            if (gender.startsWith('m') || gender.includes('boy')) item.boys += 1;
+            if (gender.startsWith('f') || gender.includes('girl')) item.girls += 1;
+            if (passed) item.pass += 1;
+            else item.fail += 1;
+        });
+    }
 
     if (summaryMap.size === 0) {
         container.innerHTML = `<div class="p-6 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">No classes found in the system for promotion review.</div>`;
@@ -1188,6 +1235,42 @@ const renderPromotionCandidatesUI = () => {
 
                 const isAlumni = String(selectedTarget).trim().toLowerCase() === 'alumni';
 
+                const metricsBlock = directPromotionMode ? `
+                    <div class="grid grid-cols-2 gap-2 text-center text-xs mb-3">
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                            <span class="text-[10px] text-slate-400 block font-semibold uppercase">Active Students</span>
+                            <strong class="text-slate-800 font-extrabold text-sm">${stat.total}</strong>
+                        </div>
+                        <div class="bg-amber-50 p-2 rounded-xl border border-amber-200">
+                            <span class="text-[10px] text-amber-700 block font-semibold uppercase">Direct Eligible</span>
+                            <strong class="text-amber-800 font-extrabold text-sm">${stat.pass}</strong>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px] text-slate-500 mb-3 px-1">
+                        <span>Boys: <strong class="text-slate-700">${stat.boys}</strong> • Girls: <strong class="text-slate-700">${stat.girls}</strong></span>
+                        <span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[10px]"><i class="fas fa-bolt mr-1"></i>Direct Mode</span>
+                    </div>
+                ` : `
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs mb-3">
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                            <span class="text-[10px] text-slate-400 block font-semibold uppercase">Total</span>
+                            <strong class="text-slate-800 font-extrabold text-sm">${stat.total}</strong>
+                        </div>
+                        <div class="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
+                            <span class="text-[10px] text-emerald-600 block font-semibold uppercase">Pass</span>
+                            <strong class="text-emerald-700 font-extrabold text-sm">${stat.pass}</strong>
+                        </div>
+                        <div class="bg-red-50 p-2 rounded-xl border border-red-100">
+                            <span class="text-[10px] text-red-500 block font-semibold uppercase">Fail</span>
+                            <strong class="text-red-700 font-extrabold text-sm">${stat.fail}</strong>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px] text-slate-500 mb-3 px-1">
+                        <span>Boys: <strong class="text-slate-700">${stat.boys}</strong> • Girls: <strong class="text-slate-700">${stat.girls}</strong></span>
+                        <span class="font-bold text-indigo-600">${stat.total ? Math.round((stat.pass / stat.total) * 100) : 0}% Pass Rate</span>
+                    </div>
+                `;
+
                 return `
                 <div class="border border-slate-200 rounded-2xl p-4 bg-white shadow-xs hover:border-indigo-300 transition flex flex-col justify-between" data-class="${escapeHtml(cls)}">
                     <div>
@@ -1203,25 +1286,7 @@ const renderPromotionCandidatesUI = () => {
                             </span>
                         </div>
 
-                        <div class="grid grid-cols-3 gap-2 text-center text-xs mb-3">
-                            <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                <span class="text-[10px] text-slate-400 block font-semibold uppercase">Total</span>
-                                <strong class="text-slate-800 font-extrabold text-sm">${stat.total}</strong>
-                            </div>
-                            <div class="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
-                                <span class="text-[10px] text-emerald-600 block font-semibold uppercase">Pass</span>
-                                <strong class="text-emerald-700 font-extrabold text-sm">${stat.pass}</strong>
-                            </div>
-                            <div class="bg-red-50 p-2 rounded-xl border border-red-100">
-                                <span class="text-[10px] text-red-500 block font-semibold uppercase">Fail</span>
-                                <strong class="text-red-700 font-extrabold text-sm">${stat.fail}</strong>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center text-[11px] text-slate-500 mb-3 px-1">
-                            <span>Boys: <strong class="text-slate-700">${stat.boys}</strong> • Girls: <strong class="text-slate-700">${stat.girls}</strong></span>
-                            <span class="font-bold text-indigo-600">${stat.total ? Math.round((stat.pass / stat.total) * 100) : 0}% Pass Rate</span>
-                        </div>
+                        ${metricsBlock}
                     </div>
 
                     <div class="pt-3 border-t border-slate-100 bg-slate-50/70 -mx-4 -mb-4 p-3 rounded-b-2xl">
@@ -4925,12 +4990,33 @@ document.getElementById('start-snapshot-import-btn')?.addEventListener('click', 
         if (startBtn) startBtn.disabled = false;
     }
 });
+document.getElementById('promotion-direct-bypass-toggle')?.addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    if (isChecked) {
+        const ok = await showAppConfirm({
+            title: 'Enable Direct Promotion Mode',
+            message: 'Direct Promotion Mode allows promoting all active students in selected classes directly to the target academic year without requiring published annual exam marks.\n\nAre you sure you want to enable Direct Promotion Mode?',
+            confirmText: 'Enable Direct Promotion',
+            type: 'warning'
+        });
+        if (ok) {
+            directPromotionMode = true;
+            renderPromotionCandidatesUI();
+        } else {
+            e.target.checked = false;
+            directPromotionMode = false;
+            renderPromotionCandidatesUI();
+        }
+    } else {
+        directPromotionMode = false;
+        renderPromotionCandidatesUI();
+    }
+});
+
 document.getElementById('run-auto-promotion-btn')?.addEventListener('click', async () => {
     if (roleScope !== 'admin') return;
     const targetAcademicYear = document.getElementById('promotion-target-year')?.value || '';
     if (!targetAcademicYear) return alert('Select target academic year first.');
-    const annualRows = examResultsCache.filter((row) => row.published === true && detectAnnualResultRow(row));
-    if (!annualRows.length) return alert('No annual published results found for promotion.');
 
     // Collect class targets from the on-screen card selects
     const classTargetMap = {};
@@ -4939,6 +5025,82 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
         const toCls = String(sel.value || '').trim();
         if (fromCls) classTargetMap[fromCls] = toCls;
     });
+
+    if (directPromotionMode) {
+        // Direct Promotion Mode: Promotes active students without requiring published exam results
+        const promotableStudents = students.filter((student) => {
+            if (student?.status === 'alumni' || student?.status === 'inactive' || student?.isAlumni) return false;
+            if (currentAcademicYear && student.academicYear && student.academicYear !== currentAcademicYear) return false;
+            const fromClass = student.class || '';
+            const nextClass = classTargetMap[fromClass] !== undefined ? classTargetMap[fromClass] : getNextClassLabel(fromClass);
+            return Boolean(nextClass);
+        });
+
+        if (!promotableStudents.length) {
+            return alert('No active students found in eligible classes with a target class selected.');
+        }
+
+        const ok = await showAppConfirm({
+            title: 'Run Direct Student Promotion',
+            message: `Direct Promotion Mode Enabled:\n\n• Active candidates found: ${promotableStudents.length}\n• Target Academic Year: ${targetAcademicYear}\n\nAll active students in selected classes will advance directly to their target classes without checking annual exam marks.\n\nProceed with direct promotion?`,
+            confirmText: 'Run Direct Promotion',
+            type: 'warning'
+        });
+        if (!ok) return;
+
+        const updates = [];
+        const promotionDecisions = [];
+        promotableStudents.forEach((student) => {
+            const fromClass = student.class || '';
+            const nextClass = classTargetMap[fromClass] !== undefined ? classTargetMap[fromClass] : getNextClassLabel(fromClass);
+            if (!nextClass) return;
+
+            const isAlumniTarget = String(nextClass).trim().toLowerCase() === 'alumni';
+            const studentPayload = isAlumniTarget ? {
+                class: 'Alumni',
+                status: 'alumni',
+                isAlumni: true,
+                graduatedYear: currentAcademicYear || student.academicYear || '',
+                finalClass: fromClass,
+                academicYear: targetAcademicYear,
+                promotedFrom: fromClass,
+                promotedAt: new Date().toISOString()
+            } : {
+                class: nextClass,
+                status: 'active',
+                isAlumni: false,
+                academicYear: targetAcademicYear,
+                promotedFrom: fromClass,
+                promotedAt: new Date().toISOString()
+            };
+
+            updates.push(updateDoc(doc(db, `${BASE_PATH}/students`, student.id), studentPayload));
+            promotionDecisions.push(setDoc(doc(collection(db, `${BASE_PATH}/promotionDecisions`)), {
+                studentId: student.id,
+                studentName: student.name || '',
+                fromClass: fromClass,
+                toClass: nextClass,
+                basedOn: 'direct_administrative',
+                academicYear: targetAcademicYear,
+                createdAt: new Date().toISOString()
+            }));
+        });
+
+        if (!updates.length) return alert('No students were promoted.');
+        await Promise.all([...updates, ...promotionDecisions]);
+
+        if (Object.keys(classTargetMap).length > 0) {
+            await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), { classProgressionMap: classTargetMap }, { merge: true });
+        }
+
+        alert(`Direct promotion successfully completed for ${updates.length} students to academic year ${targetAcademicYear}.`);
+        renderPromotionCandidatesUI();
+        return;
+    }
+
+    // Standard Examination-Based Promotion
+    const annualRows = examResultsCache.filter((row) => row.published === true && detectAnnualResultRow(row));
+    if (!annualRows.length) return alert('No annual published results found for promotion.');
 
     const ok = await showAppConfirm({
         title: 'Run Automatic Student Promotion',
@@ -5216,12 +5378,32 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
     const instName = institutionConfig.appName || 'Institution Name';
     const instPlace = institutionConfig.place || '';
     const instReg = institutionConfig.regNo || '';
-    const subTitle = [instPlace, instReg ? `Reg No: ${instReg}` : ''].filter(Boolean).join(' | ');
+    const logoSrc = institutionConfig.logoUrl || document.getElementById('header-logo')?.getAttribute('src') || 'assets/images/logo.png';
     const orderLabels = { rank: 'Rank Order', admission: 'Admission No Order', gender: 'Boys First, then Girls', alpha: 'Alphabetical Order' };
     const examLabel = data.classReports[0]?.examContext?.label || data.examId;
 
     let tablesHtml = '';
     data.classReports.forEach((cr) => {
+        const classMaxTotal = cr.reportSubjects.reduce((acc, sub) => acc + Number(sub.maxMarks || 0), 0);
+
+        // Calculate most frequent working days for header display
+        const workingDaysCounts = {};
+        cr.rows.forEach(r => {
+            const wd = r.resultRecord?.attendance?.workingDays;
+            if (wd !== undefined && wd !== null && wd !== '' && !isNaN(Number(wd))) {
+                const n = Number(wd);
+                workingDaysCounts[n] = (workingDaysCounts[n] || 0) + 1;
+            }
+        });
+        let classWorkingDays = null;
+        let maxCount = 0;
+        Object.entries(workingDaysCounts).forEach(([wd, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                classWorkingDays = Number(wd);
+            }
+        });
+
         const headersHtml = cr.reportSubjects.map(sub => `
             <th class="p-2 sm:p-2.5 text-center bg-indigo-600 text-white font-extrabold text-[11px] sm:text-xs whitespace-nowrap border-b border-indigo-700">
                 <div>${escapeHtml(sub.name)}</div>
@@ -5240,24 +5422,39 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
                 return `<td class="p-2 text-center text-xs border border-slate-200 ${textClass}">${escapeHtml(String(item.val))}</td>`;
             }).join('');
 
+            const isFail = (row.passStatus === 'FAIL');
+            const studentNameColorClass = isFail ? 'text-red-600 font-extrabold' : 'text-slate-900 font-bold';
+
+            // Smart attendance formatting: present days only, or present/working if custom
+            const att = row.resultRecord?.attendance || {};
+            let attDisplay = '-';
+            if (att.presentDays !== undefined && att.presentDays !== null && att.presentDays !== '') {
+                const p = Number(att.presentDays);
+                const w = Number(att.workingDays);
+                if (classWorkingDays && !isNaN(w) && w > 0 && w !== classWorkingDays) {
+                    attDisplay = `${p}/${w}`;
+                } else {
+                    attDisplay = String(p);
+                }
+            }
+
             return `
                 <tr class="hover:bg-indigo-50/40 transition-colors odd:bg-white even:bg-slate-50/50">
                     <td class="p-2 text-center font-mono text-xs text-slate-400 border border-slate-200">${idx + 1}</td>
                     <td class="p-2 font-mono text-xs font-bold text-slate-700 border border-slate-200">${escapeHtml(adm)}</td>
-                    <td class="p-2 text-xs font-bold text-slate-900 border border-slate-200 whitespace-nowrap">
+                    <td class="p-2 text-xs border border-slate-200 whitespace-nowrap ${studentNameColorClass}">
                         <div class="flex items-center">${escapeHtml(row.student?.name || '-')} ${genderBadge}</div>
                     </td>
                     ${subCells}
                     <td class="p-2 text-center font-mono text-xs font-extrabold text-slate-900 bg-slate-100/70 border border-slate-200">
-                        ${row.total}/${row.maximum}
-                        <div class="text-[10px] text-slate-500 font-semibold">${row.percentage}%</div>
+                        ${row.total}
                     </td>
                     <td class="p-2 text-center border border-slate-200">
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${row.passStatus === 'PASS' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}">
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black ${isFail ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}">
                             ${row.passStatus}
                         </span>
                     </td>
-                    <td class="p-2 text-center font-mono text-xs text-slate-600 border border-slate-200 whitespace-nowrap">${escapeHtml(row.attendance)}</td>
+                    <td class="p-2 text-center font-mono text-xs text-slate-700 border border-slate-200 whitespace-nowrap">${escapeHtml(attDisplay)}</td>
                     <td class="p-2 text-center font-mono text-xs font-extrabold text-indigo-700 bg-indigo-50/50 border border-slate-200">#${row.rank || '-'}</td>
                 </tr>`;
         }).join('');
@@ -5284,9 +5481,15 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
                                 <th class="p-2.5 text-left min-w-[90px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">Adm No</th>
                                 <th class="p-2.5 text-left min-w-[170px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">Student Name</th>
                                 ${headersHtml}
-                                <th class="p-2.5 text-center min-w-[95px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">Total</th>
+                                <th class="p-2.5 text-center min-w-[85px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">
+                                    <div>Total</div>
+                                    <div class="text-[9px] text-indigo-200 font-normal mt-0.5">(${classMaxTotal || 'Max'})</div>
+                                </th>
                                 <th class="p-2.5 text-center min-w-[80px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">Result</th>
-                                <th class="p-2.5 text-center min-w-[90px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">Attendance</th>
+                                <th class="p-2.5 text-center min-w-[90px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">
+                                    <div>Attendance</div>
+                                    ${classWorkingDays ? `<div class="text-[9px] text-indigo-200 font-normal mt-0.5">(${classWorkingDays})</div>` : ''}
+                                </th>
                                 <th class="p-2.5 text-center min-w-[65px] bg-indigo-600 text-white font-extrabold text-xs border-b border-indigo-700">Rank</th>
                             </tr>
                         </thead>
@@ -5312,17 +5515,31 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
 
     canvasEl.innerHTML = `
         <div class="bg-white rounded-2xl sm:rounded-3xl shadow-md border border-slate-200 p-4 sm:p-6 overflow-hidden">
-            <!-- Institutional A4 Landscape Header -->
-            <div class="text-center pb-4 mb-4 border-b border-slate-200">
-                <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase">${escapeHtml(instName)}</h1>
-                ${subTitle ? `<p class="text-xs text-slate-500 font-semibold mt-0.5">${escapeHtml(subTitle)}</p>` : ''}
-                
-                <div class="mt-3.5 px-4 py-2 bg-indigo-50/90 border border-indigo-100 rounded-xl flex flex-wrap items-center justify-between text-xs font-extrabold text-indigo-950 gap-2">
-                    <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Class:</span>${escapeHtml(data.isAllClasses ? 'All Classes' : `Class ${data.className}`)}</div>
-                    <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Exam:</span>${escapeHtml(examLabel)}</div>
-                    <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Academic Year:</span>${escapeHtml(data.reportYear)}</div>
-                    <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Order:</span>${escapeHtml(orderLabels[data.reportOrder] || data.reportOrder)}</div>
+            <!-- Institutional A4 Landscape Header with Logo, Name, Place, Reg No -->
+            <div class="flex flex-col sm:flex-row items-center justify-between pb-4 mb-4 border-b border-slate-200 gap-4 text-center sm:text-left">
+                <div class="flex items-center gap-3.5">
+                    <img src="${escapeHtml(logoSrc)}" alt="Logo" class="w-14 h-14 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs shrink-0" onerror="this.style.display='none'">
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase">${escapeHtml(instName)}</h1>
+                        <div class="text-xs text-slate-500 font-semibold flex flex-wrap items-center gap-2 mt-0.5 justify-center sm:justify-start">
+                            ${instPlace ? `<span>${escapeHtml(instPlace)}</span>` : ''}
+                            ${instPlace && instReg ? `<span class="text-slate-300">•</span>` : ''}
+                            ${instReg ? `<span class="font-bold text-slate-700">Reg No: ${escapeHtml(instReg)}</span>` : ''}
+                        </div>
+                    </div>
                 </div>
+                <div class="text-right">
+                    <span class="inline-block px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-700 text-xs font-black uppercase tracking-wider">
+                        Consolidated Marksheet
+                    </span>
+                </div>
+            </div>
+            
+            <div class="mb-4 px-4 py-2 bg-indigo-50/90 border border-indigo-100 rounded-xl flex flex-wrap items-center justify-between text-xs font-extrabold text-indigo-950 gap-2">
+                <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Class:</span>${escapeHtml(data.isAllClasses ? 'All Classes' : `Class ${data.className}`)}</div>
+                <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Exam:</span>${escapeHtml(examLabel)}</div>
+                <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Academic Year:</span>${escapeHtml(data.reportYear)}</div>
+                <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Order:</span>${escapeHtml(orderLabels[data.reportOrder] || data.reportOrder)}</div>
             </div>
 
             <!-- Tables Content -->
@@ -5334,7 +5551,7 @@ const renderIndividualCanvas = (canvasEl, data) => {
     const instName = institutionConfig.appName || 'Institution Name';
     const instPlace = institutionConfig.place || '';
     const instReg = institutionConfig.regNo || '';
-    const subTitle = [instPlace, instReg ? `Reg No: ${instReg}` : ''].filter(Boolean).join(' | ');
+    const logoSrc = institutionConfig.logoUrl || document.getElementById('header-logo')?.getAttribute('src') || 'assets/images/logo.png';
     const allStudents = data.allStudentsList;
 
     if (!allStudents.length) {
@@ -5362,6 +5579,8 @@ const renderIndividualCanvas = (canvasEl, data) => {
         const subRowsHtml = row.subjectValues.map((item, sIdx) => {
             const statusLabel = item.val === 'P' ? 'PASS' : (item.val === 'A' || item.val === 'AB') ? 'ABSENT' : item.pass ? 'PASS' : 'FAIL';
             const badgeClass = statusLabel === 'PASS' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : statusLabel === 'ABSENT' ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-rose-700 bg-rose-50 border-rose-200';
+            const subGrade = (Number.isFinite(item.num) && item.sub.maxMarks) ? getConfiguredGrade(item.num, item.sub.maxMarks) : (item.val === 'P' ? 'P' : '-');
+
             return `
                 <tr class="odd:bg-white even:bg-slate-50/60 border-b border-slate-200">
                     <td class="p-2 sm:p-2.5 text-center font-mono text-slate-400 text-xs">${sIdx + 1}</td>
@@ -5369,6 +5588,7 @@ const renderIndividualCanvas = (canvasEl, data) => {
                     <td class="p-2 sm:p-2.5 text-center font-mono text-slate-700 text-xs">${item.sub.maxMarks}</td>
                     <td class="p-2 sm:p-2.5 text-center font-mono text-slate-700 text-xs">${item.sub.passMarks}</td>
                     <td class="p-2 sm:p-2.5 text-center font-mono font-extrabold text-xs sm:text-sm text-slate-900">${escapeHtml(String(item.val))}</td>
+                    <td class="p-2 sm:p-2.5 text-center font-mono font-extrabold text-xs sm:text-sm text-indigo-700 bg-indigo-50/50">${escapeHtml(subGrade)}</td>
                     <td class="p-2 sm:p-2.5 text-center">
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-black border ${badgeClass}">${statusLabel}</span>
                     </td>
@@ -5377,12 +5597,21 @@ const renderIndividualCanvas = (canvasEl, data) => {
 
         return `
             <div class="relative bg-white rounded-3xl border-4 border-indigo-600 outline outline-1 outline-indigo-200 outline-offset-4 p-5 sm:p-8 max-w-2xl mx-auto shadow-xl mb-6 last:mb-0">
-                <!-- Institution Header -->
-                <div class="text-center pb-3 border-b border-slate-200">
-                    <h2 class="text-xl sm:text-2xl font-black text-indigo-950 uppercase tracking-tight">${escapeHtml(instName)}</h2>
-                    ${subTitle ? `<p class="text-xs text-slate-500 font-semibold mt-0.5">${escapeHtml(subTitle)}</p>` : ''}
-                    <div class="inline-block mt-2.5 px-5 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-indigo-700 font-black text-[11px] uppercase tracking-wider">
-                        Student Report Card
+                <!-- Institution Header with Logo, Name, Place, Reg No -->
+                <div class="flex items-center justify-between pb-3 border-b border-slate-200 gap-3">
+                    <div class="flex items-center gap-3">
+                        <img src="${escapeHtml(logoSrc)}" alt="Logo" class="w-12 h-12 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs shrink-0" onerror="this.style.display='none'">
+                        <div>
+                            <h2 class="text-xl sm:text-2xl font-black text-indigo-950 uppercase tracking-tight">${escapeHtml(instName)}</h2>
+                            <div class="text-xs text-slate-500 font-semibold flex items-center gap-2 mt-0.5">
+                                ${instPlace ? `<span>${escapeHtml(instPlace)}</span>` : ''}
+                                ${instPlace && instReg ? `<span class="text-slate-300">•</span>` : ''}
+                                ${instReg ? `<span class="font-bold text-slate-700">Reg No: ${escapeHtml(instReg)}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="inline-block px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-indigo-700 font-black text-[10px] uppercase tracking-wider">
+                        Report Card
                     </div>
                 </div>
 
@@ -5418,7 +5647,7 @@ const renderIndividualCanvas = (canvasEl, data) => {
                     </div>
                 </div>
 
-                <!-- Subjects Table -->
+                <!-- Subjects Table with Grade Column -->
                 <div class="overflow-x-auto rounded-2xl border border-slate-300 shadow-2xs mb-4">
                     <table class="w-full text-xs border-collapse">
                         <thead>
@@ -5428,6 +5657,7 @@ const renderIndividualCanvas = (canvasEl, data) => {
                                 <th class="p-2 sm:p-2.5 text-center font-extrabold">Max</th>
                                 <th class="p-2 sm:p-2.5 text-center font-extrabold">Pass</th>
                                 <th class="p-2 sm:p-2.5 text-center font-extrabold">Obtained</th>
+                                <th class="p-2 sm:p-2.5 text-center font-extrabold">Grade</th>
                                 <th class="p-2 sm:p-2.5 text-center font-extrabold">Status</th>
                             </tr>
                         </thead>
@@ -5438,7 +5668,7 @@ const renderIndividualCanvas = (canvasEl, data) => {
                 </div>
 
                 <!-- Result Summary Box -->
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 grid grid-cols-2 gap-3 text-xs mb-6">
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 grid grid-cols-2 gap-3 text-xs">
                     <div>
                         <span class="text-slate-500 font-semibold block text-[11px]">Total Marks</span>
                         <span class="text-base font-extrabold text-slate-900">${row.total} / ${row.maximum}</span>
@@ -5456,18 +5686,6 @@ const renderIndividualCanvas = (canvasEl, data) => {
                         <span class="text-sm font-black ${row.passStatus === 'PASS' ? 'text-emerald-700' : 'text-rose-700'}">
                             ${row.passStatus === 'PASS' ? `PASSED (Grade: ${row.grade})` : 'FAILED'}
                         </span>
-                    </div>
-                </div>
-
-                <!-- Signatures Lines matching PDF -->
-                <div class="pt-6 border-t border-slate-200 grid grid-cols-2 gap-8 text-center text-xs">
-                    <div>
-                        <div class="border-t border-dashed border-slate-400 w-3/4 mx-auto mb-1.5"></div>
-                        <span class="text-slate-600 font-semibold text-[11px]">Class Teacher</span>
-                    </div>
-                    <div>
-                        <div class="border-t border-dashed border-slate-400 w-3/4 mx-auto mb-1.5"></div>
-                        <span class="text-slate-600 font-semibold text-[11px]">Head of Institution / Principal</span>
                     </div>
                 </div>
             </div>`;
@@ -5611,10 +5829,14 @@ const exportReportExcel = () => {
 
     const wb = XLSX.utils.book_new();
     const instName = institutionConfig.appName || 'Institution Name';
+    const instPlace = institutionConfig.place || '';
+    const instReg = institutionConfig.regNo || '';
+    const subTitle = [instPlace, instReg ? `Reg No: ${instReg}` : ''].filter(Boolean).join(' • ');
 
     data.classReports.forEach((cr) => {
         const sheetRows = [
             [instName],
+            [subTitle || ''],
             [`Class: ${cr.className} | Exam: ${cr.examContext?.label || data.examId} | Academic Year: ${data.reportYear}`],
             [] // blank line
         ];
@@ -5672,8 +5894,11 @@ const exportReportPDF = (model = activeReportModel) => {
     const instName = institutionConfig.appName || 'Institution Name';
     const instPlace = institutionConfig.place || '';
     const instReg = institutionConfig.regNo || '';
-    const subTitle = [instPlace, instReg ? `Reg No: ${instReg}` : ''].filter(Boolean).join(' | ');
+    const subTitle = [instPlace, instReg ? `Reg No: ${instReg}` : ''].filter(Boolean).join(' • ');
     const orderLabels = { rank: 'Rank Order', admission: 'Admission No Order', gender: 'Boys First, then Girls', alpha: 'Alphabetical Order' };
+
+    const logoImg = document.getElementById('header-logo');
+    const hasLogo = Boolean(logoImg && logoImg.complete && logoImg.naturalWidth > 0 && logoImg.getAttribute('src'));
 
     if (model === 'consolidated') {
         const docPdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -5682,12 +5907,39 @@ const exportReportPDF = (model = activeReportModel) => {
         data.classReports.forEach((cr, classIdx) => {
             if (classIdx > 0) docPdf.addPage();
 
+            const classMaxTotal = cr.reportSubjects.reduce((acc, s) => acc + Number(s.maxMarks || 0), 0);
+            const workingDaysCounts = {};
+            cr.rows.forEach(r => {
+                const wd = r.resultRecord?.attendance?.workingDays;
+                if (wd !== undefined && wd !== null && wd !== '' && !isNaN(Number(wd))) {
+                    const n = Number(wd);
+                    workingDaysCounts[n] = (workingDaysCounts[n] || 0) + 1;
+                }
+            });
+            let classWorkingDays = null;
+            let maxCount = 0;
+            Object.entries(workingDaysCounts).forEach(([wd, count]) => {
+                if (count > maxCount) {
+                    maxCount = count;
+                    classWorkingDays = Number(wd);
+                }
+            });
+
+            // Draw Institution Header with Logo
+            if (hasLogo) {
+                try {
+                    docPdf.addImage(logoImg, 'PNG', 14, 8, 16, 16);
+                } catch (e) {
+                    console.warn('Could not render logo in PDF:', e);
+                }
+            }
+
             docPdf.setFont('helvetica', 'bold');
             docPdf.setFontSize(15);
             docPdf.text(instName, pageWidth / 2, 12, { align: 'center' });
             docPdf.setFont('helvetica', 'normal');
             docPdf.setFontSize(9);
-            if (subTitle) docPdf.text(subTitle, pageWidth / 2, 18, { align: 'center' });
+            if (subTitle) docPdf.text(subTitle, pageWidth / 2, 17, { align: 'center' });
             docPdf.setFont('helvetica', 'bold');
             docPdf.setFontSize(10);
             docPdf.text(`Class: ${cr.className}`, 14, 27);
@@ -5695,21 +5947,37 @@ const exportReportPDF = (model = activeReportModel) => {
             docPdf.text(`Academic Year: ${data.reportYear}`, 150, 27);
             docPdf.text(`Order: ${orderLabels[data.reportOrder] || orderLabels.rank}`, 225, 27);
 
-            const headers = ['No', 'Adm No', 'Student Name', ...cr.reportSubjects.map((s) => `${s.name} (${s.maxMarks})`), 'Total', 'Result', 'Attendance', 'Rank'];
+            const headers = ['No', 'Adm No', 'Student Name', ...cr.reportSubjects.map((s) => `${s.name} (${s.maxMarks})`), `Total (${classMaxTotal})`, 'Result', `Att. (${classWorkingDays || 'Total'})`, 'Rank'];
+            const studentNameColIndex = 2;
             const resultColIndex = headers.indexOf('Result');
-            const body = cr.rows.map((row, index) => [
-                index + 1,
-                row.student.adm || row.student.admissionNo || row.student.uid || '-',
-                row.student.name || '-',
-                ...row.subjectValues.map(item => item.val),
-                `${row.total}/${row.maximum}`,
-                row.passStatus,
-                row.attendance,
-                row.rank || '-'
-            ]);
+
+            const body = cr.rows.map((row, index) => {
+                const att = row.resultRecord?.attendance || {};
+                let attText = '-';
+                if (att.presentDays !== undefined && att.presentDays !== null && att.presentDays !== '') {
+                    const p = Number(att.presentDays);
+                    const w = Number(att.workingDays);
+                    if (classWorkingDays && !isNaN(w) && w > 0 && w !== classWorkingDays) {
+                        attText = `${p}/${w}`;
+                    } else {
+                        attText = String(p);
+                    }
+                }
+
+                return [
+                    index + 1,
+                    row.student?.adm || row.student?.admissionNo || row.student?.uid || '-',
+                    row.student?.name || '-',
+                    ...row.subjectValues.map(item => item.val),
+                    String(row.total),
+                    row.passStatus,
+                    attText,
+                    row.rank || '-'
+                ];
+            });
 
             docPdf.autoTable({
-                startY: 34,
+                startY: 33,
                 head: [headers],
                 body,
                 styles: { fontSize: cr.reportSubjects.length > 8 ? 6.5 : 7.5, cellPadding: 1.5, overflow: 'linebreak', valign: 'middle' },
@@ -5718,8 +5986,17 @@ const exportReportPDF = (model = activeReportModel) => {
                 didParseCell: (cellData) => {
                     if (cellData.section !== 'body') return;
                     const rowMeta = cr.rows[cellData.row.index];
-                    if (rowMeta?.passStatus === 'FAIL' && cellData.column.index === resultColIndex) {
-                        cellData.cell.styles.textColor = [220, 38, 38];
+                    if (rowMeta?.passStatus === 'FAIL') {
+                        if (cellData.column.index === studentNameColIndex) {
+                            cellData.cell.styles.textColor = [220, 38, 38];
+                            cellData.cell.styles.fontStyle = 'bold';
+                        }
+                        if (cellData.column.index === resultColIndex) {
+                            cellData.cell.styles.textColor = [220, 38, 38];
+                            cellData.cell.styles.fontStyle = 'bold';
+                        }
+                    } else if (rowMeta?.passStatus === 'PASS' && cellData.column.index === resultColIndex) {
+                        cellData.cell.styles.textColor = [16, 149, 101];
                         cellData.cell.styles.fontStyle = 'bold';
                     }
                 },
@@ -5737,7 +6014,7 @@ const exportReportPDF = (model = activeReportModel) => {
         const safeExam = (data.classReports[0]?.examContext?.label || data.examId || 'Exam').replace(/\s+/g, '_');
         docPdf.save(`${filePrefix}_${safeExam}_${data.reportOrder}.pdf`);
     } else {
-        // Individual Report Cards Batch PDF
+        // Individual Report Cards Batch PDF (Strict A4 Portrait)
         const docPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const pageWidth = docPdf.internal.pageSize.getWidth();
         const pageHeight = docPdf.internal.pageSize.getHeight();
@@ -5751,6 +6028,15 @@ const exportReportPDF = (model = activeReportModel) => {
             docPdf.setDrawColor(224, 231, 255);
             docPdf.setLineWidth(0.3);
             docPdf.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+            // Draw Logo in Header
+            if (hasLogo) {
+                try {
+                    docPdf.addImage(logoImg, 'PNG', 14, 13, 14, 14);
+                } catch (e) {
+                    console.warn('Could not add logo to individual report PDF:', e);
+                }
+            }
 
             docPdf.setFont('helvetica', 'bold');
             docPdf.setFontSize(16);
@@ -5773,8 +6059,8 @@ const exportReportPDF = (model = activeReportModel) => {
             docPdf.setDrawColor(226, 232, 240);
             docPdf.roundedRect(14, 41, pageWidth - 28, 28, 2, 2, 'FD');
 
-            const admNo = row.student.adm || row.student.admissionNo || row.student.uid || '-';
-            const stName = row.student.name || '-';
+            const admNo = row.student?.adm || row.student?.admissionNo || row.student?.uid || '-';
+            const stName = row.student?.name || '-';
             const crExam = data.classReports.find(cr => cr.className === row.className)?.examContext?.label || data.examId;
 
             docPdf.setFontSize(9);
@@ -5819,15 +6105,19 @@ const exportReportPDF = (model = activeReportModel) => {
             docPdf.setTextColor(67, 56, 202);
             docPdf.text(String(row.rank || '-'), pageWidth / 2 + 37, 64);
 
-            const subHeaders = ['#', 'Subject', 'Max Marks', 'Pass Marks', 'Obtained Marks', 'Status'];
-            const subBody = row.subjectValues.map((item, sIdx) => [
-                sIdx + 1,
-                item.sub.name,
-                item.sub.maxMarks,
-                item.sub.passMarks,
-                item.val,
-                item.val === 'P' ? 'PASS' : (item.val === 'A' || item.val === 'AB') ? 'ABSENT' : item.pass ? 'PASS' : 'FAIL'
-            ]);
+            const subHeaders = ['#', 'Subject', 'Max Marks', 'Pass Marks', 'Obtained Marks', 'Grade', 'Status'];
+            const subBody = row.subjectValues.map((item, sIdx) => {
+                const grade = (Number.isFinite(item.num) && item.sub.maxMarks) ? getConfiguredGrade(item.num, item.sub.maxMarks) : (item.val === 'P' ? 'P' : '-');
+                return [
+                    sIdx + 1,
+                    item.sub.name,
+                    item.sub.maxMarks,
+                    item.sub.passMarks,
+                    item.val,
+                    grade,
+                    item.val === 'P' ? 'PASS' : (item.val === 'A' || item.val === 'AB') ? 'ABSENT' : item.pass ? 'PASS' : 'FAIL'
+                ];
+            });
 
             docPdf.autoTable({
                 startY: 74,
@@ -5838,14 +6128,15 @@ const exportReportPDF = (model = activeReportModel) => {
                 headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
                 columnStyles: {
                     0: { cellWidth: 10, halign: 'center' },
-                    1: { cellWidth: 55 },
-                    2: { cellWidth: 26, halign: 'center' },
-                    3: { cellWidth: 26, halign: 'center' },
-                    4: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
-                    5: { halign: 'center' }
+                    1: { cellWidth: 50 },
+                    2: { cellWidth: 22, halign: 'center' },
+                    3: { cellWidth: 22, halign: 'center' },
+                    4: { cellWidth: 26, halign: 'center', fontStyle: 'bold' },
+                    5: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+                    6: { halign: 'center' }
                 },
                 didParseCell: (cellData) => {
-                    if (cellData.section === 'body' && cellData.column.index === 5) {
+                    if (cellData.section === 'body' && cellData.column.index === 6) {
                         if (cellData.cell.raw === 'FAIL') {
                             cellData.cell.styles.textColor = [220, 38, 38];
                             cellData.cell.styles.fontStyle = 'bold';
@@ -5901,18 +6192,6 @@ const exportReportPDF = (model = activeReportModel) => {
                 docPdf.setTextColor(220, 38, 38);
                 docPdf.text('FAILED', pageWidth / 2 + 35, finalY + 16);
             }
-
-            const signY = pageHeight - 30;
-            docPdf.setDrawColor(203, 213, 225);
-            docPdf.setLineWidth(0.4);
-            docPdf.line(20, signY, 65, signY);
-            docPdf.line(pageWidth - 65, signY, pageWidth - 20, signY);
-
-            docPdf.setFont('helvetica', 'normal');
-            docPdf.setFontSize(8);
-            docPdf.setTextColor(100);
-            docPdf.text('Class Teacher', 42.5, signY + 5, { align: 'center' });
-            docPdf.text('Head of Institution / Principal', pageWidth - 42.5, signY + 5, { align: 'center' });
         });
 
         const filePrefix = data.isAllClasses ? `Report_Cards_${data.reportYear}_AllClasses` : `Report_Cards_${data.reportYear}_Class_${data.className}`;
@@ -5927,18 +6206,9 @@ document.getElementById('generate-individual-cards-btn')?.addEventListener('clic
 document.getElementById('report-download-pdf-btn')?.addEventListener('click', () => exportReportPDF(activeReportModel));
 document.getElementById('report-download-excel-btn')?.addEventListener('click', () => exportReportExcel());
 
-// Model Switcher Event
-document.getElementById('report-model-switcher')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.report-model-btn');
-    if (!btn) return;
-    document.querySelectorAll('.report-model-btn').forEach((b) => {
-        b.classList.remove('active', 'bg-indigo-600', 'text-white', 'shadow-xs');
-        b.classList.add('text-slate-700', 'hover:text-slate-900');
-    });
-    btn.classList.add('active', 'bg-indigo-600', 'text-white', 'shadow-xs');
-    btn.classList.remove('text-slate-700', 'hover:text-slate-900');
-
-    activeReportModel = btn.dataset.model || 'consolidated';
+// Model Dropdown Event
+document.getElementById('report-model-select')?.addEventListener('change', (e) => {
+    activeReportModel = e.target.value || 'consolidated';
     updateReportPreview();
 });
 
@@ -6335,6 +6605,13 @@ const activateSettingsSubpanel = (subtabId) => {
         const snapTab = document.querySelector('.tab-link[data-target="snapshot-page"]');
         if (snapTab) {
             activateResultTab(snapTab);
+            return;
+        }
+    }
+    if (subtabId === 'subpanel-promotion') {
+        const promoTab = document.querySelector('.tab-link[data-target="promotion-page"]');
+        if (promoTab) {
+            activateResultTab(promoTab);
             return;
         }
     }

@@ -129,6 +129,7 @@
                 </li>
                 <li data-role-scope="admin-only"><a href="#published" class="nav-link tab-link" data-target="published-page"><i class="fas fa-circle-check text-lg w-6"></i> Published Results</a></li>
                 <li data-role-scope="admin-only"><a href="#report-cards" class="nav-link tab-link" data-target="report-cards-page"><i class="fas fa-id-card text-lg w-6"></i> Report Cards</a></li>
+                <li data-role-scope="admin-only"><a href="#promotion" class="nav-link tab-link" data-target="promotion-page"><i class="fas fa-graduation-cap text-lg w-6"></i> Class Promotion</a></li>
                 <li data-role-scope="admin-only"><a href="#snapshot" class="nav-link tab-link" data-target="snapshot-page"><i class="fas fa-file-export text-lg w-6"></i> Snapshot Export</a></li>
                 
                 <!-- Category 3: Settings & Setup -->
@@ -141,7 +142,7 @@
                         <li data-role-scope="admin-only"><a href="#settings-publish" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-publish"><i class="fas fa-bullhorn text-sm w-5 text-indigo-500"></i> Publish Controls</a></li>
                         <li><a href="#settings-subjects" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-subjects"><i class="fas fa-book text-sm w-5 text-indigo-500"></i> Subjects & Exams</a></li>
                         <li><a href="#settings-grades" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-grades"><i class="fas fa-list-check text-sm w-5 text-indigo-500"></i> Grade Rules</a></li>
-                        <li data-role-scope="admin-only"><a href="#settings-promotion" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-promotion"><i class="fas fa-arrow-up text-sm w-5 text-indigo-500"></i> Class Promotion</a></li>
+                        <li data-role-scope="admin-only"><a href="#promotion" class="nav-link tab-link text-xs font-semibold py-1.5" data-target="promotion-page"><i class="fas fa-graduation-cap text-sm w-5 text-indigo-500"></i> Class Promotion</a></li>
                     </ul>
                 </li>
                 
@@ -629,22 +630,16 @@
                             </div>
                         </div>
 
-                        <!-- Model Selection Segmented Controls -->
+                        <!-- Model Selection Dropdown -->
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-slate-200/80">
                             <div class="flex items-center gap-2">
-                                <span class="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                                    <i class="fas fa-layer-group text-indigo-600"></i> Model / View:
-                                </span>
-                                <div class="inline-flex p-1 bg-slate-200/80 rounded-xl border border-slate-300 shadow-2xs" id="report-model-switcher">
-                                    <button type="button" data-model="consolidated" class="report-model-btn active px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer bg-indigo-600 text-white shadow-xs">
-                                        <i class="fas fa-table-list"></i>
-                                        <span>Consolidated Marksheet</span>
-                                    </button>
-                                    <button type="button" data-model="individual" class="report-model-btn px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer text-slate-700 hover:text-slate-900">
-                                        <i class="fas fa-id-card"></i>
-                                        <span>Individual Report Cards</span>
-                                    </button>
-                                </div>
+                                <label for="report-model-select" class="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="fas fa-layer-group text-indigo-600"></i> Model View:
+                                </label>
+                                <select id="report-model-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-indigo-500 outline-none shadow-2xs cursor-pointer min-w-[210px]">
+                                    <option value="consolidated" selected>Consolidated Marksheet</option>
+                                    <option value="individual">Individual Report Cards</option>
+                                </select>
                             </div>
                             <div id="report-preview-summary" class="text-xs font-semibold text-slate-600">Select year, class and exam to preview.</div>
                         </div>
@@ -674,7 +669,7 @@
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 border-b pb-3">
                         <div>
                             <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Settings & Setup</h2>
-                            <p class="text-xs text-slate-500 font-medium mt-0.5">Unified administration hub for publish controls, exam structures, grading, and promotion.</p>
+                            <p class="text-xs text-slate-500 font-medium mt-0.5">Unified administration hub for publish controls, exam structures, and grading rules.</p>
                         </div>
                     </div>
 
@@ -1026,68 +1021,82 @@
                         </div>
                     </div>
 
-                    <!-- Sub-Panel 4: Class Promotion -->
-                    <div id="subpanel-promotion" class="settings-subpanel hidden space-y-6">
-                        <!-- Promotion Dashboard Card -->
-                        <div class="card p-5 sm:p-6 shadow-sm border border-slate-200">
-                            <!-- Top Banner & Action Controls -->
-                            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 mb-5 border-b border-slate-200">
+                </div>
+            </section>
+
+            <!-- 6. Class Promotion & Academic Advancement (Admin Only) -->
+            <section id="promotion-page" class="page-content hidden" data-role-scope="admin-only">
+                <div class="card p-5 sm:p-6 shadow-sm border border-slate-200 rounded-2xl mb-6">
+                    <!-- Top Banner & Action Controls -->
+                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 mb-5 border-b border-slate-200">
+                        <div>
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs">
+                                    <i class="fas fa-graduation-cap"></i>
+                                </span>
                                 <div>
-                                    <div class="flex items-center gap-2.5">
-                                        <span class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs">
-                                            <i class="fas fa-graduation-cap"></i>
-                                        </span>
-                                        <div>
-                                            <h3 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Annual Class Promotion & Alumni Transition</h3>
-                                            <p class="text-xs text-slate-500">Configure academic year advancement. Final year students automatically graduate into Alumni status.</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                                    <!-- Current Academic Year -->
-                                    <div class="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2">
-                                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Current Year:</span>
-                                        <span id="promotion-current-year-badge" class="text-xs font-extrabold text-indigo-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">--</span>
-                                    </div>
-
-                                    <!-- Target Academic Year Select -->
-                                    <div class="flex items-center gap-2 bg-indigo-50/70 border border-indigo-200 px-3 py-1.5 rounded-xl">
-                                        <label for="promotion-target-year" class="text-xs font-bold text-indigo-900 whitespace-nowrap">
-                                            <i class="fas fa-arrow-right mr-1 text-indigo-600"></i> Promote To Year:
-                                        </label>
-                                        <select id="promotion-target-year" class="p-1 border border-indigo-200 rounded-lg bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none min-w-[140px] shadow-2xs"></select>
-                                    </div>
-
-                                    <!-- Run Auto Promotion Action Button -->
-                                    <button id="run-auto-promotion-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-xl font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer ml-auto lg:ml-0">
-                                        <i class="fas fa-check-double"></i>
-                                        <span>Run Auto Promotion</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Single Consolidated Promotion Review Section -->
-                            <div class="space-y-4">
-                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                    <div>
-                                        <h4 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                                            <i class="fas fa-users-cog text-indigo-600"></i> Review Eligible Promotions & Target Classes
-                                        </h4>
-                                        <p class="text-xs text-slate-500">Target classes are automatically assigned by sequence or custom setting. You can change any target class before running promotion.</p>
-                                    </div>
-                                    <button id="preview-promotion-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 py-1.5 px-3 rounded-lg font-bold text-xs transition flex items-center gap-1.5">
-                                        <i class="fas fa-sync-alt"></i> Refresh Candidates
-                                    </button>
-                                </div>
-
-                                <!-- Dynamically populated cards with statistics and editable target class dropdown -->
-                                <div id="promotion-preview-list" class="space-y-3">
-                                    <div class="text-center py-6 text-xs text-slate-400 italic">Loading promotion candidate classes...</div>
+                                    <h3 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Class Promotion &amp; Academic Advancement</h3>
+                                    <p class="text-xs text-slate-500">Configure annual student progression and academic year advancement. Final year students graduate into Alumni status.</p>
                                 </div>
                             </div>
                         </div>
+
+                        <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                            <!-- Direct Promotion Bypass Toggle Switch -->
+                            <div class="flex items-center gap-2 bg-amber-50/90 border border-amber-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="promotion-direct-bypass-toggle" class="sr-only peer">
+                                    <div class="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-600"></div>
+                                </label>
+                                <label for="promotion-direct-bypass-toggle" class="text-xs font-bold text-amber-900 cursor-pointer select-none flex items-center gap-1.5">
+                                    <i class="fas fa-bolt text-amber-600"></i>
+                                    <span>Direct Promotion (Bypass Exam Marks)</span>
+                                </label>
+                            </div>
+
+                            <!-- Current Academic Year -->
+                            <div class="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Current Year:</span>
+                                <span id="promotion-current-year-badge" class="text-xs font-extrabold text-indigo-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">--</span>
+                            </div>
+
+                            <!-- Target Academic Year Select -->
+                            <div class="flex items-center gap-2 bg-indigo-50/70 border border-indigo-200 px-3 py-1.5 rounded-xl">
+                                <label for="promotion-target-year" class="text-xs font-bold text-indigo-900 whitespace-nowrap">
+                                    <i class="fas fa-arrow-right mr-1 text-indigo-600"></i> Promote To Year:
+                                </label>
+                                <select id="promotion-target-year" class="p-1 border border-indigo-200 rounded-lg bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none min-w-[140px] shadow-2xs"></select>
+                            </div>
+
+                            <!-- Run Auto Promotion Action Button -->
+                            <button id="run-auto-promotion-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-xl font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer ml-auto lg:ml-0">
+                                <i class="fas fa-check-double"></i>
+                                <span>Run Auto Promotion</span>
+                            </button>
+                        </div>
                     </div>
+
+                    <!-- Single Consolidated Promotion Review Section -->
+                    <div class="space-y-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                    <i class="fas fa-users-cog text-indigo-600"></i> Review Eligible Promotions &amp; Target Classes
+                                </h4>
+                                <p class="text-xs text-slate-500">Target classes are automatically assigned by sequence or custom setting. You can change any target class before running promotion.</p>
+                            </div>
+                            <button id="preview-promotion-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 py-1.5 px-3 rounded-lg font-bold text-xs transition flex items-center gap-1.5">
+                                <i class="fas fa-sync-alt"></i> Refresh Candidates
+                            </button>
+                        </div>
+
+                        <!-- Dynamically populated cards with statistics and editable target class dropdown -->
+                        <div id="promotion-preview-list" class="space-y-3">
+                            <div class="text-center py-6 text-xs text-slate-400 italic">Loading promotion candidate classes...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
                 </div>
             </section>
