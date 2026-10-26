@@ -16,11 +16,13 @@ let teacherAssignedClasses = [];
 let institutionConfig = {};
 let currentAcademicYear = '';
 let availableAcademicYears = [];
+let academicYearRecords = []; // Full year objects from settings/academicYears
 let allStudents = [];
 let allClasses = [];
 let calendarConfig = {
     weekendDays: [5], // Default: Friday (index 5)
-    holidays: [] // [{ date: 'YYYY-MM-DD', title: 'Eid' }]
+    holidays: [], // [{ date: 'YYYY-MM-DD', title: 'Eid', scope: 'all'|'specific', classes: ['1', '2'] }]
+    sessionSchedules: {} // { [academicYear]: { startDate: 'YYYY-MM-DD', notes: '' } }
 };
 
 // Daily State
@@ -40,6 +42,8 @@ let selectedAnalyticsClass = 'ALL';
 
 // Holiday Edit State
 let editingHolidayIndex = -1;
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Helper: Normalize Date String
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
@@ -168,6 +172,10 @@ const activateTab = (targetTabId) => {
         loadMonthlyRegister();
     } else if (targetTabId === 'tab-analytics') {
         loadAnalytics();
+    } else if (targetTabId === 'tab-session') {
+        renderSessionScheduleUI();
+    } else if (targetTabId === 'tab-calendar') {
+        renderCalendarSettingsUI();
     }
 };
 
@@ -193,11 +201,45 @@ const setupNavigationTabs = () => {
         activateTab('tab-monthly');
     } else if (currentHash === '#analytics') {
         activateTab('tab-analytics');
+    } else if (currentHash === '#session') {
+        activateTab('tab-session');
     } else if (currentHash === '#calendar') {
         activateTab('tab-calendar');
     } else {
         activateTab('tab-daily');
     }
+};
+
+// --- Session Schedule Helpers ---
+const getYearRecord = (yearLabel) => {
+    const label = yearLabel || currentAcademicYear;
+    return academicYearRecords.find(y => {
+        const yStr = (typeof y === 'object' && y !== null) ? (y.label || y.year || '') : String(y || '');
+        return yStr === label;
+    }) || null;
+};
+
+const getSessionStartDate = (yearLabel) => {
+    const label = yearLabel || currentAcademicYear;
+    const schedule = calendarConfig.sessionSchedules?.[label];
+    if (schedule?.startDate) return schedule.startDate;
+
+    // Fallback: 1st day of start month from Admin settings
+    const rec = getYearRecord(label);
+    if (rec && Number.isInteger(Number(rec.startMonth))) {
+        const startMonth = Number(rec.startMonth); // 0-11
+        const match = String(label).match(/^(\d{4})/);
+        const yNum = match ? Number(match[1]) : new Date().getFullYear();
+        const mStr = String(startMonth + 1).padStart(2, '0');
+        return `${yNum}-${mStr}-01`;
+    }
+    return '';
+};
+
+const isDateBeforeSessionStart = (dateStr, yearLabel) => {
+    const sDate = getSessionStartDate(yearLabel);
+    if (!sDate || !dateStr) return false;
+    return dateStr < sDate;
 };
 
 // --- Initialization & Auth ---
@@ -278,6 +320,7 @@ const setupFirestoreListeners = () => {
         const data = snap.exists() ? snap.data() : {};
         currentAcademicYear = data.currentYear || '';
         const rawYears = Array.isArray(data.years) ? data.years : [];
+        academicYearRecords = rawYears;
         availableAcademicYears = rawYears.filter(y => {
             if (typeof y === 'object' && y !== null) return String(y.status || '').toLowerCase() !== 'archived';
             return Boolean(y);
@@ -287,6 +330,7 @@ const setupFirestoreListeners = () => {
         if (activeYearBadge) activeYearBadge.textContent = currentAcademicYear || 'Active Session';
 
         populateAcademicYearDropdowns();
+        renderSessionScheduleUI();
     });
 
     // 3. Staff Roster (to resolve assigned classes)
@@ -322,6 +366,7 @@ const setupFirestoreListeners = () => {
         allClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
         populateClassDropdowns();
+        populateHolidayClassesCheckboxes();
         loadDailyAttendanceRoster();
     });
 
@@ -331,13 +376,14 @@ const setupFirestoreListeners = () => {
             calendarConfig = { ...calendarConfig, ...snap.data() };
         }
         renderCalendarSettingsUI();
+        renderSessionScheduleUI();
         updateDailyDateDisplay();
     });
 };
 
 // --- Dropdowns Population ---
 const populateAcademicYearDropdowns = () => {
-    const dropdownIds = ['daily-academic-year', 'analytics-academic-year'];
+    const dropdownIds = ['daily-academic-year', 'analytics-academic-year', 'session-academic-year'];
     
     dropdownIds.forEach(id => {
         const yearSelect = document.getElementById(id);
@@ -421,7 +467,7 @@ const getDailyDocId = (academicYear, classLabel, dateStr) => {
     return `${cleanYear}__${cleanClass}__${cleanDate}`;
 };
 
-const isDateHoliday = (dateStr) => {
+const isDateHoliday = (dateStr, targetClass = '') => {
     if (!dateStr) return { isHoliday: false, reason: '' };
     try {
         const [y, m, d] = dateStr.split('-').map(Number);
@@ -434,7 +480,13 @@ const isDateHoliday = (dateStr) => {
 
         const holiday = (calendarConfig.holidays || []).find(h => h.date === dateStr);
         if (holiday) {
-            return { isHoliday: true, reason: holiday.title || 'Official Holiday' };
+            const isAll = !holiday.scope || holiday.scope === 'all' || !Array.isArray(holiday.classes) || holiday.classes.length === 0;
+            if (isAll) {
+                return { isHoliday: true, reason: holiday.title || 'Official Holiday' };
+            }
+            if (targetClass && holiday.classes.includes(targetClass)) {
+                return { isHoliday: true, reason: `${holiday.title || 'Class Holiday'} (Class ${targetClass})` };
+            }
         }
     } catch (_) {}
     return { isHoliday: false, reason: '' };
@@ -446,18 +498,33 @@ const updateDailyDateDisplay = () => {
         dateInput.value = selectedDailyDate || getTodayDateString();
     }
     selectedDailyDate = dateInput?.value || getTodayDateString();
+    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
 
     const dateBadge = document.getElementById('daily-date-badge');
     if (dateBadge) dateBadge.textContent = formatDisplayDate(selectedDailyDate);
 
+    // Holiday notice (checks class-specific holiday)
     const holidayNotice = document.getElementById('daily-holiday-notice');
-    const { isHoliday, reason } = isDateHoliday(selectedDailyDate);
+    const { isHoliday, reason } = isDateHoliday(selectedDailyDate, selectedDailyClass);
     if (holidayNotice) {
         if (isHoliday) {
             holidayNotice.innerHTML = `<i class="fas fa-umbrella-beach mr-1"></i> ${escapeHtml(reason)}`;
             holidayNotice.classList.remove('hidden');
         } else {
             holidayNotice.classList.add('hidden');
+        }
+    }
+
+    // Pre-session opening notice
+    const preSessionNotice = document.getElementById('daily-pre-session-notice');
+    const isPreSession = isDateBeforeSessionStart(selectedDailyDate, year);
+    if (preSessionNotice) {
+        if (isPreSession) {
+            preSessionNotice.classList.remove('hidden');
+            const sDate = getSessionStartDate(year);
+            preSessionNotice.title = `Precedes session opening date (${sDate})`;
+        } else {
+            preSessionNotice.classList.add('hidden');
         }
     }
 };
@@ -723,7 +790,7 @@ const saveDailyAttendance = async () => {
         });
 
         const totalEnrolled = document.querySelectorAll('#daily-roster-tbody tr[data-student-id]').length;
-        const { isHoliday, reason } = isDateHoliday(selectedDailyDate);
+        const { isHoliday, reason } = isDateHoliday(selectedDailyDate, selectedDailyClass);
         const docId = getDailyDocId(year, selectedDailyClass, selectedDailyDate);
 
         const payload = {
@@ -835,10 +902,11 @@ const loadMonthlyRegister = async () => {
             const dt = new Date(yearNum, monthNum - 1, day);
             const dayOfWeek = dt.getDay(); // 0 Sun, 5 Fri
             const dayLetter = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'][dayOfWeek];
-            const isOff = isDateHoliday(dateStr).isHoliday;
+            const isOff = isDateHoliday(dateStr, selectedMonthlyClass).isHoliday;
+            const isPreSession = isDateBeforeSessionStart(dateStr, year);
 
             thDaysHtml += `
-                <th class="${isOff ? 'bg-slate-200/90 text-slate-500' : ''} text-center min-w-[28px] max-w-[32px] px-1 py-2">
+                <th class="${isOff ? 'bg-slate-200/90 text-slate-500' : (isPreSession ? 'bg-slate-100 text-slate-400' : '')} text-center min-w-[28px] max-w-[32px] px-1 py-2">
                     <div class="text-[9px] font-black">${dayLetter}</div>
                     <div class="text-xs font-black text-slate-800">${day}</div>
                 </th>
@@ -859,11 +927,14 @@ const loadMonthlyRegister = async () => {
             </tr>
         `;
 
-        // Total working days recorded in this month for this class
+        // Total working days recorded in this month for this class (strictly on or after session start date)
         let markedWorkingDaysCount = 0;
         for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
             const dayDoc = monthDayMap[day];
-            if (dayDoc && !dayDoc.isHoliday) {
+            const isPreSession = isDateBeforeSessionStart(dateStr, year);
+            const { isHoliday } = isDateHoliday(dateStr, selectedMonthlyClass);
+            if (dayDoc && !dayDoc.isHoliday && !isHoliday && !isPreSession) {
                 markedWorkingDaysCount++;
             }
         }
@@ -877,7 +948,8 @@ const loadMonthlyRegister = async () => {
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
-                const { isHoliday } = isDateHoliday(dateStr);
+                const { isHoliday } = isDateHoliday(dateStr, selectedMonthlyClass);
+                const isPreSession = isDateBeforeSessionStart(dateStr, year);
                 const dayDoc = monthDayMap[day];
                 const studentRecord = dayDoc?.records?.[student.id];
                 const rawStatus = studentRecord?.status;
@@ -886,7 +958,10 @@ const loadMonthlyRegister = async () => {
                 let cellContent = '-';
                 let cellClass = '';
 
-                if (isHoliday) {
+                if (isPreSession) {
+                    cellClass = 'bg-slate-50 text-slate-300 font-bold';
+                    cellContent = '·';
+                } else if (isHoliday) {
                     cellClass = 'bg-slate-100 text-slate-400 font-bold';
                     cellContent = 'H';
                 } else if (!dayDoc) {
@@ -1002,14 +1077,23 @@ const loadAnalytics = async () => {
         const snap = await getDocs(q);
         const docs = snap.docs.map(d => d.data());
 
+        const sessionStartDate = getSessionStartDate(year);
+
         // Calculate working days per class & student statistics
         const classWorkingDays = {}; // classLabel -> count of non-holiday marked days
         const studentStats = {}; // studentId -> { present, absent, leave }
         let totalDocsEvaluated = 0;
 
         docs.forEach(d => {
-            if (!d.isHoliday) {
-                const cLabel = d.classLabel || '';
+            const dDate = d.date || '';
+            // Only count if on or after session start date
+            if (sessionStartDate && dDate && dDate < sessionStartDate) {
+                return;
+            }
+
+            const cLabel = d.classLabel || '';
+            const { isHoliday } = isDateHoliday(dDate, cLabel);
+            if (!d.isHoliday && !isHoliday) {
                 classWorkingDays[cLabel] = (classWorkingDays[cLabel] || 0) + 1;
                 totalDocsEvaluated++;
 
@@ -1123,6 +1207,19 @@ const loadAnalytics = async () => {
 };
 
 // --- Calendar & Holidays UI ---
+const populateHolidayClassesCheckboxes = () => {
+    const container = document.getElementById('holiday-classes-checkboxes');
+    if (!container) return;
+    const allowed = allClasses.length ? allClasses : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+
+    container.innerHTML = allowed.map(c => `
+        <label class="flex items-center gap-1.5 p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer text-xs font-bold text-slate-700">
+            <input type="checkbox" value="${escapeHtml(c)}" class="holiday-class-check">
+            <span>Class ${escapeHtml(c)}</span>
+        </label>
+    `).join('');
+};
+
 const renderCalendarSettingsUI = () => {
     // 1. Weekend Checkboxes
     const container = document.getElementById('weekend-checkboxes-container');
@@ -1132,31 +1229,41 @@ const renderCalendarSettingsUI = () => {
         });
     }
 
-    // 2. Holidays Table (with Edit & Delete buttons)
+    populateHolidayClassesCheckboxes();
+
+    // 2. Holidays Table (with Edit & Delete buttons & Scope column)
     const tbody = document.getElementById('holidays-tbody');
     if (tbody) {
         const holidays = calendarConfig.holidays || [];
         if (!holidays.length) {
-            tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-400">No special holidays configured.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400 font-bold">No special holidays configured.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = holidays.map((h, idx) => `
-            <tr class="hover:bg-slate-50">
-                <td class="py-2 px-4 font-bold text-slate-800">${escapeHtml(formatDisplayDate(h.date))}</td>
-                <td class="py-2 px-4 font-extrabold text-slate-900">${escapeHtml(h.title || 'Official Holiday')}</td>
-                <td class="py-2 px-4 text-center">
-                    <div class="inline-flex items-center gap-3">
-                        <button type="button" class="btn-edit-holiday text-indigo-600 hover:text-indigo-800 font-bold text-xs" data-index="${idx}" title="Edit holiday">
-                            <i class="fas fa-pen-to-square"></i> Edit
-                        </button>
-                        <button type="button" class="btn-del-holiday text-rose-600 hover:text-rose-800 font-bold text-xs" data-index="${idx}" title="Delete holiday">
-                            <i class="fas fa-trash-can"></i> Delete
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = holidays.map((h, idx) => {
+            const isAll = !h.scope || h.scope === 'all' || !Array.isArray(h.classes) || h.classes.length === 0;
+            const scopeBadge = isAll 
+                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-globe mr-1"></i>All Classes</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-900 border border-indigo-200"><i class="fas fa-users-rectangle mr-1"></i>Class ${escapeHtml(h.classes.join(', '))}</span>`;
+
+            return `
+                <tr class="hover:bg-slate-50">
+                    <td class="py-2.5 px-4 font-bold text-slate-800">${escapeHtml(formatDisplayDate(h.date))}</td>
+                    <td class="py-2.5 px-4 font-extrabold text-slate-900">${escapeHtml(h.title || 'Official Holiday')}</td>
+                    <td class="py-2.5 px-4">${scopeBadge}</td>
+                    <td class="py-2.5 px-4 text-center">
+                        <div class="inline-flex items-center gap-3">
+                            <button type="button" class="btn-edit-holiday text-indigo-600 hover:text-indigo-800 font-bold text-xs" data-index="${idx}" title="Edit holiday">
+                                <i class="fas fa-pen-to-square"></i> Edit
+                            </button>
+                            <button type="button" class="btn-del-holiday text-rose-600 hover:text-rose-800 font-bold text-xs" data-index="${idx}" title="Delete holiday">
+                                <i class="fas fa-trash-can"></i> Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 };
 
@@ -1192,6 +1299,26 @@ const startEditHoliday = (idx) => {
     if (cardTitle) cardTitle.textContent = 'Edit Scheduled Holiday';
     if (addBtnLabel) addBtnLabel.textContent = 'Update Holiday';
     if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+    // Scope selection
+    const isSpecific = h.scope === 'specific' && Array.isArray(h.classes) && h.classes.length > 0;
+    const allRadio = document.getElementById('holiday-scope-all');
+    const specRadio = document.getElementById('holiday-scope-specific');
+    const picker = document.getElementById('holiday-classes-picker-box');
+
+    if (isSpecific) {
+        if (specRadio) specRadio.checked = true;
+        if (picker) picker.classList.remove('hidden');
+        document.querySelectorAll('.holiday-class-check').forEach(chk => {
+            chk.checked = h.classes.includes(chk.value);
+        });
+    } else {
+        if (allRadio) allRadio.checked = true;
+        if (picker) picker.classList.add('hidden');
+        document.querySelectorAll('.holiday-class-check').forEach(chk => {
+            chk.checked = false;
+        });
+    }
 };
 
 const cancelEditHoliday = () => {
@@ -1207,11 +1334,20 @@ const cancelEditHoliday = () => {
     if (cardTitle) cardTitle.textContent = 'Declare Institutional Holiday';
     if (addBtnLabel) addBtnLabel.textContent = 'Add Holiday';
     if (cancelBtn) cancelBtn.classList.add('hidden');
+
+    const allRadio = document.getElementById('holiday-scope-all');
+    if (allRadio) allRadio.checked = true;
+    const picker = document.getElementById('holiday-classes-picker-box');
+    if (picker) picker.classList.add('hidden');
+    document.querySelectorAll('.holiday-class-check').forEach(chk => {
+        chk.checked = false;
+    });
 };
 
 const addOrUpdateHoliday = async () => {
     const dateInput = document.getElementById('holiday-date-input');
     const titleInput = document.getElementById('holiday-title-input');
+    const isSpecific = document.getElementById('holiday-scope-specific')?.checked;
 
     const dateVal = dateInput?.value;
     const titleVal = titleInput?.value.trim();
@@ -1219,20 +1355,38 @@ const addOrUpdateHoliday = async () => {
     if (!dateVal) return alert('Please select a holiday date.');
     if (!titleVal) return alert('Please enter the holiday title or occasion.');
 
+    let scope = 'all';
+    let targetClasses = [];
+
+    if (isSpecific) {
+        scope = 'specific';
+        const checkedBoxes = document.querySelectorAll('.holiday-class-check:checked');
+        targetClasses = Array.from(checkedBoxes).map(c => c.value);
+        if (!targetClasses.length) {
+            return alert('Please select at least one class for this class-specific holiday.');
+        }
+    }
+
     const updatedHolidays = [...(calendarConfig.holidays || [])];
+    const holidayRecord = {
+        date: dateVal,
+        title: titleVal,
+        scope,
+        classes: targetClasses
+    };
 
     if (editingHolidayIndex >= 0) {
         // Edit mode
-        if (updatedHolidays.some((h, i) => i !== editingHolidayIndex && h.date === dateVal)) {
-            return alert('Another holiday is already declared on this date.');
+        if (updatedHolidays.some((h, i) => i !== editingHolidayIndex && h.date === dateVal && h.scope === scope)) {
+            return alert('A holiday with the same scope is already declared on this date.');
         }
-        updatedHolidays[editingHolidayIndex] = { date: dateVal, title: titleVal };
+        updatedHolidays[editingHolidayIndex] = holidayRecord;
     } else {
         // New mode
-        if (updatedHolidays.some(h => h.date === dateVal)) {
-            return alert('A holiday is already declared on this date.');
+        if (updatedHolidays.some(h => h.date === dateVal && h.scope === scope)) {
+            return alert('A holiday with the same scope is already declared on this date.');
         }
-        updatedHolidays.push({ date: dateVal, title: titleVal });
+        updatedHolidays.push(holidayRecord);
     }
 
     updatedHolidays.sort((a, b) => a.date.localeCompare(b.date));
@@ -1269,6 +1423,101 @@ const deleteHoliday = async (idx) => {
         updateDailyDateDisplay();
     } catch (err) {
         alert('Failed to remove holiday: ' + err.message);
+    }
+};
+
+// --- Session Schedule UI & Logic ---
+const renderSessionScheduleUI = () => {
+    const yearSelect = document.getElementById('session-academic-year');
+    const selectedYear = yearSelect?.value || currentAcademicYear;
+
+    const yearBadge = document.getElementById('session-active-year-badge');
+    if (yearBadge) yearBadge.textContent = selectedYear || 'Active Session';
+
+    const rec = getYearRecord(selectedYear);
+    const periodDisplay = document.getElementById('session-period-display');
+    if (periodDisplay) {
+        if (rec && Number.isInteger(Number(rec.startMonth)) && Number.isInteger(Number(rec.endMonth))) {
+            const sName = MONTH_NAMES[rec.startMonth] || 'Start Month';
+            const eName = MONTH_NAMES[rec.endMonth] || 'End Month';
+            periodDisplay.innerHTML = `<i class="fas fa-calendar-alt text-emerald-600"></i> ${escapeHtml(sName)} &rarr; ${escapeHtml(eName)} (${escapeHtml(selectedYear)})`;
+        } else {
+            periodDisplay.innerHTML = `<i class="fas fa-calendar-alt text-slate-400"></i> Standard Session (${escapeHtml(selectedYear)})`;
+        }
+    }
+
+    const schedule = calendarConfig.sessionSchedules?.[selectedYear] || {};
+    const startInput = document.getElementById('session-start-date-input');
+    const notesInput = document.getElementById('session-notes-input');
+    const configuredDisplay = document.getElementById('session-configured-start-display');
+
+    if (startInput) {
+        startInput.value = schedule.startDate || getSessionStartDate(selectedYear) || '';
+    }
+    if (notesInput) {
+        notesInput.value = schedule.notes || '';
+    }
+
+    if (configuredDisplay) {
+        if (schedule.startDate) {
+            configuredDisplay.textContent = `${formatDisplayDate(schedule.startDate)} (${schedule.startDate})`;
+        } else {
+            configuredDisplay.textContent = 'Not Specifically Configured (Defaults to 1st of opening month)';
+        }
+    }
+
+    // Calculate elapsed days
+    const sDate = schedule.startDate || getSessionStartDate(selectedYear);
+    const elapsedEl = document.getElementById('session-stat-elapsed');
+    if (elapsedEl) {
+        if (sDate) {
+            const startDt = new Date(sDate);
+            const todayDt = new Date();
+            const diffTime = todayDt.getTime() - startDt.getTime();
+            const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+            elapsedEl.textContent = `${diffDays} Days`;
+        } else {
+            elapsedEl.textContent = '--';
+        }
+    }
+
+    // Count recorded non-holiday attendance working days
+    const workingDaysEl = document.getElementById('session-stat-working-days');
+    if (workingDaysEl) {
+        workingDaysEl.textContent = 'Active Sync';
+    }
+};
+
+const saveSessionSchedule = async () => {
+    const yearSelect = document.getElementById('session-academic-year');
+    const selectedYear = yearSelect?.value || currentAcademicYear;
+    const startInput = document.getElementById('session-start-date-input');
+    const notesInput = document.getElementById('session-notes-input');
+
+    const sDate = startInput?.value;
+    const notes = notesInput?.value.trim();
+
+    if (!selectedYear) return alert('Please select an academic year.');
+    if (!sDate) return alert('Please enter the session commencement date.');
+
+    const updatedSchedules = {
+        ...(calendarConfig.sessionSchedules || {}),
+        [selectedYear]: {
+            startDate: sDate,
+            notes: notes || '',
+            updatedAt: Date.now()
+        }
+    };
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), {
+            sessionSchedules: updatedSchedules
+        }, { merge: true });
+
+        showToast(`Session commencement date for ${selectedYear} saved!`, 'success');
+        updateDailyDateDisplay();
+    } catch (err) {
+        alert('Failed to save session schedule: ' + err.message);
     }
 };
 
@@ -1375,6 +1624,24 @@ const setupEventListeners = () => {
     document.getElementById('btn-add-holiday')?.addEventListener('click', addOrUpdateHoliday);
     document.getElementById('btn-cancel-holiday-edit')?.addEventListener('click', cancelEditHoliday);
 
+    // Holiday Scope Toggle
+    document.querySelectorAll('input[name="holiday-scope"]').forEach(r => {
+        r.addEventListener('change', () => {
+            const isSpecific = document.getElementById('holiday-scope-specific')?.checked;
+            const picker = document.getElementById('holiday-classes-picker-box');
+            if (picker) {
+                picker.classList.toggle('hidden', !isSpecific);
+            }
+        });
+    });
+
+    document.getElementById('btn-holiday-select-all-classes')?.addEventListener('click', () => {
+        document.querySelectorAll('.holiday-class-check').forEach(chk => { chk.checked = true; });
+    });
+    document.getElementById('btn-holiday-clear-classes')?.addEventListener('click', () => {
+        document.querySelectorAll('.holiday-class-check').forEach(chk => { chk.checked = false; });
+    });
+
     document.getElementById('holidays-tbody')?.addEventListener('click', (e) => {
         const editBtn = e.target.closest('.btn-edit-holiday');
         if (editBtn) {
@@ -1387,7 +1654,15 @@ const setupEventListeners = () => {
         }
     });
 
-    // 8. Sign Out
+    // 8. Session Schedule Actions
+    document.getElementById('session-academic-year')?.addEventListener('change', renderSessionScheduleUI);
+    document.getElementById('btn-session-set-today')?.addEventListener('click', () => {
+        const input = document.getElementById('session-start-date-input');
+        if (input) input.value = getTodayDateString();
+    });
+    document.getElementById('btn-save-session-schedule')?.addEventListener('click', saveSessionSchedule);
+
+    // 9. Sign Out
     document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
     });

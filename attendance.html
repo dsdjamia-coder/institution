@@ -306,6 +306,10 @@
           <i class="fas fa-chart-pie w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Analytics &amp; Defaulters</span>
         </a>
+        <a href="#session" class="drawer-link" data-tab="tab-session" title="Session Schedule">
+          <i class="fas fa-calendar-check w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Session Schedule</span>
+        </a>
         <a href="#calendar" class="drawer-link" data-tab="tab-calendar" title="Holidays &amp; Setup">
           <i class="fas fa-calendar-week w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Holidays &amp; Setup</span>
@@ -365,6 +369,7 @@
                 <!-- Date Badge -->
                 <span id="daily-date-badge" class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-extrabold text-xs border border-emerald-200">Date</span>
                 <span id="daily-holiday-notice" class="hidden px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs border border-amber-300"><i class="fas fa-umbrella-beach mr-1"></i> Holiday / Weekend</span>
+                <span id="daily-pre-session-notice" class="hidden px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 font-bold text-xs border border-indigo-200"><i class="fas fa-info-circle mr-1"></i> Pre-Session</span>
               </div>
 
               <!-- Right: Save Button & Status -->
@@ -615,7 +620,122 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 4: CALENDAR & HOLIDAYS SETUP           -->
+        <!-- TAB 4: ACADEMIC SESSION SCHEDULE           -->
+        <!-- ========================================== -->
+        <section id="tab-session" class="tab-content hidden space-y-4">
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Session Opening Date Card -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                    <i class="fas fa-calendar-check"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-black text-sm text-slate-800">Session Commencement Date</h3>
+                    <p class="text-[11px] text-slate-400 font-semibold">Define the institution physical opening date</p>
+                  </div>
+                </div>
+                <span id="session-active-year-badge" class="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black">Session</span>
+              </div>
+
+              <div class="space-y-3">
+                <!-- Academic Year Select -->
+                <div>
+                  <label for="session-academic-year" class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
+                  <select id="session-academic-year" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"></select>
+                </div>
+
+                <!-- Admin Period Display (Read-only) -->
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500 font-bold uppercase text-[10px]">Academic Period (Admin Configured):</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-200 text-slate-700">Admin Locked</span>
+                  </div>
+                  <div id="session-period-display" class="font-black text-xs text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-lock text-slate-400 text-xs"></i>
+                    <span>Loading period...</span>
+                  </div>
+                  <p class="text-[10px] text-slate-400 font-medium">Academic session months are managed in Admin Settings. Set the specific reopening day within this start month below.</p>
+                </div>
+
+                <!-- Session Opening Date Input -->
+                <div>
+                  <label for="session-start-date-input" class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
+                    Institution Opening / Reopening Date <span class="text-rose-500">*</span>
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <input type="date" id="session-start-date-input" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500">
+                    <button type="button" id="btn-session-set-today" class="shrink-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs" title="Set to Today">Today</button>
+                  </div>
+                  <p class="text-[10px] text-slate-400 font-medium mt-1">Attendance records and working days calculations will strictly begin from this date onward.</p>
+                </div>
+
+                <!-- Optional Notes -->
+                <div>
+                  <label for="session-notes-input" class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">Reopening Notes / Circular (Optional)</label>
+                  <input type="text" id="session-notes-input" placeholder="e.g. Academic Reopening Day, Praveshanolsavam" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-emerald-500">
+                </div>
+
+                <button type="button" id="btn-save-session-schedule" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-2 cursor-pointer">
+                  <i class="fas fa-floppy-disk"></i>
+                  <span>Save Session Opening Schedule</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Session Status & Summary Card -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+              <div class="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                  <i class="fas fa-circle-info"></i>
+                </div>
+                <div>
+                  <h3 class="font-black text-sm text-slate-800">Session Status &amp; Impact</h3>
+                  <p class="text-[11px] text-slate-400 font-semibold">How session opening impacts attendance registers</p>
+                </div>
+              </div>
+
+              <!-- Impact Overview Box -->
+              <div class="space-y-3 text-xs">
+                <div class="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-2.5">
+                  <i class="fas fa-check-circle text-emerald-600 mt-0.5 shrink-0"></i>
+                  <div>
+                    <div class="font-black text-emerald-900">Current Opening Date</div>
+                    <div id="session-configured-start-display" class="font-bold text-emerald-700 text-sm mt-0.5">Not Configured (Starts 1st of month)</div>
+                  </div>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div class="font-extrabold text-slate-700 text-[11px] uppercase tracking-wider">Calculation Rules:</div>
+                  <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                    <li><strong>Pre-Opening Days:</strong> Dates prior to the opening date will not be penalized or counted as absent.</li>
+                    <li><strong>Monthly Registers:</strong> The monthly register sheet will clearly distinguish pre-opening days from active working days.</li>
+                    <li><strong>Analytics Benchmark:</strong> Average attendance percentage will only measure active working sessions from this opening date.</li>
+                  </ul>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-center pt-1">
+                  <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase">Elapsed Days</span>
+                    <div id="session-stat-elapsed" class="text-lg font-black text-slate-800 mt-0.5">--</div>
+                  </div>
+                  <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase">Working Days Recorded</span>
+                    <div id="session-stat-working-days" class="text-lg font-black text-slate-800 mt-0.5">--</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 5: CALENDAR & HOLIDAYS SETUP           -->
         <!-- ========================================== -->
         <section id="tab-calendar" class="tab-content hidden space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -656,7 +776,7 @@
               </button>
             </div>
 
-            <!-- Declare / Edit Holiday Card -->
+            <!-- Declare / Edit Holiday Card (With Class Scope) -->
             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
               <div class="flex items-center justify-between border-b border-slate-100 pb-2">
                 <div class="flex items-center gap-2">
@@ -665,7 +785,7 @@
                 </div>
                 <button type="button" id="btn-cancel-holiday-edit" class="hidden text-xs text-slate-500 hover:text-slate-700 font-bold">Cancel Edit</button>
               </div>
-              <div class="space-y-2">
+              <div class="space-y-2.5">
                 <div>
                   <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Holiday Date</label>
                   <input type="date" id="holiday-date-input" class="w-full p-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none">
@@ -674,6 +794,37 @@
                   <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Holiday Title / Occasion</label>
                   <input type="text" id="holiday-title-input" placeholder="e.g. Eid-ul-Fitr, Annual Sports Day" class="w-full p-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none">
                 </div>
+
+                <!-- Scope Selection: All Classes vs Selected Classes -->
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Applicable Scope</label>
+                  <div class="grid grid-cols-2 gap-2 text-xs font-bold">
+                    <label class="flex items-center gap-2 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                      <input type="radio" name="holiday-scope" value="all" id="holiday-scope-all" checked>
+                      <span>All Classes (Common)</span>
+                    </label>
+                    <label class="flex items-center gap-2 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                      <input type="radio" name="holiday-scope" value="specific" id="holiday-scope-specific">
+                      <span>Selected Classes Only</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Specific Classes Checkbox Container (Hidden when All Classes is selected) -->
+                <div id="holiday-classes-picker-box" class="hidden p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="font-extrabold text-slate-600 uppercase text-[10px]">Select Applicable Classes:</span>
+                    <div class="flex items-center gap-2">
+                      <button type="button" id="btn-holiday-select-all-classes" class="text-[10px] font-bold text-emerald-700 hover:underline">Select All</button>
+                      <span class="text-slate-300">•</span>
+                      <button type="button" id="btn-holiday-clear-classes" class="text-[10px] font-bold text-slate-500 hover:underline">Clear</button>
+                    </div>
+                  </div>
+                  <div id="holiday-classes-checkboxes" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto">
+                    <!-- Populated dynamically with checkboxes -->
+                  </div>
+                </div>
+
                 <button type="button" id="btn-add-holiday" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition cursor-pointer">
                   <i class="fas fa-plus mr-1"></i> <span id="btn-add-holiday-label">Add Holiday</span>
                 </button>
@@ -692,12 +843,13 @@
                   <tr class="bg-slate-100 text-slate-500 uppercase font-bold text-[10px]">
                     <th class="py-2.5 px-4">Date</th>
                     <th class="py-2.5 px-4">Occasion / Title</th>
+                    <th class="py-2.5 px-4">Applicable To</th>
                     <th class="py-2.5 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="holidays-tbody" class="divide-y divide-slate-100">
                   <tr>
-                    <td colspan="3" class="p-4 text-center text-slate-400">No special holidays configured.</td>
+                    <td colspan="4" class="p-4 text-center text-slate-400">No special holidays configured.</td>
                   </tr>
                 </tbody>
               </table>
