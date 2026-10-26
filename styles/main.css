@@ -2046,32 +2046,41 @@ body.worksheet-fullscreen-mode #official-tab-export {
     }
 }
 
-body[data-session-guard="result"] main,
-body[data-session-guard="result"] #app,
-body[data-session-guard="result"] #page-content,
-body[data-session-guard="result"] .page-content {
-    width: 100% !important;
-    max-width: none !important;
+/* Result Page Full-Width Layout Across All Tabs on Desktop & Laptop */
+body[data-page-type="result"] header,
+body.collection-shell[data-page-type="result"] header,
+html[data-session-guard="result"] header {
+    max-width: 99vw !important;
+    width: 99vw !important;
+    margin: 10px auto !important;
 }
 
-/* Full-width Desktop Layout for Marks Entry Page */
-body.marks-entry-active #page-content {
+body[data-page-type="result"] main,
+body.collection-shell[data-page-type="result"] main,
+html[data-session-guard="result"] body main,
+html[data-session-guard="result"] #app,
+body[data-page-type="result"] #app {
+    max-width: 99vw !important;
+    width: 99vw !important;
+    margin: 0 auto 10px auto !important;
+    padding: 0 !important;
+    flex-grow: 1;
+}
+
+body[data-page-type="result"] #page-content,
+body[data-page-type="result"] .page-content,
+html[data-session-guard="result"] #page-content,
+html[data-session-guard="result"] .page-content {
     max-width: 100% !important;
     width: 100% !important;
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
 }
-@media (min-width: 768px) {
-    body.marks-entry-active #page-content {
-        padding-left: 1.25rem !important;
-        padding-right: 1.25rem !important;
-    }
-}
-@media (min-width: 1280px) {
-    body.marks-entry-active #page-content {
-        padding-left: 1.5rem !important;
-        padding-right: 1.5rem !important;
-    }
+
+/* Attendance Override Indicator */
+.attendance-working[data-overridden="true"] {
+    background-color: #fffbeb !important;
+    border-color: #f59e0b !important;
+    color: #78350f !important;
+    font-weight: 700;
 }
 
 /* ==========================================

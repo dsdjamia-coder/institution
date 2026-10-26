@@ -2406,9 +2406,11 @@ const loadMarksTable = () => {
             const sub = inp.dataset.subject;
             if (sub) sMarks[sub] = inp.value;
         });
-        const work = tr.querySelector('.attendance-working')?.value;
+        const workInp = tr.querySelector('.attendance-working');
+        const work = workInp?.value;
+        const isOverridden = workInp?.dataset?.overridden === 'true';
         const pres = tr.querySelector('.attendance-present')?.value;
-        currentInputValues[sId] = { marks: sMarks, working: work, present: pres };
+        currentInputValues[sId] = { marks: sMarks, working: work, present: pres, overridden: isOverridden };
     });
 
     const sortMode = document.getElementById('entry-sort-order')?.value || 'name_asc';
@@ -2427,6 +2429,36 @@ const loadMarksTable = () => {
     const studentCountBadge = document.getElementById('entry-student-count-badge');
     if (studentCountBadge) studentCountBadge.textContent = `${entryStudents.length} Students`;
 
+    // Determine active top total attendance
+    let activeTopTotalAtt = (document.getElementById('entry-top-total-attendance')?.value || document.getElementById('header-col-total-attendance')?.value || '').trim();
+
+    if (!activeTopTotalAtt) {
+        // Detect most common working days from existing saved records or pending inputs
+        const workingDaysCounts = {};
+        entryStudents.forEach(student => {
+            const pendingInput = currentInputValues[student.id];
+            const existingRecord = examResultsCache.find(r => resultMatchesExam(r, examId) && r.studentId === student.id);
+            const w = (pendingInput && pendingInput.working !== undefined && pendingInput.working !== '')
+                ? pendingInput.working
+                : existingRecord?.attendance?.workingDays;
+            if (w !== undefined && w !== null && String(w).trim() !== '' && Number(w) > 0) {
+                const s = String(w).trim();
+                workingDaysCounts[s] = (workingDaysCounts[s] || 0) + 1;
+            }
+        });
+        let maxCount = 0;
+        let mostCommon = '';
+        Object.entries(workingDaysCounts).forEach(([val, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                mostCommon = val;
+            }
+        });
+        if (mostCommon) {
+            activeTopTotalAtt = mostCommon;
+        }
+    }
+
     // Build Headers
     let headHtml = `<tr>
         <th class="p-3 text-center w-12 bg-slate-100 text-slate-600 font-bold text-xs sticky top-0 border-b border-slate-200">#</th>
@@ -2435,7 +2467,12 @@ const loadMarksTable = () => {
     getSchemaSubjectRows(currentExamSchema, currentExamContext?.key || '').forEach(sub => {
         headHtml += `<th class="p-3 text-center min-w-[95px] bg-slate-100 text-slate-700 font-bold text-xs sticky top-0 border-b border-slate-200">${escapeHtml(sub.name)}<div class="text-[10px] text-slate-400 font-normal">Max: ${sub.maxMarks} | Pass: ${sub.passMarks}</div></th>`;
     });
-    headHtml += `<th class="p-3 text-center min-w-[110px] bg-slate-100 text-slate-600 font-bold text-xs sticky top-0 border-b border-slate-200">Total Att.</th><th class="p-3 text-center min-w-[110px] bg-slate-100 text-slate-600 font-bold text-xs sticky top-0 border-b border-slate-200">Present Att.</th></tr>`;
+    headHtml += `<th class="p-2 text-center min-w-[125px] bg-slate-100 text-slate-700 font-bold text-xs sticky top-0 border-b border-slate-200">
+        <div>Total Att.</div>
+        <div class="mt-1 flex items-center justify-center">
+            <input type="number" min="0" id="header-col-total-attendance" value="${escapeHtml(activeTopTotalAtt)}" placeholder="Set All" title="Input Total Attendance here to set for all students" class="w-18 px-1.5 py-0.5 text-center font-extrabold text-xs bg-white text-indigo-900 border border-indigo-300 rounded shadow-2xs focus:border-indigo-600 focus:ring-1 focus:ring-indigo-500 outline-none">
+        </div>
+    </th><th class="p-3 text-center min-w-[110px] bg-slate-100 text-slate-600 font-bold text-xs sticky top-0 border-b border-slate-200">Present Att.</th></tr>`;
     document.getElementById('marks-table-head').innerHTML = headHtml;
 
     // Build Rows
@@ -2471,10 +2508,21 @@ const loadMarksTable = () => {
             </td>`;
         });
         const attendance = existingRecord?.attendance || {};
-        const workVal = (pendingInput && pendingInput.working !== undefined) ? pendingInput.working : (attendance.workingDays ?? '');
+        let workVal = '';
+        let isOverridden = false;
+        if (pendingInput && pendingInput.working !== undefined && pendingInput.working !== '') {
+            workVal = pendingInput.working;
+            isOverridden = pendingInput.overridden === true;
+        } else if (existingRecord?.attendance?.workingDays !== undefined && existingRecord?.attendance?.workingDays !== null && existingRecord?.attendance?.workingDays !== '') {
+            workVal = existingRecord.attendance.workingDays;
+            isOverridden = Boolean(activeTopTotalAtt && String(workVal).trim() !== String(activeTopTotalAtt).trim());
+        } else if (activeTopTotalAtt) {
+            workVal = activeTopTotalAtt;
+            isOverridden = false;
+        }
         const presVal = (pendingInput && pendingInput.present !== undefined) ? pendingInput.present : (attendance.presentDays ?? '');
 
-        bodyHtml += `<td class="p-2 text-center"><input type="number" min="0" class="attendance-working w-full md:w-24 p-2 text-center border rounded text-xs" value="${escapeHtml(String(workVal ?? ''))}" placeholder="0"></td>`;
+        bodyHtml += `<td class="p-2 text-center"><input type="number" min="0" class="attendance-working w-full md:w-24 p-2 text-center border rounded text-xs transition ${isOverridden ? 'border-amber-400 bg-amber-50/60 font-bold text-amber-900' : ''}" data-overridden="${isOverridden ? 'true' : 'false'}" value="${escapeHtml(String(workVal ?? ''))}" placeholder="0" title="${isOverridden ? 'Custom attendance for this student (will not change when top total is edited)' : 'Standard total attendance'}"></td>`;
         bodyHtml += `<td class="p-2 text-center"><input type="number" min="0" class="attendance-present w-full md:w-24 p-2 text-center border rounded text-xs" value="${escapeHtml(String(presVal ?? ''))}" placeholder="0"></td>`;
         bodyHtml += `</tr>`;
     });
@@ -2482,7 +2530,73 @@ const loadMarksTable = () => {
     cont.classList.remove('hidden');
     bindMarksValidationEvents();
     bindMarksKeyboardNavigation();
+    bindAttendanceEvents();
+    bindTopTotalAttendanceInputs();
+    syncTopTotalAttendanceToInputs(activeTopTotalAtt);
 };
+
+const syncTopTotalAttendanceToInputs = (val) => {
+    const trimmed = String(val ?? '').trim();
+    const toolbarInp = document.getElementById('entry-top-total-attendance');
+    const headerInp = document.getElementById('header-col-total-attendance');
+    if (toolbarInp && toolbarInp.value !== trimmed) toolbarInp.value = trimmed;
+    if (headerInp && headerInp.value !== trimmed) headerInp.value = trimmed;
+};
+
+const syncTopTotalAttendanceToRows = (val) => {
+    const trimmed = String(val ?? '').trim();
+    syncTopTotalAttendanceToInputs(trimmed);
+
+    document.querySelectorAll('#marks-table-body tr').forEach(tr => {
+        const workInp = tr.querySelector('.attendance-working');
+        if (!workInp) return;
+        if (workInp.dataset.overridden !== 'true') {
+            workInp.value = trimmed;
+        }
+    });
+};
+
+const bindAttendanceEvents = () => {
+    const tableBody = document.getElementById('marks-table-body');
+    if (!tableBody || tableBody.dataset.attendanceBound === 'true') return;
+    tableBody.dataset.attendanceBound = 'true';
+
+    tableBody.addEventListener('input', (e) => {
+        const inp = e.target.closest('.attendance-working');
+        if (!inp) return;
+        const currentTop = (document.getElementById('entry-top-total-attendance')?.value || document.getElementById('header-col-total-attendance')?.value || '').trim();
+        const myVal = inp.value.trim();
+
+        if (currentTop && myVal !== currentTop && myVal !== '') {
+            inp.dataset.overridden = 'true';
+            inp.classList.add('border-amber-400', 'bg-amber-50/60', 'font-bold', 'text-amber-900');
+            inp.title = 'Custom attendance for this student (will not change when top total is edited)';
+        } else if (myVal === currentTop || myVal === '') {
+            inp.dataset.overridden = 'false';
+            inp.classList.remove('border-amber-400', 'bg-amber-50/60', 'font-bold', 'text-amber-900');
+            inp.title = 'Standard total attendance';
+        }
+    });
+};
+
+const bindTopTotalAttendanceInputs = () => {
+    const toolbarInp = document.getElementById('entry-top-total-attendance');
+    const headerInp = document.getElementById('header-col-total-attendance');
+
+    const onInput = (e) => {
+        syncTopTotalAttendanceToRows(e.target.value);
+    };
+
+    if (toolbarInp && !toolbarInp.dataset.bound) {
+        toolbarInp.dataset.bound = 'true';
+        toolbarInp.addEventListener('input', onInput);
+    }
+    if (headerInp && !headerInp.dataset.bound) {
+        headerInp.dataset.bound = 'true';
+        headerInp.addEventListener('input', onInput);
+    }
+};
+
 const sanitizeBulkDocId = (value = '') => String(value || '').replace(/[^\w-]/g, '_');
 const getBulkTemplateRows = () => {
     const className = document.getElementById('entry-class-select')?.value || '';
@@ -2492,12 +2606,13 @@ const getBulkTemplateRows = () => {
         .filter((s) => s.class === className && (s.academicYear === currentAcademicYear || !s.academicYear))
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     const subjectRows = getSchemaSubjectRows(currentExamSchema, currentExamContext?.key || '');
+    const currentTopTotal = (document.getElementById('entry-top-total-attendance')?.value || document.getElementById('header-col-total-attendance')?.value || '').trim();
     return scopedStudents.map((student) => {
         const row = {
             student_id: student.id,
             student_name: student.name || '',
             class: className,
-            total_attendance: '',
+            total_attendance: currentTopTotal,
             present_attendance: ''
         };
         subjectRows.forEach((subject) => { row[subject.name] = ''; });

@@ -22,8 +22,46 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <link rel="stylesheet" href="styles/main.css">
+    <style>
+        /* Result Full-Width Layout Across All Tabs on Desktop & Laptop */
+        body[data-page-type="result"] header,
+        body.collection-shell[data-page-type="result"] header,
+        html[data-session-guard="result"] header {
+            max-width: 99vw !important;
+            width: 99vw !important;
+            margin: 10px auto !important;
+        }
+
+        body[data-page-type="result"] main,
+        body.collection-shell[data-page-type="result"] main,
+        html[data-session-guard="result"] body main,
+        html[data-session-guard="result"] #app,
+        body[data-page-type="result"] #app {
+            max-width: 99vw !important;
+            width: 99vw !important;
+            margin: 0 auto 10px auto !important;
+            padding: 0 !important;
+            flex-grow: 1;
+        }
+
+        body[data-page-type="result"] #page-content,
+        body[data-page-type="result"] .page-content,
+        html[data-session-guard="result"] #page-content,
+        html[data-session-guard="result"] .page-content {
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        /* Attendance Override Indicator */
+        .attendance-working[data-overridden="true"] {
+            background-color: #fffbeb !important;
+            border-color: #f59e0b !important;
+            color: #78350f !important;
+            font-weight: 700;
+        }
+    </style>
 </head>
-<body class="antialiased text-gray-800 collection-shell">
+<body class="antialiased text-gray-800 collection-shell" data-page-type="result">
     <div id="loading-screen">
         <div class="loader-wrapper">
             <div class="logo-container">
@@ -116,7 +154,7 @@
             <button onclick="window.location.href='collection.html'" class="btn-primary py-2 px-6 rounded-lg font-bold">Go Back</button>
         </div>
 
-        <div id="page-content" class="hidden w-full max-w-none px-3 sm:px-6 lg:px-8 py-4">
+        <div id="page-content" class="hidden w-full max-w-none px-2 sm:px-3 lg:px-4 py-3">
             
             <!-- 1. Overview -->
             <section id="dashboard-page" class="page-content">
@@ -332,7 +370,7 @@
 
                         <!-- Tier 2: Sorting, Order & Action Controls Toolbar -->
                         <div class="p-2.5 sm:px-4 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 bg-white">
-                            <!-- Left: Sorting & Order -->
+                            <!-- Left: Sorting, Order & Total Attendance -->
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs shadow-xs focus-within:border-indigo-400 focus-within:bg-white transition">
                                     <i class="fas fa-arrow-down-a-z text-slate-400"></i>
@@ -352,6 +390,11 @@
                                         <option value="boys_first">Boys First, then Girls</option>
                                         <option value="girls_first">Girls First, then Boys</option>
                                     </select>
+                                </div>
+                                <div class="flex items-center gap-1.5 bg-indigo-50/70 border border-indigo-200 rounded-lg px-2.5 py-1 text-xs shadow-xs focus-within:border-indigo-500 focus-within:bg-white transition" title="Input Total Attendance (working days) to set for all students automatically">
+                                    <i class="fas fa-calendar-check text-indigo-600"></i>
+                                    <label for="entry-top-total-attendance" class="font-bold text-indigo-900 text-xs whitespace-nowrap">Total Att:</label>
+                                    <input type="number" min="0" id="entry-top-total-attendance" placeholder="Set for all" class="w-18 bg-white border border-indigo-200 rounded px-1.5 py-0.5 text-xs font-extrabold text-indigo-900 outline-none text-center focus:border-indigo-500">
                                 </div>
                             </div>
 
