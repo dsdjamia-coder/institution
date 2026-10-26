@@ -307,10 +307,18 @@
           <span class="nav-text truncate">Analytics &amp; Defaulters</span>
         </a>
 
-        <div class="drawer-heading">Academic Schedules</div>
+        <div class="drawer-heading">Academic Planning</div>
+        <a href="#subjects" class="drawer-link" data-tab="tab-subjects" title="Class Subjects">
+          <i class="fas fa-book-open w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Class Subjects</span>
+        </a>
         <a href="#timetable" class="drawer-link" data-tab="tab-timetable" title="Class Routine Timetable">
           <i class="fas fa-calendar-days w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Class Timetable</span>
+        </a>
+        <a href="#year-plan" class="drawer-link" data-tab="tab-yearplan" title="Academic Year Plan">
+          <i class="fas fa-calendar-week w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Academic Year Plan</span>
         </a>
         <a href="#exam-schedule" class="drawer-link" data-tab="tab-exam-schedule" title="Exam Timetable &amp; Portions">
           <i class="fas fa-file-pen w-5 text-center shrink-0"></i>
@@ -865,6 +873,67 @@
         </section>
 
         <!-- ========================================== -->
+        <!-- TAB: CLASS SUBJECTS                        -->
+        <!-- ========================================== -->
+        <section id="tab-subjects" class="tab-content hidden space-y-4">
+          <!-- Subjects Controls Bar -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div>
+                <label for="subj-academic-year" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
+                <select id="subj-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"></select>
+              </div>
+              <div>
+                <label for="subj-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
+                <select id="subj-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"></select>
+              </div>
+              <div class="flex items-center self-end">
+                <span id="subj-count-badge" class="px-3 py-1 rounded-xl text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200">0 Subjects Configured</span>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2">
+              <button type="button" id="btn-sync-subjects-schema" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Import subjects from existing Result Management configurations">
+                <i class="fas fa-rotate"></i> Import from Result Schemas
+              </button>
+              <button type="button" id="btn-add-subject" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-plus"></i> Add Subject
+              </button>
+            </div>
+          </div>
+
+          <!-- Class Subjects Table / Card Container -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-book-open text-emerald-600"></i>
+                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Configured Class Subjects</h3>
+              </div>
+              <span class="text-xs text-slate-500 font-semibold">Feeds directly into Timetable, Year Plan &amp; Exam Portions</span>
+            </div>
+
+            <div class="overflow-x-auto p-4">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                    <th class="py-2.5 px-3">#</th>
+                    <th class="py-2.5 px-3">Subject Code</th>
+                    <th class="py-2.5 px-3">Subject Name</th>
+                    <th class="py-2.5 px-3">Assigned Teacher / Instructor</th>
+                    <th class="py-2.5 px-3 text-center">Weekly Periods</th>
+                    <th class="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="subjects-table-body" class="divide-y divide-slate-100 font-medium">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
         <!-- TAB: CLASS ROUTINE TIMETABLE               -->
         <!-- ========================================== -->
         <section id="tab-timetable" class="tab-content hidden space-y-4">
@@ -880,24 +949,31 @@
                 <select id="tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"></select>
               </div>
               <div>
-                <label for="tt-day-filter" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Day View</label>
-                <select id="tt-day-filter" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none">
-                  <option value="ALL">Full Week (All Working Days)</option>
-                  <option value="Sunday">Sunday</option>
-                  <option value="Monday">Monday</option>
-                  <option value="Tuesday">Tuesday</option>
-                  <option value="Wednesday">Wednesday</option>
-                  <option value="Thursday">Thursday</option>
-                  <option value="Saturday">Saturday</option>
-                </select>
+                <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Structure Settings</label>
+                <button type="button" id="btn-tt-settings" class="p-2 px-3 border border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition flex items-center gap-1.5 cursor-pointer">
+                  <i class="fas fa-sliders text-emerald-600"></i> Configure Grid &amp; Periods
+                </button>
               </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="flex items-center gap-2">
-              <button type="button" id="btn-add-period-slot" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-plus"></i> Add Period Slot
+            <!-- Edit Mode Toggle & Actions -->
+            <div class="flex items-center gap-3 flex-wrap">
+              <!-- Edit Mode Switch -->
+              <div class="flex items-center gap-2 p-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <span class="text-xs font-bold text-slate-700">Edit Mode:</span>
+                <label class="relative inline-flex items-center cursor-pointer select-none">
+                  <input type="checkbox" id="toggle-timetable-edit" class="sr-only peer">
+                  <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+                <span id="tt-edit-mode-label" class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600">View Only</span>
+              </div>
+
+              <!-- Save Matrix Button (active in edit mode) -->
+              <button type="button" id="btn-save-timetable" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1.5 cursor-pointer" disabled>
+                <i class="fas fa-floppy-disk"></i> Save Timetable
               </button>
+
+              <!-- Print Routine Button -->
               <button type="button" id="btn-print-timetable" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <i class="fas fa-print"></i> Print Routine
               </button>
@@ -906,16 +982,91 @@
 
           <!-- Weekly Matrix Container -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden" id="tt-matrix-container">
-            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <i class="fas fa-calendar-days text-emerald-600"></i>
-                <h3 id="tt-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Class Timetable Matrix</h3>
+                <h3 id="tt-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Weekly Routine Timetable</h3>
               </div>
-              <span id="tt-total-periods-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-200 text-slate-800">5 Periods / Day</span>
+              <div class="flex items-center gap-2">
+                <span id="tt-working-days-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800">5 Days / Week</span>
+                <span id="tt-total-periods-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-200 text-slate-800">5 Periods / Day</span>
+              </div>
             </div>
             
             <div class="overflow-x-auto p-4" id="tt-schedule-grid">
-              <!-- Rendered dynamically -->
+              <!-- Rendered dynamically as Days x Periods Table -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB: ACADEMIC YEAR PLAN                    -->
+        <!-- ========================================== -->
+        <section id="tab-yearplan" class="tab-content hidden space-y-4">
+          <!-- Year Plan Controls Bar -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div>
+                <label for="yp-academic-year" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
+                <select id="yp-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"></select>
+              </div>
+              <div>
+                <label for="yp-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
+                <select id="yp-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"></select>
+              </div>
+              <div>
+                <label for="yp-calendar-type" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Calendar Type</label>
+                <select id="yp-calendar-type" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-emerald-500">
+                  <option value="gregorian">Gregorian Calendar (English Months)</option>
+                  <option value="hijri">Hijri Calendar (Arabic Months)</option>
+                </select>
+              </div>
+              <div>
+                <label for="yp-start-month" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Start Month</label>
+                <select id="yp-start-month" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none"></select>
+              </div>
+              <div>
+                <label for="yp-end-month" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">End Month</label>
+                <select id="yp-end-month" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none"></select>
+              </div>
+            </div>
+
+            <!-- Edit Mode Toggle & Actions -->
+            <div class="flex items-center gap-3 flex-wrap">
+              <!-- Edit Mode Switch -->
+              <div class="flex items-center gap-2 p-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <span class="text-xs font-bold text-slate-700">Edit Mode:</span>
+                <label class="relative inline-flex items-center cursor-pointer select-none">
+                  <input type="checkbox" id="toggle-yearplan-edit" class="sr-only peer">
+                  <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+                <span id="yp-edit-mode-label" class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600">View &amp; Track</span>
+              </div>
+
+              <!-- Save Plan Button -->
+              <button type="button" id="btn-save-yearplan" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1.5 cursor-pointer" disabled>
+                <i class="fas fa-floppy-disk"></i> Save Year Plan
+              </button>
+
+              <!-- Print Year Plan -->
+              <button type="button" id="btn-print-yearplan" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-print"></i> Print Syllabus Plan
+              </button>
+            </div>
+          </div>
+
+          <!-- Year Plan Matrix Container -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden" id="yp-matrix-container">
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-calendar-check text-emerald-600"></i>
+                <h3 id="yp-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Academic Year Syllabus Plan</h3>
+              </div>
+              <span id="yp-hint-badge" class="text-xs text-slate-500 font-semibold">In View Mode, click any cell to set period allocations &amp; execution breakdown</span>
+            </div>
+
+            <div class="overflow-x-auto p-4" id="yp-schedule-grid">
+              <!-- Rendered dynamically as Months (Rows) x Subjects (Cols) -->
             </div>
           </div>
         </section>
@@ -1085,15 +1236,15 @@
             <span class="font-extrabold text-slate-700 uppercase tracking-wider text-[10px]">Prayers Legend:</span>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-600 text-white">J</span>
-              <span class="text-slate-700"><strong>Jama'ah (ജമാഅത്ത്):</strong> Congregation (+15 pts)</span>
+              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> Congregation (+15 pts)</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white">A</span>
-              <span class="text-slate-700"><strong>Ada' (അദാഅ്):</strong> On-time Individual (+10 pts)</span>
+              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> On-time Individual (+10 pts)</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">Q</span>
-              <span class="text-slate-700"><strong>Qaza (ഖളാഅ്):</strong> Missed / Late (+0 pts)</span>
+              <span class="text-slate-700"><strong>Qaza (Missed):</strong> Missed / Late (+0 pts)</span>
             </div>
           </div>
 
@@ -1143,8 +1294,8 @@
                   <option value="ALL">All Stages</option>
                   <option value="qaidah">Qaidah / Noorani</option>
                   <option value="amma">Juz Amma (30th Para)</option>
-                  <option value="tilawat">Full Quran Tilawat (ഓത്ത്)</option>
-                  <option value="hifz">Hifz / Memorization (ഹിഫ്ള്)</option>
+                  <option value="tilawat">Full Quran Tilawat / Recitation</option>
+                  <option value="hifz">Hifz / Memorization</option>
                 </select>
               </div>
             </div>
@@ -1517,8 +1668,8 @@
             <select id="modal-quran-stage" class="w-full p-2 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
               <option value="qaidah">Qaidah / Noorani</option>
               <option value="amma">Juz Amma (30th Para)</option>
-              <option value="tilawat">Full Quran Tilawat (ഓത്ത്)</option>
-              <option value="hifz">Hifz / Memorization (ഹിഫ്ള്)</option>
+              <option value="tilawat">Full Quran Tilawat / Recitation</option>
+              <option value="hifz">Hifz / Memorization</option>
             </select>
           </div>
           <div>
@@ -1551,7 +1702,7 @@
         <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
           <label class="flex items-center gap-2.5 cursor-pointer font-black text-amber-950 text-xs">
             <input type="checkbox" id="modal-quran-is-khatm" class="w-4 h-4 text-amber-600 rounded">
-            <span>Student Fully Completed Target / Khatm Quran (ഖത്മ് പൂർണ്ണമായി പഠിച്ചു)!</span>
+            <span>Student Fully Completed Target / Khatm Quran!</span>
           </label>
         </div>
 
@@ -1614,6 +1765,310 @@
             Award Points &amp; Log Honor
           </button>
           <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-award-points">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD / EDIT CLASS SUBJECT            -->
+  <!-- ========================================== -->
+  <div id="modal-subject-edit" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-book-open"></i>
+          </div>
+          <div>
+            <h3 id="modal-subject-title" class="font-black text-sm text-emerald-950">Add Class Subject</h3>
+            <p class="text-[11px] text-emerald-700 font-bold">Configure subject for timetable &amp; syllabus</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-subject-edit">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3 text-xs">
+        <input type="hidden" id="modal-subject-id">
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Subject Code / Abbreviation <span class="text-rose-500">*</span></label>
+          <input type="text" id="modal-subject-code" placeholder="e.g. ENG, MATH, FQH, SCI" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold uppercase text-slate-800 outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Subject Full Name <span class="text-rose-500">*</span></label>
+          <input type="text" id="modal-subject-name" placeholder="e.g. English Language, Mathematics, Fiqh al-Muyassar" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Assigned Teacher / Instructor</label>
+          <input type="text" id="modal-subject-teacher" placeholder="e.g. Ust. Abdullah, Mrs. Sarah" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Weekly Periods Target</label>
+          <input type="number" id="modal-subject-weekly-periods" value="5" min="1" max="25" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="btn-save-subject" class="flex-grow py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Save Subject
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-subject-edit">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: TIMETABLE STRUCTURE SETTINGS        -->
+  <!-- ========================================== -->
+  <div id="modal-tt-settings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-sliders"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Configure Timetable Structure</h3>
+            <p class="text-[11px] text-slate-600 font-bold">Working days, periods count &amp; session timings</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-tt-settings">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+        <!-- Working Days -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5 uppercase text-[10px] tracking-wider">Working Days (Madrasa / School Days)</label>
+          <div class="grid grid-cols-4 sm:grid-cols-7 gap-1.5" id="tt-working-days-picker">
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Sunday" class="tt-workday-cb rounded text-emerald-600" checked>
+              <span class="font-bold text-[11px] text-slate-700 mt-1">Sun</span>
+            </label>
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Monday" class="tt-workday-cb rounded text-emerald-600" checked>
+              <span class="font-bold text-[11px] text-slate-700 mt-1">Mon</span>
+            </label>
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Tuesday" class="tt-workday-cb rounded text-emerald-600" checked>
+              <span class="font-bold text-[11px] text-slate-700 mt-1">Tue</span>
+            </label>
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Wednesday" class="tt-workday-cb rounded text-emerald-600" checked>
+              <span class="font-bold text-[11px] text-slate-700 mt-1">Wed</span>
+            </label>
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Thursday" class="tt-workday-cb rounded text-emerald-600" checked>
+              <span class="font-bold text-[11px] text-slate-700 mt-1">Thu</span>
+            </label>
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Friday" class="tt-workday-cb rounded text-emerald-600">
+              <span class="font-bold text-[11px] text-rose-600 mt-1">Fri (Off)</span>
+            </label>
+            <label class="flex flex-col items-center p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-center">
+              <input type="checkbox" value="Saturday" class="tt-workday-cb rounded text-emerald-600" checked>
+              <span class="font-bold text-[11px] text-slate-700 mt-1">Sat</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Periods Count -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">Periods per Day</label>
+            <select id="tt-settings-periods-count" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
+              <option value="4">4 Periods / Day</option>
+              <option value="5" selected>5 Periods / Day</option>
+              <option value="6">6 Periods / Day</option>
+              <option value="7">7 Periods / Day</option>
+              <option value="8">8 Periods / Day</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">Weekly Off Day</label>
+            <select id="tt-settings-off-day" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
+              <option value="Friday" selected>Friday (Jumu'ah Off)</option>
+              <option value="Sunday">Sunday (Regular Off)</option>
+              <option value="Saturday &amp; Sunday">Saturday &amp; Sunday (Weekend)</option>
+              <option value="None">No Regular Off</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Period Timings Grid -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">Period Timings</label>
+          <div id="tt-timings-container" class="space-y-2 border border-slate-200 rounded-2xl p-3 bg-slate-50">
+            <!-- Dynamically populated rows for Period 1 to N with start and end time inputs -->
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="btn-save-tt-settings" class="flex-grow py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Apply Structure Settings
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-tt-settings">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: YEAR PLAN LESSON EXECUTION          -->
+  <!-- ========================================== -->
+  <div id="modal-yearplan-execution" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-list-check"></i>
+          </div>
+          <div>
+            <h3 id="modal-yp-title" class="font-black text-sm text-emerald-950">Lesson Execution Plan</h3>
+            <p id="modal-yp-subtitle" class="text-[11px] text-emerald-700 font-bold">Month &bull; Subject Target</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-yearplan-execution">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs max-h-[80vh] overflow-y-auto">
+        <input type="hidden" id="modal-yp-cell-key">
+
+        <!-- Target Synopsis Card -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+          <div class="text-[10px] font-extrabold uppercase text-slate-500 mb-1">Target Syllabus for this Month</div>
+          <div id="modal-yp-synopsis" class="font-bold text-slate-800 text-xs leading-relaxed">Lesson 1 - 3: Fundamentals</div>
+          <div id="modal-yp-pages" class="text-[11px] font-semibold text-emerald-700 mt-0.5">Pages: pp. 1 - 25</div>
+        </div>
+
+        <!-- Available Periods in Month -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Allocated Periods for this Subject in this Month</label>
+          <input type="number" id="modal-yp-periods" value="16" min="1" max="60" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-emerald-500" placeholder="e.g. 16 periods available">
+        </div>
+
+        <!-- Lesson Execution Breakdown -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Period Breakdown / Distribution Plan</label>
+          <textarea id="modal-yp-breakdown" rows="3" placeholder="e.g. Periods 1-4: Explanation & Concepts; Periods 5-8: Practical Exercises; Periods 9-12: Revision; Period 13: Unit Test" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-emerald-500 leading-relaxed"></textarea>
+        </div>
+
+        <!-- Completion Progress & Status -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Execution Status</label>
+            <select id="modal-yp-status" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-emerald-500">
+              <option value="Planned">Planned</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Behind Schedule">Behind Schedule</option>
+              <option value="Ahead of Schedule">Ahead of Schedule</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Completion Progress (<span id="modal-yp-progress-val">0%</span>)</label>
+            <input type="range" id="modal-yp-progress-slider" min="0" max="100" value="0" step="5" class="w-full accent-emerald-600 mt-2">
+          </div>
+        </div>
+
+        <!-- Teacher Notes -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Teacher's Execution Notes</label>
+          <input type="text" id="modal-yp-notes" placeholder="e.g. Students found Chapter 2 challenging; extra revision period added" class="w-full p-2.5 border border-slate-300 rounded-xl font-medium text-slate-800 outline-none">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="btn-save-yp-execution" class="flex-grow py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Save Lesson Execution Plan
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-yearplan-execution">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: REWARDS & POINTS RUBRIC SETTINGS    -->
+  <!-- ========================================== -->
+  <div id="modal-rewards-settings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-sliders"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-800">Configure Points &amp; Rubric</h3>
+            <p class="text-[11px] text-amber-700 font-bold">Custom point weights adaptable for any school or madrasa</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-rewards-settings">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+        <!-- Rubric Values -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-slate-800">Daily Attendance Regularity</div>
+              <div class="text-[11px] text-slate-500">Points awarded per present day</div>
+            </div>
+            <input type="number" id="rubric-pts-attendance" value="5" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-slate-800">Jama'ah / Congregation Activity</div>
+              <div class="text-[11px] text-slate-500">Points awarded for congregational prayer</div>
+            </div>
+            <input type="number" id="rubric-pts-jamaah" value="15" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-slate-800">On-Time / Ada' Individual Task</div>
+              <div class="text-[11px] text-slate-500">Points awarded for individual punctual performance</div>
+            </div>
+            <input type="number" id="rubric-pts-adaa" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-slate-800">Quran / Reading Recitation Milestone</div>
+              <div class="text-[11px] text-slate-500">Points awarded per evaluation milestone</div>
+            </div>
+            <input type="number" id="rubric-pts-quran" value="20" min="0" max="100" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-slate-800">Standard Routine Task Completion</div>
+              <div class="text-[11px] text-slate-500">Default points per completed task</div>
+            </div>
+            <input type="number" id="rubric-pts-task" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="btn-save-rewards-settings" class="flex-grow py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Save Rubric Settings
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-rewards-settings">
             Cancel
           </button>
         </div>

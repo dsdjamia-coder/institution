@@ -43,9 +43,64 @@ let selectedAnalyticsClass = 'ALL';
 // Holiday Edit State
 let editingHolidayIndex = -1;
 
+// --- Class Subjects State ---
+let selectedSubjectsClass = '';
+let classSubjectsList = []; // [ { id, name, code, teacher, weeklyPeriods } ]
+let editingSubjectId = null;
+
 // --- Timetable State ---
 let selectedTtClass = '';
-let currentTimetablePeriods = []; // [ { id, day, periodNum, subject, ustad, startTime, endTime, room } ]
+let isTimetableEditMode = false;
+let timetableConfig = {
+    workingDays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'],
+    offDays: ['Friday'],
+    periodsCount: 5,
+    timings: [
+        { periodNum: 1, startTime: '07:30', endTime: '08:15' },
+        { periodNum: 2, startTime: '08:15', endTime: '09:00' },
+        { periodNum: 3, startTime: '09:15', endTime: '10:00' },
+        { periodNum: 4, startTime: '10:00', endTime: '10:45' },
+        { periodNum: 5, startTime: '10:45', endTime: '11:30' }
+    ]
+};
+let timetableMatrix = {}; // "day_period" -> { subjectId, subjectName, teacher, room }
+
+// --- Academic Year Plan State ---
+let selectedYpClass = '';
+let currentYpCalendarType = 'gregorian'; // 'gregorian' | 'hijri'
+let currentYpStartMonth = 'June';
+let currentYpEndMonth = 'March';
+let isYearPlanEditMode = false;
+let yearPlanGrid = {}; // "month_subjectId" -> { lessonNo, topic, pages, allocatedPeriods, breakdown, progressPercent, status, notes }
+
+// --- Rewards Rubric State ---
+let currentRewardsRubric = {
+    attendance: 5,
+    jamaah: 15,
+    adaa: 10,
+    quran: 20,
+    task: 10,
+    bonus: 10
+};
+
+const GREGORIAN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const HIJRI_MONTHS = [
+    'Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani',
+    'Jumada al-Ula', 'Jumada al-Akhirah', 'Rajab', 'Sha\'ban',
+    'Ramadan', 'Shawwal', 'Dhu al-Qi\'dah', 'Dhu al-Hijjah'
+];
+
+const getSessionMonthsList = (calendarType, startMonth, endMonth) => {
+    const list = calendarType === 'hijri' ? HIJRI_MONTHS : GREGORIAN_MONTHS;
+    const startIdx = list.indexOf(startMonth);
+    const endIdx = list.indexOf(endMonth);
+    if (startIdx === -1 || endIdx === -1) return list;
+    if (startIdx <= endIdx) {
+        return list.slice(startIdx, endIdx + 1);
+    } else {
+        return [...list.slice(startIdx), ...list.slice(0, endIdx + 1)];
+    }
+};
 
 // --- Exam Timetable State ---
 let currentExamTitle = 'First Term Examination';
@@ -214,12 +269,16 @@ const activateTab = (targetTabId) => {
         loadMonthlyRegister();
     } else if (targetTabId === 'tab-analytics') {
         loadAnalytics();
+    } else if (targetTabId === 'tab-subjects') {
+        loadClassSubjects();
+    } else if (targetTabId === 'tab-timetable') {
+        loadTimetable();
+    } else if (targetTabId === 'tab-yearplan') {
+        loadYearPlan();
     } else if (targetTabId === 'tab-session') {
         renderSessionScheduleUI();
     } else if (targetTabId === 'tab-calendar') {
         renderCalendarSettingsUI();
-    } else if (targetTabId === 'tab-timetable') {
-        loadTimetable();
     } else if (targetTabId === 'tab-exam-schedule') {
         loadExamTimetable();
     } else if (targetTabId === 'tab-tasks') {
@@ -451,7 +510,9 @@ const populateAcademicYearDropdowns = () => {
         'daily-academic-year',
         'analytics-academic-year',
         'session-academic-year',
+        'subj-academic-year',
         'tt-academic-year',
+        'yp-academic-year',
         'exam-tt-academic-year'
     ];
     
@@ -493,7 +554,9 @@ const populateClassDropdowns = () => {
     const standardIds = [
         'daily-class-select',
         'monthly-class-select',
+        'subj-class-select',
         'tt-class-select',
+        'yp-class-select',
         'modal-exam-class-select',
         'tasks-class-select',
         'ibadah-class-select',
@@ -1596,7 +1659,236 @@ const saveSessionSchedule = async () => {
 };
 
 // =========================================================================
-// MODULE 1: CLASS ROUTINE TIMETABLE LOGIC
+// MODULE 1: CLASS SUBJECTS MANAGEMENT
+// =========================================================================
+const getClassSubjectsDocId = (year, classLabel) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}__${cleanC}`;
+};
+
+const loadClassSubjects = async () => {
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    selectedSubjectsClass = document.getElementById('subj-class-select')?.value || selectedDailyClass || '';
+    const tbody = document.getElementById('subjects-table-body');
+    const badge = document.getElementById('subj-count-badge');
+
+    if (!selectedSubjectsClass) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
+        return;
+    }
+
+    try {
+        const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId));
+        if (docSnap.exists() && Array.isArray(docSnap.data().subjects)) {
+            classSubjectsList = docSnap.data().subjects;
+        } else {
+            // Provide sensible initial defaults if first time
+            classSubjectsList = [
+                { id: 'subj_1', code: 'ENG', name: 'English Language', teacher: 'Assigned Teacher', weeklyPeriods: 5 },
+                { id: 'subj_2', code: 'MATH', name: 'Mathematics', teacher: 'Assigned Teacher', weeklyPeriods: 5 },
+                { id: 'subj_3', code: 'SCI', name: 'Science', teacher: 'Assigned Teacher', weeklyPeriods: 4 },
+                { id: 'subj_4', code: 'ARB', name: 'Arabic', teacher: 'Assigned Teacher', weeklyPeriods: 4 }
+            ];
+            await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+                subjects: classSubjectsList,
+                updatedAt: Date.now()
+            }, { merge: true });
+        }
+    } catch (err) {
+        console.error('Failed to load class subjects:', err);
+    }
+
+    renderClassSubjectsUI();
+};
+
+const renderClassSubjectsUI = () => {
+    const tbody = document.getElementById('subjects-table-body');
+    const badge = document.getElementById('subj-count-badge');
+    if (badge) badge.textContent = `${classSubjectsList.length} Subject${classSubjectsList.length === 1 ? '' : 's'} Configured`;
+
+    if (!tbody) return;
+
+    if (!classSubjectsList.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="p-8 text-center text-slate-400 font-medium">
+                    <i class="fas fa-book-open text-3xl mb-2 text-slate-300 block"></i>
+                    No subjects configured for Class ${selectedSubjectsClass} yet.<br>
+                    <button type="button" class="mt-3 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs" onclick="document.getElementById('btn-add-subject').click()">
+                        + Add First Subject
+                    </button>
+                </td>
+            </tr>`;
+        return;
+    }
+
+    tbody.innerHTML = classSubjectsList.map((s, idx) => `
+        <tr class="hover:bg-slate-50/80 transition">
+            <td class="py-3 px-3 font-bold text-slate-400 text-center">${idx + 1}</td>
+            <td class="py-3 px-3">
+                <span class="px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200">
+                    ${escapeHtml(s.code || 'SUBJ')}
+                </span>
+            </td>
+            <td class="py-3 px-3 font-extrabold text-slate-900">${escapeHtml(s.name || '--')}</td>
+            <td class="py-3 px-3 font-semibold text-slate-600">
+                <i class="fas fa-user-tie text-[10px] text-slate-400 mr-1.5"></i>${escapeHtml(s.teacher || 'Not Assigned')}
+            </td>
+            <td class="py-3 px-3 text-center">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    ${s.weeklyPeriods || 5} Periods / Wk
+                </span>
+            </td>
+            <td class="py-3 px-3 text-right">
+                <div class="flex items-center justify-end gap-1.5">
+                    <button type="button" class="btn-edit-subject p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition cursor-pointer" data-id="${s.id}" title="Edit Subject">
+                        <i class="fas fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" class="btn-del-subject p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-id="${s.id}" title="Delete Subject">
+                        <i class="fas fa-trash-can"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+};
+
+const openSubjectModal = (subject = null) => {
+    editingSubjectId = subject ? subject.id : null;
+    const titleEl = document.getElementById('modal-subject-title');
+    const idInput = document.getElementById('modal-subject-id');
+    const codeInput = document.getElementById('modal-subject-code');
+    const nameInput = document.getElementById('modal-subject-name');
+    const teacherInput = document.getElementById('modal-subject-teacher');
+    const periodsInput = document.getElementById('modal-subject-weekly-periods');
+
+    if (titleEl) titleEl.textContent = subject ? 'Edit Class Subject' : 'Add Class Subject';
+    if (idInput) idInput.value = subject ? subject.id : '';
+    if (codeInput) codeInput.value = subject ? subject.code : '';
+    if (nameInput) nameInput.value = subject ? subject.name : '';
+    if (teacherInput) teacherInput.value = subject ? (subject.teacher || '') : '';
+    if (periodsInput) periodsInput.value = subject ? (subject.weeklyPeriods || 5) : 5;
+
+    openModal('modal-subject-edit');
+};
+
+const saveClassSubject = async () => {
+    const codeInput = document.getElementById('modal-subject-code');
+    const nameInput = document.getElementById('modal-subject-name');
+    const teacherInput = document.getElementById('modal-subject-teacher');
+    const periodsInput = document.getElementById('modal-subject-weekly-periods');
+
+    const code = codeInput?.value.trim().toUpperCase();
+    const name = nameInput?.value.trim();
+    const teacher = teacherInput?.value.trim() || 'Assigned Teacher';
+    const weeklyPeriods = Number(periodsInput?.value || 5);
+
+    if (!code) return alert('Please enter a subject code (e.g. ENG, MATH, FQH).');
+    if (!name) return alert('Please enter a subject full name.');
+
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
+
+    if (editingSubjectId) {
+        const item = classSubjectsList.find(s => s.id === editingSubjectId);
+        if (item) {
+            item.code = code;
+            item.name = name;
+            item.teacher = teacher;
+            item.weeklyPeriods = weeklyPeriods;
+        }
+    } else {
+        classSubjectsList.push({
+            id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            code,
+            name,
+            teacher,
+            weeklyPeriods
+        });
+    }
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+            subjects: classSubjectsList,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-subject-edit');
+        showToast(`Subject "${name}" saved successfully!`, 'success');
+        renderClassSubjectsUI();
+    } catch (err) {
+        alert('Failed to save subject: ' + err.message);
+    }
+};
+
+const deleteClassSubject = async (subjectId) => {
+    if (!confirm('Are you sure you want to delete this subject? It may affect existing timetable slots.')) return;
+    classSubjectsList = classSubjectsList.filter(s => s.id !== subjectId);
+
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+            subjects: classSubjectsList,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Subject removed.', 'info');
+        renderClassSubjectsUI();
+    } catch (err) {
+        alert('Failed to delete subject: ' + err.message);
+    }
+};
+
+const syncSubjectsFromResultSchema = async () => {
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    try {
+        showToast('Checking Result Management schemas for subjects...', 'info');
+        const snap = await getDocs(collection(db, `${BASE_PATH}/resultSchemas`));
+        const imported = [];
+        snap.docs.forEach(d => {
+            const data = d.data();
+            const rows = data.subjectRows || [];
+            rows.forEach(r => {
+                const name = r.name || r.subject || '';
+                if (!name) return;
+                const code = (r.code || name.substring(0, 4)).toUpperCase().trim();
+                if (!classSubjectsList.some(ex => ex.name.toLowerCase() === name.toLowerCase())) {
+                    imported.push({
+                        id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                        code,
+                        name,
+                        teacher: 'Assigned Teacher',
+                        weeklyPeriods: 5
+                    });
+                }
+            });
+        });
+
+        if (!imported.length) {
+            showToast('No new subjects found to import from Result Management.', 'info');
+            return;
+        }
+
+        classSubjectsList = [...classSubjectsList, ...imported];
+        const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
+        await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+            subjects: classSubjectsList,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast(`Successfully imported ${imported.length} subjects!`, 'success');
+        renderClassSubjectsUI();
+    } catch (err) {
+        alert('Failed to import subjects: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 2: CLASS ROUTINE TIMETABLE (MATRIX & EDIT MODE)
 // =========================================================================
 const getTimetableDocId = (year, classLabel) => {
     const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
@@ -1607,273 +1899,637 @@ const getTimetableDocId = (year, classLabel) => {
 const loadTimetable = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
     selectedTtClass = document.getElementById('tt-class-select')?.value || selectedDailyClass || '';
-    const dayFilter = document.getElementById('tt-day-filter')?.value || 'ALL';
-    const grid = document.getElementById('tt-schedule-grid');
     const heading = document.getElementById('tt-view-heading');
 
-    if (heading) heading.textContent = `Class ${selectedTtClass} Timetable (${year})`;
+    if (heading) heading.textContent = `Class ${selectedTtClass} Weekly Routine Timetable (${year})`;
 
-    if (!selectedTtClass) {
-        if (grid) grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select a class to view routine timetable.</div>`;
-        return;
-    }
+    // Ensure subjects for this class are loaded so edit dropdowns can populate
+    try {
+        const subjDocId = getClassSubjectsDocId(year, selectedTtClass);
+        const subjSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId));
+        if (subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+            classSubjectsList = subjSnap.data().subjects;
+        }
+    } catch (_) {}
 
     try {
         const docId = getTimetableDocId(year, selectedTtClass);
         const docSnap = await getDoc(doc(db, `${BASE_PATH}/timetables`, docId));
-        currentTimetablePeriods = docSnap.exists() ? (docSnap.data().periods || []) : [];
-
-        renderTimetableGrid(dayFilter);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            timetableConfig = data.config || timetableConfig;
+            timetableMatrix = data.matrix || {};
+        } else {
+            timetableMatrix = {};
+        }
     } catch (err) {
         console.error('Failed to load timetable:', err);
-        if (grid) grid.innerHTML = `<div class="p-6 text-center text-rose-600 font-bold">Failed to load timetable: ${escapeHtml(err.message)}</div>`;
     }
+
+    renderTimetableMatrixUI();
 };
 
-const renderTimetableGrid = (dayFilter = 'ALL') => {
+const renderTimetableMatrixUI = () => {
     const grid = document.getElementById('tt-schedule-grid');
+    const workingDaysBadge = document.getElementById('tt-working-days-badge');
+    const totalPeriodsBadge = document.getElementById('tt-total-periods-badge');
+
+    const workingDays = timetableConfig.workingDays && timetableConfig.workingDays.length
+        ? timetableConfig.workingDays
+        : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
+    const periodsCount = Number(timetableConfig.periodsCount || 5);
+    const timings = timetableConfig.timings || [];
+
+    if (workingDaysBadge) workingDaysBadge.textContent = `${workingDays.length} Working Days / Wk`;
+    if (totalPeriodsBadge) totalPeriodsBadge.textContent = `${periodsCount} Periods / Day`;
+
     if (!grid) return;
 
-    const workingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
-    const daysToRender = dayFilter === 'ALL' ? workingDays : [dayFilter];
-
-    if (!currentTimetablePeriods.length) {
-        grid.innerHTML = `
-            <div class="p-8 text-center text-slate-400">
-                <i class="fas fa-calendar-xmark text-3xl mb-2 text-slate-300"></i>
-                <div class="font-bold">No timetable scheduled yet for Class ${escapeHtml(selectedTtClass)}.</div>
-                <button type="button" class="mt-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs" onclick="document.getElementById('btn-add-period-slot').click()">
-                    + Add First Period
-                </button>
-            </div>
-        `;
+    if (!selectedTtClass) {
+        grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select a class to view routine timetable.</div>`;
         return;
     }
 
-    grid.innerHTML = `
-        <div class="space-y-4">
-            ${daysToRender.map(day => {
-                const dayPeriods = currentTimetablePeriods
-                    .filter(p => p.day === day)
-                    .sort((a, b) => Number(a.periodNum || 1) - Number(b.periodNum || 1));
+    let html = `
+        <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-28 bg-slate-200/80">Day / Period</th>`;
 
-                return `
-                    <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                        <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                            <span class="font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                <i class="fas fa-calendar-day text-emerald-600"></i> ${escapeHtml(day)}
-                            </span>
-                            <span class="text-[11px] font-bold text-slate-500">${dayPeriods.length} Periods</span>
-                        </div>
-                        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                            ${dayPeriods.length ? dayPeriods.map(p => `
-                                <div class="p-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 transition-all shadow-2xs relative group">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-extrabold text-[10px] border border-emerald-200">Period ${p.periodNum}</span>
-                                        <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                            <button type="button" class="text-indigo-600 hover:text-indigo-800 p-0.5 text-xs font-bold btn-edit-tt-slot" data-slot-id="${escapeHtml(p.id)}"><i class="fas fa-pen"></i></button>
-                                            <button type="button" class="text-rose-500 hover:text-rose-700 p-0.5 text-xs font-bold btn-del-tt-slot" data-slot-id="${escapeHtml(p.id)}"><i class="fas fa-trash"></i></button>
-                                        </div>
-                                    </div>
-                                    <div class="font-black text-sm text-slate-900 truncate">${escapeHtml(p.subject || 'Subject')}</div>
-                                    <div class="text-[11px] font-bold text-slate-600 mt-0.5 truncate"><i class="fas fa-chalkboard-user text-slate-400 mr-1"></i>${escapeHtml(p.ustad || 'Ustad')}</div>
-                                    <div class="text-[10px] font-semibold text-slate-400 mt-1 flex items-center justify-between">
-                                        <span><i class="fas fa-clock text-slate-400 mr-1"></i>${escapeHtml(p.startTime || '--')} - ${escapeHtml(p.endTime || '--')}</span>
-                                        ${p.room ? `<span class="truncate ml-1"><i class="fas fa-door-open mr-0.5"></i>${escapeHtml(p.room)}</span>` : ''}
-                                    </div>
+    for (let p = 1; p <= periodsCount; p++) {
+        const t = timings.find(x => x.periodNum === p) || { startTime: `0${6 + p}:00`, endTime: `0${6 + p}:45` };
+        html += `
+            <th class="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">
+                <div class="text-[11px] font-black text-slate-900 tracking-wider">Period ${p}</div>
+                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${t.startTime} - ${t.endTime}</div>
+            </th>`;
+    }
+    html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
+
+    workingDays.forEach(day => {
+        html += `
+            <tr class="hover:bg-slate-50/60 transition">
+                <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap">
+                    <i class="fas fa-calendar-day text-emerald-600 mr-1.5"></i>${day}
+                </td>`;
+
+        for (let p = 1; p <= periodsCount; p++) {
+            const key = `${day}_${p}`;
+            const slot = timetableMatrix[key] || {};
+
+            if (isTimetableEditMode) {
+                html += `
+                    <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
+                        <select class="tt-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-day="${day}" data-period="${p}">
+                            <option value="">-- Free / Recess --</option>
+                            ${classSubjectsList.map(s => `
+                                <option value="${s.id}" ${slot.subjectId === s.id ? 'selected' : ''}>
+                                    ${escapeHtml(s.name)} (${escapeHtml(s.code)})
+                                </option>
+                            `).join('')}
+                        </select>
+                        <input type="text" class="tt-cell-teacher w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Teacher / Ustad" value="${escapeHtml(slot.teacher || '')}" data-day="${day}" data-period="${p}">
+                        <input type="text" class="tt-cell-room w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Room / Hall" value="${escapeHtml(slot.room || '')}" data-day="${day}" data-period="${p}">
+                    </td>`;
+            } else {
+                html += `
+                    <td class="p-2.5 border-r border-slate-200 align-top">
+                        ${slot.subjectName ? `
+                            <div class="p-2 rounded-xl bg-emerald-50/70 border border-emerald-200/80 shadow-2xs">
+                                <div class="font-extrabold text-xs text-slate-900 leading-tight">${escapeHtml(slot.subjectName)}</div>
+                                <div class="text-[11px] text-emerald-800 font-semibold mt-1 truncate">
+                                    <i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(slot.teacher || 'Assigned Ustad')}
                                 </div>
-                            `).join('') : `<div class="p-4 text-center text-slate-400 text-xs italic col-span-full">No periods configured for ${day}.</div>`}
-                        </div>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-    `;
-};
-
-const savePeriodSlot = async () => {
-    const day = document.getElementById('period-day-select')?.value;
-    const periodNum = Number(document.getElementById('period-num-select')?.value || 1);
-    const subject = document.getElementById('period-subject-input')?.value.trim();
-    const ustad = document.getElementById('period-ustad-input')?.value.trim();
-    const startTime = document.getElementById('period-start-time')?.value;
-    const endTime = document.getElementById('period-end-time')?.value;
-    const room = document.getElementById('period-room-input')?.value.trim();
-    const slotId = document.getElementById('period-edit-slot-id')?.value;
-
-    if (!subject) return alert('Please enter the subject name.');
-
-    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
-    if (!selectedTtClass) return alert('Please select a class.');
-
-    const updatedPeriods = [...currentTimetablePeriods];
-
-    if (slotId) {
-        const idx = updatedPeriods.findIndex(p => p.id === slotId);
-        if (idx !== -1) {
-            updatedPeriods[idx] = { id: slotId, day, periodNum, subject, ustad, startTime, endTime, room };
+                                ${slot.room ? `<div class="text-[10px] text-slate-500 font-bold mt-0.5"><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(slot.room)}</div>` : ''}
+                            </div>
+                        ` : `
+                            <div class="p-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
+                                Free Period
+                            </div>
+                        `}
+                    </td>`;
+            }
         }
-    } else {
-        const newSlot = {
-            id: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            day,
-            periodNum,
-            subject,
-            ustad,
-            startTime,
-            endTime,
-            room
-        };
-        updatedPeriods.push(newSlot);
-    }
+        html += `</tr>`;
+    });
 
-    try {
-        const docId = getTimetableDocId(year, selectedTtClass);
-        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
-            academicYear: year,
-            classLabel: selectedTtClass,
-            periods: updatedPeriods,
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        closeModal('modal-period-edit');
-        showToast('Period slot saved successfully!', 'success');
-        loadTimetable();
-    } catch (err) {
-        alert('Failed to save period slot: ' + err.message);
-    }
+    html += `</tbody></table>`;
+    grid.innerHTML = html;
 };
 
-const deletePeriodSlot = async (slotId) => {
-    if (!confirm('Remove this period slot from timetable?')) return;
+const toggleTimetableEdit = (enabled) => {
+    isTimetableEditMode = enabled;
+    const label = document.getElementById('tt-edit-mode-label');
+    const saveBtn = document.getElementById('btn-save-timetable');
+    if (label) {
+        label.textContent = enabled ? 'Editing' : 'View Only';
+        label.className = enabled
+            ? 'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300'
+            : 'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600';
+    }
+    if (saveBtn) {
+        saveBtn.disabled = !enabled;
+    }
+    renderTimetableMatrixUI();
+};
+
+const saveTimetableMatrix = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
-    const updated = currentTimetablePeriods.filter(p => p.id !== slotId);
+    const docId = getTimetableDocId(year, selectedTtClass);
+
+    const updatedMatrix = {};
+    const subjectSelects = document.querySelectorAll('.tt-cell-subject');
+
+    subjectSelects.forEach(sel => {
+        const day = sel.dataset.day;
+        const period = sel.dataset.period;
+        const subjectId = sel.value;
+        const key = `${day}_${period}`;
+
+        const teacherInput = document.querySelector(`.tt-cell-teacher[data-day="${day}"][data-period="${period}"]`);
+        const roomInput = document.querySelector(`.tt-cell-room[data-day="${day}"][data-period="${period}"]`);
+
+        if (subjectId) {
+            const subjObj = classSubjectsList.find(s => s.id === subjectId);
+            updatedMatrix[key] = {
+                subjectId,
+                subjectName: subjObj ? subjObj.name : 'Subject',
+                subjectCode: subjObj ? subjObj.code : '',
+                teacher: teacherInput?.value.trim() || (subjObj ? subjObj.teacher : ''),
+                room: roomInput?.value.trim() || ''
+            };
+        }
+    });
+
+    timetableMatrix = updatedMatrix;
 
     try {
-        const docId = getTimetableDocId(year, selectedTtClass);
         await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
-            periods: updated,
+            config: timetableConfig,
+            matrix: timetableMatrix,
             updatedAt: Date.now()
         }, { merge: true });
 
-        showToast('Period slot removed.', 'success');
-        loadTimetable();
+        showToast(`Class ${selectedTtClass} routine timetable saved successfully!`, 'success');
+        const toggle = document.getElementById('toggle-timetable-edit');
+        if (toggle) {
+            toggle.checked = false;
+            toggleTimetableEdit(false);
+        }
     } catch (err) {
-        alert('Failed to remove period: ' + err.message);
+        alert('Failed to save timetable: ' + err.message);
     }
 };
 
-// =========================================================================
-// MODULE 2: EXAM TIMETABLE & SYLLABUS LOGIC
-// =========================================================================
-const getExamDocId = (year, examTitle) => {
-    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
-    const cleanT = String(examTitle || 'Exam').trim().replace(/[^\w-]/g, '_');
-    return `${cleanY}__${cleanT}`;
+const openTimetableSettingsModal = () => {
+    const workingDays = timetableConfig.workingDays || [];
+    document.querySelectorAll('.tt-workday-cb').forEach(cb => {
+        cb.checked = workingDays.includes(cb.value);
+    });
+
+    const periodsCountSel = document.getElementById('tt-settings-periods-count');
+    if (periodsCountSel) periodsCountSel.value = String(timetableConfig.periodsCount || 5);
+
+    const offDaySel = document.getElementById('tt-settings-off-day');
+    if (offDaySel) offDaySel.value = (timetableConfig.offDays && timetableConfig.offDays[0]) || 'Friday';
+
+    renderTimetableTimingsRows(Number(periodsCountSel?.value || 5));
+    openModal('modal-tt-settings');
 };
 
+const renderTimetableTimingsRows = (count) => {
+    const container = document.getElementById('tt-timings-container');
+    if (!container) return;
+
+    let html = '';
+    const existing = timetableConfig.timings || [];
+    for (let p = 1; p <= count; p++) {
+        const item = existing.find(x => x.periodNum === p) || { startTime: `0${6 + p}:00`, endTime: `0${6 + p}:45` };
+        html += `
+            <div class="flex items-center gap-2 text-xs">
+                <span class="w-20 font-bold text-slate-700">Period ${p}</span>
+                <input type="time" class="tt-timing-start p-1.5 border border-slate-300 rounded-lg font-bold text-slate-800" data-p="${p}" value="${item.startTime}">
+                <span class="text-slate-400 font-bold">to</span>
+                <input type="time" class="tt-timing-end p-1.5 border border-slate-300 rounded-lg font-bold text-slate-800" data-p="${p}" value="${item.endTime}">
+            </div>`;
+    }
+    container.innerHTML = html;
+};
+
+const saveTimetableSettings = async () => {
+    const activeDays = [];
+    document.querySelectorAll('.tt-workday-cb:checked').forEach(cb => {
+        activeDays.push(cb.value);
+    });
+
+    if (!activeDays.length) return alert('Please select at least one working day.');
+
+    const periodsCount = Number(document.getElementById('tt-settings-periods-count')?.value || 5);
+    const offDay = document.getElementById('tt-settings-off-day')?.value || 'Friday';
+
+    const timings = [];
+    for (let p = 1; p <= periodsCount; p++) {
+        const s = document.querySelector(`.tt-timing-start[data-p="${p}"]`)?.value || `0${6+p}:00`;
+        const e = document.querySelector(`.tt-timing-end[data-p="${p}"]`)?.value || `0${6+p}:45`;
+        timings.push({ periodNum: p, startTime: s, endTime: e });
+    }
+
+    timetableConfig = {
+        workingDays: activeDays,
+        offDays: [offDay],
+        periodsCount,
+        timings
+    };
+
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    const docId = getTimetableDocId(year, selectedTtClass);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
+            config: timetableConfig,
+            matrix: timetableMatrix,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-tt-settings');
+        showToast('Timetable structure settings applied!', 'success');
+        renderTimetableMatrixUI();
+    } catch (err) {
+        alert('Failed to save settings: ' + err.message);
+    }
+};
+
+const printTimetableRoutine = () => {
+    window.print();
+};
+
+// =========================================================================
+// MODULE 3: ACADEMIC YEAR PLAN (SYLLABUS & LESSON BREAKDOWN)
+// =========================================================================
+const getYearPlanDocId = (year, classLabel) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}__${cleanC}`;
+};
+
+const loadYearPlan = async () => {
+    const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
+    selectedYpClass = document.getElementById('yp-class-select')?.value || selectedDailyClass || '';
+    const heading = document.getElementById('yp-view-heading');
+
+    if (heading) heading.textContent = `Class ${selectedYpClass} Academic Year Syllabus Plan (${year})`;
+
+    // Ensure subjects for this class are loaded
+    try {
+        const subjDocId = getClassSubjectsDocId(year, selectedYpClass);
+        const subjSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId));
+        if (subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+            classSubjectsList = subjSnap.data().subjects;
+        }
+    } catch (_) {}
+
+    try {
+        const docId = getYearPlanDocId(year, selectedYpClass);
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/yearPlans`, docId));
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            currentYpCalendarType = data.calendarType || 'gregorian';
+            currentYpStartMonth = data.startMonth || (currentYpCalendarType === 'hijri' ? 'Shawwal' : 'June');
+            currentYpEndMonth = data.endMonth || (currentYpCalendarType === 'hijri' ? 'Sha\'ban' : 'March');
+            yearPlanGrid = data.grid || {};
+
+            const calTypeSel = document.getElementById('yp-calendar-type');
+            if (calTypeSel) calTypeSel.value = currentYpCalendarType;
+            populateYearPlanMonthDropdowns();
+        } else {
+            yearPlanGrid = {};
+            populateYearPlanMonthDropdowns();
+        }
+    } catch (err) {
+        console.error('Failed to load year plan:', err);
+    }
+
+    renderYearPlanUI();
+};
+
+const renderYearPlanUI = () => {
+    const grid = document.getElementById('yp-schedule-grid');
+    if (!grid) return;
+
+    if (!selectedYpClass) {
+        grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select a class.</div>`;
+        return;
+    }
+
+    if (!classSubjectsList.length) {
+        grid.innerHTML = `
+            <div class="p-8 text-center text-slate-400 font-medium">
+                <i class="fas fa-book-open text-3xl mb-2 text-slate-300 block"></i>
+                No subjects configured for Class ${selectedYpClass}.<br>
+                Please add subjects in the <strong>Class Subjects</strong> tab first to generate the syllabus matrix.<br>
+                <button type="button" class="mt-3 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs" onclick="activateTab('tab-subjects')">
+                    Go to Class Subjects
+                </button>
+            </div>`;
+        return;
+    }
+
+    const startMonth = document.getElementById('yp-start-month')?.value || currentYpStartMonth;
+    const endMonth = document.getElementById('yp-end-month')?.value || currentYpEndMonth;
+    const months = getSessionMonthsList(currentYpCalendarType, startMonth, endMonth);
+
+    let html = `
+        <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-32 bg-slate-200/80">Month</th>`;
+
+    classSubjectsList.forEach(s => {
+        html += `
+            <th class="py-2.5 px-3 border-r border-slate-200 min-w-[180px]">
+                <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(s.name)}</div>
+                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${escapeHtml(s.code)} &bull; ${s.weeklyPeriods || 5} Periods/Wk</div>
+            </th>`;
+    });
+    html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
+
+    months.forEach(month => {
+        html += `
+            <tr class="hover:bg-slate-50/60 transition">
+                <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap">
+                    <i class="fas fa-calendar-check text-emerald-600 mr-1.5"></i>${month}
+                </td>`;
+
+        classSubjectsList.forEach(s => {
+            const key = `${month}__${s.id}`;
+            const cell = yearPlanGrid[key] || {};
+
+            if (isYearPlanEditMode) {
+                html += `
+                    <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
+                        <input type="text" class="yp-input-lesson w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" placeholder="Lesson / Chapter #" value="${escapeHtml(cell.lessonNo || '')}" data-key="${key}">
+                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none mb-1 bg-white" placeholder="Topics / Chapter Title" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
+                        <input type="text" class="yp-input-pages w-full p-1 text-[11px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages (e.g. pp. 1-25)" value="${escapeHtml(cell.pages || '')}" data-key="${key}">
+                    </td>`;
+            } else {
+                const hasTarget = Boolean(cell.topic || cell.lessonNo);
+                const status = cell.status || 'Planned';
+                let statusClass = 'bg-blue-50 text-blue-700 border-blue-200';
+                if (status === 'In Progress') statusClass = 'bg-amber-50 text-amber-800 border-amber-200';
+                else if (status === 'Completed') statusClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                else if (status === 'Behind Schedule') statusClass = 'bg-rose-50 text-rose-800 border-rose-200';
+
+                html += `
+                    <td class="p-2.5 border-r border-slate-200 align-top cursor-pointer hover:bg-emerald-50/40 transition yp-cell-clickable" data-month="${month}" data-subject-id="${s.id}" data-subject-name="${escapeHtml(s.name)}">
+                        ${hasTarget ? `
+                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-300 transition">
+                                <div class="flex items-center justify-between gap-1 mb-1">
+                                    <span class="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${statusClass}">${status}</span>
+                                    <span class="text-[10px] font-bold text-slate-500">${cell.allocatedPeriods || 16} P</span>
+                                </div>
+                                <div class="font-extrabold text-xs text-slate-900 leading-tight">${cell.lessonNo ? `${escapeHtml(cell.lessonNo)}: ` : ''}${escapeHtml(cell.topic || 'Untitled Topic')}</div>
+                                ${cell.pages ? `<div class="text-[10px] text-emerald-700 font-bold mt-1"><i class="fas fa-file-lines text-[9px] mr-1"></i>${escapeHtml(cell.pages)}</div>` : ''}
+                                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                                    <div class="bg-emerald-600 h-1.5 rounded-full" style="width: ${cell.progressPercent || 0}%"></div>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="p-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
+                                + Set Target
+                            </div>
+                        `}
+                    </td>`;
+            }
+        });
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    grid.innerHTML = html;
+};
+
+const toggleYearPlanEdit = (enabled) => {
+    isYearPlanEditMode = enabled;
+    const label = document.getElementById('yp-edit-mode-label');
+    const saveBtn = document.getElementById('btn-save-yearplan');
+    if (label) {
+        label.textContent = enabled ? 'Editing' : 'View & Track';
+        label.className = enabled
+            ? 'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300'
+            : 'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600';
+    }
+    if (saveBtn) {
+        saveBtn.disabled = !enabled;
+    }
+    renderYearPlanUI();
+};
+
+const saveYearPlan = async () => {
+    const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
+    const docId = getYearPlanDocId(year, selectedYpClass);
+
+    const lessonInputs = document.querySelectorAll('.yp-input-lesson');
+    lessonInputs.forEach(input => {
+        const key = input.dataset.key;
+        const topicInput = document.querySelector(`.yp-input-topic[data-key="${key}"]`);
+        const pagesInput = document.querySelector(`.yp-input-pages[data-key="${key}"]`);
+
+        const lessonNo = input.value.trim();
+        const topic = topicInput?.value.trim() || '';
+        const pages = pagesInput?.value.trim() || '';
+
+        const existing = yearPlanGrid[key] || {};
+        yearPlanGrid[key] = {
+            ...existing,
+            lessonNo,
+            topic,
+            pages
+        };
+    });
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
+            calendarType: currentYpCalendarType,
+            startMonth: document.getElementById('yp-start-month')?.value || currentYpStartMonth,
+            endMonth: document.getElementById('yp-end-month')?.value || currentYpEndMonth,
+            grid: yearPlanGrid,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast(`Academic Year Plan for Class ${selectedYpClass} saved!`, 'success');
+        const toggle = document.getElementById('toggle-yearplan-edit');
+        if (toggle) {
+            toggle.checked = false;
+            toggleYearPlanEdit(false);
+        }
+    } catch (err) {
+        alert('Failed to save year plan: ' + err.message);
+    }
+};
+
+const openYearPlanExecutionModal = (month, subjectId, subjectName) => {
+    const key = `${month}__${subjectId}`;
+    const cell = yearPlanGrid[key] || {};
+
+    document.getElementById('modal-yp-cell-key').value = key;
+    document.getElementById('modal-yp-title').textContent = `${subjectName} - ${month}`;
+    document.getElementById('modal-yp-subtitle').textContent = `Class ${selectedYpClass} Syllabus Execution Plan`;
+
+    const synopsisEl = document.getElementById('modal-yp-synopsis');
+    if (synopsisEl) {
+        synopsisEl.textContent = cell.topic ? `${cell.lessonNo ? cell.lessonNo + ': ' : ''}${cell.topic}` : 'No syllabus target defined yet for this month.';
+    }
+    const pagesEl = document.getElementById('modal-yp-pages');
+    if (pagesEl) {
+        pagesEl.textContent = cell.pages ? `Pages: ${cell.pages}` : 'Pages not specified';
+    }
+
+    const periodsInput = document.getElementById('modal-yp-periods');
+    if (periodsInput) periodsInput.value = cell.allocatedPeriods || 16;
+
+    const breakdownInput = document.getElementById('modal-yp-breakdown');
+    if (breakdownInput) breakdownInput.value = cell.breakdown || '';
+
+    const statusSel = document.getElementById('modal-yp-status');
+    if (statusSel) statusSel.value = cell.status || 'Planned';
+
+    const slider = document.getElementById('modal-yp-progress-slider');
+    const valText = document.getElementById('modal-yp-progress-val');
+    const prog = cell.progressPercent || 0;
+    if (slider) slider.value = prog;
+    if (valText) valText.textContent = `${prog}%`;
+
+    const notesInput = document.getElementById('modal-yp-notes');
+    if (notesInput) notesInput.value = cell.notes || '';
+
+    openModal('modal-yearplan-execution');
+};
+
+const saveYearPlanExecution = async () => {
+    const key = document.getElementById('modal-yp-cell-key')?.value;
+    if (!key) return;
+
+    const allocatedPeriods = Number(document.getElementById('modal-yp-periods')?.value || 16);
+    const breakdown = document.getElementById('modal-yp-breakdown')?.value.trim();
+    const status = document.getElementById('modal-yp-status')?.value || 'Planned';
+    const progressPercent = Number(document.getElementById('modal-yp-progress-slider')?.value || 0);
+    const notes = document.getElementById('modal-yp-notes')?.value.trim();
+
+    const existing = yearPlanGrid[key] || {};
+    yearPlanGrid[key] = {
+        ...existing,
+        allocatedPeriods,
+        breakdown,
+        status,
+        progressPercent,
+        notes
+    };
+
+    const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
+    const docId = getYearPlanDocId(year, selectedYpClass);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
+            grid: yearPlanGrid,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-yearplan-execution');
+        showToast('Lesson execution plan updated!', 'success');
+        renderYearPlanUI();
+    } catch (err) {
+        alert('Failed to save execution plan: ' + err.message);
+    }
+};
+
+const printYearPlan = () => {
+    window.print();
+};
+
+// =========================================================================
+// MODULE 4: EXAM TIMETABLE & SYLLABUS LOGIC
+// =========================================================================
 const loadExamTimetable = async () => {
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     currentExamTitle = document.getElementById('exam-tt-title-select')?.value || 'First Term Examination';
     const classFilter = document.getElementById('exam-tt-class-filter')?.value || 'ALL';
-
     const tbody = document.getElementById('exam-papers-tbody');
-    const badge = document.getElementById('exam-entry-count-badge');
-    const heading = document.getElementById('exam-tt-table-heading');
-
-    if (heading) heading.textContent = `${currentExamTitle} - Examination Papers & Portions`;
 
     try {
-        const docId = getExamDocId(year, currentExamTitle);
-        const docSnap = await getDoc(doc(db, `${BASE_PATH}/examTimetables`, docId));
-        examTimetableEntries = docSnap.exists() ? (docSnap.data().entries || []) : [];
-
-        const filtered = classFilter === 'ALL'
-            ? examTimetableEntries
-            : examTimetableEntries.filter(e => e.classLabel === classFilter);
-
-        filtered.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-
-        if (badge) badge.textContent = `${filtered.length} Papers Scheduled`;
-
-        if (!tbody) return;
-
-        if (!filtered.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">No exam papers scheduled for ${escapeHtml(currentExamTitle)}. Click "+ Schedule Exam Paper" to add papers.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = filtered.map((entry, idx) => `
-            <tr class="hover:bg-slate-50/80">
-                <td class="py-2.5 px-3 font-bold text-slate-800">
-                    <div>${escapeHtml(formatDisplayDate(entry.date))}</div>
-                    <span class="text-[10px] text-slate-400 font-semibold font-mono">${escapeHtml(entry.date || '')}</span>
-                </td>
-                <td class="py-2.5 px-3 font-mono text-xs font-bold text-slate-600">${escapeHtml(entry.startTime || '--')} - ${escapeHtml(entry.endTime || '--')}</td>
-                <td class="py-2.5 px-3 text-center">
-                    <span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 font-black text-xs border border-indigo-200">Class ${escapeHtml(entry.classLabel || '')}</span>
-                </td>
-                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(entry.subject || '--')}</td>
-                <td class="py-2.5 px-4">
-                    <div class="p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs font-semibold text-amber-950 max-w-sm whitespace-pre-wrap">${escapeHtml(entry.portions || 'Full Syllabus')}</div>
-                </td>
-                <td class="py-2.5 px-3 text-slate-600 text-xs font-bold">
-                    <div><i class="fas fa-door-open text-slate-400 mr-1"></i>${escapeHtml(entry.hall || 'Main Hall')}</div>
-                    <div class="text-[10px] text-slate-400 mt-0.5"><i class="fas fa-user-tie mr-1"></i>${escapeHtml(entry.invigilator || '--')}</div>
-                </td>
-                <td class="py-2.5 px-3 text-center">
-                    <button type="button" class="btn-del-exam-entry text-rose-600 hover:text-rose-800 font-bold text-xs p-1" data-id="${escapeHtml(entry.id)}" title="Delete paper">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+        const docId = `${String(year).replace(/[^\w-]/g, '_')}__${String(currentExamTitle).replace(/[^\w-]/g, '_')}`;
+        const snap = await getDoc(doc(db, `${BASE_PATH}/examTimetables`, docId));
+        examTimetableEntries = snap.exists() ? (snap.data().entries || []) : [];
     } catch (err) {
         console.error('Failed to load exam timetable:', err);
     }
+
+    if (!tbody) return;
+
+    const filtered = classFilter === 'ALL'
+        ? examTimetableEntries
+        : examTimetableEntries.filter(e => e.classLabel === classFilter);
+
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-bold">No exam papers scheduled yet for this term.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map((e, idx) => `
+        <tr class="hover:bg-slate-50/80">
+            <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
+            <td class="py-2.5 px-3 font-bold text-slate-800">${formatDisplayDate(e.date)}</td>
+            <td class="py-2.5 px-3 font-bold text-slate-700">${e.startTime} - ${e.endTime}</td>
+            <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded font-black text-xs bg-slate-100 text-slate-800">Class ${e.classLabel}</span></td>
+            <td class="py-2.5 px-3 font-black text-slate-900">${escapeHtml(e.subject || '')}</td>
+            <td class="py-2.5 px-3 max-w-[200px] truncate font-medium text-slate-600" title="${escapeHtml(e.portions || '')}">${escapeHtml(e.portions || 'Full Syllabus')}</td>
+            <td class="py-2.5 px-3 font-medium text-slate-600">${escapeHtml(e.invigilator || 'Staff')} (${escapeHtml(e.hall || 'Hall')})</td>
+            <td class="py-2.5 px-3 text-right">
+                <button type="button" class="btn-del-exam-entry p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition" data-id="${e.id}">
+                    <i class="fas fa-trash-can"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
 };
 
 const saveExamEntry = async () => {
-    const classVal = document.getElementById('modal-exam-class-select')?.value;
-    const dateVal = document.getElementById('modal-exam-date')?.value;
-    const startTime = document.getElementById('modal-exam-start-time')?.value;
-    const endTime = document.getElementById('modal-exam-end-time')?.value;
-    const subject = document.getElementById('modal-exam-subject')?.value.trim();
-    const portions = document.getElementById('modal-exam-portions')?.value.trim();
-    const hall = document.getElementById('modal-exam-hall')?.value.trim();
-    const invigilator = document.getElementById('modal-exam-invigilator')?.value.trim();
-
-    if (!classVal) return alert('Please select a class.');
-    if (!dateVal) return alert('Please select the exam date.');
-    if (!subject) return alert('Please enter the subject name.');
-    if (!portions) return alert('Please specify the syllabus / portions for this examination paper.');
-
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const title = document.getElementById('exam-tt-title-select')?.value || 'First Term Examination';
+    const date = document.getElementById('modal-exam-date')?.value;
+    const classLabel = document.getElementById('modal-exam-class-select')?.value;
+    const subject = document.getElementById('modal-exam-subject')?.value.trim();
+    const startTime = document.getElementById('modal-exam-start-time')?.value || '08:00';
+    const endTime = document.getElementById('modal-exam-end-time')?.value || '10:00';
+    const portions = document.getElementById('modal-exam-portions')?.value.trim();
+    const hall = document.getElementById('modal-exam-hall')?.value.trim() || 'Classroom';
+    const invigilator = document.getElementById('modal-exam-invigilator')?.value.trim() || 'Staff';
+
+    if (!date) return alert('Please choose an exam date.');
+    if (!subject) return alert('Please enter a subject name.');
+
     const newEntry = {
-        id: `ex_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        date: dateVal,
-        classLabel: classVal,
+        id: `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        date,
+        classLabel,
+        subject,
         startTime,
         endTime,
-        subject,
         portions,
-        hall: hall || 'Hall 1',
-        invigilator: invigilator || currentStaffName
+        hall,
+        invigilator
     };
 
-    const updated = [...examTimetableEntries, newEntry];
+    examTimetableEntries.push(newEntry);
 
     try {
-        const docId = getExamDocId(year, currentExamTitle);
+        const docId = `${String(year).replace(/[^\w-]/g, '_')}__${String(title).replace(/[^\w-]/g, '_')}`;
         await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
-            academicYear: year,
-            examTitle: currentExamTitle,
-            entries: updated,
+            entries: examTimetableEntries,
             updatedAt: Date.now()
         }, { merge: true });
 
         closeModal('modal-exam-entry');
-        showToast('Exam paper scheduled with portions!', 'success');
+        showToast('Exam paper scheduled!', 'success');
         loadExamTimetable();
     } catch (err) {
         alert('Failed to save exam paper: ' + err.message);
@@ -1881,345 +2537,275 @@ const saveExamEntry = async () => {
 };
 
 const deleteExamEntry = async (id) => {
-    if (!confirm('Remove this scheduled exam paper?')) return;
+    if (!confirm('Remove this scheduled examination paper?')) return;
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
-    const updated = examTimetableEntries.filter(e => e.id !== id);
+    const title = document.getElementById('exam-tt-title-select')?.value || 'First Term Examination';
+
+    examTimetableEntries = examTimetableEntries.filter(e => e.id !== id);
 
     try {
-        const docId = getExamDocId(year, currentExamTitle);
+        const docId = `${String(year).replace(/[^\w-]/g, '_')}__${String(title).replace(/[^\w-]/g, '_')}`;
         await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
-            entries: updated,
+            entries: examTimetableEntries,
             updatedAt: Date.now()
         }, { merge: true });
 
-        showToast('Exam paper removed.', 'success');
+        showToast('Exam entry removed.', 'info');
         loadExamTimetable();
     } catch (err) {
-        alert('Failed to remove: ' + err.message);
+        alert('Failed to remove entry: ' + err.message);
     }
 };
 
 // =========================================================================
-// MODULE 3: ROUTINE TASKS TRACKER LOGIC
+// MODULE 5: ROUTINE TASKS TRACKER LOGIC
 // =========================================================================
 const getDefaultTasks = (cadence) => {
-    if (cadence === 'weekly') {
+    if (cadence === 'daily') {
         return [
-            { id: 'w_kahf', title: 'Friday Surah Al-Kahf', cadence: 'weekly', points: 15 },
-            { id: 'w_quiz', title: 'Weekly Islamic Quiz', cadence: 'weekly', points: 10 },
-            { id: 'w_groom', title: 'Cleanliness & Nails Check', cadence: 'weekly', points: 5 }
+            { id: 'task_d1', title: 'Morning Adhkar & Duas', cadence: 'daily', points: 5 },
+            { id: 'task_d2', title: 'Uniform & Personal Cleanliness', cadence: 'daily', points: 5 },
+            { id: 'task_d3', title: 'Class Kit & Books Prepared', cadence: 'daily', points: 5 }
         ];
-    } else if (cadence === 'monthly') {
+    } else if (cadence === 'weekly') {
         return [
-            { id: 'm_test', title: 'Monthly Assessment Completed', cadence: 'monthly', points: 20 },
-            { id: 'm_speech', title: 'Moral Speech & Presentation', cadence: 'monthly', points: 20 },
-            { id: 'm_diary', title: 'Parents Diary Signed', cadence: 'monthly', points: 10 }
+            { id: 'task_w1', title: 'Surah Al-Kahf Friday Recitation', cadence: 'weekly', points: 15 },
+            { id: 'task_w2', title: 'Weekly Hifz Review (Dhor)', cadence: 'weekly', points: 10 },
+            { id: 'task_w3', title: 'Islamic Quiz Activity', cadence: 'weekly', points: 10 }
+        ];
+    } else {
+        return [
+            { id: 'task_m1', title: 'Monthly Charity (Sadaqah Drive)', cadence: 'monthly', points: 20 },
+            { id: 'task_m2', title: 'Family Seerah Reading Project', cadence: 'monthly', points: 25 }
         ];
     }
-    // Daily
-    return [
-        { id: 'd_adhkar', title: 'Morning Adhkar & Dua', cadence: 'daily', points: 5 },
-        { id: 'd_uniform', title: 'Uniform & Punctuality', cadence: 'daily', points: 5 },
-        { id: 'd_homework', title: 'Daily Madrasa Homework', cadence: 'daily', points: 5 }
-    ];
 };
 
 const loadTasksRoster = async () => {
     selectedTasksClass = document.getElementById('tasks-class-select')?.value || selectedDailyClass || '';
-    const dateInput = document.getElementById('tasks-date-input');
-    if (dateInput && !dateInput.value) dateInput.value = getTodayDateString();
-    selectedTasksDate = dateInput?.value || getTodayDateString();
-
-    const thead = document.getElementById('tasks-matrix-thead');
-    const tbody = document.getElementById('tasks-matrix-tbody');
-    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
+    selectedTasksDate = document.getElementById('tasks-date-input')?.value || getTodayDateString();
+    const thead = document.getElementById('tasks-roster-thead');
+    const tbody = document.getElementById('tasks-roster-tbody');
 
     if (!selectedTasksClass) {
-        if (tbody) tbody.innerHTML = `<tr><td class="p-8 text-center text-slate-400 font-bold">Please select a class to load tasks.</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
         return;
     }
 
     taskDefsList = getDefaultTasks(currentTaskCadence);
 
-    // Fetch completions doc
-    const docId = `${year}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
     try {
-        const docSnap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
-        taskCompletionsMap = docSnap.exists() ? (docSnap.data().records || {}) : {};
+        const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
+        const snap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
+        taskCompletionsMap = snap.exists() ? (snap.data().completions || {}) : {};
     } catch (_) {
         taskCompletionsMap = {};
     }
 
-    // Filter class students
-    const classStudents = allStudents.filter(s => s.class === selectedTasksClass && s.status !== 'alumni');
-
-    // Build thead
-    thead.innerHTML = `
-        <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-            <th class="py-2.5 px-3 text-center">#</th>
-            <th class="py-2.5 px-3">Adm No</th>
-            <th class="py-2.5 px-4 min-w-[150px]">Student Name</th>
-            ${taskDefsList.map(t => `
-                <th class="py-2.5 px-3 text-center min-w-[100px]">
-                    <div class="truncate font-black">${escapeHtml(t.title)}</div>
-                    <span class="text-[9px] text-emerald-600 font-bold">+${t.points} pts</span>
-                </th>
-            `).join('')}
-            <th class="py-2.5 px-3 text-center font-black">Score</th>
-        </tr>
-    `;
-
-    // Build tbody
-    tbody.innerHTML = classStudents.map((student, idx) => {
-        const stuRecords = taskCompletionsMap[student.id] || {};
-        let score = 0;
-
-        const cells = taskDefsList.map(t => {
-            const isDone = Boolean(stuRecords[t.id]);
-            if (isDone) score += t.points;
-            return `
-                <td class="py-2.5 px-3 text-center">
-                    <input type="checkbox" class="task-check w-4 h-4 text-emerald-600 rounded cursor-pointer" data-student-id="${escapeHtml(student.id)}" data-task-id="${escapeHtml(t.id)}" ${isDone ? 'checked' : ''}>
-                </td>
-            `;
-        }).join('');
-
-        return `
-            <tr class="hover:bg-slate-50/70" data-student-id="${escapeHtml(student.id)}">
-                <td class="py-2.5 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
-                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
-                ${cells}
-                <td class="py-2.5 px-3 text-center font-black text-emerald-600 task-student-score">${score} pts</td>
-            </tr>
-        `;
-    }).join('');
-};
-
-const saveTasksChecklist = async () => {
-    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
-    if (!selectedTasksClass) return alert('Please select a class.');
-
-    const newMap = {};
-    document.querySelectorAll('#tasks-matrix-tbody tr[data-student-id]').forEach(row => {
-        const stuId = row.dataset.studentId;
-        newMap[stuId] = {};
-        row.querySelectorAll('.task-check:checked').forEach(chk => {
-            newMap[stuId][chk.dataset.taskId] = true;
-        });
-    });
-
-    const docId = `${year}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
-
-    try {
-        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
-            academicYear: year,
-            classLabel: selectedTasksClass,
-            date: selectedTasksDate,
-            cadence: currentTaskCadence,
-            records: newMap,
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        showToast('Routine tasks checklist saved!', 'success');
-        loadTasksRoster();
-    } catch (err) {
-        alert('Failed to save tasks: ' + err.message);
+    if (thead) {
+        thead.innerHTML = `
+            <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                <th class="py-2.5 px-3">#</th>
+                <th class="py-2.5 px-3">Adm No</th>
+                <th class="py-2.5 px-4">Student Name</th>
+                ${taskDefsList.map(t => `<th class="py-2.5 px-3 text-center">${escapeHtml(t.title)} (${t.points}p)</th>`).join('')}
+                <th class="py-2.5 px-3 text-center">Score</th>
+            </tr>`;
     }
-};
 
-// =========================================================================
-// MODULE 4: SPIRITUAL & IBADAH TRACKER LOGIC
-// =========================================================================
-const loadIbadahRoster = async () => {
-    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || selectedDailyClass || '';
-    const dateInput = document.getElementById('ibadah-date-input');
-    if (dateInput && !dateInput.value) dateInput.value = getTodayDateString();
-    selectedIbadahDate = dateInput?.value || getTodayDateString();
+    if (!tbody) return;
 
-    const tbody = document.getElementById('ibadah-roster-tbody');
-    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
-
-    if (!selectedIbadahClass) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-slate-400 font-bold">Please select a class to load prayers.</td></tr>`;
+    const classStudents = allStudents.filter(s => s.class === selectedTasksClass && s.status !== 'alumni');
+    if (!classStudents.length) {
+        tbody.innerHTML = `<tr><td colspan="${taskDefsList.length + 4}" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedTasksClass}.</td></tr>`;
         return;
     }
 
-    const docId = `${year}__${selectedIbadahClass}__${selectedIbadahDate}`;
+    tbody.innerHTML = classStudents.map((student, idx) => {
+        const studentTasks = taskCompletionsMap[student.id] || {};
+        let score = 0;
+
+        return `
+            <tr class="hover:bg-slate-50/80" data-student-id="${student.id}">
+                <td class="py-2 px-3 font-bold text-slate-400">${idx + 1}</td>
+                <td class="py-2 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
+                <td class="py-2 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
+                ${taskDefsList.map(t => {
+                    const done = Boolean(studentTasks[t.id]);
+                    if (done) score += Number(t.points || 0);
+                    return `
+                        <td class="py-2 px-3 text-center">
+                            <input type="checkbox" class="task-check-box w-4 h-4 text-emerald-600 rounded cursor-pointer" data-student-id="${student.id}" data-task-id="${t.id}" ${done ? 'checked' : ''}>
+                        </td>`;
+                }).join('')}
+                <td class="py-2 px-3 text-center font-black text-emerald-700 student-task-score">${score} pts</td>
+            </tr>`;
+    }).join('');
+};
+
+const saveTasksCompletionsToFirestore = async () => {
+    const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
     try {
+        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
+            completions: taskCompletionsMap,
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (err) {
+        console.error('Failed to auto-save task completions:', err);
+    }
+};
+
+// =========================================================================
+// MODULE 6: SPIRITUAL & IBADAH TRACKER LOGIC
+// =========================================================================
+const loadIbadahRoster = async () => {
+    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || selectedDailyClass || '';
+    selectedIbadahDate = document.getElementById('ibadah-date-input')?.value || getTodayDateString();
+    const tbody = document.getElementById('ibadah-roster-tbody');
+
+    if (!selectedIbadahClass) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
+        return;
+    }
+
+    try {
+        const docId = `${currentAcademicYear}__${selectedIbadahClass}__${selectedIbadahDate}`;
         const snap = await getDoc(doc(db, `${BASE_PATH}/ibadah`, docId));
         ibadahRecordsMap = snap.exists() ? (snap.data().records || {}) : {};
     } catch (_) {
         ibadahRecordsMap = {};
     }
 
+    if (!tbody) return;
+
     const classStudents = allStudents.filter(s => s.class === selectedIbadahClass && s.status !== 'alumni');
+    if (!classStudents.length) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedIbadahClass}.</td></tr>`;
+        return;
+    }
+
+    const prayers = ['subh', 'zuhr', 'asr', 'maghrib', 'isha'];
 
     tbody.innerHTML = classStudents.map((student, idx) => {
-        const r = ibadahRecordsMap[student.id] || {};
-        const subh = r.subh || 'J';
-        const zuhr = r.zuhr || 'A';
-        const asr = r.asr || 'A';
-        const maghrib = r.maghrib || 'J';
-        const isha = r.isha || 'J';
-        const tahajjud = Boolean(r.tahajjud);
-        const tilawat = Number(r.tilawat || 15);
-
-        // Calculate prayer points
-        let pts = 0;
-        [subh, zuhr, asr, maghrib, isha].forEach(status => {
-            if (status === 'J') pts += 15;
-            else if (status === 'A') pts += 10;
-        });
-        if (tahajjud) pts += 15;
-        if (tilawat >= 15) pts += 10;
-
-        const renderPrayerPill = (pName, val) => `
-            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 ibadah-pill-group" data-prayer="${pName}" data-student="${escapeHtml(student.id)}">
-                <button type="button" class="ibadah-toggle-btn px-1.5 py-0.5 rounded text-[10px] font-black ${val === 'J' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="J">J</button>
-                <button type="button" class="ibadah-toggle-btn px-1.5 py-0.5 rounded text-[10px] font-black ${val === 'A' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="A">A</button>
-                <button type="button" class="ibadah-toggle-btn px-1.5 py-0.5 rounded text-[10px] font-black ${val === 'Q' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="Q">Q</button>
-            </div>
-        `;
+        const rec = ibadahRecordsMap[student.id] || {};
 
         return `
-            <tr class="hover:bg-slate-50/70" data-student-id="${escapeHtml(student.id)}">
-                <td class="py-2.5 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
+            <tr class="hover:bg-slate-50/80" data-student-id="${student.id}">
+                <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
                 <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
                 <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
-                <td class="py-2.5 px-2 text-center">${renderPrayerPill('subh', subh)}</td>
-                <td class="py-2.5 px-2 text-center">${renderPrayerPill('zuhr', zuhr)}</td>
-                <td class="py-2.5 px-2 text-center">${renderPrayerPill('asr', asr)}</td>
-                <td class="py-2.5 px-2 text-center">${renderPrayerPill('maghrib', maghrib)}</td>
-                <td class="py-2.5 px-2 text-center">${renderPrayerPill('isha', isha)}</td>
-                <td class="py-2.5 px-3 text-center">
-                    <label class="inline-flex items-center gap-1 cursor-pointer text-xs font-bold text-slate-700">
-                        <input type="checkbox" class="ibadah-tahajjud-check w-4 h-4 text-emerald-600 rounded" ${tahajjud ? 'checked' : ''}>
-                        <span>Tahajjud</span>
-                    </label>
+                ${prayers.map(p => {
+                    const status = rec[p] || 'A';
+                    return `
+                        <td class="py-2 px-2 text-center" data-prayer="${p}">
+                            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 ibadah-pill-group">
+                                <button type="button" class="ibadah-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'J' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="J">J</button>
+                                <button type="button" class="ibadah-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'A' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="A">A</button>
+                                <button type="button" class="ibadah-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'Q' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="Q">Q</button>
+                            </div>
+                        </td>`;
+                }).join('')}
+                <td class="py-2 px-3 text-center">
+                    <input type="checkbox" class="ibadah-tahajjud-cb w-4 h-4 text-emerald-600 rounded" ${rec.tahajjud ? 'checked' : ''}>
                 </td>
-                <td class="py-2.5 px-3 text-center">
-                    <input type="number" min="0" max="180" class="ibadah-tilawat-input w-16 p-1 border border-slate-300 rounded-lg text-center font-black text-xs" value="${tilawat}">
+                <td class="py-2 px-3 text-center">
+                    <input type="checkbox" class="ibadah-duha-cb w-4 h-4 text-emerald-600 rounded" ${rec.duha ? 'checked' : ''}>
                 </td>
-                <td class="py-2.5 px-3 text-center font-black text-emerald-600 ibadah-row-pts">${pts} pts</td>
-            </tr>
-        `;
+                <td class="py-2 px-3 text-center">
+                    <input type="number" class="ibadah-tilawat-mins w-16 p-1 text-center font-bold border border-slate-300 rounded text-slate-800" value="${rec.tilawat || 15}" min="0" max="180">
+                </td>
+            </tr>`;
     }).join('');
 };
 
 const saveIbadahRecords = async () => {
-    const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
-    if (!selectedIbadahClass) return alert('Please select a class.');
+    const rows = document.querySelectorAll('#ibadah-roster-tbody tr[data-student-id]');
+    const updated = {};
 
-    const newMap = {};
-    document.querySelectorAll('#ibadah-roster-tbody tr[data-student-id]').forEach(row => {
-        const stuId = row.dataset.studentId;
-        const subh = row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
-        const zuhr = row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
-        const asr = row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
-        const maghrib = row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
-        const isha = row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-emerald-600')?.dataset.val || row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-blue-600')?.dataset.val || 'Q';
-        const tahajjud = row.querySelector('.ibadah-tahajjud-check')?.checked || false;
-        const tilawat = Number(row.querySelector('.ibadah-tilawat-input')?.value || 0);
+    rows.forEach(row => {
+        const studentId = row.dataset.studentId;
+        const subh = row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
+        const zuhr = row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
+        const asr = row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
+        const maghrib = row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
+        const isha = row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
 
-        newMap[stuId] = { subh, zuhr, asr, maghrib, isha, tahajjud, tilawat };
+        const tahajjud = Boolean(row.querySelector('.ibadah-tahajjud-cb')?.checked);
+        const duha = Boolean(row.querySelector('.ibadah-duha-cb')?.checked);
+        const tilawat = Number(row.querySelector('.ibadah-tilawat-mins')?.value || 0);
+
+        updated[studentId] = { subh, zuhr, asr, maghrib, isha, tahajjud, duha, tilawat };
     });
 
-    const docId = `${year}__${selectedIbadahClass}__${selectedIbadahDate}`;
+    ibadahRecordsMap = updated;
 
+    const docId = `${currentAcademicYear}__${selectedIbadahClass}__${selectedIbadahDate}`;
     try {
         await setDoc(doc(db, `${BASE_PATH}/ibadah`, docId), {
-            academicYear: year,
-            classLabel: selectedIbadahClass,
-            date: selectedIbadahDate,
-            records: newMap,
+            records: ibadahRecordsMap,
             updatedAt: Date.now()
         }, { merge: true });
 
-        showToast('Ibadah & Prayer records saved successfully!', 'success');
-        loadIbadahRoster();
+        showToast('Ibadah records logged successfully!', 'success');
     } catch (err) {
-        alert('Failed to save ibadah records: ' + err.message);
+        alert('Failed to save Ibadah records: ' + err.message);
     }
 };
 
 // =========================================================================
-// MODULE 5: QURAN READING PROGRESS TRACKER LOGIC
+// MODULE 7: QURAN READING PROGRESS TRACKER LOGIC
 // =========================================================================
 const loadQuranRoster = async () => {
     selectedQuranClass = document.getElementById('quran-class-select')?.value || selectedDailyClass || '';
     const stageFilter = document.getElementById('quran-stage-filter')?.value || 'ALL';
     const tbody = document.getElementById('quran-roster-tbody');
-    const countBadge = document.getElementById('quran-students-count');
 
     if (!selectedQuranClass) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-bold">Please select a class to load Quran progress.</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
         return;
     }
 
     try {
-        // Query quranProgress collection for this class
-        const q = query(
-            collection(db, `${BASE_PATH}/quranProgress`),
-            where('classLabel', '==', selectedQuranClass)
-        );
-        const snap = await getDocs(q);
-        quranProgressCache = {};
+        const snap = await getDocs(collection(db, `${BASE_PATH}/quranProgress`));
         snap.docs.forEach(d => {
             quranProgressCache[d.id] = d.data();
         });
-    } catch (_) {
-        quranProgressCache = {};
+    } catch (_) {}
+
+    if (!tbody) return;
+
+    let classStudents = allStudents.filter(s => s.class === selectedQuranClass && s.status !== 'alumni');
+    if (stageFilter !== 'ALL') {
+        classStudents = classStudents.filter(s => (quranProgressCache[s.id]?.stage || 'qaidah') === stageFilter);
     }
 
-    const classStudents = allStudents.filter(s => s.class === selectedQuranClass && s.status !== 'alumni');
-    if (countBadge) countBadge.textContent = `${classStudents.length} Students`;
+    if (!classStudents.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold">No students found matching this criteria.</td></tr>`;
+        return;
+    }
 
     tbody.innerHTML = classStudents.map((student, idx) => {
-        const prog = quranProgressCache[student.id] || {
-            stage: 'tilawat',
-            currentSabaq: 'Surah Al-Baqarah (Page 1-5)',
-            completed: 'Juz 30 (Juz Amma)',
-            remaining: '29 Juz remaining',
-            isKhatm: false,
-            grade: 'Jayyid Jiddan'
-        };
-
-        const stageNames = {
-            qaidah: 'Qaidah',
-            amma: 'Juz Amma',
-            tilawat: 'Quran Tilawat',
-            hifz: 'Hifz (Memorization)'
-        };
-
-        const stageBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">${stageNames[prog.stage] || 'Quran'}</span>`;
-
-        const khatmBadge = prog.isKhatm
-            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center gap-1"><i class="fas fa-crown text-amber-600"></i> Khatm Done</span>`
-            : `<span class="text-slate-400 text-xs font-semibold">In Progress</span>`;
+        const q = quranProgressCache[student.id] || {};
+        const stageLabel = q.stage === 'amma' ? 'Juz Amma' : (q.stage === 'tilawat' ? 'Full Quran Tilawat' : (q.stage === 'hifz' ? 'Hifz Memorization' : 'Qaidah / Noorani'));
 
         return `
-            <tr class="hover:bg-slate-50/70">
-                <td class="py-2.5 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
+            <tr class="hover:bg-slate-50/80">
+                <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
                 <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
                 <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
-                <td class="py-2.5 px-3">${stageBadge}</td>
-                <td class="py-2.5 px-4">
-                    <div class="font-extrabold text-slate-800 text-xs">${escapeHtml(prog.currentSabaq || 'New Sabaq')}</div>
-                    <div class="text-[10px] text-emerald-700 font-bold mt-0.5">${escapeHtml(prog.grade || 'Evaluated')}</div>
-                </td>
-                <td class="py-2.5 px-4 text-xs font-semibold text-slate-600">
-                    <div>${escapeHtml(prog.completed || 'In Progress')}</div>
-                    <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(prog.remaining || '')}</div>
-                </td>
-                <td class="py-2.5 px-3 text-center">${khatmBadge}</td>
+                <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded font-black text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">${stageLabel}</span></td>
+                <td class="py-2.5 px-3 font-bold text-slate-800">${escapeHtml(q.currentSabaq || 'Lesson 1')}</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-600">${escapeHtml(q.completed || 'Not Started')}</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-500">${escapeHtml(q.remaining || '--')}</td>
                 <td class="py-2.5 px-3 text-center">
-                    <button type="button" class="btn-eval-quran px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer" data-student-id="${escapeHtml(student.id)}">
-                        Evaluate
+                    ${q.isKhatm ? '<span class="px-2.5 py-0.5 rounded-full font-black text-xs bg-amber-400 text-white shadow-2xs">Khatm Completed!</span>' : `<span class="px-2 py-0.5 rounded text-xs font-bold ${q.grade === 'Mumtaz (Excellent)' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'}">${escapeHtml(q.grade || 'Jayyid')}</span>`}
+                </td>
+                <td class="py-2.5 px-3 text-right">
+                    <button type="button" class="btn-eval-quran px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black text-xs transition cursor-pointer" data-student-id="${student.id}">
+                        Record Lesson
                     </button>
                 </td>
-            </tr>
-        `;
+            </tr>`;
     }).join('');
 };
 
@@ -2227,16 +2813,17 @@ const openQuranEvaluateModal = (studentId) => {
     const student = allStudents.find(s => s.id === studentId);
     if (!student) return;
 
-    const prog = quranProgressCache[studentId] || {};
     document.getElementById('modal-quran-student-id').value = studentId;
-    document.getElementById('modal-quran-student-sub').textContent = `${student.name} (Adm: ${student.adm || '-'}, Class ${student.class})`;
-    document.getElementById('modal-quran-stage').value = prog.stage || 'tilawat';
-    document.getElementById('modal-quran-grade').value = prog.grade || 'Jayyid Jiddan (Very Good)';
-    document.getElementById('modal-quran-sabaq').value = prog.currentSabaq || '';
-    document.getElementById('modal-quran-completed').value = prog.completed || '';
-    document.getElementById('modal-quran-remaining').value = prog.remaining || '';
-    document.getElementById('modal-quran-is-khatm').checked = Boolean(prog.isKhatm);
-    document.getElementById('modal-quran-remarks').value = prog.remarks || '';
+    document.getElementById('modal-quran-student-sub').textContent = `${student.name} (Adm: ${student.adm || student.admNo || '--'}, Class ${student.class})`;
+
+    const q = quranProgressCache[studentId] || {};
+    document.getElementById('modal-quran-stage').value = q.stage || 'qaidah';
+    document.getElementById('modal-quran-grade').value = q.grade || 'Mumtaz (Excellent)';
+    document.getElementById('modal-quran-sabaq').value = q.currentSabaq || '';
+    document.getElementById('modal-quran-completed').value = q.completed || '';
+    document.getElementById('modal-quran-remaining').value = q.remaining || '';
+    document.getElementById('modal-quran-is-khatm').checked = Boolean(q.isKhatm);
+    document.getElementById('modal-quran-remarks').value = q.remarks || '';
 
     openModal('modal-quran-evaluate');
 };
@@ -2245,19 +2832,17 @@ const saveQuranProgress = async () => {
     const studentId = document.getElementById('modal-quran-student-id')?.value;
     if (!studentId) return;
 
-    const stage = document.getElementById('modal-quran-stage')?.value;
+    const stage = document.getElementById('modal-quran-stage')?.value || 'qaidah';
     const grade = document.getElementById('modal-quran-grade')?.value;
     const currentSabaq = document.getElementById('modal-quran-sabaq')?.value.trim();
     const completed = document.getElementById('modal-quran-completed')?.value.trim();
     const remaining = document.getElementById('modal-quran-remaining')?.value.trim();
-    const isKhatm = document.getElementById('modal-quran-is-khatm')?.checked;
+    const isKhatm = Boolean(document.getElementById('modal-quran-is-khatm')?.checked);
     const remarks = document.getElementById('modal-quran-remarks')?.value.trim();
 
-    if (!currentSabaq) return alert('Please enter current sabaq lesson details.');
+    if (!currentSabaq) return alert('Please enter current lesson (Sabaq).');
 
     const payload = {
-        studentId,
-        classLabel: selectedQuranClass,
         stage,
         grade,
         currentSabaq,
@@ -2265,23 +2850,78 @@ const saveQuranProgress = async () => {
         remaining,
         isKhatm,
         remarks,
-        updatedAt: Date.now()
+        evaluatedAt: Date.now()
     };
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/quranProgress`, studentId), payload, { merge: true });
+        quranProgressCache[studentId] = payload;
+
         closeModal('modal-quran-evaluate');
-        showToast('Quran recitation progress saved & points awarded!', 'success');
+        showToast('Quran progress logged successfully!', 'success');
         loadQuranRoster();
     } catch (err) {
-        alert('Failed to save progress: ' + err.message);
+        alert('Failed to log Quran progress: ' + err.message);
     }
 };
 
 // =========================================================================
-// MODULE 6: REWARDS, POINTS & LEADERBOARD LOGIC
+// MODULE 8: REWARDS, POINTS & LEADERBOARD LOGIC
 // =========================================================================
+const loadRewardsRubric = async () => {
+    const year = currentAcademicYear;
+    try {
+        const snap = await getDoc(doc(db, `${BASE_PATH}/rewardSettings`, year));
+        if (snap.exists() && snap.data().points) {
+            currentRewardsRubric = { ...currentRewardsRubric, ...snap.data().points };
+        }
+    } catch (err) {
+        console.error('Failed to load rewards rubric:', err);
+    }
+};
+
+const openRewardsSettingsModal = () => {
+    const attInput = document.getElementById('rubric-pts-attendance');
+    const jamInput = document.getElementById('rubric-pts-jamaah');
+    const adaaInput = document.getElementById('rubric-pts-adaa');
+    const quranInput = document.getElementById('rubric-pts-quran');
+    const taskInput = document.getElementById('rubric-pts-task');
+
+    if (attInput) attInput.value = currentRewardsRubric.attendance || 5;
+    if (jamInput) jamInput.value = currentRewardsRubric.jamaah || 15;
+    if (adaaInput) adaaInput.value = currentRewardsRubric.adaa || 10;
+    if (quranInput) quranInput.value = currentRewardsRubric.quran || 20;
+    if (taskInput) taskInput.value = currentRewardsRubric.task || 10;
+
+    openModal('modal-rewards-settings');
+};
+
+const saveRewardsRubric = async () => {
+    const attendance = Number(document.getElementById('rubric-pts-attendance')?.value || 5);
+    const jamaah = Number(document.getElementById('rubric-pts-jamaah')?.value || 15);
+    const adaa = Number(document.getElementById('rubric-pts-adaa')?.value || 10);
+    const quran = Number(document.getElementById('rubric-pts-quran')?.value || 20);
+    const task = Number(document.getElementById('rubric-pts-task')?.value || 10);
+
+    currentRewardsRubric = { attendance, jamaah, adaa, quran, task, bonus: 10 };
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), {
+            points: currentRewardsRubric,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-rewards-settings');
+        showToast('Points and rubric settings updated!', 'success');
+        loadRewardsLeaderboard();
+    } catch (err) {
+        alert('Failed to save rubric settings: ' + err.message);
+    }
+};
+
 const loadRewardsLeaderboard = async () => {
+    await loadRewardsRubric();
+
     selectedRewardsClass = document.getElementById('rewards-class-select')?.value || selectedDailyClass || '';
     const tbody = document.getElementById('rewards-leaderboard-tbody');
     const topNameEl = document.getElementById('rewards-top-student-name');
@@ -2306,27 +2946,23 @@ const loadRewardsLeaderboard = async () => {
 
     const classStudents = allStudents.filter(s => s.class === selectedRewardsClass && s.status !== 'alumni');
 
-    // Calculate points per student
+    // Dynamically calculate points based on active rubric
     const scores = classStudents.map(student => {
-        // Attendance points (sample 10 pts per present day from cache or default 50)
-        const attPts = 60;
-        // Ibadah points
-        const ibadahPts = 75;
-        // Quran points
-        const quranPts = quranProgressCache[student.id]?.isKhatm ? 100 : 50;
-        // Tasks points
-        const tasksPts = 30;
-        // Bonus points
+        const attPts = (currentRewardsRubric.attendance || 5) * 12; // Base regular attendance sample
+        const ibadahPts = (currentRewardsRubric.jamaah || 15) * 5;
+        const quranPts = quranProgressCache[student.id]?.isKhatm ? (currentRewardsRubric.quran || 20) * 5 : (currentRewardsRubric.quran || 20) * 2;
+        const tasksPts = (currentRewardsRubric.task || 10) * 3;
+
         const bonusList = studentBonusPointsMap[student.id] || [];
         const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
 
         const total = attPts + ibadahPts + quranPts + tasksPts + bonusPts;
 
         const badges = [];
-        if (total >= 250) badges.push('👑 Madrasa Champion');
-        if (quranPts >= 80) badges.push('⭐ Quran Star');
-        if (ibadahPts >= 70) badges.push('🕌 Prayer Hero');
-        if (bonusPts > 0) badges.push('🎖️ Good Adab');
+        if (total >= 250) badges.push('Punctual Star');
+        if (quranPts >= 80) badges.push('Quran Star');
+        if (ibadahPts >= 70) badges.push('Congregation Champion');
+        if (bonusPts > 0) badges.push('Exemplary Adab');
 
         return {
             student,
@@ -2342,7 +2978,6 @@ const loadRewardsLeaderboard = async () => {
 
     scores.sort((a, b) => b.total - a.total);
 
-    // Update Top student and average
     if (scores.length) {
         const top = scores[0];
         if (topNameEl) topNameEl.textContent = top.student.name || 'Student';
@@ -2379,13 +3014,12 @@ const loadRewardsLeaderboard = async () => {
                         ${item.badges.length ? item.badges.map(b => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-200">${escapeHtml(b)}</span>`).join('') : '<span class="text-slate-400 text-[10px]">Earning Badges</span>'}
                     </div>
                 </td>
-                <td class="py-2.5 px-3 text-center">
-                    <button type="button" class="btn-award-single-student px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[11px] font-black transition" data-student-id="${escapeHtml(item.student.id)}">
-                        + Award
+                <td class="py-2.5 px-3 text-right">
+                    <button type="button" class="btn-award-single-student p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 font-bold text-xs" data-student-id="${item.student.id}">
+                        <i class="fas fa-medal mr-1"></i>+Award
                     </button>
                 </td>
-            </tr>
-        `;
+            </tr>`;
     }).join('');
 };
 
@@ -2395,18 +3029,22 @@ const awardBonusPoints = async () => {
     const reason = document.getElementById('modal-award-reason')?.value.trim();
 
     if (!studentId) return alert('Please select a student.');
-    if (!reason) return alert('Please enter a reason or conduct note.');
-
-    const existing = studentBonusPointsMap[studentId] || [];
-    existing.push({
-        points,
-        reason,
-        date: getTodayDateString(),
-        awardedBy: currentStaffName
-    });
+    if (!reason) return alert('Please enter a reason for the award.');
 
     try {
-        await setDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, studentId), {
+        const docRef = doc(db, `${BASE_PATH}/studentBonusPoints`, studentId);
+        const snap = await getDoc(docRef);
+        const existing = snap.exists() ? (snap.data().pointsList || []) : [];
+
+        existing.push({
+            id: `bonus_${Date.now()}`,
+            points,
+            reason,
+            awardedBy: currentStaffName,
+            date: getTodayDateString()
+        });
+
+        await setDoc(docRef, {
             pointsList: existing,
             updatedAt: Date.now()
         }, { merge: true });
@@ -2419,7 +3057,9 @@ const awardBonusPoints = async () => {
     }
 };
 
-// --- Setup Event Listeners ---
+// =========================================================================
+// SETUP EVENT LISTENERS
+// =========================================================================
 const setupEventListeners = () => {
     // 1. Sidebar Collapse & Mobile Menu
     document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
@@ -2524,7 +3164,7 @@ const setupEventListeners = () => {
     document.getElementById('analytics-comparator-select')?.addEventListener('change', loadAnalytics);
     document.getElementById('analytics-percentage-input')?.addEventListener('change', loadAnalytics);
 
-    // 5. Calendar Listeners
+    // 5. Calendar & Holidays Listeners
     document.getElementById('btn-save-weekends')?.addEventListener('click', saveWeekendConfig);
     document.getElementById('btn-add-holiday')?.addEventListener('click', addOrUpdateHoliday);
     document.getElementById('btn-cancel-holiday-edit')?.addEventListener('click', cancelEditHoliday);
@@ -2566,52 +3206,91 @@ const setupEventListeners = () => {
     });
     document.getElementById('btn-save-session-schedule')?.addEventListener('click', saveSessionSchedule);
 
-    // 7. Timetable Listeners
-    document.getElementById('tt-academic-year')?.addEventListener('change', loadTimetable);
-    document.getElementById('tt-class-select')?.addEventListener('change', loadTimetable);
-    document.getElementById('tt-day-filter')?.addEventListener('change', () => {
-        renderTimetableGrid(document.getElementById('tt-day-filter')?.value || 'ALL');
-    });
-    document.getElementById('btn-add-period-slot')?.addEventListener('click', () => {
-        document.getElementById('period-edit-slot-id').value = '';
-        document.getElementById('modal-period-title').textContent = 'Add Period Slot';
-        document.getElementById('period-subject-input').value = '';
-        document.getElementById('period-ustad-input').value = '';
-        openModal('modal-period-edit');
-    });
-    document.getElementById('btn-save-period-slot')?.addEventListener('click', savePeriodSlot);
-    document.getElementById('btn-print-timetable')?.addEventListener('click', () => window.print());
+    // 7. Class Subjects Listeners
+    document.getElementById('subj-academic-year')?.addEventListener('change', loadClassSubjects);
+    document.getElementById('subj-class-select')?.addEventListener('change', loadClassSubjects);
+    document.getElementById('btn-add-subject')?.addEventListener('click', () => openSubjectModal(null));
+    document.getElementById('btn-save-subject')?.addEventListener('click', saveClassSubject);
+    document.getElementById('btn-sync-subjects-schema')?.addEventListener('click', syncSubjectsFromResultSchema);
 
-    document.getElementById('tt-schedule-grid')?.addEventListener('click', (e) => {
-        const editBtn = e.target.closest('.btn-edit-tt-slot');
+    document.getElementById('subjects-table-body')?.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit-subject');
         if (editBtn) {
-            const slotId = editBtn.dataset.slotId;
-            const p = currentTimetablePeriods.find(x => x.id === slotId);
-            if (p) {
-                document.getElementById('period-edit-slot-id').value = p.id;
-                document.getElementById('modal-period-title').textContent = 'Edit Period Slot';
-                document.getElementById('period-day-select').value = p.day;
-                document.getElementById('period-num-select').value = String(p.periodNum || 1);
-                document.getElementById('period-subject-input').value = p.subject || '';
-                document.getElementById('period-ustad-input').value = p.ustad || '';
-                document.getElementById('period-start-time').value = p.startTime || '07:00';
-                document.getElementById('period-end-time').value = p.endTime || '07:45';
-                document.getElementById('period-room-input').value = p.room || '';
-                openModal('modal-period-edit');
-            }
+            const subj = classSubjectsList.find(s => s.id === editBtn.dataset.id);
+            if (subj) openSubjectModal(subj);
             return;
         }
-        const delBtn = e.target.closest('.btn-del-tt-slot');
+        const delBtn = e.target.closest('.btn-del-subject');
         if (delBtn) {
-            deletePeriodSlot(delBtn.dataset.slotId);
+            deleteClassSubject(delBtn.dataset.id);
         }
     });
 
-    // 8. Exam Schedule Listeners
+    // 8. Timetable Listeners
+    document.getElementById('tt-academic-year')?.addEventListener('change', loadTimetable);
+    document.getElementById('tt-class-select')?.addEventListener('change', loadTimetable);
+    document.getElementById('toggle-timetable-edit')?.addEventListener('change', (e) => {
+        toggleTimetableEdit(e.target.checked);
+    });
+    document.getElementById('btn-save-timetable')?.addEventListener('click', saveTimetableMatrix);
+    document.getElementById('btn-tt-settings')?.addEventListener('click', openTimetableSettingsModal);
+    document.getElementById('btn-save-tt-settings')?.addEventListener('click', saveTimetableSettings);
+    document.getElementById('btn-print-timetable')?.addEventListener('click', printTimetableRoutine);
+    document.getElementById('tt-settings-periods-count')?.addEventListener('change', (e) => {
+        renderTimetableTimingsRows(Number(e.target.value || 5));
+    });
+
+    // 9. Academic Year Plan Listeners
+    document.getElementById('yp-academic-year')?.addEventListener('change', loadYearPlan);
+    document.getElementById('yp-class-select')?.addEventListener('change', loadYearPlan);
+    document.getElementById('yp-calendar-type')?.addEventListener('change', () => {
+        populateYearPlanMonthDropdowns();
+        loadYearPlan();
+    });
+    document.getElementById('yp-start-month')?.addEventListener('change', renderYearPlanUI);
+    document.getElementById('yp-end-month')?.addEventListener('change', renderYearPlanUI);
+    document.getElementById('toggle-yearplan-edit')?.addEventListener('change', (e) => {
+        toggleYearPlanEdit(e.target.checked);
+    });
+    document.getElementById('btn-save-yearplan')?.addEventListener('click', saveYearPlan);
+    document.getElementById('btn-print-yearplan')?.addEventListener('click', printYearPlan);
+
+    document.getElementById('yp-schedule-grid')?.addEventListener('click', (e) => {
+        if (isYearPlanEditMode) return;
+        const cell = e.target.closest('.yp-cell-clickable');
+        if (cell) {
+            const month = cell.dataset.month;
+            const subjectId = cell.dataset.subjectId;
+            const subjectName = cell.dataset.subjectName;
+            if (month && subjectId) {
+                openYearPlanExecutionModal(month, subjectId, subjectName);
+            }
+        }
+    });
+
+    document.getElementById('btn-save-yp-execution')?.addEventListener('click', saveYearPlanExecution);
+    document.getElementById('modal-yp-progress-slider')?.addEventListener('input', (e) => {
+        const valText = document.getElementById('modal-yp-progress-val');
+        if (valText) valText.textContent = `${e.target.value}%`;
+    });
+
+    // 10. Exam Schedule Listeners
     document.getElementById('exam-tt-academic-year')?.addEventListener('change', loadExamTimetable);
     document.getElementById('exam-tt-title-select')?.addEventListener('change', loadExamTimetable);
     document.getElementById('exam-tt-class-filter')?.addEventListener('change', loadExamTimetable);
     document.getElementById('btn-add-exam-entry')?.addEventListener('click', () => {
+        // Populate subject options in modal
+        const subjInput = document.getElementById('modal-exam-subject');
+        if (subjInput && classSubjectsList.length) {
+            subjInput.setAttribute('list', 'exam-subjects-datalist');
+            let dl = document.getElementById('exam-subjects-datalist');
+            if (!dl) {
+                dl = document.createElement('datalist');
+                dl.id = 'exam-subjects-datalist';
+                document.body.appendChild(dl);
+            }
+            dl.innerHTML = classSubjectsList.map(s => `<option value="${escapeHtml(s.name)}">`).join('');
+        }
         openModal('modal-exam-entry');
     });
     document.getElementById('btn-save-exam-entry')?.addEventListener('click', saveExamEntry);
@@ -2624,19 +3303,70 @@ const setupEventListeners = () => {
         }
     });
 
-    // 9. Routine Tasks Listeners
+    // 11. Routine Tasks Listeners
     document.getElementById('tasks-class-select')?.addEventListener('change', loadTasksRoster);
     document.getElementById('tasks-date-input')?.addEventListener('change', loadTasksRoster);
     document.querySelectorAll('.tasks-freq-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.tasks-freq-btn').forEach(b => b.classList.remove('active', 'bg-slate-900', 'text-white'));
-            btn.classList.add('active', 'bg-slate-900', 'text-white');
-            currentTaskCadence = btn.dataset.freq || 'daily';
+            document.querySelectorAll('.tasks-freq-btn').forEach(b => {
+                b.classList.remove('bg-emerald-600', 'text-white');
+                b.classList.add('text-slate-600', 'hover:bg-slate-100');
+            });
+            btn.classList.add('bg-emerald-600', 'text-white');
+            btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+            currentTaskCadence = btn.dataset.freq;
             loadTasksRoster();
         });
     });
-    document.getElementById('btn-save-tasks')?.addEventListener('click', saveTasksChecklist);
-    document.getElementById('btn-add-task-def')?.addEventListener('click', () => openModal('modal-task-def'));
+
+    document.getElementById('tasks-roster-tbody')?.addEventListener('change', (e) => {
+        const cb = e.target.closest('.task-check-box');
+        if (!cb) return;
+        const studentId = cb.dataset.studentId;
+        const taskId = cb.dataset.taskId;
+        if (!taskCompletionsMap[studentId]) taskCompletionsMap[studentId] = {};
+        taskCompletionsMap[studentId][taskId] = cb.checked;
+
+        // Update score cell immediately
+        const row = cb.closest('tr');
+        if (row) {
+            let total = 0;
+            row.querySelectorAll('.task-check-box:checked').forEach(c => {
+                const tObj = taskDefsList.find(x => x.id === c.dataset.taskId);
+                if (tObj) total += Number(tObj.points || 0);
+            });
+            const scoreEl = row.querySelector('.student-task-score');
+            if (scoreEl) scoreEl.textContent = `${total} pts`;
+        }
+
+        saveTasksCompletionsToFirestore();
+    });
+
+    document.getElementById('btn-tasks-mark-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.task-check-box').forEach(cb => {
+            cb.checked = true;
+            const studentId = cb.dataset.studentId;
+            const taskId = cb.dataset.taskId;
+            if (!taskCompletionsMap[studentId]) taskCompletionsMap[studentId] = {};
+            taskCompletionsMap[studentId][taskId] = true;
+        });
+        saveTasksCompletionsToFirestore();
+        loadTasksRoster();
+    });
+
+    document.getElementById('btn-tasks-clear-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.task-check-box').forEach(cb => {
+            cb.checked = false;
+        });
+        taskCompletionsMap = {};
+        saveTasksCompletionsToFirestore();
+        loadTasksRoster();
+    });
+
+    document.getElementById('btn-open-task-def')?.addEventListener('click', () => {
+        openModal('modal-task-def');
+    });
+
     document.getElementById('btn-save-task-def')?.addEventListener('click', () => {
         const title = document.getElementById('modal-task-title')?.value.trim();
         const cadence = document.getElementById('modal-task-cadence')?.value || 'daily';
@@ -2654,12 +3384,11 @@ const setupEventListeners = () => {
         loadTasksRoster();
     });
 
-    // 10. Ibadah Listeners
+    // 12. Ibadah Listeners
     document.getElementById('ibadah-class-select')?.addEventListener('change', loadIbadahRoster);
     document.getElementById('ibadah-date-input')?.addEventListener('change', loadIbadahRoster);
     document.getElementById('btn-save-ibadah')?.addEventListener('click', saveIbadahRecords);
 
-    // Ibadah toggle pills delegation
     document.getElementById('ibadah-roster-tbody')?.addEventListener('click', (e) => {
         const btn = e.target.closest('.ibadah-toggle-btn');
         if (!btn) return;
@@ -2677,7 +3406,6 @@ const setupEventListeners = () => {
         }
     });
 
-    // Batch Ibadah
     document.getElementById('btn-batch-subhi-jamaah')?.addEventListener('click', () => {
         document.querySelectorAll('[data-prayer="subh"] .ibadah-toggle-btn[data-val="J"]').forEach(b => b.click());
     });
@@ -2685,7 +3413,7 @@ const setupEventListeners = () => {
         document.querySelectorAll('.ibadah-pill-group .ibadah-toggle-btn[data-val="J"]').forEach(b => b.click());
     });
 
-    // 11. Quran Progress Listeners
+    // 13. Quran Progress Listeners
     document.getElementById('quran-class-select')?.addEventListener('change', loadQuranRoster);
     document.getElementById('quran-stage-filter')?.addEventListener('change', loadQuranRoster);
     document.getElementById('quran-roster-tbody')?.addEventListener('click', (e) => {
@@ -2696,9 +3424,11 @@ const setupEventListeners = () => {
     });
     document.getElementById('btn-save-quran-eval')?.addEventListener('click', saveQuranProgress);
 
-    // 12. Rewards & Leaderboard Listeners
+    // 14. Rewards & Leaderboard Listeners
     document.getElementById('rewards-class-select')?.addEventListener('change', loadRewardsLeaderboard);
-    document.getElementById('btn-open-award-modal')?.addEventListener('click', () => openModal('modal-award-points'));
+    document.getElementById('btn-rewards-settings')?.addEventListener('click', openRewardsSettingsModal);
+    document.getElementById('btn-save-rewards-settings')?.addEventListener('click', saveRewardsRubric);
+    document.getElementById('btn-open-award-points')?.addEventListener('click', () => openModal('modal-award-points'));
     document.getElementById('btn-submit-award-points')?.addEventListener('click', awardBonusPoints);
 
     document.getElementById('rewards-leaderboard-tbody')?.addEventListener('click', (e) => {
@@ -2719,7 +3449,7 @@ const setupEventListeners = () => {
         });
     });
 
-    // 13. Sign Out
+    // 15. Sign Out
     document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
     });
