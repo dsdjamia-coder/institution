@@ -264,8 +264,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       sigCenterVisible: true,
       sigRightVisible: true,
       footerNote: '',
-      headerBlocks: null,
-      floatingBoxes: null,
+      floatingBoxes: [],
       activeFloatingBoxId: null,
       instNameOverride: '',
       instSubOverride: '',
@@ -303,7 +302,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 canvas.innerHTML = undoStack.pop();
                 attachTableFormatListeners();
                 rebindAllColumnListeners();
-                attachHeaderCanvasEvents();
             }
         }
     };
@@ -316,7 +314,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 canvas.innerHTML = redoStack.pop();
                 attachTableFormatListeners();
                 rebindAllColumnListeners();
-                attachHeaderCanvasEvents();
             }
         }
     };
@@ -577,7 +574,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         sigLeftVisible: builderConfig.sigLeftVisible !== false,
         sigCenterVisible: builderConfig.sigCenterVisible !== false,
         sigRightVisible: builderConfig.sigRightVisible !== false,
-        headerBlocks: JSON.parse(JSON.stringify(builderConfig.headerBlocks || [])),
         floatingBoxes: JSON.parse(JSON.stringify(builderConfig.floatingBoxes || [])),
         footerNote: builderConfig.footerNote || '',
         instNameOverride: builderConfig.instNameOverride || '',
@@ -635,15 +631,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (template.instRegOverride !== undefined) builderConfig.instRegOverride = template.instRegOverride;
       if (template.customTitle !== undefined) builderConfig.customTitle = template.customTitle;
       if (template.customSubtitle !== undefined) builderConfig.customSubtitle = template.customSubtitle;
-      if (template.headerBlocks && Array.isArray(template.headerBlocks)) {
-        builderConfig.headerBlocks = JSON.parse(JSON.stringify(template.headerBlocks));
-      } else {
-        builderConfig.headerBlocks = null;
-      }
       if (template.floatingBoxes && Array.isArray(template.floatingBoxes)) {
         builderConfig.floatingBoxes = JSON.parse(JSON.stringify(template.floatingBoxes));
       } else {
-        builderConfig.floatingBoxes = null;
+        builderConfig.floatingBoxes = [];
       }
       if (template.showHeader !== undefined) builderConfig.showHeader = template.showHeader;
       if (template.showFooter !== undefined) builderConfig.showFooter = template.showFooter;
@@ -3890,8 +3881,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const applyBuilderPreset = (presetId) => {
       saveBuilderState();
-      builderConfig.headerBlocks = null;
-      builderConfig.floatingBoxes = null;
+      builderConfig.floatingBoxes = [];
       if (presetId === 'attendance') {
         builderConfig.sourceType = 'students';
         builderConfig.customTitle = 'MONTHLY ATTENDANCE REGISTER';
@@ -4058,80 +4048,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const effectiveCustomTitle = builderConfig.customTitle !== undefined && builderConfig.customTitle !== '' ? builderConfig.customTitle : 'INSTITUTION WORKSHEET & REGISTER';
       const effectiveCustomSub = builderConfig.customSubtitle !== undefined && builderConfig.customSubtitle !== '' ? builderConfig.customSubtitle : autoSubInfo.join('  •  ');
 
-      const getDefaultHeaderBlocks = () => {
-        const blocks = [
-          {
-            id: 'hb_inst_name',
-            type: 'inst_name',
-            text: effectiveInstName,
-            placeholder: 'Institution / School Name...',
-            fontSize: '22px',
-            fontWeight: '900',
-            align: 'center',
-            width: '100%',
-            repeatOnEveryPage: true
-          },
-          {
-            id: 'hb_inst_sub',
-            type: 'inst_sub',
-            text: effectiveInstSub,
-            placeholder: 'Subtitle / Place / Address...',
-            fontSize: '13px',
-            fontWeight: '600',
-            align: 'center',
-            width: '100%',
-            repeatOnEveryPage: true
-          }
-        ];
-        if (effectiveInstReg) {
-          blocks.push({
-            id: 'hb_inst_reg',
-            type: 'inst_reg',
-            text: effectiveInstReg,
-            placeholder: 'Reg / Affiliation No. (Optional)...',
-            fontSize: '11px',
-            fontWeight: '700',
-            align: 'center',
-            width: '100%',
-            repeatOnEveryPage: true
-          });
-        }
-        blocks.push({
-          id: 'hb_report_title',
-          type: 'report_title',
-          text: effectiveCustomTitle,
-          placeholder: 'Report / Register Heading...',
-          fontSize: '16px',
-          fontWeight: '900',
-          align: 'center',
-          width: '100%',
-          repeatOnEveryPage: true
-        });
-        if (effectiveCustomSub) {
-          blocks.push({
-            id: 'hb_report_sub',
-            type: 'report_sub',
-            text: effectiveCustomSub,
-            placeholder: 'Academic Year • Class • Section Details...',
-            fontSize: '12px',
-            fontWeight: '700',
-            align: 'center',
-            width: '100%',
-            repeatOnEveryPage: true
-          });
-        }
-        return blocks;
-      };
-
-      if (!builderConfig.headerBlocks || !Array.isArray(builderConfig.headerBlocks) || builderConfig.headerBlocks.length === 0) {
-        builderConfig.headerBlocks = getDefaultHeaderBlocks();
-      } else {
-        builderConfig.headerBlocks.forEach((b) => {
-          if (!b.width) b.width = '100%';
-          if (b.repeatOnEveryPage === undefined) b.repeatOnEveryPage = true;
-        });
-      }
-
       builderConfig.columns.forEach((col) => {
         if (!col.width || col.width === 'auto') {
           if (col.field === 'SNO') col.width = '50px';
@@ -4142,76 +4058,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }
       });
 
-      const getDefaultFloatingBoxes = () => {
-        return [
-          {
-            id: 'fbox_inst_name',
-            pageIndex: 'all',
-            x: 35,
-            y: 16,
-            width: 720,
-            height: 38,
-            rotation: 0,
-            content: effectiveInstName,
-            fontSize: 22,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: '900',
-            fontStyle: 'normal',
-            textDecoration: 'none',
-            textAlign: 'center',
-            color: '#0f172a',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderStyle: 'none'
-          },
-          {
-            id: 'fbox_inst_sub',
-            pageIndex: 'all',
-            x: 35,
-            y: 54,
-            width: 720,
-            height: 24,
-            rotation: 0,
-            content: effectiveInstSub,
-            fontSize: 13,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: '600',
-            fontStyle: 'normal',
-            textDecoration: 'none',
-            textAlign: 'center',
-            color: '#334155',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderStyle: 'none'
-          },
-          {
-            id: 'fbox_report_title',
-            pageIndex: 'all',
-            x: 35,
-            y: 80,
-            width: 720,
-            height: 28,
-            rotation: 0,
-            content: effectiveCustomTitle,
-            fontSize: 16,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: '900',
-            fontStyle: 'normal',
-            textDecoration: 'none',
-            textAlign: 'center',
-            color: '#1e3a8a',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderStyle: 'none'
-          }
-        ];
-      };
-
       if (!builderConfig.floatingBoxes || !Array.isArray(builderConfig.floatingBoxes)) {
-        builderConfig.floatingBoxes = getDefaultFloatingBoxes();
+        builderConfig.floatingBoxes = [];
       }
 
       const renderFloatingBoxesHtml = (pageIndex = 0) => {
@@ -4234,6 +4082,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 <i class="fas fa-arrows-alt text-[9px]"></i>
                 <span>${escapeHtml(cleanPreview)}</span>
                 ${box.pageIndex === 'all' ? '<i class="fas fa-clone text-[8px] ml-1 text-emerald-200" title="Repeats on all pages"></i>' : ''}
+                <button type="button" class="box-bar-del-btn no-print" data-box-id="${escapeHtml(box.id)}" title="Delete this box"><i class="fas fa-times"></i></button>
               </div>
 
               <div class="box-rotate-stem no-print"></div>
@@ -4258,81 +4107,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
           `;
         }).join('');
-      };
-
-      const renderHeaderHtml = (pageIndex = 0) => {
-        if (!builderConfig.showHeader) return '';
-        const isFirstPage = pageIndex === 0;
-
-        const visibleBlocks = (builderConfig.headerBlocks || []).filter((block) => {
-          if (isFirstPage) return true;
-          return block.repeatOnEveryPage !== false;
-        });
-
-        if (!isFirstPage && visibleBlocks.length === 0) {
-          return '';
-        }
-
-        const blocksHtml = visibleBlocks.map((block) => {
-          const bWidth = block.width || '100%';
-          const isRepeat = block.repeatOnEveryPage !== false;
-
-          return `
-            <div class="header-block-item" data-block-id="${escapeHtml(block.id)}" data-width="${escapeHtml(bWidth)}" style="text-align: ${escapeHtml(block.align || 'center')};">
-              <input type="text"
-                     class="header-live-input header-block-input"
-                     data-block-id="${escapeHtml(block.id)}"
-                     value="${escapeHtml(block.text || '')}"
-                     placeholder="${escapeHtml(block.placeholder || 'Header text (click to edit)...')}"
-                     style="font-size: ${escapeHtml(block.fontSize || '14px')}; font-weight: ${escapeHtml(block.fontWeight || '700')}; text-align: ${escapeHtml(block.align || 'center')};"
-                     title="Click to edit header box directly" />
-              ${isFirstPage ? `
-              <div class="header-block-actions no-print">
-                <button type="button" class="header-action-btn btn-cycle-width" data-block-id="${escapeHtml(block.id)}" title="Cycle Width: 100% → 50% → 33% → 25% → Auto">
-                  <i class="fas fa-arrows-alt-h mr-1 text-[9px]"></i><span>${escapeHtml(bWidth)}</span>
-                </button>
-                <button type="button" class="header-action-btn btn-align-left ${block.align === 'left' ? 'active' : ''}" data-block-id="${escapeHtml(block.id)}" title="Align Left"><i class="fas fa-align-left"></i></button>
-                <button type="button" class="header-action-btn btn-align-center ${(!block.align || block.align === 'center') ? 'active' : ''}" data-block-id="${escapeHtml(block.id)}" title="Align Center"><i class="fas fa-align-center"></i></button>
-                <button type="button" class="header-action-btn btn-align-right ${block.align === 'right' ? 'active' : ''}" data-block-id="${escapeHtml(block.id)}" title="Align Right"><i class="fas fa-align-right"></i></button>
-                <button type="button" class="repeat-badge btn-toggle-repeat ${isRepeat ? 'every-page' : 'page-one'}" data-block-id="${escapeHtml(block.id)}" title="Toggle whether this box repeats on every page or only Page 1">
-                  <i class="fas ${isRepeat ? 'fa-copy' : 'fa-file'}"></i>
-                  <span>${isRepeat ? 'Every Page' : 'Page 1 Only'}</span>
-                </button>
-                <button type="button" class="header-action-btn btn-move-block-prev" data-block-id="${escapeHtml(block.id)}" title="Move Earlier / Left"><i class="fas fa-chevron-left"></i></button>
-                <button type="button" class="header-action-btn btn-move-block-next" data-block-id="${escapeHtml(block.id)}" title="Move Later / Right"><i class="fas fa-chevron-right"></i></button>
-                <button type="button" class="header-action-btn btn-del" data-block-id="${escapeHtml(block.id)}" title="Delete this box"><i class="fas fa-times"></i></button>
-              </div>
-              ` : ''}
-            </div>
-          `;
-        }).join('');
-
-        const headerHeightAttr = builderConfig.headerHeight || 'auto';
-
-        return `
-          <div class="header-builder-section" data-height="${escapeHtml(headerHeightAttr)}">
-            <div class="header-blocks-row-wrap">
-              ${blocksHtml}
-            </div>
-            ${isFirstPage ? `
-            <div class="no-print header-quick-bar flex flex-wrap items-center justify-center gap-2 mt-2 pt-2 border-t border-dashed border-slate-200">
-              <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add to Header:</span>
-              <button type="button" id="btn-add-full-box" class="header-quick-btn" title="Add a full width (100%) header block">
-                <i class="fas fa-square text-indigo-500"></i> Full Width (100%)
-              </button>
-              <button type="button" id="btn-add-dual-box" class="header-quick-btn" title="Add 2 blocks side-by-side (50% each)">
-                <i class="fas fa-columns text-emerald-500"></i> 2-Box Row (50% | 50%)
-              </button>
-              <button type="button" id="btn-add-triple-box" class="header-quick-btn" title="Add 3 blocks side-by-side (33% each)">
-                <i class="fas fa-th-large text-amber-500"></i> 3-Box Row (33% | 33% | 33%)
-              </button>
-              <button type="button" id="btn-reset-header-blocks" class="header-quick-btn text-rose-600 hover:text-rose-700" title="Reset header blocks to default">
-                <i class="fas fa-undo"></i> Reset Default
-              </button>
-            </div>
-            ` : ''}
-          </div>
-        `;
       };
 
       const renderFooterHtml = (pageNumber, totalPages) => {
@@ -4550,7 +4324,28 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const pagesHtml = pageChunks.map((chunkInfo, pIdx) => {
         const isFirst = pIdx === 0;
         const pageNumber = pIdx + 1;
-        const shouldShowHeader = builderConfig.showHeader && (isFirst || builderConfig.repeatHeader);
+
+        let headerSpacerHeight = 0;
+        if (isFirst || builderConfig.repeatHeader) {
+          if (builderConfig.headerHeight === 'none') {
+            headerSpacerHeight = 0;
+          } else if (builderConfig.headerHeight === 'compact') {
+            headerSpacerHeight = 70;
+          } else if (builderConfig.headerHeight === 'normal') {
+            headerSpacerHeight = 140;
+          } else if (builderConfig.headerHeight === 'tall') {
+            headerSpacerHeight = 180;
+          } else {
+            const pageBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.pageIndex === 'all' || b.pageIndex === pIdx);
+            const topBoxes = pageBoxes.filter((b) => (b.y || 0) < 240);
+            if (topBoxes.length > 0) {
+              const maxBottom = Math.max(...topBoxes.map((b) => (b.y || 0) + (b.height || 35)));
+              headerSpacerHeight = Math.max(0, maxBottom + 12);
+            } else {
+              headerSpacerHeight = 0;
+            }
+          }
+        }
 
         const pageTableHtml = `
           <table class="excel-table ${pIdx === 0 ? 'first-page-table' : ''} ${builderConfig.borderMode === 'none' ? 'hide-gridlines' : ''}" data-page-index="${pIdx}">
@@ -4581,7 +4376,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             <div class="floating-boxes-layer" data-page-index="${pIdx}">
               ${renderFloatingBoxesHtml(pIdx)}
             </div>
-            ${shouldShowHeader ? renderHeaderHtml(pIdx) : ''}
+            ${headerSpacerHeight > 0 ? `<div class="worksheet-header-spacer" style="height: ${headerSpacerHeight}px; width: 100%;"></div>` : ''}
             ${pageTableHtml}
             ${builderConfig.showFooter ? renderFooterHtml(pageNumber, totalPages) : ''}
           </div>
@@ -4680,46 +4475,105 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         <div id="ribbon-insert" class="ribbon-panel ${builderConfig.activeTab === 'insert' ? 'active' : ''}">
           <div class="ribbon-group">
             <div class="ribbon-row h-full gap-1 items-center">
-              <button id="btn-insert-textbox" class="excel-btn-ribbon text-indigo-700" title="Insert Word-Style Free Floating Text Box">
-                <i class="fas fa-i-cursor"></i>
-                <span>Text Box</span>
-              </button>
-              <button id="btn-insert-inst-title" class="excel-btn-ribbon text-slate-800" title="Insert Institution Header Box">
+              <button id="btn-insert-inst-title" class="excel-btn-ribbon text-slate-800" title="Insert Institution Header Box at Top Center">
                 <i class="fas fa-university"></i>
                 <span>Inst. Title</span>
               </button>
-              <button id="btn-insert-report-title" class="excel-btn-ribbon text-blue-700" title="Insert Large Report / Register Title Box">
+              <button id="btn-insert-inst-sub" class="excel-btn-ribbon text-slate-600" title="Insert Institution Subtitle / Place Box">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>Subtitle</span>
+              </button>
+              <button id="btn-insert-report-title" class="excel-btn-ribbon text-blue-700" title="Insert Report / Register Title Box">
                 <i class="fas fa-heading"></i>
                 <span>Report Title</span>
               </button>
-              <button id="btn-insert-date-box" class="excel-btn-ribbon text-emerald-700" title="Insert Date / Academic Session Info Box">
+              <button id="btn-insert-date-box" class="excel-btn-ribbon text-emerald-700" title="Insert Date / Academic Session Box">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Date / Session</span>
               </button>
+              <button id="btn-insert-header-bundle" class="excel-btn-ribbon text-indigo-700 font-bold" title="1-Click Insert Full Coordinated Header Bundle (Title, Subtitle, Report Name, Date)">
+                <i class="fas fa-layer-group"></i>
+                <span>Header Pack</span>
+              </button>
             </div>
-            <span class="ribbon-label">Floating Text Boxes</span>
+            <span class="ribbon-label">Header Elements (Top)</span>
           </div>
 
           <div class="ribbon-group">
             <div class="ribbon-row h-full gap-1 items-center">
-              <button id="btn-insert-sig-line" class="excel-btn-ribbon text-slate-700" title="Insert Floating Signature Block">
+              <button id="btn-insert-sig-line" class="excel-btn-ribbon text-slate-700" title="Insert Signature Block at Bottom">
                 <i class="fas fa-file-signature"></i>
                 <span>Signature</span>
               </button>
-              <button id="btn-insert-pagenum-box" class="excel-btn-ribbon text-slate-700" title="Insert Floating Page Number Box">
-                <i class="fas fa-pager"></i>
-                <span>Page #</span>
-              </button>
-              <button id="btn-insert-stamp-box" class="excel-btn-ribbon text-rose-700" title="Insert Institutional Seal / Stamp Box">
+              <button id="btn-insert-stamp-box" class="excel-btn-ribbon text-rose-700" title="Insert Official Seal / Stamp Box at Bottom">
                 <i class="fas fa-certificate"></i>
                 <span>Stamp / Seal</span>
               </button>
+              <button id="btn-insert-pagenum-box" class="excel-btn-ribbon text-slate-700" title="Insert Page Number Box at Bottom">
+                <i class="fas fa-pager"></i>
+                <span>Page #</span>
+              </button>
+              <button id="btn-insert-footer-note" class="excel-btn-ribbon text-amber-700" title="Insert Bottom Note / Remark Box">
+                <i class="fas fa-comment-alt"></i>
+                <span>Footer Note</span>
+              </button>
             </div>
-            <span class="ribbon-label">Footer & Signatures</span>
+            <span class="ribbon-label">Footer Elements (Bottom)</span>
+          </div>
+
+          <div class="ribbon-group">
+            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
+              <div class="flex items-center gap-2.5">
+                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="builder-repeat-header" ${builderConfig.repeatHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Repeat All Pages
+                </label>
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="builder-show-footer" ${builderConfig.showFooter ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Footer Strip
+                </label>
+                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showFooter ? 'opacity-50 pointer-events-none' : ''}">
+                  <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Signatures
+                </label>
+              </div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] font-semibold text-slate-600">Head:</span>
+                  <select id="builder-header-height" class="excel-input-ribbon w-16 text-[11px]" title="Top clearance space above table for header elements">
+                    <option value="auto" ${builderConfig.headerHeight === 'auto' || !builderConfig.headerHeight ? 'selected' : ''}>Auto</option>
+                    <option value="none" ${builderConfig.headerHeight === 'none' ? 'selected' : ''}>0px</option>
+                    <option value="compact" ${builderConfig.headerHeight === 'compact' ? 'selected' : ''}>Compact</option>
+                    <option value="normal" ${builderConfig.headerHeight === 'normal' ? 'selected' : ''}>Normal</option>
+                    <option value="tall" ${builderConfig.headerHeight === 'tall' ? 'selected' : ''}>Spacious</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] font-semibold text-slate-600">Page #:</span>
+                  <select id="builder-page-num-pos" class="excel-input-ribbon w-16 text-[11px]">
+                    <option value="right" ${builderConfig.pageNumberPos === 'right' || !builderConfig.pageNumberPos ? 'selected' : ''}>Right</option>
+                    <option value="center" ${builderConfig.pageNumberPos === 'center' ? 'selected' : ''}>Center</option>
+                    <option value="left" ${builderConfig.pageNumberPos === 'left' ? 'selected' : ''}>Left</option>
+                    <option value="none" ${builderConfig.pageNumberPos === 'none' ? 'selected' : ''}>None</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] font-semibold text-slate-600">Foot:</span>
+                  <select id="builder-footer-height" class="excel-input-ribbon w-16 text-[11px]">
+                    <option value="auto" ${builderConfig.footerHeight === 'auto' ? 'selected' : ''}>Auto</option>
+                    <option value="compact" ${builderConfig.footerHeight === 'compact' ? 'selected' : ''}>Compact</option>
+                    <option value="normal" ${builderConfig.footerHeight === 'normal' || !builderConfig.footerHeight ? 'selected' : ''}>Normal</option>
+                    <option value="tall" ${builderConfig.footerHeight === 'tall' ? 'selected' : ''}>Spacious</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <span class="ribbon-label">Header & Footer Setup</span>
           </div>
 
           <div class="ribbon-group">
             <div class="ribbon-row h-full gap-1 items-center">
+              <button id="btn-insert-textbox" class="excel-btn-ribbon text-indigo-700" title="Insert Free Floating Text Box">
+                <i class="fas fa-i-cursor"></i>
+                <span>Text Box</span>
+              </button>
               <button id="btn-box-duplicate" class="excel-btn-ribbon text-sky-700" title="Duplicate Selected Floating Box">
                 <i class="fas fa-clone"></i>
                 <span>Duplicate</span>
@@ -4736,8 +4590,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 <i class="fas fa-trash-alt"></i>
                 <span>Delete Box</span>
               </button>
+              <button id="btn-box-clear-all" class="excel-btn-ribbon text-rose-600 hover:text-rose-800" title="Clear all floating boxes from canvas">
+                <i class="fas fa-eraser"></i>
+                <span>Clear All</span>
+              </button>
             </div>
-            <span class="ribbon-label">Box Arrangement & Tools</span>
+            <span class="ribbon-label">Box Tools</span>
           </div>
 
           <div class="ribbon-group">
@@ -4948,61 +4806,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
             <span class="ribbon-label">Paging & Gridlines</span>
           </div>
-
-          <div class="ribbon-group">
-            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
-              <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
-                <input type="checkbox" id="builder-show-header" ${builderConfig.showHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Show Header
-              </label>
-              <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showHeader ? 'opacity-50 pointer-events-none' : ''}">
-                <input type="checkbox" id="builder-repeat-header" ${builderConfig.repeatHeader ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Repeat on Pages
-              </label>
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="text-[10px] font-semibold text-slate-600">Height:</span>
-                <select id="builder-header-height" class="excel-input-ribbon w-24 text-[11px]">
-                  <option value="auto" ${builderConfig.headerHeight === 'auto' ? 'selected' : ''}>Auto</option>
-                  <option value="compact" ${builderConfig.headerHeight === 'compact' ? 'selected' : ''}>Compact</option>
-                  <option value="normal" ${builderConfig.headerHeight === 'normal' || !builderConfig.headerHeight ? 'selected' : ''}>Normal</option>
-                  <option value="tall" ${builderConfig.headerHeight === 'tall' ? 'selected' : ''}>Tall</option>
-                </select>
-              </div>
-            </div>
-            <span class="ribbon-label">Header Studio</span>
-          </div>
-
-          <div class="ribbon-group">
-            <div class="flex flex-col gap-1 mt-0.5 justify-center h-full">
-              <div class="flex items-center gap-3">
-                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
-                  <input type="checkbox" id="builder-show-footer" ${builderConfig.showFooter ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Footer
-                </label>
-                <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer ${!builderConfig.showFooter ? 'opacity-50 pointer-events-none' : ''}">
-                  <input type="checkbox" id="builder-show-signatures" ${builderConfig.showSignatures ? 'checked' : ''} class="w-3.5 h-3.5 text-emerald-600 rounded"> Signatures
-                </label>
-              </div>
-              <div class="flex items-center gap-2 mt-0.5">
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] font-semibold text-slate-600">Height:</span>
-                  <select id="builder-footer-height" class="excel-input-ribbon w-20 text-[11px]">
-                    <option value="auto" ${builderConfig.footerHeight === 'auto' ? 'selected' : ''}>Auto</option>
-                    <option value="compact" ${builderConfig.footerHeight === 'compact' ? 'selected' : ''}>Compact</option>
-                    <option value="normal" ${builderConfig.footerHeight === 'normal' || !builderConfig.footerHeight ? 'selected' : ''}>Normal</option>
-                    <option value="tall" ${builderConfig.footerHeight === 'tall' ? 'selected' : ''}>Spacious</option>
-                  </select>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] font-semibold text-slate-600">Page #:</span>
-                  <select id="builder-page-num-pos" class="excel-input-ribbon w-20 text-[11px]">
-                    <option value="right" ${builderConfig.pageNumberPos === 'right' || !builderConfig.pageNumberPos ? 'selected' : ''}>Right</option>
-                    <option value="center" ${builderConfig.pageNumberPos === 'center' ? 'selected' : ''}>Center</option>
-                    <option value="left" ${builderConfig.pageNumberPos === 'left' ? 'selected' : ''}>Left</option>
-                    <option value="none" ${builderConfig.pageNumberPos === 'none' ? 'selected' : ''}>None</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <span class="ribbon-label">Footer Studio</span>
-          </div>
         </div>
       `;
 
@@ -5179,220 +4982,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       updateCanvasStyle();
     };
 
-    const attachHeaderCanvasEvents = () => {
-      document.querySelectorAll('.header-block-input').forEach((inp) => {
-        inp.addEventListener('input', (e) => {
-          const blockId = e.target.dataset.blockId;
-          const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
-          if (targetBlock) {
-            targetBlock.text = e.target.value;
-            if (targetBlock.type === 'inst_name') builderConfig.instNameOverride = e.target.value;
-            else if (targetBlock.type === 'inst_sub') builderConfig.instSubOverride = e.target.value;
-            else if (targetBlock.type === 'inst_reg') builderConfig.instRegOverride = e.target.value;
-            else if (targetBlock.type === 'report_title') builderConfig.customTitle = e.target.value;
-            else if (targetBlock.type === 'report_sub') builderConfig.customSubtitle = e.target.value;
-
-            document.querySelectorAll(`.header-block-input[data-block-id="${blockId}"]`).forEach((otherInp) => {
-              if (otherInp !== e.target) otherInp.value = e.target.value;
-            });
-          }
-        });
-        inp.addEventListener('blur', saveBuilderState);
-      });
-
-      const attachAlignBtn = (btnClass, alignVal) => {
-        document.querySelectorAll(btnClass).forEach((btn) => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const blockId = e.currentTarget.dataset.blockId;
-            const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
-            if (targetBlock) {
-              targetBlock.align = alignVal;
-              saveBuilderState();
-              renderExportTab();
-              setupExcelEngine();
-            }
-          });
-        });
-      };
-      attachAlignBtn('.btn-align-left', 'left');
-      attachAlignBtn('.btn-align-center', 'center');
-      attachAlignBtn('.btn-align-right', 'right');
-
-      document.querySelectorAll('.btn-cycle-width').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const blockId = e.currentTarget.dataset.blockId;
-          const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
-          if (targetBlock) {
-            const widthSeq = ['100%', '50%', '33%', '25%', 'auto'];
-            const curIdx = widthSeq.indexOf(targetBlock.width || '100%');
-            const nextWidth = widthSeq[(curIdx + 1) % widthSeq.length];
-            targetBlock.width = nextWidth;
-            saveBuilderState();
-            renderExportTab();
-            setupExcelEngine();
-          }
-        });
-      });
-
-      document.querySelectorAll('.btn-toggle-repeat').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const blockId = e.currentTarget.dataset.blockId;
-          const targetBlock = (builderConfig.headerBlocks || []).find((b) => b.id === blockId);
-          if (targetBlock) {
-            targetBlock.repeatOnEveryPage = targetBlock.repeatOnEveryPage === false;
-            saveBuilderState();
-            renderExportTab();
-            setupExcelEngine();
-          }
-        });
-      });
-
-      document.querySelectorAll('.btn-move-block-prev').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const blockId = e.currentTarget.dataset.blockId;
-          const list = builderConfig.headerBlocks || [];
-          const idx = list.findIndex((b) => b.id === blockId);
-          if (idx > 0) {
-            const temp = list[idx];
-            list[idx] = list[idx - 1];
-            list[idx - 1] = temp;
-            saveBuilderState();
-            renderExportTab();
-            setupExcelEngine();
-          }
-        });
-      });
-
-      document.querySelectorAll('.btn-move-block-next').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const blockId = e.currentTarget.dataset.blockId;
-          const list = builderConfig.headerBlocks || [];
-          const idx = list.findIndex((b) => b.id === blockId);
-          if (idx >= 0 && idx < list.length - 1) {
-            const temp = list[idx];
-            list[idx] = list[idx + 1];
-            list[idx + 1] = temp;
-            saveBuilderState();
-            renderExportTab();
-            setupExcelEngine();
-          }
-        });
-      });
-
-      document.querySelectorAll('.header-action-btn.btn-del').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const blockId = e.currentTarget.dataset.blockId;
-          saveBuilderState();
-          builderConfig.headerBlocks = (builderConfig.headerBlocks || []).filter((b) => b.id !== blockId);
-          renderExportTab();
-          setupExcelEngine();
-        });
-      });
-
-      document.getElementById('btn-add-full-box')?.addEventListener('click', () => {
-        saveBuilderState();
-        if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
-        builderConfig.headerBlocks.push({
-          id: `hb_${Date.now()}`,
-          type: 'custom_box',
-          text: '',
-          placeholder: 'Full width header box (click to edit)...',
-          fontSize: '14px',
-          fontWeight: '700',
-          align: 'center',
-          width: '100%',
-          repeatOnEveryPage: true
-        });
-        renderExportTab();
-        setupExcelEngine();
-      });
-
-      document.getElementById('btn-add-dual-box')?.addEventListener('click', () => {
-        saveBuilderState();
-        if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
-        const now = Date.now();
-        builderConfig.headerBlocks.push({
-          id: `hb_${now}_1`,
-          type: 'custom_box',
-          text: '',
-          placeholder: 'Left box (Session / Info)...',
-          fontSize: '12px',
-          fontWeight: '700',
-          align: 'left',
-          width: '50%',
-          repeatOnEveryPage: true
-        });
-        builderConfig.headerBlocks.push({
-          id: `hb_${now}_2`,
-          type: 'custom_box',
-          text: '',
-          placeholder: 'Right box (Date / Ref)...',
-          fontSize: '12px',
-          fontWeight: '700',
-          align: 'right',
-          width: '50%',
-          repeatOnEveryPage: true
-        });
-        renderExportTab();
-        setupExcelEngine();
-      });
-
-      document.getElementById('btn-add-triple-box')?.addEventListener('click', () => {
-        saveBuilderState();
-        if (!builderConfig.headerBlocks) builderConfig.headerBlocks = [];
-        const now = Date.now();
-        builderConfig.headerBlocks.push({
-          id: `hb_${now}_1`,
-          type: 'custom_box',
-          text: '',
-          placeholder: 'Left info...',
-          fontSize: '11px',
-          fontWeight: '700',
-          align: 'left',
-          width: '33%',
-          repeatOnEveryPage: true
-        });
-        builderConfig.headerBlocks.push({
-          id: `hb_${now}_2`,
-          type: 'custom_box',
-          text: '',
-          placeholder: 'Center title...',
-          fontSize: '11px',
-          fontWeight: '700',
-          align: 'center',
-          width: '33%',
-          repeatOnEveryPage: true
-        });
-        builderConfig.headerBlocks.push({
-          id: `hb_${now}_3`,
-          type: 'custom_box',
-          text: '',
-          placeholder: 'Right info...',
-          fontSize: '11px',
-          fontWeight: '700',
-          align: 'right',
-          width: '33%',
-          repeatOnEveryPage: true
-        });
-        renderExportTab();
-        setupExcelEngine();
-      });
-
-      document.getElementById('btn-reset-header-blocks')?.addEventListener('click', () => {
-        if (confirm('Reset header blocks to default institution layout?')) {
-          saveBuilderState();
-          builderConfig.headerBlocks = getDefaultHeaderBlocks();
-          renderExportTab();
-          setupExcelEngine();
-        }
-      });
-
+    const attachFooterInputListeners = () => {
       document.querySelectorAll('.footer-note-input').forEach((inp) => {
         inp.addEventListener('input', (e) => {
           builderConfig.footerNote = e.target.value;
@@ -5571,7 +5161,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         setupExcelEngine();
       });
 
-      attachHeaderCanvasEvents();
+      attachFooterInputListeners();
 
       rebindAllColumnListeners();
 
@@ -5988,6 +5578,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }, 60);
       };
 
+      const getFooterPlacementY = (offsetFromBottom = 90) => {
+        const firstPage = document.querySelector('.print-canvas-page');
+        const pageH = firstPage ? firstPage.offsetHeight : (builderConfig.orientation === 'landscape' ? 792 : 1122);
+        return Math.max(100, pageH - offsetFromBottom);
+      };
+
       document.getElementById('btn-insert-textbox')?.addEventListener('click', () => {
         insertNewFloatingBox({
           content: 'Text Box (Double click to edit)',
@@ -6004,8 +5600,26 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           fontSize: 22,
           fontWeight: '900',
           textAlign: 'center',
-          width: 600,
-          height: 42,
+          x: 35,
+          y: 16,
+          width: 640,
+          height: 40,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-insert-inst-sub')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: effectiveInstSub || 'Govt. Recognized Institution',
+          fontSize: 13,
+          fontWeight: '600',
+          textAlign: 'center',
+          color: '#475569',
+          x: 35,
+          y: 54,
+          width: 640,
+          height: 26,
           borderColor: 'transparent',
           backgroundColor: 'transparent'
         });
@@ -6013,13 +5627,15 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       document.getElementById('btn-insert-report-title')?.addEventListener('click', () => {
         insertNewFloatingBox({
-          content: effectiveCustomTitle,
+          content: effectiveCustomTitle || 'STUDENT REGISTER',
           fontSize: 16,
           fontWeight: '900',
           textAlign: 'center',
           color: '#1e3a8a',
-          width: 600,
-          height: 34,
+          x: 35,
+          y: 80,
+          width: 640,
+          height: 32,
           borderColor: 'transparent',
           backgroundColor: 'transparent'
         });
@@ -6028,15 +5644,117 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       document.getElementById('btn-insert-date-box')?.addEventListener('click', () => {
         const todayStr = new Date().toLocaleDateString('en-GB');
         insertNewFloatingBox({
-          content: `Date: ${todayStr}  |  Session: 2026-2027`,
-          fontSize: 12,
+          content: `Date: ${todayStr}  |  Session: ${yearLabel || '2026-2027'}`,
+          fontSize: 11,
           fontWeight: '700',
           textAlign: 'left',
-          width: 280,
-          height: 32,
+          color: '#334155',
+          x: 35,
+          y: 112,
+          width: 340,
+          height: 28,
           borderColor: '#cbd5e1',
           backgroundColor: '#f8fafc'
         });
+      });
+
+      document.getElementById('btn-insert-header-bundle')?.addEventListener('click', () => {
+        saveBuilderState();
+        if (!builderConfig.floatingBoxes) builderConfig.floatingBoxes = [];
+        const todayStr = new Date().toLocaleDateString('en-GB');
+        const now = Date.now();
+        builderConfig.floatingBoxes.push(
+          {
+            id: `fbox_${now}_1`,
+            pageIndex: 'all',
+            x: 35,
+            y: 16,
+            width: 640,
+            height: 40,
+            rotation: 0,
+            content: effectiveInstName,
+            fontSize: 22,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '900',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center',
+            color: '#0f172a',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderStyle: 'none'
+          },
+          {
+            id: `fbox_${now}_2`,
+            pageIndex: 'all',
+            x: 35,
+            y: 54,
+            width: 640,
+            height: 24,
+            rotation: 0,
+            content: effectiveInstSub || 'Govt. Recognized Institution',
+            fontSize: 12,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '600',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center',
+            color: '#475569',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderStyle: 'none'
+          },
+          {
+            id: `fbox_${now}_3`,
+            pageIndex: 'all',
+            x: 35,
+            y: 80,
+            width: 640,
+            height: 32,
+            rotation: 0,
+            content: effectiveCustomTitle || 'STUDENT REGISTER',
+            fontSize: 15,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '900',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'center',
+            color: '#1e3a8a',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderStyle: 'none'
+          },
+          {
+            id: `fbox_${now}_4`,
+            pageIndex: 'all',
+            x: 35,
+            y: 112,
+            width: 340,
+            height: 28,
+            rotation: 0,
+            content: `Date: ${todayStr}  |  Session: ${yearLabel || '2026-2027'}`,
+            fontSize: 11,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: '700',
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'left',
+            color: '#334155',
+            backgroundColor: '#f8fafc',
+            borderColor: '#cbd5e1',
+            borderWidth: 1,
+            borderStyle: 'solid'
+          }
+        );
+        builderConfig.activeFloatingBoxId = `fbox_${now}_1`;
+        builderConfig.activeTab = 'insert';
+        renderExportTab();
+        setupExcelEngine();
+        setTimeout(() => selectFloatingBox(`fbox_${now}_1`), 60);
+        showToastNotification('Full coordinated header pack added!');
       });
 
       document.getElementById('btn-insert-sig-line')?.addEventListener('click', () => {
@@ -6044,8 +5762,22 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           content: `<div style="border-top: 1.5px solid #000; padding-top: 4px; text-align: center; font-weight: bold; width: 100%;">Authorized Signatory</div>`,
           fontSize: 12,
           textAlign: 'center',
-          width: 200,
-          height: 45,
+          x: 35,
+          y: getFooterPlacementY(110),
+          width: 220,
+          height: 48,
+          borderColor: 'transparent',
+          backgroundColor: 'transparent'
+        });
+      });
+
+      document.getElementById('btn-insert-stamp-box')?.addEventListener('click', () => {
+        insertNewFloatingBox({
+          content: '<div style="width: 100%; height: 100%; border: 2px dashed #94a3b8; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; line-height: 1.2;">OFFICIAL<br>SEAL / STAMP</div>',
+          x: 280,
+          y: getFooterPlacementY(130),
+          width: 110,
+          height: 110,
           borderColor: 'transparent',
           backgroundColor: 'transparent'
         });
@@ -6057,21 +5789,39 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           fontSize: 11,
           fontWeight: '600',
           textAlign: 'right',
-          width: 140,
+          x: builderConfig.orientation === 'landscape' ? 880 : 600,
+          y: getFooterPlacementY(50),
+          width: 150,
           height: 28,
           borderColor: 'transparent',
           backgroundColor: 'transparent'
         });
       });
 
-      document.getElementById('btn-insert-stamp-box')?.addEventListener('click', () => {
+      document.getElementById('btn-insert-footer-note')?.addEventListener('click', () => {
         insertNewFloatingBox({
-          content: '<div style="width: 100%; height: 100%; border: 2px dashed #94a3b8; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; font-weight: bold; color: #64748b; line-height: 1.2;">OFFICIAL<br>SEAL / STAMP</div>',
-          width: 110,
-          height: 110,
+          content: 'Note: System generated official document. Valid without physical signature if authenticated.',
+          fontSize: 10,
+          fontStyle: 'italic',
+          color: '#64748b',
+          x: 35,
+          y: getFooterPlacementY(50),
+          width: 460,
+          height: 28,
           borderColor: 'transparent',
           backgroundColor: 'transparent'
         });
+      });
+
+      document.getElementById('btn-box-clear-all')?.addEventListener('click', () => {
+        if (confirm('Clear all floating text boxes, headers, and stamps from the canvas?')) {
+          saveBuilderState();
+          builderConfig.floatingBoxes = [];
+          builderConfig.activeFloatingBoxId = null;
+          renderExportTab();
+          setupExcelEngine();
+          showToastNotification('All floating boxes removed');
+        }
       });
 
       document.getElementById('btn-box-duplicate')?.addEventListener('click', () => {
@@ -6161,16 +5911,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       document.getElementById('btn-export-excel')?.addEventListener('click', () => {
         if (typeof XLSX === 'undefined') return;
         const exportTable = document.createElement('table');
-        if (builderConfig.showHeader) {
-          const headerRows = [];
-          (builderConfig.headerBlocks || []).forEach((b) => {
-            if (b.text && String(b.text).trim()) {
-              headerRows.push(`<tr><th colspan="${builderConfig.columns.length}">${escapeHtml(b.text)}</th></tr>`);
-            }
-          });
-          if (headerRows.length > 0) {
-            exportTable.innerHTML += `<thead>${headerRows.join('')}</thead>`;
+        const headerRows = [];
+        const topBoxes = (builderConfig.floatingBoxes || [])
+          .filter((b) => (b.y || 0) < 200 && b.content && String(b.content).trim())
+          .sort((a, b) => (a.y || 0) - (b.y || 0));
+        topBoxes.forEach((b) => {
+          const plainText = b.content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+          if (plainText) {
+            headerRows.push(`<tr><th colspan="${builderConfig.columns.length}" style="text-align: center; font-size: 13pt; font-weight: bold;">${escapeHtml(plainText)}</th></tr>`);
           }
+        });
+        if (headerRows.length > 0) {
+          exportTable.innerHTML += `<thead>${headerRows.join('')}</thead>`;
         }
         const colHeadings = builderConfig.columns.map((c) => `<th>${escapeHtml(c.title || c.field)}</th>`).join('');
         exportTable.innerHTML += `<thead><tr>${colHeadings}</tr></thead>`;
@@ -6362,7 +6114,36 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (!window.__worksheetGlobalListenersBound) {
         window.__worksheetGlobalListenersBound = true;
 
+        document.addEventListener('click', (e) => {
+          const delBtn = e.target.closest('.box-bar-del-btn');
+          if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const boxId = delBtn.dataset.boxId;
+            saveBuilderState();
+            builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== boxId);
+            builderConfig.activeFloatingBoxId = null;
+            renderExportTab();
+            setupExcelEngine();
+            showToastNotification('Box deleted');
+          }
+        });
+
         document.addEventListener('mousedown', (e) => {
+          const delBtn = e.target.closest('.box-bar-del-btn');
+          if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const boxId = delBtn.dataset.boxId;
+            saveBuilderState();
+            builderConfig.floatingBoxes = (builderConfig.floatingBoxes || []).filter((b) => b.id !== boxId);
+            builderConfig.activeFloatingBoxId = null;
+            renderExportTab();
+            setupExcelEngine();
+            showToastNotification('Box deleted');
+            return;
+          }
+
           const rotHandle = e.target.closest('.box-rotate-handle');
           if (rotHandle) {
             saveBuilderState();
