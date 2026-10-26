@@ -4366,31 +4366,59 @@ const openStudentHistoryModal = (studentId) => {
         </div>
     `;
 
-    const historyMap = student.academicYears || {};
-    const recordedYears = Object.keys(historyMap);
+    const historyMap = (student.academicYears && typeof student.academicYears === 'object') ? { ...student.academicYears } : {};
 
-    const entries = [];
-    if (recordedYears.length === 0) {
-        entries.push({
-            yearLabel: student.academicYear || currentAcademicYear,
-            class: currentClass,
-            status: status,
-            updatedAt: student.updatedAt || null
-        });
-    } else {
-        recordedYears.forEach(yearLabel => {
-            const entry = historyMap[yearLabel] || {};
-            entries.push({
-                yearLabel,
-                class: entry.class || currentClass,
-                status: entry.status || 'Active',
-                decision: entry.decision || null,
-                updatedAt: entry.updatedAt || null
-            });
+    // Supplement history from examResultsCache if there are results for past years not yet in historyMap
+    if (Array.isArray(examResultsCache)) {
+        examResultsCache.forEach((row) => {
+            if (row.studentId === studentId && row.academicYear) {
+                const yr = String(row.academicYear).trim();
+                if (!historyMap[yr]) {
+                    historyMap[yr] = {
+                        class: row.classLabel || '--',
+                        status: 'Active',
+                        decision: 'Appeared in Exams',
+                        updatedAt: row.updatedAt || null
+                    };
+                }
+            }
         });
     }
 
-    entries.sort((a, b) => b.yearLabel.localeCompare(a.yearLabel));
+    // Supplement if student has promotedFrom and graduatedYear
+    if (student.promotedFrom && student.graduatedYear && !historyMap[student.graduatedYear]) {
+        historyMap[student.graduatedYear] = {
+            class: student.promotedFrom,
+            status: 'Active',
+            decision: 'graduated',
+            updatedAt: student.promotedAt || null
+        };
+    }
+
+    // Supplement current active session if not present
+    const masterYear = student.academicYear || getActiveAcademicYearLabel();
+    if (masterYear && !historyMap[masterYear]) {
+        historyMap[masterYear] = {
+            class: currentClass,
+            status: status,
+            decision: 'Enrolled',
+            updatedAt: student.updatedAt || null
+        };
+    }
+
+    const recordedYears = Object.keys(historyMap);
+    const entries = recordedYears.map(yearLabel => {
+        const entry = historyMap[yearLabel] || {};
+        return {
+            yearLabel,
+            class: entry.class || currentClass,
+            status: entry.status || 'Active',
+            decision: entry.decision || null,
+            updatedAt: entry.updatedAt || null
+        };
+    });
+
+    entries.sort((a, b) => b.yearLabel.localeCompare(a.yearLabel, undefined, { numeric: true }));
 
     timelineContainer.innerHTML = entries.map((entry) => {
         const isCurrent = entry.yearLabel === getActiveAcademicYearLabel();
@@ -8501,23 +8529,53 @@ document.getElementById('run-auto-promotion-btn').addEventListener('click', asyn
         const toClass = progressionMap[student.class] || '';
         if (!toClass) return;
         const isAlumni = toClass === 'ALUMNI' || toClass === 'GRADUATED' || String(toClass).toLowerCase() === 'alumni';
+        const departureYear = getActiveAcademicYearLabel() || student.academicYear || '';
+        const nowIso = new Date().toISOString();
+        const existingYears = (student.academicYears && typeof student.academicYears === 'object') ? { ...student.academicYears } : {};
+
+        if (departureYear) {
+            existingYears[departureYear] = {
+                ...(existingYears[departureYear] || {}),
+                class: student.class,
+                status: 'Active',
+                decision: isAlumni ? 'graduated' : 'promoted',
+                promotedTo: toClass,
+                promotedYear: targetYear,
+                updatedAt: nowIso
+            };
+        }
+
+        existingYears[targetYear] = {
+            class: toClass,
+            status: isAlumni ? 'Alumni' : 'Active',
+            decision: 'enrolled',
+            fromClass: student.class,
+            updatedAt: nowIso
+        };
+
         const studentPayload = isAlumni ? {
             class: 'Alumni',
             status: 'Alumni',
             isAlumni: true,
-            graduatedYear: getActiveAcademicYearLabel(),
+            graduatedYear: departureYear,
             finalClass: student.class,
             academicYear: targetYear,
             promotedFrom: student.class,
-            promotedAt: new Date().toISOString()
+            promotedAt: nowIso,
+            academicYears: existingYears
         } : {
             class: toClass,
             status: 'Active',
             isAlumni: false,
             academicYear: targetYear,
             promotedFrom: student.class,
-            promotedAt: new Date().toISOString()
+            promotedAt: nowIso,
+            academicYears: existingYears
         };
+        student.academicYears = existingYears;
+        student.class = isAlumni ? 'Alumni' : toClass;
+        student.status = isAlumni ? 'Alumni' : 'Active';
+        student.academicYear = targetYear;
         operations.push(updateDoc(doc(db, `${BASE_PATH}/students`, student.id), studentPayload));
         operations.push(setDoc(
             getEnrollmentRef(targetYear, student.id),

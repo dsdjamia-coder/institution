@@ -953,6 +953,13 @@ function initializeDataListeners() {
         });
         syncHeaderDisplays();
         populateReportYears();
+        populateReportClasses();
+        if (typeof renderPublishControls === 'function') {
+            renderPublishControls();
+        }
+        if (typeof renderPromotionCandidatesUI === 'function') {
+            renderPromotionCandidatesUI();
+        }
         if (typeof renderSnapshotPanelUI === 'function') {
             renderSnapshotPanelUI();
         }
@@ -1664,16 +1671,108 @@ const renderExamSelectOptions = (selectEl, classLabel = '', year = currentAcadem
     selectEl.innerHTML = `<option value="">${placeholder}</option>` + options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('');
     if (previous && Array.from(selectEl.options).some((option) => option.value === previous)) selectEl.value = previous;
 };
+const getReportClassesForYear = (targetYear) => {
+    const classSet = new Set();
+    const effectiveYear = String(targetYear || document.getElementById('report-academic-year')?.value || currentAcademicYear || '').trim();
+
+    // 1. Classes from published results in that year
+    (examResultsCache || []).forEach((row) => {
+        if (row.published === true && (!effectiveYear || String(row.academicYear || '').trim() === effectiveYear) && row.classLabel) {
+            const cls = String(row.classLabel).trim();
+            if (cls && cls.toLowerCase() !== 'alumni') classSet.add(cls);
+        }
+    });
+
+    // 2. Classes from schemas configured for that year
+    (resultSchemas || []).forEach((s) => {
+        if ((!effectiveYear || String(s.academicYear || '').trim() === effectiveYear) && (s.classLabel || s.class)) {
+            const cls = String(s.classLabel || s.class).trim();
+            if (cls && cls.toLowerCase() !== 'alumni') classSet.add(cls);
+        }
+    });
+
+    // 3. Classes from student academic history for that year
+    (students || []).forEach((s) => {
+        if (s.academicYears && typeof s.academicYears === 'object' && s.academicYears[effectiveYear]?.class) {
+            const cls = String(s.academicYears[effectiveYear].class).trim();
+            if (cls && cls.toLowerCase() !== 'alumni') classSet.add(cls);
+        } else if ((!effectiveYear || String(s.academicYear || '').trim() === effectiveYear) && s.class) {
+            const cls = String(s.class).trim();
+            if (cls && cls.toLowerCase() !== 'alumni') classSet.add(cls);
+        }
+    });
+
+    // 4. Configured classes from availableAcademicYears setting
+    const yearConfig = (availableAcademicYears || []).find((y) => {
+        const lbl = (typeof y === 'object' && y !== null) ? (y.label || y.year || y.name || '') : String(y || '');
+        return lbl.trim() === effectiveYear;
+    });
+    if (yearConfig && Array.isArray(yearConfig.classes)) {
+        yearConfig.classes.forEach((c) => {
+            const cls = String(c || '').trim();
+            if (cls && cls.toLowerCase() !== 'alumni') classSet.add(cls);
+        });
+    }
+
+    // Fallback: If no classes found for this year yet, fallback to current global classes
+    if (classSet.size === 0) {
+        (classes || []).forEach((c) => {
+            const cls = String(c || '').trim();
+            if (cls && cls.toLowerCase() !== 'alumni') classSet.add(cls);
+        });
+    }
+
+    return Array.from(classSet)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+};
+
+const populateReportClasses = (selectedYear) => {
+    const reportClassSelect = document.getElementById('report-class-select');
+    if (!reportClassSelect) return;
+    const year = selectedYear || document.getElementById('report-academic-year')?.value || currentAcademicYear;
+    const yearClasses = getReportClassesForYear(year);
+    const previous = reportClassSelect.value;
+
+    let opts = `<option value="">-- Choose Class --</option><option value="ALL">All Classes</option>`;
+    opts += yearClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    reportClassSelect.innerHTML = opts;
+
+    if (previous && (previous === 'ALL' || yearClasses.includes(previous))) {
+        reportClassSelect.value = previous;
+    } else {
+        reportClassSelect.value = '';
+    }
+};
+
 const populateReportYears = () => {
     const el = document.getElementById('report-academic-year');
     if (!el) return;
     const previous = el.value;
-    const years = [...new Set(examResultsCache.filter((row) => row.published === true && row.academicYear).map((row) => row.academicYear))].sort((a,b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
-    const fallback = currentAcademicYear ? [currentAcademicYear] : [];
-    const source = years.length ? years : fallback;
+    const yearSet = new Set();
+    if (currentAcademicYear) yearSet.add(String(currentAcademicYear).trim());
+    (availableAcademicYears || []).forEach((y) => {
+        const yStr = (typeof y === 'object' && y !== null) ? (y.label || y.year || y.name || '') : String(y || '');
+        if (yStr && yStr.trim()) yearSet.add(yStr.trim());
+    });
+    (examResultsCache || []).forEach((row) => {
+        if (row.academicYear) yearSet.add(String(row.academicYear).trim());
+    });
+    (resultSchemas || []).forEach((s) => {
+        if (s.academicYear) yearSet.add(String(s.academicYear).trim());
+    });
+    const source = Array.from(yearSet).filter(Boolean).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
     el.innerHTML = `<option value="">-- Select Academic Year --</option>` + source.map((year) => `<option value="${escapeHtml(year)}">${escapeHtml(year)}</option>`).join('');
-    el.value = previous && source.includes(previous) ? previous : (source[0] || '');
+    if (previous && source.includes(previous)) {
+        el.value = previous;
+    } else if (currentAcademicYear && source.includes(currentAcademicYear)) {
+        el.value = currentAcademicYear;
+    } else {
+        el.value = source[0] || '';
+    }
+    populateReportClasses(el.value);
 };
+
 function populateDropdowns() {
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
     const teacherAllowedClasses = isTeacherScope ? classes.filter((c) => teacherAssignedClasses.includes(c)) : classes;
@@ -1681,7 +1780,6 @@ function populateDropdowns() {
     const allClassOpts = `<option value="">-- Choose Class --</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
 
     const entryClassSelect = document.getElementById('entry-class-select');
-    const reportClassSelect = document.getElementById('report-class-select');
     const subjectClassSelect = document.getElementById('subject-class-select');
     const examConfigClassSelect = document.getElementById('exam-config-class-select');
 
@@ -1696,12 +1794,8 @@ function populateDropdowns() {
         updateMarksDownloadAndUploadState();
     }
 
-    if (reportClassSelect) {
-        const current = reportClassSelect.value;
-        const reportClassOpts = `<option value="">-- Choose Class --</option><option value="ALL">All Classes (എല്ലാ ക്ലാസ്സുകളും)</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-        reportClassSelect.innerHTML = reportClassOpts;
-        if (current && (current === 'ALL' || classes.includes(current))) reportClassSelect.value = current;
-    }
+    populateReportYears();
+    populateReportClasses();
 
     const subjectClassOpts = `<option value="">-- Choose Class --</option>` + teacherAllowedClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
 
@@ -1737,8 +1831,8 @@ function populateDropdowns() {
     if (typeof renderExamSetup === 'function') {
         renderExamSetup();
     }
-    populateReportYears();
     renderExamSelectOptions(document.getElementById('entry-exam-select'), entryClassSelect?.value || '', currentAcademicYear);
+    const reportClassSelect = document.getElementById('report-class-select');
     renderExamSelectOptions(document.getElementById('report-exam-select'), reportClassSelect?.value || '', document.getElementById('report-academic-year')?.value || currentAcademicYear, '-- Choose Exam --', true);
 };
 
@@ -5075,23 +5169,54 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
             if (!nextClass) return;
 
             const isAlumniTarget = String(nextClass).trim().toLowerCase() === 'alumni';
+            const departureYear = currentAcademicYear || student.academicYear || '';
+            const nowIso = new Date().toISOString();
+            const existingAcademicYears = (student.academicYears && typeof student.academicYears === 'object') ? { ...student.academicYears } : {};
+
+            if (departureYear) {
+                existingAcademicYears[departureYear] = {
+                    ...(existingAcademicYears[departureYear] || {}),
+                    class: fromClass,
+                    status: 'Active',
+                    decision: isAlumniTarget ? 'graduated' : 'promoted',
+                    promotedTo: nextClass,
+                    promotedYear: targetAcademicYear,
+                    updatedAt: nowIso
+                };
+            }
+
+            existingAcademicYears[targetAcademicYear] = {
+                class: nextClass,
+                status: isAlumniTarget ? 'Alumni' : 'Active',
+                decision: 'enrolled',
+                fromClass: fromClass,
+                updatedAt: nowIso
+            };
+
             const studentPayload = isAlumniTarget ? {
                 class: 'Alumni',
                 status: 'alumni',
                 isAlumni: true,
-                graduatedYear: currentAcademicYear || student.academicYear || '',
+                graduatedYear: departureYear,
                 finalClass: fromClass,
                 academicYear: targetAcademicYear,
                 promotedFrom: fromClass,
-                promotedAt: new Date().toISOString()
+                promotedAt: nowIso,
+                academicYears: existingAcademicYears
             } : {
                 class: nextClass,
                 status: 'active',
                 isAlumni: false,
                 academicYear: targetAcademicYear,
                 promotedFrom: fromClass,
-                promotedAt: new Date().toISOString()
+                promotedAt: nowIso,
+                academicYears: existingAcademicYears
             };
+
+            student.academicYears = existingAcademicYears;
+            student.class = isAlumniTarget ? 'Alumni' : nextClass;
+            student.status = isAlumniTarget ? 'alumni' : 'active';
+            student.academicYear = targetAcademicYear;
 
             updates.push(updateDoc(doc(db, `${BASE_PATH}/students`, student.id), studentPayload));
             promotionDecisions.push(setDoc(doc(collection(db, `${BASE_PATH}/promotionDecisions`)), {
@@ -5140,23 +5265,54 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
         if (!nextClass) return; // Discontinue / No promotion
 
         const isAlumniTarget = String(nextClass).trim().toLowerCase() === 'alumni';
+        const departureYear = currentAcademicYear || student.academicYear || '';
+        const nowIso = new Date().toISOString();
+        const existingAcademicYears = (student.academicYears && typeof student.academicYears === 'object') ? { ...student.academicYears } : {};
+
+        if (departureYear) {
+            existingAcademicYears[departureYear] = {
+                ...(existingAcademicYears[departureYear] || {}),
+                class: fromClass,
+                status: 'Active',
+                decision: isAlumniTarget ? 'graduated' : 'promoted',
+                promotedTo: nextClass,
+                promotedYear: targetAcademicYear,
+                updatedAt: nowIso
+            };
+        }
+
+        existingAcademicYears[targetAcademicYear] = {
+            class: nextClass,
+            status: isAlumniTarget ? 'Alumni' : 'Active',
+            decision: 'enrolled',
+            fromClass: fromClass,
+            updatedAt: nowIso
+        };
+
         const studentPayload = isAlumniTarget ? {
             class: 'Alumni',
             status: 'alumni',
             isAlumni: true,
-            graduatedYear: currentAcademicYear || student.academicYear || '',
+            graduatedYear: departureYear,
             finalClass: fromClass,
             academicYear: targetAcademicYear,
             promotedFrom: fromClass,
-            promotedAt: new Date().toISOString()
+            promotedAt: nowIso,
+            academicYears: existingAcademicYears
         } : {
             class: nextClass,
             status: 'active',
             isAlumni: false,
             academicYear: targetAcademicYear,
             promotedFrom: fromClass,
-            promotedAt: new Date().toISOString()
+            promotedAt: nowIso,
+            academicYears: existingAcademicYears
         };
+
+        student.academicYears = existingAcademicYears;
+        student.class = isAlumniTarget ? 'Alumni' : nextClass;
+        student.status = isAlumniTarget ? 'alumni' : 'active';
+        student.academicYear = targetAcademicYear;
 
         updates.push(updateDoc(doc(db, `${BASE_PATH}/students`, student.id), studentPayload));
         promotionDecisions.push(setDoc(doc(collection(db, `${BASE_PATH}/promotionDecisions`)), {
@@ -5273,12 +5429,18 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
     if (!reportYear || !className || !examId) return null;
 
     const isAllClasses = (className === 'ALL');
-    let targetClasses = isAllClasses
-        ? classes.filter(c => examResultsCache.some(r => r.classLabel === c && (!reportYear || r.academicYear === reportYear || !r.academicYear) && resultMatchesExam(r, examId) && r.published === true))
-        : [className];
+    let targetClasses;
+    if (isAllClasses) {
+        const publishedExamClasses = [...new Set(
+            (examResultsCache || [])
+                .filter(r => r.published === true && (!reportYear || r.academicYear === reportYear || !r.academicYear) && resultMatchesExam(r, examId) && r.classLabel)
+                .map(r => String(r.classLabel).trim())
+                .filter(Boolean)
+        )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-    if (isAllClasses && !targetClasses.length) {
-        targetClasses = [...classes];
+        targetClasses = publishedExamClasses.length ? publishedExamClasses : getReportClassesForYear(reportYear);
+    } else {
+        targetClasses = [className];
     }
 
     let grandTotalStudents = 0;
@@ -5290,11 +5452,48 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
     const classReports = targetClasses.map(cls => {
         const examContext = getExamContext(examId, cls, reportYear);
         const examSchema = examContext?.schema || getSchemaForClass(reportYear, cls);
-        const classStudents = students.filter(s => s.class === cls && (!reportYear || s.academicYear === reportYear || !s.academicYear));
         const reportSubjects = getSchemaSubjectRows(examSchema, examContext?.key || '');
 
+        // Gather all published result records for this exam, class, and year
+        const classResultRecords = (examResultsCache || []).filter(r => 
+            resultMatchesExam(r, examId) && 
+            r.published === true && 
+            r.classLabel === cls && 
+            (!reportYear || r.academicYear === reportYear || !r.academicYear)
+        );
+
+        // Map students who belong to this class in this academic year
+        const studentMap = new Map();
+
+        // 1. Add students from published result records first
+        classResultRecords.forEach((record) => {
+            const matched = (students || []).find((s) => s.id === record.studentId);
+            const studentObj = matched ? { ...matched, class: cls } : {
+                id: record.studentId,
+                name: record.studentName || 'Student',
+                adm: record.admNo || record.admissionNo || '--',
+                rollNo: record.rollNo || '--',
+                class: cls,
+                academicYear: reportYear
+            };
+            studentMap.set(record.studentId, studentObj);
+        });
+
+        // 2. Also add students whose historical or current record matches this class & year
+        (students || []).forEach((s) => {
+            const hasHistoryInYear = s.academicYears && typeof s.academicYears === 'object' && s.academicYears[reportYear]?.class === cls;
+            const isCurrentInYear = (!s.academicYears || !s.academicYears[reportYear]) && (s.academicYear === reportYear || !s.academicYear) && s.class === cls;
+            if (hasHistoryInYear || isCurrentInYear) {
+                if (!studentMap.has(s.id)) {
+                    studentMap.set(s.id, { ...s, class: cls });
+                }
+            }
+        });
+
+        const classStudents = Array.from(studentMap.values());
+
         const resultRows = classStudents.map(student => {
-            const resultRecord = examResultsCache.find(r => resultMatchesExam(r, examId) && r.studentId === student.id && (!reportYear || r.academicYear === reportYear || !r.academicYear) && r.published === true);
+            const resultRecord = classResultRecords.find(r => r.studentId === student.id) || (examResultsCache || []).find(r => resultMatchesExam(r, examId) && r.studentId === student.id && (!reportYear || r.academicYear === reportYear || !r.academicYear) && r.published === true);
             const marks = resultRecord ? (resultRecord.marks || {}) : {};
             let total = 0;
             let maximum = 0;
@@ -6233,7 +6432,11 @@ document.getElementById('report-model-select')?.addEventListener('change', (e) =
 
 ['report-academic-year', 'report-class-select', 'report-exam-select', 'report-order-select'].forEach((id) => {
     document.getElementById(id)?.addEventListener('change', () => {
-        if (id === 'report-academic-year' || id === 'report-class-select') {
+        if (id === 'report-academic-year') {
+            const chosenYear = document.getElementById('report-academic-year')?.value || currentAcademicYear;
+            populateReportClasses(chosenYear);
+            renderExamSelectOptions(document.getElementById('report-exam-select'), document.getElementById('report-class-select')?.value || '', chosenYear, '-- Choose Exam --', true);
+        } else if (id === 'report-class-select') {
             renderExamSelectOptions(document.getElementById('report-exam-select'), document.getElementById('report-class-select')?.value || '', document.getElementById('report-academic-year')?.value || currentAcademicYear, '-- Choose Exam --', true);
         }
         updateReportPreview();
