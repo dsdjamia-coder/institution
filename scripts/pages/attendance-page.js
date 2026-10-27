@@ -164,9 +164,15 @@ const closeModal = (modalId) => {
 // --- Navigation Tabs ---
 const activateTab = (targetTabId) => {
     const drawerLinks = document.querySelectorAll('.drawer-link');
+    const mobileLinks = document.querySelectorAll('.mobile-dropdown-link');
     const tabContents = document.querySelectorAll('.tab-content');
 
     drawerLinks.forEach(link => {
+        const isActive = link.dataset.tab === targetTabId;
+        link.classList.toggle('active', isActive);
+    });
+
+    mobileLinks.forEach(link => {
         const isActive = link.dataset.tab === targetTabId;
         link.classList.toggle('active', isActive);
     });
@@ -178,6 +184,12 @@ const activateTab = (targetTabId) => {
             content.classList.add('hidden');
         }
     });
+
+    // Close mobile dropdown if open
+    const mobileDropdown = document.getElementById('mobile-nav-dropdown');
+    if (mobileDropdown) {
+        mobileDropdown.classList.add('hidden');
+    }
 
     if (!isDesktop()) {
         setSidebarCollapsed(true);
@@ -200,8 +212,8 @@ const activateTab = (targetTabId) => {
 };
 
 const setupNavigationTabs = () => {
-    const drawerLinks = document.querySelectorAll('.drawer-link');
-    drawerLinks.forEach(link => {
+    const allNavLinks = document.querySelectorAll('.drawer-link, .mobile-dropdown-link');
+    allNavLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const targetTabId = link.dataset.tab;
@@ -680,29 +692,33 @@ const renderDailyStudentRows = (classStudents) => {
 
         return `
             <tr class="hover:bg-slate-50/80 transition-colors" data-student-id="${escapeHtml(student.id)}">
-                <td class="py-3 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
-                <td class="py-3 px-3 text-center font-mono font-bold text-slate-700">${escapeHtml(String(roll))}</td>
-                <td class="py-3 px-3 font-mono text-slate-500 font-semibold">${escapeHtml(adm)}</td>
-                <td class="py-3 px-4">
-                    <div class="flex items-center gap-2.5">
-                        <div class="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                <td class="py-2.5 sm:py-3 px-3 text-center font-bold text-slate-400 hidden sm:table-cell">${idx + 1}</td>
+                <td class="py-2.5 sm:py-3 px-3 text-center font-mono font-bold text-slate-700 hidden sm:table-cell">${escapeHtml(String(roll))}</td>
+                <td class="py-2.5 sm:py-3 px-3 font-mono text-slate-500 font-semibold hidden sm:table-cell">${escapeHtml(adm)}</td>
+                <td class="py-2.5 sm:py-3 px-2 sm:px-4">
+                    <div class="flex items-center gap-2 sm:gap-2.5">
+                        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
                             ${photo ? `<img src="${photo}" class="w-full h-full object-cover">` : `<i class="fas fa-user text-slate-400 text-xs"></i>`}
                         </div>
-                        <div>
-                            <div class="font-extrabold text-slate-900">${escapeHtml(student.name || '--')}</div>
-                            <div class="text-[10px] text-slate-400 font-bold">${escapeHtml(student.gender || '')}</div>
+                        <div class="min-w-0">
+                            <div class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">${escapeHtml(student.name || '--')}</div>
+                            <div class="text-[10px] text-slate-500 font-bold flex items-center gap-1.5 sm:hidden">
+                                <span>Roll: ${escapeHtml(String(roll))}</span>
+                                <span>•</span>
+                                <span>Adm: ${escapeHtml(adm)}</span>
+                            </div>
                         </div>
                     </div>
                 </td>
-                <td class="py-3 px-4 text-center">
-                    <div class="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200" data-toggle-group="${escapeHtml(student.id)}">
+                <td class="py-2.5 sm:py-3 px-1 sm:px-4 text-center">
+                    <div class="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200" data-toggle-group="${escapeHtml(student.id)}">
                         <button type="button" class="att-toggle-btn ${status === 'P' ? 'active-p' : ''}" data-status="P" title="Present (P): Attended class">P</button>
                         <button type="button" class="att-toggle-btn ${status === 'A' ? 'active-a' : ''}" data-status="A" title="Absent (A): Absent without prior notice">A</button>
                         <button type="button" class="att-toggle-btn ${status === 'L' ? 'active-l' : ''}" data-status="L" title="Leave (L): Informed leave in advance">L</button>
                     </div>
                 </td>
-                <td class="py-3 px-4">
-                    <input type="text" class="student-remarks-input w-full p-1.5 px-2.5 text-xs rounded-lg border border-slate-200 focus:border-emerald-500 outline-none bg-white transition" placeholder="Optional remark (e.g. Fever)" value="${escapeHtml(remarks)}">
+                <td class="py-2.5 sm:py-3 px-2 sm:px-4">
+                    <input type="text" class="student-remarks-input w-full p-1.5 px-2 text-xs rounded-lg border border-slate-200 focus:border-emerald-500 outline-none bg-white transition" placeholder="Remark..." value="${escapeHtml(remarks)}">
                 </td>
             </tr>
         `;
@@ -1732,16 +1748,35 @@ const saveSessionSchedule = async () => {
 
 
 const setupEventListeners = () => {
-    // 1. Sidebar Collapse & Mobile Menu
+    // 1. Sidebar Collapse (Desktop) & Dropdown Menu (Mobile)
     document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
-    document.getElementById('attendance-mobile-menu-btn')?.addEventListener('click', () => setSidebarCollapsed(false));
-    document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
+
+    const mobileBtn = document.getElementById('attendance-mobile-menu-btn');
+    const mobileDropdown = document.getElementById('mobile-nav-dropdown');
+
+    mobileBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (mobileDropdown) {
+            mobileDropdown.classList.toggle('hidden');
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
+            if (!mobileDropdown.contains(e.target) && !mobileBtn?.contains(e.target)) {
+                mobileDropdown.classList.add('hidden');
+            }
+        }
+    });
+
+    document.getElementById('mobile-logout-btn')?.addEventListener('click', () => {
+        window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
+    });
 
     window.addEventListener('resize', () => {
         if (isDesktop()) {
-            const overlay = document.getElementById('drawer-overlay');
-            if (overlay && !overlay.classList.contains('hidden')) {
-                overlay.classList.add('opacity-0', 'hidden');
+            if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
+                mobileDropdown.classList.add('hidden');
             }
         }
     });
