@@ -262,6 +262,19 @@ const isDateBeforeSessionStart = (dateStr, yearLabel) => {
     return dateStr < sDate;
 };
 
+const getSessionEndDate = (yearLabel) => {
+    const label = yearLabel || currentAcademicYear;
+    const schedule = calendarConfig.sessionSchedules?.[label];
+    if (schedule?.endDate) return schedule.endDate;
+    return '';
+};
+
+const isDateAfterSessionEnd = (dateStr, yearLabel) => {
+    const eDate = getSessionEndDate(yearLabel);
+    if (!eDate || !dateStr) return false;
+    return dateStr > eDate;
+};
+
 // --- Initialization & Auth ---
 const initApp = async () => {
     startLiveClock();
@@ -935,13 +948,13 @@ const loadMonthlyRegister = async () => {
             const dayLetter = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'][dayOfWeek];
             const { isHoliday: isOff, title: holidayTitle } = isDateHoliday(dateStr, selectedMonthlyClass);
             const isPreSession = isDateBeforeSessionStart(dateStr, year);
+            const isPostSession = isDateAfterSessionEnd(dateStr, year);
             const holidayLabel = holidayTitle ? `Holiday - ${holidayTitle}` : (isOff ? 'Holiday - Weekly Off' : '');
 
             thDaysHtml += `
-                <th class="${isOff ? 'bg-amber-50/70 text-amber-900 border-x border-amber-200/80' : (isPreSession ? 'bg-slate-100 text-slate-400' : '')} text-center min-w-[30px] max-w-[34px] px-1 py-1.5" title="${escapeHtml(holidayLabel)}">
+                <th class="${isOff ? 'bg-amber-50/70 text-amber-900 border-x border-amber-200/80' : (isPreSession || isPostSession ? 'bg-slate-100 text-slate-400' : '')} text-center min-w-[32px] max-w-[36px] px-1 py-1.5" title="${escapeHtml(holidayLabel)}">
                     <div class="text-[9px] font-black ${isOff ? 'text-amber-700' : 'text-slate-500'}">${dayLetter}</div>
                     <div class="text-xs font-black ${isOff ? 'text-amber-950' : 'text-slate-800'}">${day}</div>
-                    ${isOff ? `<div class="text-[8px] font-black text-amber-600 truncate max-w-[30px] mx-auto uppercase mt-0.5" title="${escapeHtml(holidayLabel)}">OFF</div>` : ''}
                 </th>
             `;
         }
@@ -952,21 +965,85 @@ const loadMonthlyRegister = async () => {
                 <th class="sticky-col-2">Adm No</th>
                 <th class="sticky-col-3">Student Name</th>
                 ${thDaysHtml}
-                <th class="bg-slate-100 font-extrabold text-slate-800 min-w-[50px]">Work</th>
-                <th class="bg-emerald-50 font-extrabold text-emerald-800 min-w-[50px]">Pres</th>
-                <th class="bg-rose-50 font-extrabold text-rose-800 min-w-[50px]">Abs</th>
-                <th class="bg-amber-50 font-extrabold text-amber-900 min-w-[50px]">Leave</th>
-                <th class="bg-indigo-50 font-extrabold text-indigo-900 min-w-[60px]">%</th>
+                <th class="bg-slate-100 font-extrabold text-slate-800 min-w-[50px] text-center" title="Current Month Working Days">Work</th>
+                <th class="bg-emerald-50 font-extrabold text-emerald-800 min-w-[50px] text-center" title="Current Month Present Days">Pres</th>
+                <th class="bg-rose-50 font-extrabold text-rose-800 min-w-[50px] text-center" title="Current Month Absent Days">Abs</th>
+                <th class="bg-indigo-50 font-extrabold text-indigo-900 min-w-[80px] text-center" title="Cumulative Working &amp; Present Days prior to this month">Prev (W / P)</th>
+                <th class="bg-indigo-100/70 font-black text-indigo-950 min-w-[85px] text-center" title="Total Cumulative Working &amp; Present Days to date">Total (W / P)</th>
+                <th class="bg-amber-50 font-extrabold text-amber-900 min-w-[65px] text-center" title="Total Cumulative Leave Days to date">Total Leave</th>
+                <th class="bg-emerald-100/70 font-black text-emerald-950 min-w-[65px] text-center" title="Cumulative Overall Attendance Percentage">Total %</th>
             </tr>
         `;
+
+        if (!classStudents.length) {
+            tbody.innerHTML = `<tr><td colspan="${daysInMonth + 10}" class="p-8 text-center text-slate-400 font-bold">No active students found in Class ${escapeHtml(selectedMonthlyClass)} for session ${escapeHtml(year)}.</td></tr>`;
+            if (emptyNotice) emptyNotice.classList.add('hidden');
+            if (table) table.classList.remove('hidden');
+            return;
+        }
+
+        // Query prior session records to compute cumulative attendance up to start of current month
+        const sessionStartDate = getSessionStartDate(year) || `${yearNum}-01-01`;
+        const curMonthStartDate = `${monthVal}-01`;
+        const prevStatsByStudent = {};
+        classStudents.forEach(s => {
+            prevStatsByStudent[s.id] = { work: 0, pres: 0, abs: 0, leave: 0 };
+        });
+        let prevClassWorkingDaysCount = 0;
+
+        if (sessionStartDate < curMonthStartDate) {
+            try {
+                const prevQuery = query(
+                    collection(db, `${BASE_PATH}/attendance`),
+                    where('classLabel', '==', selectedMonthlyClass),
+                    where('date', '>=', sessionStartDate),
+                    where('date', '<', curMonthStartDate)
+                );
+                const prevSnap = await getDocs(prevQuery);
+                const prevDocs = prevSnap.docs.map(d => d.data());
+
+                prevDocs.forEach(pDoc => {
+                    const pDate = pDoc.date || '';
+                    const { isHoliday } = isDateHoliday(pDate, selectedMonthlyClass);
+                    const isPre = isDateBeforeSessionStart(pDate, year);
+                    const isPost = isDateAfterSessionEnd(pDate, year);
+                    const isWorking = !pDoc.isHoliday && !isHoliday && !isPre && !isPost;
+
+                    if (isWorking) {
+                        prevClassWorkingDaysCount++;
+                    }
+
+                    const records = pDoc.records || {};
+                    classStudents.forEach(s => {
+                        const rec = records[s.id];
+                        const rawStatus = rec?.status;
+                        const st = rawStatus === 'E' ? 'L' : rawStatus;
+                        if (st === 'P') {
+                            prevStatsByStudent[s.id].pres++;
+                        } else if (st === 'A') {
+                            prevStatsByStudent[s.id].abs++;
+                        } else if (st === 'L') {
+                            prevStatsByStudent[s.id].leave++;
+                        }
+                    });
+                });
+
+                classStudents.forEach(s => {
+                    prevStatsByStudent[s.id].work = prevClassWorkingDaysCount;
+                });
+            } catch (prevErr) {
+                console.warn('Could not query prior session attendance records:', prevErr);
+            }
+        }
 
         let markedWorkingDaysCount = 0;
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
             const dayDoc = monthDayMap[day];
             const isPreSession = isDateBeforeSessionStart(dateStr, year);
+            const isPostSession = isDateAfterSessionEnd(dateStr, year);
             const { isHoliday } = isDateHoliday(dateStr, selectedMonthlyClass);
-            if (dayDoc && !dayDoc.isHoliday && !isHoliday && !isPreSession) {
+            if (dayDoc && !dayDoc.isHoliday && !isHoliday && !isPreSession && !isPostSession) {
                 markedWorkingDaysCount++;
             }
         }
@@ -981,23 +1058,32 @@ const loadMonthlyRegister = async () => {
                 const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
                 const { isHoliday, title: holidayTitle } = isDateHoliday(dateStr, selectedMonthlyClass);
                 const isPreSession = isDateBeforeSessionStart(dateStr, year);
+                const isPostSession = isDateAfterSessionEnd(dateStr, year);
                 const dayDoc = monthDayMap[day];
                 const studentRecord = dayDoc?.records?.[student.id];
                 const rawStatus = studentRecord?.status;
                 const status = rawStatus === 'E' ? 'L' : rawStatus;
 
+                if (isHoliday) {
+                    if (idx === 0) {
+                        const hLabel = holidayTitle ? `Holiday - ${holidayTitle}` : 'Holiday - Weekly Off';
+                        dayCellsHtml += `
+                            <td rowspan="${classStudents.length}" class="holiday-merged-cell bg-amber-50/90 border-x border-amber-200 text-amber-900 text-center font-black p-0 select-none align-middle" style="writing-mode: vertical-rl; transform: rotate(180deg); min-width: 32px; max-width: 36px; letter-spacing: 0.12em; font-size: 10px; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(hLabel)}">
+                                <span class="inline-block py-2 uppercase font-black tracking-widest">${escapeHtml(hLabel)}</span>
+                            </td>
+                        `;
+                    }
+                    continue;
+                }
+
                 let cellContent = '-';
                 let cellClass = '';
                 let cellTitle = '';
 
-                if (isPreSession) {
+                if (isPreSession || isPostSession) {
                     cellClass = 'bg-slate-50 text-slate-300 font-bold';
                     cellContent = '·';
-                } else if (isHoliday) {
-                    const hLabel = holidayTitle ? `Holiday - ${holidayTitle}` : 'Holiday - Weekly Off';
-                    cellClass = 'bg-amber-50/40 text-amber-600/80 font-black border-x border-amber-100/60';
-                    cellContent = '-';
-                    cellTitle = hLabel;
+                    cellTitle = isPreSession ? 'Pre-session opening' : 'Post-session closing';
                 } else if (!dayDoc) {
                     cellClass = 'text-slate-300 font-bold';
                     cellContent = '•';
@@ -1018,9 +1104,21 @@ const loadMonthlyRegister = async () => {
                 dayCellsHtml += `<td class="${cellClass} text-center px-1 py-1.5 text-[11px]" title="${escapeHtml(cellTitle)}">${cellContent}</td>`;
             }
 
-            const effectiveTotalDays = markedWorkingDaysCount > 0 ? markedWorkingDaysCount : (presentCount + absentCount + leaveCount);
-            const percentage = effectiveTotalDays > 0 ? Math.round((presentCount / effectiveTotalDays) * 100) : 0;
-            const pctBadgeColor = percentage >= 85 ? 'text-emerald-700 bg-emerald-50' : (percentage >= 75 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50 font-black');
+            const curWork = markedWorkingDaysCount > 0 ? markedWorkingDaysCount : (presentCount + absentCount + leaveCount);
+            const curPres = presentCount;
+            const curAbs = absentCount;
+            const curLeave = leaveCount;
+
+            const prevStats = prevStatsByStudent[student.id] || { work: 0, pres: 0, abs: 0, leave: 0 };
+            const prevWork = prevStats.work || 0;
+            const prevPres = prevStats.pres || 0;
+            const prevLeave = prevStats.leave || 0;
+
+            const totalWork = prevWork + curWork;
+            const totalPres = prevPres + curPres;
+            const totalLeave = prevLeave + curLeave;
+            const totalPercentage = totalWork > 0 ? Math.round((totalPres / totalWork) * 100) : 0;
+            const pctBadgeColor = totalPercentage >= 85 ? 'text-emerald-700 bg-emerald-50' : (totalPercentage >= 75 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50 font-black');
 
             return `
                 <tr class="hover:bg-slate-50/70">
@@ -1028,11 +1126,13 @@ const loadMonthlyRegister = async () => {
                     <td class="sticky-col-2 font-mono font-bold text-slate-600 text-center">${escapeHtml(student.adm || student.admNo || '-')}</td>
                     <td class="sticky-col-3 font-extrabold text-slate-900 text-left">${escapeHtml(student.name || '--')}</td>
                     ${dayCellsHtml}
-                    <td class="font-bold text-slate-600 text-center">${effectiveTotalDays}</td>
-                    <td class="font-black text-emerald-600 text-center">${presentCount}</td>
-                    <td class="font-black text-rose-600 text-center">${absentCount}</td>
-                    <td class="font-black text-amber-600 text-center">${leaveCount}</td>
-                    <td class="text-center"><span class="px-1.5 py-0.5 rounded text-xs ${pctBadgeColor}">${percentage}%</span></td>
+                    <td class="font-bold text-slate-600 text-center">${curWork}</td>
+                    <td class="font-black text-emerald-600 text-center">${curPres}</td>
+                    <td class="font-black text-rose-600 text-center">${curAbs}</td>
+                    <td class="font-bold text-indigo-800 text-center bg-indigo-50/40">${prevWork} / ${prevPres}</td>
+                    <td class="font-black text-indigo-950 text-center bg-indigo-50/80">${totalWork} / ${totalPres}</td>
+                    <td class="font-black text-amber-700 text-center">${totalLeave}</td>
+                    <td class="text-center"><span class="px-1.5 py-0.5 rounded text-xs ${pctBadgeColor}">${totalPercentage}%</span></td>
                 </tr>
             `;
         }).join('');
@@ -1119,6 +1219,9 @@ const loadAnalytics = async () => {
         docs.forEach(d => {
             const dDate = d.date || '';
             if (sessionStartDate && dDate && dDate < sessionStartDate) {
+                return;
+            }
+            if (isDateAfterSessionEnd(dDate, year)) {
                 return;
             }
 
@@ -1286,9 +1389,14 @@ const renderCalendarSettingsUI = () => {
 
     populateHolidayClassesCheckboxes();
 
+    const holidays = calendarConfig.holidays || [];
+    const countBadge = document.getElementById('holidays-count-badge');
+    if (countBadge) {
+        countBadge.textContent = holidays.length;
+    }
+
     const tbody = document.getElementById('holidays-tbody');
     if (tbody) {
-        const holidays = calendarConfig.holidays || [];
         if (!holidays.length) {
             tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400 font-bold">No special holidays configured.</td></tr>`;
             return;
@@ -1499,11 +1607,16 @@ const renderSessionScheduleUI = () => {
 
     const schedule = calendarConfig.sessionSchedules?.[selectedYear] || {};
     const startInput = document.getElementById('session-start-date-input');
+    const endInput = document.getElementById('session-end-date-input');
     const notesInput = document.getElementById('session-notes-input');
     const configuredDisplay = document.getElementById('session-configured-start-display');
+    const configuredEndDisplay = document.getElementById('session-configured-end-display');
 
     if (startInput) {
         startInput.value = schedule.startDate || getSessionStartDate(selectedYear) || '';
+    }
+    if (endInput) {
+        endInput.value = schedule.endDate || '';
     }
     if (notesInput) {
         notesInput.value = schedule.notes || '';
@@ -1514,6 +1627,16 @@ const renderSessionScheduleUI = () => {
             configuredDisplay.textContent = `${formatDisplayDate(schedule.startDate)} (${schedule.startDate})`;
         } else {
             configuredDisplay.textContent = 'Not Specifically Configured (Defaults to 1st of opening month)';
+        }
+    }
+
+    if (configuredEndDisplay) {
+        if (schedule.endDate) {
+            configuredEndDisplay.textContent = `${formatDisplayDate(schedule.endDate)} (${schedule.endDate})`;
+            configuredEndDisplay.className = 'font-bold text-slate-700 text-sm mt-0.5';
+        } else {
+            configuredEndDisplay.textContent = 'Ongoing / Not Set (Optional)';
+            configuredEndDisplay.className = 'font-semibold text-slate-400 text-xs mt-0.5';
         }
     }
 
@@ -1541,9 +1664,11 @@ const saveSessionSchedule = async () => {
     const yearSelect = document.getElementById('session-academic-year');
     const selectedYear = yearSelect?.value || currentAcademicYear;
     const startInput = document.getElementById('session-start-date-input');
+    const endInput = document.getElementById('session-end-date-input');
     const notesInput = document.getElementById('session-notes-input');
 
     const sDate = startInput?.value;
+    const eDate = endInput?.value || '';
     const notes = notesInput?.value.trim();
 
     if (!selectedYear) return alert('Please select an academic year.');
@@ -1553,6 +1678,7 @@ const saveSessionSchedule = async () => {
         ...(calendarConfig.sessionSchedules || {}),
         [selectedYear]: {
             startDate: sDate,
+            endDate: eDate,
             notes: notes || '',
             updatedAt: Date.now()
         }
@@ -1563,7 +1689,7 @@ const saveSessionSchedule = async () => {
             sessionSchedules: updatedSchedules
         }, { merge: true });
 
-        showToast(`Session commencement date for ${selectedYear} saved!`, 'success');
+        showToast(`Session schedule for ${selectedYear} saved!`, 'success');
         updateDailyDateDisplay();
     } catch (err) {
         alert('Failed to save session schedule: ' + err.message);
@@ -1714,6 +1840,10 @@ const setupEventListeners = () => {
     document.getElementById('btn-session-set-today')?.addEventListener('click', () => {
         const input = document.getElementById('session-start-date-input');
         if (input) input.value = getTodayDateString();
+    });
+    document.getElementById('btn-session-clear-end')?.addEventListener('click', () => {
+        const input = document.getElementById('session-end-date-input');
+        if (input) input.value = '';
     });
     document.getElementById('btn-save-session-schedule')?.addEventListener('click', saveSessionSchedule);
 
