@@ -1181,6 +1181,27 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const modules = [
         {
+          id: 'admin',
+          title: 'Admin Panel',
+          desc: 'Classes, staff & system control',
+          icon: 'fa-sliders',
+          iconBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200',
+          badgeText: 'Master',
+          hasAccess: perms.admin,
+          href: 'admin.html'
+        },
+        {
+          id: 'worksheet',
+          title: 'Worksheet Portal',
+          desc: 'Registers, directory & sheets',
+          icon: 'fa-file-excel',
+          iconBg: 'bg-teal-50 text-teal-600 border border-teal-200',
+          badgeText: 'Registers',
+          hasAccess: perms.worksheet,
+          href: 'worksheet.html',
+          isInternalTab: false
+        },
+        {
           id: 'collection',
           title: 'Fee Collection',
           desc: 'Receipts, dues & billing ledger',
@@ -1199,17 +1220,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           badgeText: 'Exams',
           hasAccess: perms.result,
           href: 'result.html'
-        },
-        {
-          id: 'worksheet',
-          title: 'Worksheet Portal',
-          desc: 'Registers, directory & sheets',
-          icon: 'fa-file-excel',
-          iconBg: 'bg-teal-50 text-teal-600 border border-teal-200',
-          badgeText: 'Registers',
-          hasAccess: perms.worksheet,
-          href: 'worksheet.html',
-          isInternalTab: false
         },
         {
           id: 'attendance',
@@ -1240,16 +1250,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           badgeText: 'Conduct',
           hasAccess: perms.studentActivity,
           href: 'activity.html'
-        },
-        {
-          id: 'admin',
-          title: 'Admin Panel',
-          desc: 'Classes, staff & system control',
-          icon: 'fa-sliders',
-          iconBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200',
-          badgeText: 'Master',
-          hasAccess: perms.admin,
-          href: 'admin.html'
         }
       ];
 
