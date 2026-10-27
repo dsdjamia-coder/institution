@@ -167,10 +167,10 @@
       box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
     }
     .att-toggle-btn.active-l {
-      background: #2563eb;
+      background: #f59e0b;
       color: #ffffff;
-      border-color: #1d4ed8;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+      border-color: #d97706;
+      box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
     }
 
     /* Sticky Monthly Register Grid Styling */
@@ -385,19 +385,21 @@
 
             <!-- Quick Batch Buttons Row -->
             <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-[11px] font-bold text-slate-400 uppercase mr-1">Batch Fill:</span>
-                <button type="button" id="btn-mark-all-p" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs flex items-center gap-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mr-0.5 flex items-center gap-1">
+                  <i class="fas fa-bolt text-amber-500 text-xs"></i> Batch Fill:
+                </span>
+                <button type="button" id="btn-mark-all-p" class="px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition shadow-xs border border-emerald-700 flex items-center gap-1.5 cursor-pointer" title="Mark every student Present">
                   <i class="fas fa-check-double"></i> Mark All Present (P)
                 </button>
-                <button type="button" id="btn-mark-all-a" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition flex items-center gap-1">
+                <button type="button" id="btn-mark-all-a" class="px-3.5 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 active:scale-95 text-white transition shadow-xs border border-rose-700 flex items-center gap-1.5 cursor-pointer" title="Mark every student Absent">
                   <i class="fas fa-user-xmark"></i> Mark All Absent (A)
                 </button>
-                <button type="button" id="btn-mark-all-l" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center gap-1">
+                <button type="button" id="btn-mark-all-l" class="px-3.5 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 active:scale-95 text-white transition shadow-xs border border-amber-600 flex items-center gap-1.5 cursor-pointer" title="Mark every student Leave">
                   <i class="fas fa-envelope-open-text"></i> Mark All Leave (L)
                 </button>
-                <button type="button" id="btn-clear-all" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-                  Clear
+                <button type="button" id="btn-clear-all" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs active:scale-95 transition flex items-center gap-1.5 cursor-pointer" title="Clear all marks">
+                  <i class="fas fa-rotate-left text-slate-400"></i> Clear
                 </button>
               </div>
 
@@ -421,7 +423,7 @@
               <span class="text-slate-700"><strong>Absent (A):</strong> Absent without prior notice</span>
             </div>
             <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
               <span class="text-slate-700"><strong>Leave (L):</strong> Informed leave in advance</span>
             </div>
           </div>
@@ -452,12 +454,12 @@
               <div id="stat-absent-count" class="text-xl sm:text-2xl font-black text-rose-600 mt-0.5">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded-2xl border border-blue-200/80 shadow-2xs bg-blue-50/20">
+            <div class="bg-white p-3 rounded-2xl border border-amber-200/80 shadow-2xs bg-amber-50/20">
               <div class="flex items-center justify-between">
-                <span class="text-[11px] font-bold text-blue-700 uppercase">Leave</span>
-                <i class="fas fa-envelope-open-text text-blue-500"></i>
+                <span class="text-[11px] font-bold text-amber-700 uppercase">Leave</span>
+                <i class="fas fa-envelope-open-text text-amber-500"></i>
               </div>
-              <div id="stat-late-count" class="text-xl sm:text-2xl font-black text-blue-600 mt-0.5">0</div>
+              <div id="stat-late-count" class="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">0</div>
             </div>
           </div>
 
@@ -601,8 +603,8 @@
                     <th class="py-2.5 px-3 text-center">Present</th>
                     <th class="py-2.5 px-3 text-center">Absent Days</th>
                     <th class="py-2.5 px-3 text-center">Percentage</th>
-                    <th class="py-2.5 px-4">Parent Mobile</th>
-                    <th class="py-2.5 px-3 text-center">Alert</th>
+                    <th class="py-2.5 px-4 min-w-[180px]">Parent Contacts (Father &amp; Mother)</th>
+                    <th class="py-2.5 px-3 text-center min-w-[140px]">WhatsApp Alerts</th>
                   </tr>
                 </thead>
                 <tbody id="defaulters-tbody" class="divide-y divide-slate-100">

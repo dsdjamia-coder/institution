@@ -185,6 +185,10 @@ const activateTab = (targetTabId) => {
 
     // Lazy load tab data
     if (targetTabId === 'tab-monthly') {
+        const monthInput = document.getElementById('monthly-month-input');
+        if (monthInput && !monthInput.value) {
+            monthInput.value = selectedMonthlyMonth || new Date().toISOString().slice(0, 7);
+        }
         loadMonthlyRegister();
     } else if (targetTabId === 'tab-analytics') {
         loadAnalytics();
@@ -264,6 +268,11 @@ const initApp = async () => {
     initSidebarState();
     setupNavigationTabs();
     setupEventListeners();
+
+    const monthInput = document.getElementById('monthly-month-input');
+    if (monthInput && !monthInput.value) {
+        monthInput.value = selectedMonthlyMonth || new Date().toISOString().slice(0, 7);
+    }
 
     // Check AppSession
     const role = window.AppSession?.getRole?.() || '';
@@ -859,7 +868,11 @@ const getDaysInMonth = (year, monthIndex) => new Date(year, monthIndex + 1, 0).g
 
 const loadMonthlyRegister = async () => {
     selectedMonthlyClass = document.getElementById('monthly-class-select')?.value || selectedDailyClass || '';
-    const monthVal = document.getElementById('monthly-month-input')?.value || selectedMonthlyMonth;
+    const monthInput = document.getElementById('monthly-month-input');
+    if (monthInput && !monthInput.value) {
+        monthInput.value = selectedMonthlyMonth || new Date().toISOString().slice(0, 7);
+    }
+    const monthVal = monthInput?.value || selectedMonthlyMonth || new Date().toISOString().slice(0, 7);
     selectedMonthlyMonth = monthVal;
 
     const table = document.getElementById('monthly-matrix-table');
@@ -920,13 +933,15 @@ const loadMonthlyRegister = async () => {
             const dt = new Date(yearNum, monthNum - 1, day);
             const dayOfWeek = dt.getDay();
             const dayLetter = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'][dayOfWeek];
-            const isOff = isDateHoliday(dateStr, selectedMonthlyClass).isHoliday;
+            const { isHoliday: isOff, title: holidayTitle } = isDateHoliday(dateStr, selectedMonthlyClass);
             const isPreSession = isDateBeforeSessionStart(dateStr, year);
+            const holidayLabel = holidayTitle ? `Holiday - ${holidayTitle}` : (isOff ? 'Holiday - Weekly Off' : '');
 
             thDaysHtml += `
-                <th class="${isOff ? 'bg-slate-200/90 text-slate-500' : (isPreSession ? 'bg-slate-100 text-slate-400' : '')} text-center min-w-[28px] max-w-[32px] px-1 py-2">
-                    <div class="text-[9px] font-black">${dayLetter}</div>
-                    <div class="text-xs font-black text-slate-800">${day}</div>
+                <th class="${isOff ? 'bg-amber-50/70 text-amber-900 border-x border-amber-200/80' : (isPreSession ? 'bg-slate-100 text-slate-400' : '')} text-center min-w-[30px] max-w-[34px] px-1 py-1.5" title="${escapeHtml(holidayLabel)}">
+                    <div class="text-[9px] font-black ${isOff ? 'text-amber-700' : 'text-slate-500'}">${dayLetter}</div>
+                    <div class="text-xs font-black ${isOff ? 'text-amber-950' : 'text-slate-800'}">${day}</div>
+                    ${isOff ? `<div class="text-[8px] font-black text-amber-600 truncate max-w-[30px] mx-auto uppercase mt-0.5" title="${escapeHtml(holidayLabel)}">OFF</div>` : ''}
                 </th>
             `;
         }
@@ -940,7 +955,7 @@ const loadMonthlyRegister = async () => {
                 <th class="bg-slate-100 font-extrabold text-slate-800 min-w-[50px]">Work</th>
                 <th class="bg-emerald-50 font-extrabold text-emerald-800 min-w-[50px]">Pres</th>
                 <th class="bg-rose-50 font-extrabold text-rose-800 min-w-[50px]">Abs</th>
-                <th class="bg-blue-50 font-extrabold text-blue-900 min-w-[50px]">Leave</th>
+                <th class="bg-amber-50 font-extrabold text-amber-900 min-w-[50px]">Leave</th>
                 <th class="bg-indigo-50 font-extrabold text-indigo-900 min-w-[60px]">%</th>
             </tr>
         `;
@@ -964,7 +979,7 @@ const loadMonthlyRegister = async () => {
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
-                const { isHoliday } = isDateHoliday(dateStr, selectedMonthlyClass);
+                const { isHoliday, title: holidayTitle } = isDateHoliday(dateStr, selectedMonthlyClass);
                 const isPreSession = isDateBeforeSessionStart(dateStr, year);
                 const dayDoc = monthDayMap[day];
                 const studentRecord = dayDoc?.records?.[student.id];
@@ -973,15 +988,18 @@ const loadMonthlyRegister = async () => {
 
                 let cellContent = '-';
                 let cellClass = '';
+                let cellTitle = '';
 
                 if (isPreSession) {
                     cellClass = 'bg-slate-50 text-slate-300 font-bold';
                     cellContent = '·';
                 } else if (isHoliday) {
-                    cellClass = 'bg-slate-100 text-slate-400 font-bold';
-                    cellContent = 'H';
+                    const hLabel = holidayTitle ? `Holiday - ${holidayTitle}` : 'Holiday - Weekly Off';
+                    cellClass = 'bg-amber-50/40 text-amber-600/80 font-black border-x border-amber-100/60';
+                    cellContent = '-';
+                    cellTitle = hLabel;
                 } else if (!dayDoc) {
-                    cellClass = 'text-slate-300';
+                    cellClass = 'text-slate-300 font-bold';
                     cellContent = '•';
                 } else if (status === 'P') {
                     presentCount++;
@@ -993,11 +1011,11 @@ const loadMonthlyRegister = async () => {
                     cellContent = 'A';
                 } else if (status === 'L') {
                     leaveCount++;
-                    cellClass = 'bg-blue-100/70 text-blue-800 font-black';
+                    cellClass = 'bg-amber-100/80 text-amber-900 font-black';
                     cellContent = 'L';
                 }
 
-                dayCellsHtml += `<td class="${cellClass} text-center px-1 py-1.5 text-[11px]">${cellContent}</td>`;
+                dayCellsHtml += `<td class="${cellClass} text-center px-1 py-1.5 text-[11px]" title="${escapeHtml(cellTitle)}">${cellContent}</td>`;
             }
 
             const effectiveTotalDays = markedWorkingDaysCount > 0 ? markedWorkingDaysCount : (presentCount + absentCount + leaveCount);
@@ -1013,7 +1031,7 @@ const loadMonthlyRegister = async () => {
                     <td class="font-bold text-slate-600 text-center">${effectiveTotalDays}</td>
                     <td class="font-black text-emerald-600 text-center">${presentCount}</td>
                     <td class="font-black text-rose-600 text-center">${absentCount}</td>
-                    <td class="font-black text-blue-600 text-center">${leaveCount}</td>
+                    <td class="font-black text-amber-600 text-center">${leaveCount}</td>
                     <td class="text-center"><span class="px-1.5 py-0.5 rounded text-xs ${pctBadgeColor}">${percentage}%</span></td>
                 </tr>
             `;
@@ -1185,9 +1203,15 @@ const loadAnalytics = async () => {
 
         tbody.innerHTML = filteredList.map((item, idx) => {
             const stu = item.student;
-            const phone = stu.mobile || stu.profile?.mobile || stu.parentMobile || stu.whatsapp || '';
-            const cleanPhone = String(phone).replace(/\D/g, '');
-            const waLink = cleanPhone ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(`Dear Parent, Attendance notification from Noorul Islam Madrasa for ${stu.name || 'Student'}: Current attendance is ${item.percentage}% (${item.presentDays}/${item.totalDays} days). Please ensure regular attendance.`)}` : '';
+            const fatherPhone = stu.mobile || stu.phone || stu.fatherMobile || stu.profile?.mobile || stu.profile?.phone || stu.profile?.fatherMobile || stu.parentMobile || stu.whatsapp || '';
+            const motherPhone = stu.motherMobile || stu.mother_mobile || stu.profile?.motherMobile || stu.profile?.mother_mobile || stu.motherPhone || '';
+
+            const cleanFather = String(fatherPhone).replace(/\D/g, '');
+            const cleanMother = String(motherPhone).replace(/\D/g, '');
+
+            const msgText = encodeURIComponent(`Dear Parent, Attendance notification from Noorul Islam Madrasa for ${stu.name || 'Student'}: Current attendance is ${item.percentage}% (${item.presentDays}/${item.totalDays} days). Please ensure regular attendance.`);
+            const fatherWaLink = cleanFather ? `https://wa.me/91${cleanFather}?text=${msgText}` : '';
+            const motherWaLink = cleanMother ? `https://wa.me/91${cleanMother}?text=${msgText}` : '';
 
             const badgeColor = item.percentage >= 75 
                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
@@ -1203,9 +1227,31 @@ const loadAnalytics = async () => {
                     <td class="py-2.5 px-3 text-center font-bold text-emerald-600">${item.presentDays}</td>
                     <td class="py-2.5 px-3 text-center font-black text-rose-600">${item.absentDays}</td>
                     <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-black ${badgeColor} border">${item.percentage}%</span></td>
-                    <td class="py-2.5 px-4 font-mono text-slate-600">${escapeHtml(phone || 'N/A')}</td>
+                    <td class="py-2.5 px-4 font-mono text-xs">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-1.5">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200 shrink-0">Father</span>
+                                <span class="font-bold text-slate-800">${escapeHtml(fatherPhone || '--')}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-pink-50 text-pink-700 border border-pink-200 shrink-0">Mother</span>
+                                <span class="font-bold text-slate-800">${escapeHtml(motherPhone || '--')}</span>
+                            </div>
+                        </div>
+                    </td>
                     <td class="py-2.5 px-3 text-center">
-                        ${waLink ? `<a href="${waLink}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition"><i class="fab fa-whatsapp"></i> Alert</a>` : `<span class="text-slate-400 text-xs">-</span>`}
+                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                            ${fatherWaLink ? `
+                                <a href="${fatherWaLink}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition active:scale-95 cursor-pointer" title="Send WhatsApp alert to Father (${escapeHtml(fatherPhone)})">
+                                    <i class="fab fa-whatsapp"></i> Father
+                                </a>` : `<span class="px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-400">Father -</span>`
+                            }
+                            ${motherWaLink ? `
+                                <a href="${motherWaLink}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition active:scale-95 cursor-pointer" title="Send WhatsApp alert to Mother (${escapeHtml(motherPhone)})">
+                                    <i class="fab fa-whatsapp"></i> Mother
+                                </a>` : `<span class="px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-400">Mother -</span>`
+                            }
+                        </div>
                     </td>
                 </tr>
             `;
