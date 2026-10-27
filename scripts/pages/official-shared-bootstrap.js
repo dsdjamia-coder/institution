@@ -1117,6 +1117,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       let canWorksheet = false;
       let canAdmin = false;
       let canAttendance = false;
+      let canAcademicPlan = false;
+      let canStudentActivity = false;
 
       if (isMasterAdmin) {
         canCollection = true;
@@ -1124,6 +1126,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canWorksheet = true;
         canAdmin = true;
         canAttendance = true;
+        canAcademicPlan = true;
+        canStudentActivity = true;
       } else if (isStaffSession) {
         const staffProfile = getCurrentSessionProfile() || {};
         const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
@@ -1132,6 +1136,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canWorksheet = staffAccess.worksheet !== false && staffProfile.canAccessWorksheet !== false;
         canAdmin = staffAccess.admin === true || staffAccess.canAccessAdmin === true || staffProfile.canAccessAdmin === true || staffProfile.actLikeSuperAdmin === true;
         canAttendance = true;
+        canAcademicPlan = true;
+        canStudentActivity = true;
       } else if (userSession?.source === 'directory') {
         const entry = directoryEntries.find((item) => item.id === userSession.id);
         const access = getPageAccessItem(entry?.categoryId || userSession.categoryId, entry?.id || userSession.id);
@@ -1142,10 +1148,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canWorksheet = true;
           canAdmin = false;
           canAttendance = true;
+          canAcademicPlan = true;
+          canStudentActivity = true;
         }
       } else {
         canWorksheet = true;
         canAttendance = true;
+        canAcademicPlan = true;
+        canStudentActivity = true;
       }
 
       return {
@@ -1153,7 +1163,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         result: canResult,
         worksheet: canWorksheet,
         admin: canAdmin,
-        attendance: canAttendance
+        attendance: canAttendance,
+        academicPlan: canAcademicPlan,
+        studentActivity: canStudentActivity
       };
     };
 
@@ -1208,6 +1220,26 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           badgeText: 'Daily',
           hasAccess: perms.attendance,
           href: 'attendance.html'
+        },
+        {
+          id: 'academicPlan',
+          title: 'Academic Planning',
+          desc: 'Class subjects, routine timetable & year plan',
+          icon: 'fa-calendar-days',
+          iconBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200',
+          badgeText: 'Curriculum',
+          hasAccess: perms.academicPlan,
+          href: 'academic-plan.html'
+        },
+        {
+          id: 'studentActivity',
+          title: 'Activity & Deen Hub',
+          desc: 'Routine tasks, ibadah, Quran progress & rewards',
+          icon: 'fa-award',
+          iconBg: 'bg-amber-50 text-amber-600 border border-amber-200',
+          badgeText: 'Conduct',
+          hasAccess: perms.studentActivity,
+          href: 'activity.html'
         },
         {
           id: 'admin',

@@ -9,7 +9,9 @@
     student: () => window.AppSession.guardStudentPage?.(),
     official: () => window.AppSession.guardStaffOrAdminPage?.(),
     worksheet: () => window.AppSession.guardStaffOrAdminPage?.(),
-    attendance: () => window.AppSession.guardStaffOrAdminPage?.()
+    attendance: () => window.AppSession.guardStaffOrAdminPage?.(),
+    academicPlan: () => window.AppSession.guardStaffOrAdminPage?.(),
+    activity: () => window.AppSession.guardStaffOrAdminPage?.()
   };
 
   const runGuard = guardMap[guardKey];

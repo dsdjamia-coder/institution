@@ -21,6 +21,8 @@ const cleanUrlsPlugin = (): Plugin => {
       const knownPages = [
         'admin',
         'attendance',
+        'academic-plan',
+        'activity',
         'collection',
         'official',
         'official-dashboard',
@@ -74,6 +76,8 @@ export default defineConfig({
         studentFeeSystem: resolve(__dirname, 'student-fee-system.html'),
         worksheet: resolve(__dirname, 'worksheet.html'),
         attendance: resolve(__dirname, 'attendance.html'),
+        academicPlan: resolve(__dirname, 'academic-plan.html'),
+        activity: resolve(__dirname, 'activity.html'),
       }
     }
   }
