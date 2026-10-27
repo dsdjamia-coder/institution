@@ -415,6 +415,11 @@ const setupFirestoreListeners = () => {
         renderCalendarSettingsUI();
         renderSessionScheduleUI();
         updateDailyDateDisplay();
+
+        const monthlyTab = document.getElementById('tab-monthly');
+        if (monthlyTab && !monthlyTab.classList.contains('hidden') && selectedMonthlyClass) {
+            loadMonthlyRegister();
+        }
     });
 };
 
@@ -518,28 +523,36 @@ const getDailyDocId = (academicYear, classLabel, dateStr) => {
 };
 
 const isDateHoliday = (dateStr, targetClass = '') => {
-    if (!dateStr) return { isHoliday: false, reason: '' };
+    if (!dateStr) return { isHoliday: false, reason: '', title: '', isWeeklyOff: false };
     try {
         const [y, m, d] = dateStr.split('-').map(Number);
         const dayOfWeek = new Date(y, m - 1, d).getDay(); // 0: Sunday, 5: Friday
 
-        if (Array.isArray(calendarConfig.weekendDays) && calendarConfig.weekendDays.includes(dayOfWeek)) {
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            return { isHoliday: true, reason: `Weekly Off (${dayNames[dayOfWeek]})` };
+        // 1. Explicit declared holiday takes highest precedence over standard weekly offs
+        const matchedHoliday = (calendarConfig.holidays || []).find(h => {
+            if (h.date !== dateStr) return false;
+            const isAll = !h.scope || h.scope === 'all' || !Array.isArray(h.classes) || h.classes.length === 0;
+            if (isAll) return true;
+            if (targetClass && Array.isArray(h.classes) && h.classes.includes(targetClass)) return true;
+            return false;
+        });
+
+        if (matchedHoliday) {
+            const isAll = !matchedHoliday.scope || matchedHoliday.scope === 'all' || !Array.isArray(matchedHoliday.classes) || matchedHoliday.classes.length === 0;
+            const title = matchedHoliday.title ? matchedHoliday.title.trim() : 'Institutional Holiday';
+            const reason = isAll ? title : `${title} (Class ${targetClass})`;
+            return { isHoliday: true, reason, title, isWeeklyOff: false };
         }
 
-        const holiday = (calendarConfig.holidays || []).find(h => h.date === dateStr);
-        if (holiday) {
-            const isAll = !holiday.scope || holiday.scope === 'all' || !Array.isArray(holiday.classes) || holiday.classes.length === 0;
-            if (isAll) {
-                return { isHoliday: true, reason: holiday.title || 'Official Holiday' };
-            }
-            if (targetClass && holiday.classes.includes(targetClass)) {
-                return { isHoliday: true, reason: `${holiday.title || 'Class Holiday'} (Class ${targetClass})` };
-            }
+        // 2. Weekly off (weekend) days
+        if (Array.isArray(calendarConfig.weekendDays) && calendarConfig.weekendDays.includes(dayOfWeek)) {
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const dayName = dayNames[dayOfWeek] || 'Weekly Off';
+            const reason = `Weekly Off (${dayName})`;
+            return { isHoliday: true, reason, title: reason, isWeeklyOff: true };
         }
     } catch (_) {}
-    return { isHoliday: false, reason: '' };
+    return { isHoliday: false, reason: '', title: '', isWeeklyOff: false };
 };
 
 const updateDailyDateDisplay = () => {
@@ -946,10 +959,21 @@ const loadMonthlyRegister = async () => {
             const dt = new Date(yearNum, monthNum - 1, day);
             const dayOfWeek = dt.getDay();
             const dayLetter = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'][dayOfWeek];
-            const { isHoliday: isOff, title: holidayTitle } = isDateHoliday(dateStr, selectedMonthlyClass);
+            const { isHoliday: isOff, title: holidayTitle, isWeeklyOff } = isDateHoliday(dateStr, selectedMonthlyClass);
             const isPreSession = isDateBeforeSessionStart(dateStr, year);
             const isPostSession = isDateAfterSessionEnd(dateStr, year);
-            const holidayLabel = holidayTitle ? `Holiday - ${holidayTitle}` : (isOff ? 'Holiday - Weekly Off' : '');
+            let holidayLabel = '';
+            if (isOff) {
+                if (isWeeklyOff) {
+                    holidayLabel = `Holiday - ${holidayTitle || 'Weekly Off'}`;
+                } else if (holidayTitle) {
+                    holidayLabel = holidayTitle.toLowerCase().includes('holiday')
+                        ? holidayTitle
+                        : `Holiday - ${holidayTitle}`;
+                } else {
+                    holidayLabel = 'Institutional Holiday';
+                }
+            }
 
             thDaysHtml += `
                 <th class="${isOff ? 'bg-amber-50/70 text-amber-900 border-x border-amber-200/80' : (isPreSession || isPostSession ? 'bg-slate-100 text-slate-400' : '')} text-center min-w-[32px] max-w-[36px] px-1 py-1.5" title="${escapeHtml(holidayLabel)}">
@@ -1056,7 +1080,7 @@ const loadMonthlyRegister = async () => {
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${monthVal}-${String(day).padStart(2, '0')}`;
-                const { isHoliday, title: holidayTitle } = isDateHoliday(dateStr, selectedMonthlyClass);
+                const { isHoliday, title: holidayTitle, isWeeklyOff } = isDateHoliday(dateStr, selectedMonthlyClass);
                 const isPreSession = isDateBeforeSessionStart(dateStr, year);
                 const isPostSession = isDateAfterSessionEnd(dateStr, year);
                 const dayDoc = monthDayMap[day];
@@ -1066,7 +1090,17 @@ const loadMonthlyRegister = async () => {
 
                 if (isHoliday) {
                     if (idx === 0) {
-                        const hLabel = holidayTitle ? `Holiday - ${holidayTitle}` : 'Holiday - Weekly Off';
+                        let hLabel = 'HOLIDAY';
+                        if (isWeeklyOff) {
+                            hLabel = holidayTitle ? `HOLIDAY - ${holidayTitle.toUpperCase()}` : 'HOLIDAY - WEEKLY OFF';
+                        } else if (holidayTitle) {
+                            const trimmedTitle = holidayTitle.trim();
+                            hLabel = trimmedTitle.toLowerCase().includes('holiday')
+                                ? trimmedTitle.toUpperCase()
+                                : `HOLIDAY - ${trimmedTitle.toUpperCase()}`;
+                        } else {
+                            hLabel = 'INSTITUTIONAL HOLIDAY';
+                        }
                         dayCellsHtml += `
                             <td rowspan="${classStudents.length}" class="holiday-merged-cell bg-amber-50/90 border-x border-amber-200 text-amber-900 text-center font-black p-0 select-none align-middle" style="writing-mode: vertical-rl; transform: rotate(180deg); min-width: 32px; max-width: 36px; letter-spacing: 0.12em; font-size: 10px; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(hLabel)}">
                                 <span class="inline-block py-2 uppercase font-black tracking-widest">${escapeHtml(hLabel)}</span>
