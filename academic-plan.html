@@ -472,17 +472,17 @@
                 <select id="exam-tt-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
               <div>
-                <label for="exam-tt-title-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Examination Term</label>
-                <select id="exam-tt-title-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500">
-                  <option value="First Term Examination">First Term Examination</option>
-                  <option value="Half Yearly Examination">Half Yearly Examination</option>
-                  <option value="Annual Examination">Annual Examination</option>
-                  <option value="Monthly Model Test">Monthly Model Test</option>
-                </select>
+                <label for="exam-tt-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
+                <select id="exam-tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
               <div>
-                <label for="exam-tt-class-filter" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class Filter</label>
-                <select id="exam-tt-class-filter" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+                <div class="flex items-center justify-between gap-1 mb-1">
+                  <label for="exam-tt-title-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600">Examination</label>
+                  <button type="button" id="btn-add-exam-name" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer" title="Add a new examination title">
+                    <i class="fas fa-plus"></i> New
+                  </button>
+                </div>
+                <select id="exam-tt-title-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[170px]"></select>
               </div>
             </div>
 
@@ -491,19 +491,19 @@
                 <i class="fas fa-plus"></i> Schedule Paper
               </button>
               <button type="button" id="btn-print-exam-tt" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-print"></i> Print Circular
+                <i class="fas fa-print"></i> Print Routine
               </button>
             </div>
           </div>
 
           <!-- Exam Timetable Table Container -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden" id="exam-timetable-container">
-            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <i class="fas fa-file-pen text-indigo-600"></i>
-                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Scheduled Examination Papers</h3>
+                <h3 id="exam-tt-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Scheduled Examination Papers</h3>
               </div>
-              <span class="text-xs text-slate-500 font-semibold">Includes syllabus portions for students to study</span>
+              <span id="exam-tt-class-badge" class="text-xs text-indigo-700 font-bold bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">Class --</span>
             </div>
 
             <div class="overflow-x-auto p-4">
@@ -513,10 +513,9 @@
                     <th class="py-2.5 px-3">#</th>
                     <th class="py-2.5 px-3">Date</th>
                     <th class="py-2.5 px-3">Time</th>
-                    <th class="py-2.5 px-3">Class</th>
                     <th class="py-2.5 px-3">Subject</th>
                     <th class="py-2.5 px-3">Portions / Syllabus to Study</th>
-                    <th class="py-2.5 px-3">Invigilator (Hall)</th>
+                    <th class="py-2.5 px-3">Invigilator &amp; Room</th>
                     <th class="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -555,19 +554,19 @@
       <div class="p-5 space-y-3 text-xs">
         <input type="hidden" id="modal-subject-id">
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Subject Code / Abbreviation <span class="text-rose-500">*</span></label>
-          <input type="text" id="modal-subject-code" placeholder="e.g. ENG, MATH, FQH, SCI" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold uppercase text-slate-800 outline-none focus:border-indigo-500">
-        </div>
-        <div>
           <label class="block font-bold text-slate-600 mb-1">Subject Full Name <span class="text-rose-500">*</span></label>
           <input type="text" id="modal-subject-name" placeholder="e.g. English Language, Mathematics, Fiqh al-Muyassar" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
         </div>
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Assigned Teacher / Instructor</label>
+          <label class="block font-bold text-slate-600 mb-1">Subject Code / Abbreviation <span class="text-slate-400 font-normal">(Optional)</span></label>
+          <input type="text" id="modal-subject-code" placeholder="e.g. FQH, ARB (Leave blank to auto-generate)" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold uppercase text-slate-800 outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Assigned Teacher / Instructor <span class="text-slate-400 font-normal">(Optional)</span></label>
           <input type="text" id="modal-subject-teacher" placeholder="e.g. Ust. Abdullah, Mrs. Sarah" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-indigo-500">
         </div>
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Weekly Periods Target</label>
+          <label class="block font-bold text-slate-600 mb-1">Weekly Periods Target <span class="text-slate-400 font-normal">(Optional)</span></label>
           <input type="number" id="modal-subject-weekly-periods" value="5" min="1" max="25" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
         </div>
 
@@ -777,8 +776,9 @@
             <input type="date" id="modal-exam-date" class="w-full p-2 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
           </div>
           <div>
-            <label class="block font-bold text-slate-600 mb-1">Class <span class="text-rose-500">*</span></label>
-            <select id="modal-exam-class-select" class="w-full p-2 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none"></select>
+            <label class="block font-bold text-slate-600 mb-1">Class</label>
+            <div id="modal-exam-class-display" class="w-full p-2 border border-slate-200 rounded-xl font-bold text-slate-700 bg-slate-100 flex items-center">Class --</div>
+            <input type="hidden" id="modal-exam-class-select">
           </div>
         </div>
 
@@ -795,21 +795,22 @@
 
         <div>
           <label class="block font-bold text-slate-600 mb-1">Subject Name <span class="text-rose-500">*</span></label>
-          <input type="text" id="modal-exam-subject" placeholder="e.g. Fiqh, Mathematics, English" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          <select id="modal-exam-subject-select" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+          <input type="text" id="modal-exam-subject-custom" placeholder="Or type custom subject name" class="w-full p-2 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 mt-1.5 hidden">
         </div>
 
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Portions / Syllabus to Study <span class="text-rose-500">*</span></label>
+          <label class="block font-bold text-slate-600 mb-1">Portions / Syllabus to Study <span class="text-slate-400 font-normal">(Optional)</span></label>
           <textarea id="modal-exam-portions" rows="3" placeholder="e.g. Chapters 1 to 5; Surah Al-Mulk Ayah 1-15; Formulae &amp; Exercises" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block font-bold text-slate-600 mb-1">Exam Hall / Room</label>
+            <label class="block font-bold text-slate-600 mb-1">Exam Hall / Room <span class="text-slate-400 font-normal">(Optional)</span></label>
             <input type="text" id="modal-exam-hall" placeholder="e.g. Hall 1" class="w-full p-2 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none">
           </div>
           <div>
-            <label class="block font-bold text-slate-600 mb-1">Invigilator</label>
+            <label class="block font-bold text-slate-600 mb-1">Invigilator <span class="text-slate-400 font-normal">(Optional)</span></label>
             <input type="text" id="modal-exam-invigilator" placeholder="e.g. Ust. Musthafa" class="w-full p-2 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none">
           </div>
         </div>
@@ -822,6 +823,47 @@
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD NEW EXAMINATION NAME            -->
+  <!-- ========================================== -->
+  <div id="modal-add-exam-name" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-file-pen"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-indigo-950">Add Examination</h3>
+            <p class="text-[11px] text-indigo-700 font-bold">Syncs with Result Management</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-add-exam-name">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Examination Title <span class="text-rose-500">*</span></label>
+          <input type="text" id="modal-new-exam-title" placeholder="e.g. First Terminal, Model Exam, Unit Test 1" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="btn-save-new-exam-title" class="flex-grow py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Create Exam
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-add-exam-name">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
       </div>
     </div>
   </div>
