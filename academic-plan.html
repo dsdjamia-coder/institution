@@ -283,8 +283,8 @@
 
             <!-- Action Buttons -->
             <div class="flex items-center gap-2">
-              <button type="button" id="btn-sync-subjects-schema" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Import subjects from existing Result Management configurations">
-                <i class="fas fa-rotate"></i> Import from Result Schemas
+              <button type="button" id="btn-sync-subjects-schema" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Synchronize subjects with Result Management configurations">
+                <i class="fas fa-rotate"></i> Sync with Result
               </button>
               <button type="button" id="btn-add-subject" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
                 <i class="fas fa-plus"></i> Add Subject
@@ -639,34 +639,32 @@
           </div>
         </div>
 
-        <!-- Periods Count -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block font-bold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">Periods per Day</label>
-            <select id="tt-settings-periods-count" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
-              <option value="4">4 Periods / Day</option>
-              <option value="5" selected>5 Periods / Day</option>
-              <option value="6">6 Periods / Day</option>
-              <option value="7">7 Periods / Day</option>
-              <option value="8">8 Periods / Day</option>
-            </select>
-          </div>
+        <!-- Weekly Off Day & Add Period Slot Action -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
           <div>
             <label class="block font-bold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">Weekly Off Day</label>
-            <select id="tt-settings-off-day" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
+            <select id="tt-settings-off-day" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none text-xs">
               <option value="Friday" selected>Friday (Jumu'ah Off)</option>
               <option value="Sunday">Sunday (Regular Off)</option>
               <option value="Saturday &amp; Sunday">Saturday &amp; Sunday (Weekend)</option>
               <option value="None">No Regular Off</option>
             </select>
           </div>
+          <div>
+            <button type="button" id="btn-add-period-slot" class="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+              <i class="fas fa-plus"></i> Add Period / Break Slot
+            </button>
+          </div>
         </div>
 
-        <!-- Period Timings Grid -->
+        <!-- Period Slots & Timings Grid -->
         <div>
-          <label class="block font-bold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">Period Timings</label>
-          <div id="tt-timings-container" class="space-y-2 border border-slate-200 rounded-2xl p-3 bg-slate-50">
-            <!-- Dynamically populated rows -->
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block font-bold text-slate-700 uppercase text-[10px] tracking-wider">Daily Periods &amp; Interval Structure</label>
+            <span id="tt-slots-count-badge" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">5 Slots</span>
+          </div>
+          <div id="tt-timings-container" class="space-y-2.5 border border-slate-200 rounded-2xl p-3 bg-slate-50 max-h-72 overflow-y-auto">
+            <!-- Dynamically populated slot rows -->
           </div>
         </div>
 

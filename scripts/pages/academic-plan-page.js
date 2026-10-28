@@ -433,10 +433,54 @@ const populateYearPlanMonthDropdowns = () => {
 // =========================================================================
 // MODULE 1: CLASS SUBJECTS MANAGEMENT
 // =========================================================================
+// MODULE 1: CLASS SUBJECTS MANAGEMENT & BI-DIRECTIONAL SYNC
+// =========================================================================
 const getClassSubjectsDocId = (year, classLabel) => {
     const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
     const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
     return `${cleanY}__${cleanC}`;
+};
+
+const getResultSchemaDocId = (year, classLabel) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}_${cleanC}`;
+};
+
+const syncClassSubjectsToResultSchema = async (year, classLabel, subjects) => {
+    if (!year || !classLabel) return;
+    try {
+        const resultDocId = getResultSchemaDocId(year, classLabel);
+        const resultRef = doc(db, `${BASE_PATH}/resultSchemas`, resultDocId);
+        const snap = await getDoc(resultRef);
+
+        const existingData = snap.exists() ? snap.data() : {};
+        const existingSubjectRows = Array.isArray(existingData.subjectRows) ? existingData.subjectRows : [];
+        const existingExamConfigs = existingData.examConfigs || {};
+
+        const subjectNames = subjects.map(s => String(s.name || '').trim()).filter(Boolean);
+
+        const newSubjectRows = subjectNames.map((name, index) => {
+            const existingRow = existingSubjectRows.find(r => String(r.name || '').trim().toLowerCase() === name.toLowerCase());
+            return {
+                name: name,
+                maxMarks: existingRow ? Number(existingRow.maxMarks || 100) : 100,
+                passMarks: existingRow ? Number(existingRow.passMarks || 35) : 35,
+                index: index
+            };
+        });
+
+        await setDoc(resultRef, {
+            classLabel: String(classLabel),
+            academicYear: String(year),
+            subjects: subjectNames,
+            subjectRows: newSubjectRows,
+            examConfigs: existingExamConfigs,
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (err) {
+        console.warn('Failed to sync subjects to result schema:', err);
+    }
 };
 
 const loadClassSubjects = async () => {
@@ -451,20 +495,72 @@ const loadClassSubjects = async () => {
 
     try {
         const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
-        const docSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId));
-        if (docSnap.exists() && Array.isArray(docSnap.data().subjects)) {
-            classSubjectsList = docSnap.data().subjects;
-        } else {
-            classSubjectsList = [
-                { id: 'subj_1', code: 'ENG', name: 'English Language', teacher: 'Assigned Teacher', weeklyPeriods: 5 },
-                { id: 'subj_2', code: 'MATH', name: 'Mathematics', teacher: 'Assigned Teacher', weeklyPeriods: 5 },
-                { id: 'subj_3', code: 'SCI', name: 'Science', teacher: 'Assigned Teacher', weeklyPeriods: 4 },
-                { id: 'subj_4', code: 'ARB', name: 'Arabic', teacher: 'Assigned Teacher', weeklyPeriods: 4 }
-            ];
+        const resultDocId = getResultSchemaDocId(year, selectedSubjectsClass);
+
+        const [subjSnap, resultSnap] = await Promise.all([
+            getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId)).catch(() => null),
+            getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId)).catch(() => null)
+        ]);
+
+        let loadedFromPlan = [];
+        if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+            loadedFromPlan = subjSnap.data().subjects;
+        }
+
+        let loadedFromResult = [];
+        if (resultSnap && resultSnap.exists()) {
+            const rData = resultSnap.data();
+            if (Array.isArray(rData.subjectRows) && rData.subjectRows.length) {
+                loadedFromResult = rData.subjectRows.map(r => r.name).filter(Boolean);
+            } else if (Array.isArray(rData.subjects) && rData.subjects.length) {
+                loadedFromResult = rData.subjects.filter(Boolean);
+            }
+        }
+
+        if (loadedFromPlan.length > 0) {
+            classSubjectsList = [...loadedFromPlan];
+            let hasNewFromResult = false;
+            loadedFromResult.forEach(rName => {
+                const trimmed = String(rName).trim();
+                if (!trimmed) return;
+                const exists = classSubjectsList.some(s => String(s.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+                if (!exists) {
+                    const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'SUB';
+                    classSubjectsList.push({
+                        id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                        name: trimmed,
+                        code: code,
+                        teacher: '',
+                        weeklyPeriods: 5
+                    });
+                    hasNewFromResult = true;
+                }
+            });
+            if (hasNewFromResult) {
+                await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+                    subjects: classSubjectsList,
+                    updatedAt: Date.now()
+                }, { merge: true });
+            }
+        } else if (loadedFromResult.length > 0) {
+            classSubjectsList = loadedFromResult.map((rName, idx) => {
+                const trimmed = String(rName).trim();
+                const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`;
+                return {
+                    id: `subj_${Date.now()}_${idx}`,
+                    name: trimmed,
+                    code: code,
+                    teacher: '',
+                    weeklyPeriods: 5
+                };
+            });
             await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
                 subjects: classSubjectsList,
                 updatedAt: Date.now()
             }, { merge: true });
+        } else {
+            // Clean empty state - zero dummy subjects injected
+            classSubjectsList = [];
         }
     } catch (err) {
         console.error('Failed to load class subjects:', err);
@@ -484,10 +580,11 @@ const renderClassSubjectsUI = () => {
         tbody.innerHTML = `
             <tr>
                 <td colspan="6" class="p-8 text-center text-slate-400 font-medium">
-                    <i class="fas fa-book-open text-3xl mb-2 text-slate-300 block"></i>
-                    No subjects configured for Class ${selectedSubjectsClass} yet.<br>
-                    <button type="button" class="mt-3 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs" onclick="document.getElementById('btn-add-subject').click()">
-                        + Add First Subject
+                    <i class="fas fa-book-bookmark text-3xl mb-2 text-slate-300 block"></i>
+                    No subjects configured for Class ${escapeHtml(selectedSubjectsClass)} yet.<br>
+                    <span class="text-xs text-slate-500">Subjects added here or in Result Management are automatically synchronized.</span><br>
+                    <button type="button" class="mt-3 px-3.5 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5" onclick="document.getElementById('btn-add-subject').click()">
+                        <i class="fas fa-plus"></i> Add First Subject
                     </button>
                 </td>
             </tr>`;
@@ -547,7 +644,7 @@ const openSubjectModal = (subject = null) => {
 const saveClassSubject = async () => {
     const code = document.getElementById('modal-subject-code')?.value.trim().toUpperCase();
     const name = document.getElementById('modal-subject-name')?.value.trim();
-    const teacher = document.getElementById('modal-subject-teacher')?.value.trim() || 'Assigned Teacher';
+    const teacher = document.getElementById('modal-subject-teacher')?.value.trim() || '';
     const weeklyPeriods = Number(document.getElementById('modal-subject-weekly-periods')?.value || 5);
 
     if (!code) return alert('Please enter a subject code (e.g. ENG, MATH, FQH).');
@@ -580,8 +677,11 @@ const saveClassSubject = async () => {
             updatedAt: Date.now()
         }, { merge: true });
 
+        // Bi-directional sync: update resultSchemas as well
+        await syncClassSubjectsToResultSchema(year, selectedSubjectsClass, classSubjectsList);
+
         closeModal('modal-subject-edit');
-        showToast(`Subject "${name}" saved successfully!`, 'success');
+        showToast(`Subject "${name}" saved and synchronized successfully!`, 'success');
         renderClassSubjectsUI();
     } catch (err) {
         alert('Failed to save subject: ' + err.message);
@@ -589,7 +689,7 @@ const saveClassSubject = async () => {
 };
 
 const deleteClassSubject = async (subjectId) => {
-    if (!confirm('Are you sure you want to delete this subject? It may affect existing timetable slots.')) return;
+    if (!confirm('Are you sure you want to delete this subject? It will also be updated in Result Management.')) return;
     classSubjectsList = classSubjectsList.filter(s => s.id !== subjectId);
 
     const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
@@ -601,7 +701,10 @@ const deleteClassSubject = async (subjectId) => {
             updatedAt: Date.now()
         }, { merge: true });
 
-        showToast('Subject removed.', 'info');
+        // Bi-directional sync: update resultSchemas as well
+        await syncClassSubjectsToResultSchema(year, selectedSubjectsClass, classSubjectsList);
+
+        showToast('Subject removed and synchronized.', 'info');
         renderClassSubjectsUI();
     } catch (err) {
         alert('Failed to delete subject: ' + err.message);
@@ -611,44 +714,11 @@ const deleteClassSubject = async (subjectId) => {
 const syncSubjectsFromResultSchema = async () => {
     const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
     try {
-        showToast('Checking Result Management schemas for subjects...', 'info');
-        const snap = await getDocs(collection(db, `${BASE_PATH}/resultSchemas`));
-        const imported = [];
-        snap.docs.forEach(d => {
-            const data = d.data();
-            const rows = data.subjectRows || [];
-            rows.forEach(r => {
-                const name = r.name || r.subject || '';
-                if (!name) return;
-                const code = (r.code || name.substring(0, 4)).toUpperCase().trim();
-                if (!classSubjectsList.some(ex => ex.name.toLowerCase() === name.toLowerCase())) {
-                    imported.push({
-                        id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                        code,
-                        name,
-                        teacher: 'Assigned Teacher',
-                        weeklyPeriods: 5
-                    });
-                }
-            });
-        });
-
-        if (!imported.length) {
-            showToast('No new subjects found to import from Result Management.', 'info');
-            return;
-        }
-
-        classSubjectsList = [...classSubjectsList, ...imported];
-        const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
-        await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
-            subjects: classSubjectsList,
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        showToast(`Successfully imported ${imported.length} subjects!`, 'success');
-        renderClassSubjectsUI();
+        showToast('Synchronizing with Result Management...', 'info');
+        await loadClassSubjects();
+        showToast('Class subjects synchronized successfully!', 'success');
     } catch (err) {
-        alert('Failed to import subjects: ' + err.message);
+        alert('Failed to synchronize subjects: ' + err.message);
     }
 };
 
@@ -661,6 +731,43 @@ const getTimetableDocId = (year, classLabel) => {
     return `${cleanY}__${cleanC}`;
 };
 
+const ensureClassSubjectsLoaded = async (year, classLabel) => {
+    try {
+        const docId = getClassSubjectsDocId(year, classLabel);
+        const subjSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId));
+        if (subjSnap.exists() && Array.isArray(subjSnap.data().subjects) && subjSnap.data().subjects.length) {
+            classSubjectsList = subjSnap.data().subjects;
+            return;
+        }
+
+        const resultDocId = getResultSchemaDocId(year, classLabel);
+        const resultSnap = await getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId));
+        if (resultSnap.exists()) {
+            const rData = resultSnap.data();
+            const names = Array.isArray(rData.subjectRows) && rData.subjectRows.length
+                ? rData.subjectRows.map(r => r.name).filter(Boolean)
+                : (rData.subjects || []).filter(Boolean);
+            if (names.length) {
+                classSubjectsList = names.map((name, idx) => ({
+                    id: `subj_${Date.now()}_${idx}`,
+                    name: name,
+                    code: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`,
+                    teacher: '',
+                    weeklyPeriods: 5
+                }));
+                await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+                    subjects: classSubjectsList,
+                    updatedAt: Date.now()
+                }, { merge: true });
+                return;
+            }
+        }
+        classSubjectsList = [];
+    } catch (err) {
+        console.warn('Failed to ensure class subjects loaded:', err);
+    }
+};
+
 const loadTimetable = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
     selectedTtClass = document.getElementById('tt-class-select')?.value || selectedSubjectsClass || '1';
@@ -668,13 +775,7 @@ const loadTimetable = async () => {
 
     if (heading) heading.textContent = `Class ${selectedTtClass} Weekly Routine Timetable (${year})`;
 
-    try {
-        const subjDocId = getClassSubjectsDocId(year, selectedTtClass);
-        const subjSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId));
-        if (subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
-            classSubjectsList = subjSnap.data().subjects;
-        }
-    } catch (_) {}
+    await ensureClassSubjectsLoaded(year, selectedTtClass);
 
     try {
         const docId = getTimetableDocId(year, selectedTtClass);
@@ -693,6 +794,34 @@ const loadTimetable = async () => {
     renderTimetableMatrixUI();
 };
 
+const normalizeTimetableSlots = (config = {}) => {
+    if (Array.isArray(config.slots) && config.slots.length) {
+        return config.slots.map((s, idx) => ({
+            slotId: s.slotId || `slot_${idx + 1}`,
+            slotNum: Number(s.slotNum || idx + 1),
+            label: s.label || `Period ${idx + 1}`,
+            startTime: s.startTime || '08:00',
+            endTime: s.endTime || '08:45',
+            isBreak: Boolean(s.isBreak)
+        }));
+    }
+    const count = Number(config.periodsCount || (Array.isArray(config.timings) ? config.timings.length : 5));
+    const timings = Array.isArray(config.timings) ? config.timings : [];
+    const slots = [];
+    for (let p = 1; p <= count; p++) {
+        const t = timings.find(x => x.periodNum === p) || { startTime: `0${6 + p}:00`, endTime: `0${6 + p}:45` };
+        slots.push({
+            slotId: `slot_${p}`,
+            slotNum: p,
+            label: t.label || `Period ${p}`,
+            startTime: t.startTime || '08:00',
+            endTime: t.endTime || '08:45',
+            isBreak: false
+        });
+    }
+    return slots;
+};
+
 const renderTimetableMatrixUI = () => {
     const grid = document.getElementById('tt-schedule-grid');
     const workingDaysBadge = document.getElementById('tt-working-days-badge');
@@ -701,11 +830,12 @@ const renderTimetableMatrixUI = () => {
     const workingDays = timetableConfig.workingDays && timetableConfig.workingDays.length
         ? timetableConfig.workingDays
         : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
-    const periodsCount = Number(timetableConfig.periodsCount || 5);
-    const timings = timetableConfig.timings || [];
+
+    const slots = normalizeTimetableSlots(timetableConfig);
+    const teachingSlotsCount = slots.filter(s => !s.isBreak).length;
 
     if (workingDaysBadge) workingDaysBadge.textContent = `${workingDays.length} Working Days / Wk`;
-    if (totalPeriodsBadge) totalPeriodsBadge.textContent = `${periodsCount} Periods / Day`;
+    if (totalPeriodsBadge) totalPeriodsBadge.textContent = `${teachingSlotsCount} Teaching Periods / Day`;
 
     if (!grid) return;
 
@@ -720,14 +850,23 @@ const renderTimetableMatrixUI = () => {
                 <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
                     <th class="py-3 px-3.5 border-r border-slate-200 w-28 bg-slate-200/80">Day / Period</th>`;
 
-    for (let p = 1; p <= periodsCount; p++) {
-        const t = timings.find(x => x.periodNum === p) || { startTime: `0${6 + p}:00`, endTime: `0${6 + p}:45` };
-        html += `
-            <th class="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">
-                <div class="text-[11px] font-black text-slate-900 tracking-wider">Period ${p}</div>
-                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${t.startTime} - ${t.endTime}</div>
-            </th>`;
-    }
+    slots.forEach((slot) => {
+        if (slot.isBreak) {
+            html += `
+                <th class="py-2.5 px-3 border-r border-slate-200 min-w-[100px] text-center bg-amber-50/70 border-b-2 border-b-amber-300">
+                    <div class="text-[11px] font-black text-amber-900 tracking-wider flex items-center justify-center gap-1.5">
+                        <i class="fas fa-mug-hot text-amber-600 text-xs"></i> ${escapeHtml(slot.label)}
+                    </div>
+                    <div class="text-[10px] font-bold text-amber-700/80 mt-0.5">${slot.startTime} - ${slot.endTime}</div>
+                </th>`;
+        } else {
+            html += `
+                <th class="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">
+                    <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(slot.label)}</div>
+                    <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${slot.startTime} - ${slot.endTime}</div>
+                </th>`;
+        }
+    });
     html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
 
     workingDays.forEach(day => {
@@ -737,34 +876,42 @@ const renderTimetableMatrixUI = () => {
                     <i class="fas fa-calendar-day text-indigo-600 mr-1.5"></i>${day}
                 </td>`;
 
-        for (let p = 1; p <= periodsCount; p++) {
-            const key = `${day}_${p}`;
-            const slot = timetableMatrix[key] || {};
+        slots.forEach((slot, pIdx) => {
+            const p = pIdx + 1;
+            const slotKey = `${day}_${slot.slotId}`;
+            const legacyKey = `${day}_${p}`;
+            const legacyNumKey = `${day}_${slot.slotNum}`;
+            const slotData = timetableMatrix[slotKey] || timetableMatrix[legacyKey] || timetableMatrix[legacyNumKey] || {};
 
-            if (isTimetableEditMode) {
+            if (slot.isBreak) {
+                html += `
+                    <td class="p-2 border-r border-slate-200 text-center bg-amber-50/30 text-amber-700/80 font-black text-[10px] tracking-wider uppercase select-none align-middle">
+                        <span class="inline-flex items-center gap-1"><i class="fas fa-mug-hot text-amber-500 text-[10px]"></i> ${escapeHtml(slot.label)}</span>
+                    </td>`;
+            } else if (isTimetableEditMode) {
                 html += `
                     <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
-                        <select class="tt-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-day="${day}" data-period="${p}">
+                        <select class="tt-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-day="${day}" data-slot="${slot.slotId}" data-period="${p}">
                             <option value="">-- Free / Recess --</option>
                             ${classSubjectsList.map(s => `
-                                <option value="${s.id}" ${slot.subjectId === s.id ? 'selected' : ''}>
+                                <option value="${s.id}" ${(slotData.subjectId === s.id || slotData.subjectName === s.name) ? 'selected' : ''}>
                                     ${escapeHtml(s.name)} (${escapeHtml(s.code)})
                                 </option>
                             `).join('')}
                         </select>
-                        <input type="text" class="tt-cell-teacher w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Teacher / Ustad" value="${escapeHtml(slot.teacher || '')}" data-day="${day}" data-period="${p}">
-                        <input type="text" class="tt-cell-room w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Room / Hall" value="${escapeHtml(slot.room || '')}" data-day="${day}" data-period="${p}">
+                        <input type="text" class="tt-cell-teacher w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Teacher / Ustad" value="${escapeHtml(slotData.teacher || '')}" data-day="${day}" data-slot="${slot.slotId}" data-period="${p}">
+                        <input type="text" class="tt-cell-room w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Room / Hall" value="${escapeHtml(slotData.room || '')}" data-day="${day}" data-slot="${slot.slotId}" data-period="${p}">
                     </td>`;
             } else {
                 html += `
                     <td class="p-2.5 border-r border-slate-200 align-top">
-                        ${slot.subjectName ? `
+                        ${slotData.subjectName ? `
                             <div class="p-2 rounded-xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs">
-                                <div class="font-extrabold text-xs text-slate-900 leading-tight">${escapeHtml(slot.subjectName)}</div>
+                                <div class="font-extrabold text-xs text-slate-900 leading-tight">${escapeHtml(slotData.subjectName)}</div>
                                 <div class="text-[11px] text-indigo-800 font-semibold mt-1 truncate">
-                                    <i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(slot.teacher || 'Assigned Ustad')}
+                                    <i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(slotData.teacher || 'Assigned Ustad')}
                                 </div>
-                                ${slot.room ? `<div class="text-[10px] text-slate-500 font-bold mt-0.5"><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(slot.room)}</div>` : ''}
+                                ${slotData.room ? `<div class="text-[10px] text-slate-500 font-bold mt-0.5"><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(slotData.room)}</div>` : ''}
                             </div>
                         ` : `
                             <div class="p-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
@@ -773,7 +920,7 @@ const renderTimetableMatrixUI = () => {
                         `}
                     </td>`;
             }
-        }
+        });
         html += `</tr>`;
     });
 
@@ -806,22 +953,28 @@ const saveTimetableMatrix = async () => {
 
     subjectSelects.forEach(sel => {
         const day = sel.dataset.day;
+        const slotId = sel.dataset.slot;
         const period = sel.dataset.period;
         const subjectId = sel.value;
-        const key = `${day}_${period}`;
+        const primaryKey = `${day}_${slotId}`;
+        const legacyKey = `${day}_${period}`;
 
-        const teacherInput = document.querySelector(`.tt-cell-teacher[data-day="${day}"][data-period="${period}"]`);
-        const roomInput = document.querySelector(`.tt-cell-room[data-day="${day}"][data-period="${period}"]`);
+        const teacherInput = document.querySelector(`.tt-cell-teacher[data-day="${day}"][data-slot="${slotId}"]`)
+            || document.querySelector(`.tt-cell-teacher[data-day="${day}"][data-period="${period}"]`);
+        const roomInput = document.querySelector(`.tt-cell-room[data-day="${day}"][data-slot="${slotId}"]`)
+            || document.querySelector(`.tt-cell-room[data-day="${day}"][data-period="${period}"]`);
 
         if (subjectId) {
             const subjObj = classSubjectsList.find(s => s.id === subjectId);
-            updatedMatrix[key] = {
+            const entry = {
                 subjectId,
                 subjectName: subjObj ? subjObj.name : 'Subject',
                 subjectCode: subjObj ? subjObj.code : '',
                 teacher: teacherInput?.value.trim() || (subjObj ? subjObj.teacher : ''),
                 room: roomInput?.value.trim() || ''
             };
+            updatedMatrix[primaryKey] = entry;
+            updatedMatrix[legacyKey] = entry;
         }
     });
 
@@ -845,39 +998,89 @@ const saveTimetableMatrix = async () => {
     }
 };
 
+let currentEditingSlots = [];
+
 const openTimetableSettingsModal = () => {
     const workingDays = timetableConfig.workingDays || [];
     document.querySelectorAll('.tt-workday-cb').forEach(cb => {
         cb.checked = workingDays.includes(cb.value);
     });
 
-    const periodsCountSel = document.getElementById('tt-settings-periods-count');
-    if (periodsCountSel) periodsCountSel.value = String(timetableConfig.periodsCount || 5);
-
     const offDaySel = document.getElementById('tt-settings-off-day');
     if (offDaySel) offDaySel.value = (timetableConfig.offDays && timetableConfig.offDays[0]) || 'Friday';
 
-    renderTimetableTimingsRows(Number(periodsCountSel?.value || 5));
+    currentEditingSlots = normalizeTimetableSlots(timetableConfig).map(s => ({ ...s }));
+    renderTimetableSlotsEditor();
     openModal('modal-tt-settings');
 };
 
-const renderTimetableTimingsRows = (count) => {
+const renderTimetableSlotsEditor = () => {
     const container = document.getElementById('tt-timings-container');
+    const badge = document.getElementById('tt-slots-count-badge');
+    if (badge) badge.textContent = `${currentEditingSlots.length} Slot${currentEditingSlots.length === 1 ? '' : 's'}`;
     if (!container) return;
 
-    let html = '';
-    const existing = timetableConfig.timings || [];
-    for (let p = 1; p <= count; p++) {
-        const item = existing.find(x => x.periodNum === p) || { startTime: `0${6 + p}:00`, endTime: `0${6 + p}:45` };
-        html += `
-            <div class="flex items-center gap-2 text-xs">
-                <span class="w-20 font-bold text-slate-700">Period ${p}</span>
-                <input type="time" class="tt-timing-start p-1.5 border border-slate-300 rounded-lg font-bold text-slate-800" data-p="${p}" value="${item.startTime}">
-                <span class="text-slate-400 font-bold">to</span>
-                <input type="time" class="tt-timing-end p-1.5 border border-slate-300 rounded-lg font-bold text-slate-800" data-p="${p}" value="${item.endTime}">
+    if (!currentEditingSlots.length) {
+        container.innerHTML = `
+            <div class="p-6 text-center text-slate-400 font-semibold">
+                No slots configured yet. Click <strong>Add Period / Break Slot</strong> above to begin.
             </div>`;
+        return;
     }
-    container.innerHTML = html;
+
+    container.innerHTML = currentEditingSlots.map((slot, idx) => `
+        <div class="tt-slot-row flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs" data-slot-id="${escapeHtml(slot.slotId)}">
+            <div class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-black text-[11px] flex items-center justify-center shrink-0">
+                ${idx + 1}
+            </div>
+            <div class="flex-1 min-w-[120px]">
+                <input type="text" class="tt-slot-label w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. Period 1, Interval, Dhuhr" value="${escapeHtml(slot.label || '')}" data-index="${idx}">
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+                <input type="time" class="tt-slot-start p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none" value="${slot.startTime || '08:00'}" data-index="${idx}">
+                <span class="text-slate-400 font-bold text-[10px]">-</span>
+                <input type="time" class="tt-slot-end p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none" value="${slot.endTime || '08:45'}" data-index="${idx}">
+            </div>
+            <label class="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer shrink-0 text-[11px] font-bold text-slate-700 select-none hover:bg-slate-100" title="Check if this is a Break, Interval, Prayer or Assembly slot">
+                <input type="checkbox" class="tt-slot-is-break rounded text-indigo-600" ${slot.isBreak ? 'checked' : ''} data-index="${idx}">
+                <span class="text-[10px]">Break</span>
+            </label>
+            <button type="button" class="btn-remove-slot p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition shrink-0 cursor-pointer" data-index="${idx}" title="Remove slot">
+                <i class="fas fa-trash-can text-xs"></i>
+            </button>
+        </div>
+    `).join('');
+};
+
+const addTimetableSlot = () => {
+    let newStart = '08:00';
+    let newEnd = '08:45';
+    if (currentEditingSlots.length > 0) {
+        const lastSlot = currentEditingSlots[currentEditingSlots.length - 1];
+        if (lastSlot.endTime) {
+            newStart = lastSlot.endTime;
+            try {
+                const [h, m] = newStart.split(':').map(Number);
+                const totalMinutes = h * 60 + m + 45;
+                const newH = Math.floor(totalMinutes / 60) % 24;
+                const newM = totalMinutes % 60;
+                newEnd = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+            } catch (_) {
+                newEnd = '09:30';
+            }
+        }
+    }
+
+    const nextNum = currentEditingSlots.length + 1;
+    currentEditingSlots.push({
+        slotId: `slot_${Date.now()}_${nextNum}`,
+        slotNum: nextNum,
+        label: `Period ${nextNum}`,
+        startTime: newStart,
+        endTime: newEnd,
+        isBreak: false
+    });
+    renderTimetableSlotsEditor();
 };
 
 const saveTimetableSettings = async () => {
@@ -888,21 +1091,55 @@ const saveTimetableSettings = async () => {
 
     if (!activeDays.length) return alert('Please select at least one working day.');
 
-    const periodsCount = Number(document.getElementById('tt-settings-periods-count')?.value || 5);
+    const labelInputs = document.querySelectorAll('.tt-slot-label');
+    labelInputs.forEach(input => {
+        const idx = Number(input.dataset.index);
+        if (currentEditingSlots[idx]) {
+            currentEditingSlots[idx].label = input.value.trim() || `Period ${idx + 1}`;
+        }
+    });
+
+    const startInputs = document.querySelectorAll('.tt-slot-start');
+    startInputs.forEach(input => {
+        const idx = Number(input.dataset.index);
+        if (currentEditingSlots[idx]) {
+            currentEditingSlots[idx].startTime = input.value || '08:00';
+        }
+    });
+
+    const endInputs = document.querySelectorAll('.tt-slot-end');
+    endInputs.forEach(input => {
+        const idx = Number(input.dataset.index);
+        if (currentEditingSlots[idx]) {
+            currentEditingSlots[idx].endTime = input.value || '08:45';
+        }
+    });
+
+    const breakCheckboxes = document.querySelectorAll('.tt-slot-is-break');
+    breakCheckboxes.forEach(cb => {
+        const idx = Number(cb.dataset.index);
+        if (currentEditingSlots[idx]) {
+            currentEditingSlots[idx].isBreak = cb.checked;
+        }
+    });
+
+    if (!currentEditingSlots.length) return alert('Please configure at least one period slot.');
+
     const offDay = document.getElementById('tt-settings-off-day')?.value || 'Friday';
 
-    const timings = [];
-    for (let p = 1; p <= periodsCount; p++) {
-        const s = document.querySelector(`.tt-timing-start[data-p="${p}"]`)?.value || `0${6+p}:00`;
-        const e = document.querySelector(`.tt-timing-end[data-p="${p}"]`)?.value || `0${6+p}:45`;
-        timings.push({ periodNum: p, startTime: s, endTime: e });
-    }
+    const timings = currentEditingSlots.map((s, idx) => ({
+        periodNum: idx + 1,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        label: s.label
+    }));
 
     timetableConfig = {
         workingDays: activeDays,
         offDays: [offDay],
-        periodsCount,
-        timings
+        periodsCount: currentEditingSlots.length,
+        slots: currentEditingSlots,
+        timings: timings
     };
 
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
@@ -943,13 +1180,7 @@ const loadYearPlan = async () => {
 
     if (heading) heading.textContent = `Class ${selectedYpClass} Academic Year Syllabus Plan (${year})`;
 
-    try {
-        const subjDocId = getClassSubjectsDocId(year, selectedYpClass);
-        const subjSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId));
-        if (subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
-            classSubjectsList = subjSnap.data().subjects;
-        }
-    } catch (_) {}
+    await ensureClassSubjectsLoaded(year, selectedYpClass);
 
     try {
         const docId = getYearPlanDocId(year, selectedYpClass);
@@ -1377,8 +1608,15 @@ const setupEventListeners = () => {
     document.getElementById('btn-tt-settings')?.addEventListener('click', openTimetableSettingsModal);
     document.getElementById('btn-save-tt-settings')?.addEventListener('click', saveTimetableSettings);
     document.getElementById('btn-print-timetable')?.addEventListener('click', printTimetableRoutine);
-    document.getElementById('tt-settings-periods-count')?.addEventListener('change', (e) => {
-        renderTimetableTimingsRows(Number(e.target.value || 5));
+    document.getElementById('btn-add-period-slot')?.addEventListener('click', addTimetableSlot);
+    document.getElementById('tt-timings-container')?.addEventListener('click', (e) => {
+        const delBtn = e.target.closest('.btn-remove-slot');
+        if (!delBtn) return;
+        const idx = Number(delBtn.dataset.index);
+        if (!isNaN(idx) && currentEditingSlots[idx]) {
+            currentEditingSlots.splice(idx, 1);
+            renderTimetableSlotsEditor();
+        }
     });
 
     // 4. Academic Year Plan Listeners

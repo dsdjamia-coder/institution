@@ -4246,6 +4246,42 @@ document.getElementById('save-subject-schema-btn')?.addEventListener('click', as
             examConfigs: getCustomExamConfigs(existingSchema.examConfigs || {}),
             updatedAt: Date.now()
         }, { merge: true });
+
+        // Concurrently synchronize with Academic Planning (classSubjects)
+        try {
+            const cleanY = String(currentAcademicYear || '').trim().replace(/[^\w-]/g, '_');
+            const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+            const classSubjDocId = `${cleanY}__${cleanC}`;
+            const classSubjRef = doc(db, `${BASE_PATH}/classSubjects`, classSubjDocId);
+            const classSubjSnap = await getDoc(classSubjRef);
+            let existingClassSubjects = [];
+            if (classSubjSnap.exists() && Array.isArray(classSubjSnap.data().subjects)) {
+                existingClassSubjects = classSubjSnap.data().subjects;
+            }
+
+            const updatedClassSubjects = subjects.map((subName, idx) => {
+                const trimmed = String(subName).trim();
+                const matched = existingClassSubjects.find(s => String(s.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+                if (matched) {
+                    return matched;
+                }
+                const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`;
+                return {
+                    id: `subj_${Date.now()}_${idx}`,
+                    name: trimmed,
+                    code: code,
+                    teacher: '',
+                    weeklyPeriods: 5
+                };
+            });
+
+            await setDoc(classSubjRef, {
+                subjects: updatedClassSubjects,
+                updatedAt: Date.now()
+            }, { merge: true });
+        } catch (syncErr) {
+            console.warn('Class subjects sync error in result page:', syncErr);
+        }
     });
     alert('Subjects saved for this academic year.');
 });
