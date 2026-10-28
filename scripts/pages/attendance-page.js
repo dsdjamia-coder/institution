@@ -21,6 +21,7 @@ let allStudents = [];
 let allClasses = [];
 let calendarConfig = {
     weekendDays: [5], // Default: Friday (index 5)
+    weekendHistory: [], // [{ effectiveFrom: 'YYYY-MM-DD', weekendDays: number[], updatedAt: number }]
     holidays: [], // [{ date: 'YYYY-MM-DD', title: 'Eid', scope: 'all'|'specific', classes: ['1', '2'] }]
     sessionSchedules: {} // { [academicYear]: { startDate: 'YYYY-MM-DD', notes: '' } }
 };
@@ -422,7 +423,13 @@ const setupFirestoreListeners = () => {
     // 5. Calendar Settings
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), (snap) => {
         if (snap.exists()) {
-            calendarConfig = { ...calendarConfig, ...snap.data() };
+            const data = snap.data();
+            calendarConfig = {
+                ...calendarConfig,
+                ...data,
+                weekendDays: Array.isArray(data.weekendDays) ? data.weekendDays : [5],
+                weekendHistory: Array.isArray(data.weekendHistory) ? data.weekendHistory : []
+            };
         }
         renderCalendarSettingsUI();
         renderSessionScheduleUI();
@@ -556,8 +563,28 @@ const isDateHoliday = (dateStr, targetClass = '') => {
             return { isHoliday: true, reason, title, isWeeklyOff: false };
         }
 
-        // 2. Weekly off (weekend) days
-        if (Array.isArray(calendarConfig.weekendDays) && calendarConfig.weekendDays.includes(dayOfWeek)) {
+        // 2. Weekly off (weekend) days with historical effective dating support
+        let activeWeekendDays = calendarConfig.weekendDays || [5];
+        if (Array.isArray(calendarConfig.weekendHistory) && calendarConfig.weekendHistory.length > 0) {
+            const history = [...calendarConfig.weekendHistory]
+                .filter(h => h && h.effectiveFrom && Array.isArray(h.weekendDays))
+                .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+
+            let matchedEntry = null;
+            for (let i = history.length - 1; i >= 0; i--) {
+                if (history[i].effectiveFrom <= dateStr) {
+                    matchedEntry = history[i];
+                    break;
+                }
+            }
+            if (matchedEntry) {
+                activeWeekendDays = matchedEntry.weekendDays;
+            } else if (history.length > 0) {
+                activeWeekendDays = history[0].weekendDays;
+            }
+        }
+
+        if (Array.isArray(activeWeekendDays) && activeWeekendDays.includes(dayOfWeek)) {
             const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             const dayName = dayNames[dayOfWeek] || 'Weekly Off';
             const reason = `Weekly Off (${dayName})`;
@@ -1479,15 +1506,81 @@ const renderCalendarSettingsUI = () => {
     }
 };
 
+let pendingSelectedWeekends = null;
+
 const saveWeekendConfig = async () => {
     const checks = document.querySelectorAll('.weekend-day-check:checked');
-    const selectedDays = Array.from(checks).map(c => Number(c.value));
+    const selectedDays = Array.from(checks).map(c => Number(c.value)).sort((a, b) => a - b);
+
+    if (!selectedDays.length) {
+        return alert('Please select at least one weekly off day.');
+    }
+
+    const currentDays = [...(calendarConfig.weekendDays || [])].sort((a, b) => a - b);
+    const isUnchanged = currentDays.length === selectedDays.length && currentDays.every((v, i) => v === selectedDays[i]);
+
+    if (isUnchanged) {
+        showToast('Weekly off schedule is already set to these days.', 'info');
+        return;
+    }
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const oldDayLabels = currentDays.length ? currentDays.map(d => dayNames[d]).join(', ') : 'None';
+    const newDayLabels = selectedDays.map(d => dayNames[d]).join(', ');
+
+    pendingSelectedWeekends = selectedDays;
+
+    const oldSpan = document.getElementById('confirm-old-weekends');
+    const newSpan = document.getElementById('confirm-new-weekends');
+    const todaySpan = document.getElementById('confirm-today-date');
+
+    if (oldSpan) oldSpan.textContent = oldDayLabels;
+    if (newSpan) newSpan.textContent = newDayLabels;
+    if (todaySpan) todaySpan.textContent = formatDisplayDate(getTodayDateString());
+
+    openModal('modal-weekend-confirm');
+};
+
+const applyWeekendConfigChange = async (mode) => {
+    if (!pendingSelectedWeekends) return;
+    const selectedDays = pendingSelectedWeekends;
+    const todayStr = getTodayDateString();
+
+    let newHistory = Array.isArray(calendarConfig.weekendHistory) ? [...calendarConfig.weekendHistory] : [];
+
+    if (mode === 'today') {
+        // Option 1: Apply from today onwards (preserves past history)
+        if (newHistory.length === 0) {
+            newHistory.push({
+                effectiveFrom: '2020-01-01',
+                weekendDays: calendarConfig.weekendDays || [5],
+                updatedAt: Date.now() - 1000
+            });
+        }
+        // Remove any future entries on or after today, and append new active schedule
+        newHistory = newHistory.filter(h => h.effectiveFrom < todayStr);
+        newHistory.push({
+            effectiveFrom: todayStr,
+            weekendDays: selectedDays,
+            updatedAt: Date.now()
+        });
+    } else {
+        // Option 2: Apply to all dates retroactively
+        newHistory = [{
+            effectiveFrom: '2000-01-01',
+            weekendDays: selectedDays,
+            updatedAt: Date.now()
+        }];
+    }
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), {
-            weekendDays: selectedDays
+            weekendDays: selectedDays,
+            weekendHistory: newHistory
         }, { merge: true });
-        showToast('Weekend off-days configured successfully!', 'success');
+
+        closeModal('modal-weekend-confirm');
+        showToast(`Weekly off days updated successfully (${mode === 'today' ? 'From today onwards' : 'All dates'})!`, 'success');
         updateDailyDateDisplay();
     } catch (err) {
         alert('Failed to save weekend config: ' + err.message);
@@ -1872,6 +1965,8 @@ const setupEventListeners = () => {
 
     // 5. Calendar & Holidays Listeners
     document.getElementById('btn-save-weekends')?.addEventListener('click', saveWeekendConfig);
+    document.getElementById('btn-confirm-apply-today')?.addEventListener('click', () => applyWeekendConfigChange('today'));
+    document.getElementById('btn-confirm-apply-all')?.addEventListener('click', () => applyWeekendConfigChange('all'));
     document.getElementById('btn-add-holiday')?.addEventListener('click', addOrUpdateHoliday);
     document.getElementById('btn-cancel-holiday-edit')?.addEventListener('click', cancelEditHoliday);
 

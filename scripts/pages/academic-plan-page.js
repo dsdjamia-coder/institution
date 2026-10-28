@@ -23,6 +23,22 @@ let selectedSubjectsClass = '';
 let classSubjectsList = []; // [ { id, name, code, teacher, weeklyPeriods } ]
 let editingSubjectId = null;
 
+// --- Attendance & Weekly Off Sync State ---
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+let attendanceConfig = {
+    weekendDays: [5], // Default: Friday (index 5)
+    weekendHistory: []
+};
+
+const getWorkingDaysFromWeekendDays = (weekendDays = [5]) => {
+    return WEEKDAY_NAMES.filter((_, idx) => !weekendDays.includes(idx));
+};
+
+const getOffDaysFromWeekendDays = (weekendDays = [5]) => {
+    return WEEKDAY_NAMES.filter((_, idx) => weekendDays.includes(idx));
+};
+
 // --- Timetable State ---
 let selectedTtClass = '';
 let isTimetableEditMode = false;
@@ -335,6 +351,30 @@ const setupRealtimeListeners = () => {
         }
         populateClassDropdowns();
     });
+
+    // 4. Attendance Calendar & Weekly Off Settings Sync
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            attendanceConfig = {
+                ...attendanceConfig,
+                ...data,
+                weekendDays: Array.isArray(data.weekendDays) ? data.weekendDays : [5],
+                weekendHistory: Array.isArray(data.weekendHistory) ? data.weekendHistory : []
+            };
+            syncTimetableWorkingDaysWithAttendance();
+        }
+    });
+};
+
+const syncTimetableWorkingDaysWithAttendance = () => {
+    const derivedWorkingDays = getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+    const derivedOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+
+    timetableConfig.workingDays = derivedWorkingDays;
+    timetableConfig.offDays = derivedOffDays;
+
+    renderTimetableMatrixUI();
 };
 
 const populateAcademicYearDropdowns = () => {
@@ -786,6 +826,9 @@ const loadTimetable = async () => {
         } else {
             timetableMatrix = {};
         }
+        // Always enforce institutional working days and off days derived from attendanceConfig
+        timetableConfig.workingDays = getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+        timetableConfig.offDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
     } catch (err) {
         console.error('Failed to load timetable:', err);
     }
@@ -828,7 +871,7 @@ const renderTimetableMatrixUI = () => {
 
     const workingDays = timetableConfig.workingDays && timetableConfig.workingDays.length
         ? timetableConfig.workingDays
-        : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
+        : getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
 
     const slots = normalizeTimetableSlots(timetableConfig);
     const teachingSlotsCount = slots.filter(s => !s.isBreak).length;
@@ -998,133 +1041,276 @@ const saveTimetableMatrix = async () => {
 };
 
 let currentEditingSlots = [];
+let pendingTimetableWeekendIndices = null;
+let pendingTimetableConfigToSave = null;
 
-const openTimetableSettingsModal = () => {
-    const workingDays = timetableConfig.workingDays || [];
-    document.querySelectorAll('.tt-workday-cb').forEach(cb => {
-        cb.checked = workingDays.includes(cb.value);
+const calcSlotDuration = (startTime, endTime) => {
+    if (!startTime || !endTime) return 45;
+    try {
+        const [sh, sm] = startTime.split(':').map(Number);
+        const [eh, em] = endTime.split(':').map(Number);
+        let diff = (eh * 60 + em) - (sh * 60 + sm);
+        if (diff < 0) diff += 24 * 60;
+        return diff > 0 ? diff : 45;
+    } catch (_) {
+        return 45;
+    }
+};
+
+const syncSlotInputsToMemory = () => {
+    const container = document.getElementById('tt-timings-container');
+    if (!container) return;
+    const cards = container.querySelectorAll('.tt-slot-card');
+    cards.forEach((card, idx) => {
+        if (!currentEditingSlots[idx]) return;
+        const labelInput = card.querySelector('.tt-slot-label');
+        const startInput = card.querySelector('.tt-slot-start');
+        const endInput = card.querySelector('.tt-slot-end');
+        const breakCheckbox = card.querySelector('.tt-slot-is-break');
+        if (labelInput) currentEditingSlots[idx].label = labelInput.value.trim() || `Period ${idx + 1}`;
+        if (startInput) currentEditingSlots[idx].startTime = startInput.value || '08:00';
+        if (endInput) currentEditingSlots[idx].endTime = endInput.value || '08:45';
+        if (breakCheckbox) currentEditingSlots[idx].isBreak = breakCheckbox.checked;
     });
-
-    const offDaySel = document.getElementById('tt-settings-off-day');
-    if (offDaySel) offDaySel.value = (timetableConfig.offDays && timetableConfig.offDays[0]) || 'Friday';
-
-    currentEditingSlots = normalizeTimetableSlots(timetableConfig).map(s => ({ ...s }));
-    renderTimetableSlotsEditor();
-    openModal('modal-tt-settings');
 };
 
 const renderTimetableSlotsEditor = () => {
     const container = document.getElementById('tt-timings-container');
     const badge = document.getElementById('tt-slots-count-badge');
+    const totalPeriodsInput = document.getElementById('tt-settings-total-periods');
+
     if (badge) badge.textContent = `${currentEditingSlots.length} Slot${currentEditingSlots.length === 1 ? '' : 's'}`;
+    if (totalPeriodsInput && document.activeElement !== totalPeriodsInput) {
+        totalPeriodsInput.value = currentEditingSlots.length;
+    }
     if (!container) return;
 
     if (!currentEditingSlots.length) {
         container.innerHTML = `
             <div class="p-6 text-center text-slate-400 font-semibold">
-                No slots configured yet. Click <strong>Add Period / Break Slot</strong> above to begin.
+                No slots configured yet. Use the Total Daily Periods input above to set slots.
             </div>`;
         return;
     }
 
-    container.innerHTML = currentEditingSlots.map((slot, idx) => `
-        <div class="tt-slot-row flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs" data-slot-id="${escapeHtml(slot.slotId)}">
-            <div class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-black text-[11px] flex items-center justify-center shrink-0">
-                ${idx + 1}
+    container.innerHTML = currentEditingSlots.map((slot, idx) => {
+        const duration = calcSlotDuration(slot.startTime, slot.endTime);
+        const isBreak = Boolean(slot.isBreak);
+        return `
+            <div class="tt-slot-card bg-white p-3 rounded-2xl border ${isBreak ? 'border-amber-200/90 bg-amber-50/20' : 'border-slate-200/90'} shadow-2xs hover:border-slate-300 transition space-y-2" data-slot-id="${escapeHtml(slot.slotId)}" data-index="${idx}">
+                <!-- Line 1: Badge, Label, Break Pill, Delete -->
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-xl ${isBreak ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-slate-100 text-slate-800'} font-black text-xs flex items-center justify-center shrink-0">
+                        ${isBreak ? '<i class="fas fa-mug-hot text-[11px]"></i>' : idx + 1}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <input type="text" class="tt-slot-label w-full px-2.5 py-1.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. Period ${idx + 1}" value="${escapeHtml(slot.label || '')}" data-index="${idx}">
+                    </div>
+                    <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border ${isBreak ? 'border-amber-300 bg-amber-100/60 text-amber-900 font-black' : 'border-slate-200 bg-slate-50 text-slate-600 font-bold'} cursor-pointer shrink-0 text-xs select-none hover:bg-amber-50 transition" title="Check if this is a Break, Interval, Prayer or Assembly slot">
+                        <input type="checkbox" class="tt-slot-is-break rounded text-amber-600 focus:ring-amber-500" ${isBreak ? 'checked' : ''} data-index="${idx}">
+                        <span class="text-[11px]">Break</span>
+                    </label>
+                    <button type="button" class="btn-remove-slot p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition shrink-0 cursor-pointer" data-index="${idx}" title="Remove slot">
+                        <i class="fas fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+                <!-- Line 2: Timings Controls -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t ${isBreak ? 'border-amber-100' : 'border-slate-100'} text-xs">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"><i class="far fa-clock mr-1 text-slate-400"></i>Start:</span>
+                        <input type="time" class="tt-slot-start px-2 py-1 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white outline-none focus:border-indigo-500" value="${slot.startTime || '08:00'}" data-index="${idx}">
+                        <span class="text-slate-400 font-black text-xs px-0.5">→</span>
+                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">End:</span>
+                        <input type="time" class="tt-slot-end px-2 py-1 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white outline-none focus:border-indigo-500" value="${slot.endTime || '08:45'}" data-index="${idx}">
+                    </div>
+                    <div class="slot-duration-badge text-[10px] font-black px-2 py-0.5 rounded-md ${isBreak ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-slate-100 text-slate-700'}">
+                        ${duration} mins
+                    </div>
+                </div>
             </div>
-            <div class="flex-1 min-w-[120px]">
-                <input type="text" class="tt-slot-label w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. Period 1, Interval, Dhuhr" value="${escapeHtml(slot.label || '')}" data-index="${idx}">
-            </div>
-            <div class="flex items-center gap-1 shrink-0">
-                <input type="time" class="tt-slot-start p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none" value="${slot.startTime || '08:00'}" data-index="${idx}">
-                <span class="text-slate-400 font-bold text-[10px]">-</span>
-                <input type="time" class="tt-slot-end p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none" value="${slot.endTime || '08:45'}" data-index="${idx}">
-            </div>
-            <label class="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer shrink-0 text-[11px] font-bold text-slate-700 select-none hover:bg-slate-100" title="Check if this is a Break, Interval, Prayer or Assembly slot">
-                <input type="checkbox" class="tt-slot-is-break rounded text-indigo-600" ${slot.isBreak ? 'checked' : ''} data-index="${idx}">
-                <span class="text-[10px]">Break</span>
-            </label>
-            <button type="button" class="btn-remove-slot p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition shrink-0 cursor-pointer" data-index="${idx}" title="Remove slot">
-                <i class="fas fa-trash-can text-xs"></i>
-            </button>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 };
 
-const addTimetableSlot = () => {
-    let newStart = '08:00';
-    let newEnd = '08:45';
+const setTimetableSlotsCount = (newCount) => {
+    syncSlotInputsToMemory();
+    const count = Math.max(1, Math.min(15, Number(newCount) || 1));
+    const curCount = currentEditingSlots.length;
+
+    if (count > curCount) {
+        for (let i = curCount + 1; i <= count; i++) {
+            let newStart = '08:00';
+            let newEnd = '08:45';
+            if (currentEditingSlots.length > 0) {
+                const prev = currentEditingSlots[currentEditingSlots.length - 1];
+                if (prev.endTime) {
+                    newStart = prev.endTime;
+                    try {
+                        const [h, m] = newStart.split(':').map(Number);
+                        const totalMins = h * 60 + m + 45;
+                        const nh = Math.floor(totalMins / 60) % 24;
+                        const nm = totalMins % 60;
+                        newEnd = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+                    } catch (_) {
+                        newEnd = '09:30';
+                    }
+                }
+            }
+            currentEditingSlots.push({
+                slotId: `slot_${Date.now()}_${i}`,
+                slotNum: i,
+                label: `Period ${i}`,
+                startTime: newStart,
+                endTime: newEnd,
+                isBreak: false
+            });
+        }
+    } else if (count < curCount) {
+        currentEditingSlots = currentEditingSlots.slice(0, count);
+    }
+
+    renderTimetableSlotsEditor();
+};
+
+const applyAutoTimings = () => {
+    syncSlotInputsToMemory();
+    if (!currentEditingSlots.length) return;
+
+    const startInput = document.getElementById('tt-autotime-start');
+    const durInput = document.getElementById('tt-autotime-duration');
+    let curStart = startInput?.value || '08:00';
+    const periodDuration = Math.max(10, Math.min(180, Number(durInput?.value) || 45));
+
+    currentEditingSlots.forEach((slot, idx) => {
+        const slotDuration = slot.isBreak ? 15 : periodDuration;
+        try {
+            const [h, m] = curStart.split(':').map(Number);
+            const totalMins = h * 60 + m + slotDuration;
+            const nh = Math.floor(totalMins / 60) % 24;
+            const nm = totalMins % 60;
+            const curEnd = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+            slot.startTime = curStart;
+            slot.endTime = curEnd;
+            curStart = curEnd;
+        } catch (_) {
+            slot.startTime = '08:00';
+            slot.endTime = '08:45';
+        }
+    });
+
+    renderTimetableSlotsEditor();
+    showToast('Auto-timings applied across all slots!', 'success');
+};
+
+const insertBreakSlot = () => {
+    syncSlotInputsToMemory();
+    let newStart = '09:30';
+    let newEnd = '09:50';
     if (currentEditingSlots.length > 0) {
         const lastSlot = currentEditingSlots[currentEditingSlots.length - 1];
         if (lastSlot.endTime) {
             newStart = lastSlot.endTime;
             try {
                 const [h, m] = newStart.split(':').map(Number);
-                const totalMinutes = h * 60 + m + 45;
+                const totalMinutes = h * 60 + m + 20; // 20 min recess
                 const newH = Math.floor(totalMinutes / 60) % 24;
                 const newM = totalMinutes % 60;
                 newEnd = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
             } catch (_) {
-                newEnd = '09:30';
+                newEnd = '10:00';
             }
         }
     }
-
     const nextNum = currentEditingSlots.length + 1;
     currentEditingSlots.push({
-        slotId: `slot_${Date.now()}_${nextNum}`,
+        slotId: `slot_${Date.now()}_break`,
         slotNum: nextNum,
-        label: `Period ${nextNum}`,
+        label: 'Interval / Break',
         startTime: newStart,
         endTime: newEnd,
-        isBreak: false
+        isBreak: true
     });
     renderTimetableSlotsEditor();
 };
 
+const updateDaysSummaryAndCardStyles = () => {
+    const cbs = document.querySelectorAll('.tt-workday-cb');
+    let workCount = 0;
+    const offDayLabels = [];
+
+    cbs.forEach(cb => {
+        const card = cb.closest('.tt-day-card');
+        const pill = card?.querySelector('.tt-day-status-pill');
+        const dayName = cb.value;
+        const dayShort = dayName.slice(0, 3);
+
+        if (cb.checked) {
+            workCount++;
+            if (card) {
+                card.className = 'tt-day-card flex flex-col items-center p-2 rounded-xl border-2 border-indigo-500 bg-indigo-50/40 cursor-pointer text-center select-none transition';
+            }
+            if (pill) {
+                pill.textContent = 'Work';
+                pill.className = 'tt-day-status-pill text-[9px] font-black text-indigo-700 mt-0.5';
+            }
+        } else {
+            offDayLabels.push(dayShort);
+            if (card) {
+                card.className = 'tt-day-card flex flex-col items-center p-2 rounded-xl border-2 border-rose-200 bg-rose-50/70 cursor-pointer text-center select-none transition';
+            }
+            if (pill) {
+                pill.textContent = 'Off';
+                pill.className = 'tt-day-status-pill text-[9px] font-black text-rose-600 mt-0.5';
+            }
+        }
+    });
+
+    const summaryEl = document.getElementById('tt-settings-days-summary');
+    if (summaryEl) {
+        const offText = offDayLabels.length ? `${offDayLabels.length} Off Day${offDayLabels.length > 1 ? 's' : ''} (${offDayLabels.join(', ')})` : 'No Weekly Off';
+        summaryEl.innerHTML = `<span class="text-indigo-900 font-extrabold">${workCount} Working</span> • <span class="text-rose-600 font-extrabold">${offText}</span>`;
+    }
+};
+
+const openTimetableSettingsModal = () => {
+    const activeWeekendDays = attendanceConfig.weekendDays || [5];
+
+    document.querySelectorAll('.tt-workday-cb').forEach(cb => {
+        const dayIdx = Number(cb.dataset.dayIndex);
+        cb.checked = !activeWeekendDays.includes(dayIdx);
+    });
+
+    updateDaysSummaryAndCardStyles();
+
+    currentEditingSlots = normalizeTimetableSlots(timetableConfig).map(s => ({ ...s }));
+    renderTimetableSlotsEditor();
+    openModal('modal-tt-settings');
+};
+
 const saveTimetableSettings = async () => {
-    const activeDays = [];
-    document.querySelectorAll('.tt-workday-cb:checked').forEach(cb => {
-        activeDays.push(cb.value);
-    });
+    syncSlotInputsToMemory();
 
-    if (!activeDays.length) return alert('Please select at least one working day.');
+    const workdayCbs = document.querySelectorAll('.tt-workday-cb');
+    const activeWorkingDays = [];
+    const selectedWeekendDays = [];
 
-    const labelInputs = document.querySelectorAll('.tt-slot-label');
-    labelInputs.forEach(input => {
-        const idx = Number(input.dataset.index);
-        if (currentEditingSlots[idx]) {
-            currentEditingSlots[idx].label = input.value.trim() || `Period ${idx + 1}`;
+    workdayCbs.forEach(cb => {
+        const dayIdx = Number(cb.dataset.dayIndex);
+        if (cb.checked) {
+            activeWorkingDays.push(cb.value);
+        } else {
+            selectedWeekendDays.push(dayIdx);
         }
     });
 
-    const startInputs = document.querySelectorAll('.tt-slot-start');
-    startInputs.forEach(input => {
-        const idx = Number(input.dataset.index);
-        if (currentEditingSlots[idx]) {
-            currentEditingSlots[idx].startTime = input.value || '08:00';
-        }
-    });
+    if (!activeWorkingDays.length) {
+        return alert('Please select at least one working day.');
+    }
+    if (!currentEditingSlots.length) {
+        return alert('Please configure at least one period slot.');
+    }
 
-    const endInputs = document.querySelectorAll('.tt-slot-end');
-    endInputs.forEach(input => {
-        const idx = Number(input.dataset.index);
-        if (currentEditingSlots[idx]) {
-            currentEditingSlots[idx].endTime = input.value || '08:45';
-        }
-    });
-
-    const breakCheckboxes = document.querySelectorAll('.tt-slot-is-break');
-    breakCheckboxes.forEach(cb => {
-        const idx = Number(cb.dataset.index);
-        if (currentEditingSlots[idx]) {
-            currentEditingSlots[idx].isBreak = cb.checked;
-        }
-    });
-
-    if (!currentEditingSlots.length) return alert('Please configure at least one period slot.');
-
-    const offDay = document.getElementById('tt-settings-off-day')?.value || 'Friday';
+    const offDays = selectedWeekendDays.map(idx => WEEKDAY_NAMES[idx]);
 
     const timings = currentEditingSlots.map((s, idx) => ({
         periodNum: idx + 1,
@@ -1133,14 +1319,43 @@ const saveTimetableSettings = async () => {
         label: s.label
     }));
 
-    timetableConfig = {
-        workingDays: activeDays,
-        offDays: [offDay],
+    const newConfig = {
+        workingDays: activeWorkingDays,
+        offDays: offDays,
         periodsCount: currentEditingSlots.length,
         slots: currentEditingSlots,
         timings: timings
     };
 
+    pendingTimetableConfigToSave = newConfig;
+
+    // Compare selectedWeekendDays with attendanceConfig.weekendDays
+    const currentWeekends = [...(attendanceConfig.weekendDays || [5])].sort((a, b) => a - b);
+    const newWeekends = [...selectedWeekendDays].sort((a, b) => a - b);
+    const weekendsChanged = currentWeekends.length !== newWeekends.length || currentWeekends.some((v, i) => v !== newWeekends[i]);
+
+    if (weekendsChanged) {
+        pendingTimetableWeekendIndices = newWeekends;
+        const oldLabels = currentWeekends.length ? currentWeekends.map(d => WEEKDAY_NAMES[d]).join(', ') : 'None';
+        const newLabels = newWeekends.length ? newWeekends.map(d => WEEKDAY_NAMES[d]).join(', ') : 'None';
+
+        const oldSpan = document.getElementById('tt-confirm-old-weekends');
+        const newSpan = document.getElementById('tt-confirm-new-weekends');
+        const todaySpan = document.getElementById('tt-confirm-today-date');
+
+        if (oldSpan) oldSpan.textContent = oldLabels;
+        if (newSpan) newSpan.textContent = newLabels;
+        if (todaySpan) todaySpan.textContent = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+        openModal('modal-tt-weekend-confirm');
+        return;
+    }
+
+    await executeSaveTimetableConfig(newConfig);
+};
+
+const executeSaveTimetableConfig = async (newConfig) => {
+    timetableConfig = newConfig;
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
     const docId = getTimetableDocId(year, selectedTtClass);
 
@@ -1152,10 +1367,55 @@ const saveTimetableSettings = async () => {
         }, { merge: true });
 
         closeModal('modal-tt-settings');
-        showToast('Timetable structure settings applied!', 'success');
+        showToast('Timetable structure settings applied successfully!', 'success');
         renderTimetableMatrixUI();
     } catch (err) {
         alert('Failed to save settings: ' + err.message);
+    }
+};
+
+const applyTimetableWeekendSync = async (mode) => {
+    if (!pendingTimetableWeekendIndices || !pendingTimetableConfigToSave) return;
+    const newWeekends = pendingTimetableWeekendIndices;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let newHistory = Array.isArray(attendanceConfig.weekendHistory) ? [...attendanceConfig.weekendHistory] : [];
+
+    if (mode === 'today') {
+        if (newHistory.length === 0) {
+            newHistory.push({
+                effectiveFrom: '2020-01-01',
+                weekendDays: attendanceConfig.weekendDays || [5],
+                updatedAt: Date.now() - 1000
+            });
+        }
+        newHistory = newHistory.filter(h => h.effectiveFrom < todayStr);
+        newHistory.push({
+            effectiveFrom: todayStr,
+            weekendDays: newWeekends,
+            updatedAt: Date.now()
+        });
+    } else {
+        newHistory = [{
+            effectiveFrom: '2000-01-01',
+            weekendDays: newWeekends,
+            updatedAt: Date.now()
+        }];
+    }
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), {
+            weekendDays: newWeekends,
+            weekendHistory: newHistory
+        }, { merge: true });
+
+        attendanceConfig.weekendDays = newWeekends;
+        attendanceConfig.weekendHistory = newHistory;
+
+        closeModal('modal-tt-weekend-confirm');
+        await executeSaveTimetableConfig(pendingTimetableConfigToSave);
+    } catch (err) {
+        alert('Failed to synchronize weekly off with attendance: ' + err.message);
     }
 };
 
@@ -1824,13 +2084,53 @@ const setupEventListeners = () => {
     document.getElementById('btn-tt-settings')?.addEventListener('click', openTimetableSettingsModal);
     document.getElementById('btn-save-tt-settings')?.addEventListener('click', saveTimetableSettings);
     document.getElementById('btn-print-timetable')?.addEventListener('click', printTimetableRoutine);
-    document.getElementById('btn-add-period-slot')?.addEventListener('click', addTimetableSlot);
+
+    // Structure Settings Controls
+    document.getElementById('tt-working-days-picker')?.addEventListener('change', updateDaysSummaryAndCardStyles);
+
+    document.getElementById('btn-period-count-dec')?.addEventListener('click', () => {
+        setTimetableSlotsCount(currentEditingSlots.length - 1);
+    });
+    document.getElementById('btn-period-count-inc')?.addEventListener('click', () => {
+        setTimetableSlotsCount(currentEditingSlots.length + 1);
+    });
+    document.getElementById('tt-settings-total-periods')?.addEventListener('change', (e) => {
+        setTimetableSlotsCount(e.target.value);
+    });
+
+    document.getElementById('btn-autotime-apply')?.addEventListener('click', applyAutoTimings);
+    document.getElementById('btn-insert-break-slot')?.addEventListener('click', insertBreakSlot);
+
+    // Timetable Weekend Confirmation Listeners
+    document.getElementById('btn-tt-confirm-apply-today')?.addEventListener('click', () => applyTimetableWeekendSync('today'));
+    document.getElementById('btn-tt-confirm-apply-all')?.addEventListener('click', () => applyTimetableWeekendSync('all'));
+
     document.getElementById('tt-timings-container')?.addEventListener('click', (e) => {
         const delBtn = e.target.closest('.btn-remove-slot');
         if (!delBtn) return;
+        syncSlotInputsToMemory();
         const idx = Number(delBtn.dataset.index);
         if (!isNaN(idx) && currentEditingSlots[idx]) {
             currentEditingSlots.splice(idx, 1);
+            renderTimetableSlotsEditor();
+        }
+    });
+
+    document.getElementById('tt-timings-container')?.addEventListener('input', (e) => {
+        if (e.target.classList.contains('tt-slot-start') || e.target.classList.contains('tt-slot-end')) {
+            const card = e.target.closest('.tt-slot-card');
+            if (card) {
+                const s = card.querySelector('.tt-slot-start')?.value;
+                const en = card.querySelector('.tt-slot-end')?.value;
+                const durBadge = card.querySelector('.slot-duration-badge');
+                if (durBadge) durBadge.textContent = `${calcSlotDuration(s, en)} mins`;
+            }
+        }
+    });
+
+    document.getElementById('tt-timings-container')?.addEventListener('change', (e) => {
+        if (e.target.classList.contains('tt-slot-is-break')) {
+            syncSlotInputsToMemory();
             renderTimetableSlotsEditor();
         }
     });
