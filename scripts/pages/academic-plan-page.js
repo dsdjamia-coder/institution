@@ -98,6 +98,13 @@ const formatDisplayDate = (dateStr) => {
     }
 };
 
+const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
+const isClassInDutyScope = (clsName = '', dutyList = []) => {
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    const targetNorm = normalizeClassLabel(clsName);
+    return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+};
+
 const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     const classesSet = new Set();
     const addIfClass = (val) => {
@@ -112,23 +119,36 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
             str.split(',').forEach((part) => addIfClass(part));
             return;
         }
+        if (str.includes('/')) {
+            str.split('/').forEach((part) => addIfClass(part));
+            return;
+        }
         classesSet.add(str);
     };
 
     if (staffDoc) {
+        addIfClass(staffDoc.dutyClasses);
         addIfClass(staffDoc.assignedClass);
         addIfClass(staffDoc.assignedClasses);
         addIfClass(staffDoc.class);
         addIfClass(staffDoc.classes);
         addIfClass(staffDoc.teachingClasses);
+        if (staffDoc.customFields) {
+            addIfClass(staffDoc.customFields.dutyClasses);
+            addIfClass(staffDoc.customFields.assignedClass);
+            addIfClass(staffDoc.customFields.assignedClasses);
+            addIfClass(staffDoc.customFields.class);
+            addIfClass(staffDoc.customFields.classes);
+        }
     }
     if (staffAccess) {
+        addIfClass(staffAccess.dutyClasses);
         addIfClass(staffAccess.assignedClass);
         addIfClass(staffAccess.assignedClasses);
         addIfClass(staffAccess.class);
         addIfClass(staffAccess.classes);
     }
-    return Array.from(classesSet);
+    return Array.from(classesSet).map(c => c.trim()).filter(Boolean);
 };
 
 // --- Sidebar Management ---
@@ -383,6 +403,43 @@ const setupRealtimeListeners = () => {
             }
         }
     });
+
+    // 6. Live Staff & Duty Classes Sync
+    onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
+        const staffDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!isSuperAdmin) {
+            const staffAccess = window.AppSession?.getStaffAccess?.() || {};
+            const staffEmailKey = String(staffAccess.email || '').trim().toLowerCase();
+            const staffPhoneKey = String(staffAccess.phone || '').replace(/\D/g, '');
+            const staffIdKey = staffAccess.staffId || '';
+
+            const matchedStaff = staffDocs.find(s => 
+                (staffIdKey && s.id === staffIdKey) ||
+                (staffEmailKey && s.email && s.email.toLowerCase() === staffEmailKey) ||
+                (staffPhoneKey && s.phone && String(s.phone).replace(/\D/g, '').includes(staffPhoneKey)) ||
+                (s.name && currentStaffName && s.name.toLowerCase() === currentStaffName.toLowerCase())
+            );
+            if (matchedStaff) {
+                currentStaffDoc = matchedStaff;
+                teacherAssignedClasses = getStaffAssignedClasses(matchedStaff, staffAccess);
+                if (window.AppSession?.updateStaffAccess) {
+                    window.AppSession.updateStaffAccess({
+                        dutyClasses: Array.isArray(matchedStaff.dutyClasses) ? matchedStaff.dutyClasses : [],
+                        staffId: matchedStaff.id,
+                        name: matchedStaff.name || ''
+                    });
+                }
+                if (teacherAssignedClasses.length > 0) {
+                    currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
+                    const userRoleEl = document.getElementById('header-user-role');
+                    if (userRoleEl) userRoleEl.textContent = currentStaffRole;
+                }
+            } else if (staffAccess) {
+                teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
+            }
+            populateClassDropdowns();
+        }
+    });
 };
 
 const syncTimetableWorkingDaysWithAttendance = () => {
@@ -430,7 +487,7 @@ const getAllowedClassesForTeacher = () => {
     if (isSuperAdmin || teacherAssignedClasses.length === 0) {
         return allClasses;
     }
-    const filtered = allClasses.filter(c => teacherAssignedClasses.includes(c));
+    const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
     return filtered.length ? filtered : allClasses;
 };
 
@@ -453,7 +510,7 @@ const populateClassDropdowns = () => {
         const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
         select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
 
-        if (prev && allowed.includes(prev)) {
+        if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
             select.value = prev;
         } else if (allowed.length > 0) {
             select.value = allowed[0];

@@ -47,6 +47,13 @@ window.addEventListener('load', () => {
     dismissLoadingScreen();
 });
 
+const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
+const isClassInDutyScope = (clsName = '', dutyList = []) => {
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    const targetNorm = normalizeClassLabel(clsName);
+    return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+};
+
 const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     const classesSet = new Set();
     const addIfClass = (val) => {
@@ -69,11 +76,13 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     };
 
     if (staffDoc) {
+        addIfClass(staffDoc.dutyClasses);
         addIfClass(staffDoc.assignedClass);
         addIfClass(staffDoc.assignedClasses);
         addIfClass(staffDoc.class);
         addIfClass(staffDoc.classes);
         if (staffDoc.customFields) {
+            addIfClass(staffDoc.customFields.dutyClasses);
             addIfClass(staffDoc.customFields.assignedClass);
             addIfClass(staffDoc.customFields.assignedClasses);
             addIfClass(staffDoc.customFields.class);
@@ -86,6 +95,7 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     }
 
     if (staffAccess) {
+        addIfClass(staffAccess.dutyClasses);
         addIfClass(staffAccess.assignedClass);
         addIfClass(staffAccess.assignedClasses);
         addIfClass(staffAccess.class);
@@ -195,40 +205,46 @@ const getExamContext = (value = '', classLabel = '', year = currentAcademicYear)
 };
 const resolveResultAccess = async ({ isAdminUser = false, staffDocs = [], user = null, staffAccess = null, userKey = '' } = {}) => {
     const isSuperOrAdmin = isAdminUser || staffAccess?.actLikeSuperAdmin === true || staffAccess?.canAccessAdmin === true || staffAccess?.admin === true;
-    if (isSuperOrAdmin) {
-        const matchingDoc = staffDocs.find((s) => {
-            const sId = s.id;
-            const sLoginId = String(s.loginId || s.username || '').trim().toLowerCase();
-            const sEmail = String(s.email || '').trim().toLowerCase();
-            const sName = String(s.name || '').trim().toLowerCase();
-            return (staffAccess?.staffId && sId === staffAccess.staffId)
-                || (userKey && (sLoginId === userKey || sEmail === userKey || sName === userKey));
-        });
-        return {
-            allowed: true,
-            isAdmin: true,
-            label: matchingDoc?.name || staffAccess?.name || staffAccess?.displayName || user?.displayName || 'ADMINISTRATOR',
-            staffDoc: matchingDoc || null
-        };
-    }
+
+    const normalizedUserKey = String(userKey || '').trim().toLowerCase();
+    const staffEmailKey = normalizeEmail(staffAccess?.email || user?.email || userKey);
+    const staffPhoneKey = String(staffAccess?.phone || userKey || '').replace(/\D/g, '');
+    const staffIdKey = staffAccess?.staffId || '';
 
     const myStaffDoc = staffDocs.find((s) => {
         const sId = s.id;
         const sLoginId = String(s.loginId || s.username || '').trim().toLowerCase();
-        const sEmail = String(s.email || '').trim().toLowerCase();
+        const sEmail = normalizeEmail(s.email);
         const sName = String(s.name || '').trim().toLowerCase();
-        return (staffAccess?.staffId && sId === staffAccess.staffId)
-            || (userKey && (sLoginId === userKey || sEmail === userKey || sName === userKey));
+        const sPhone = String(s.phone || '').replace(/\D/g, '');
+        return (staffIdKey && sId === staffIdKey)
+            || (sLoginId && normalizedUserKey && sLoginId === normalizedUserKey)
+            || (sEmail && staffEmailKey && sEmail === staffEmailKey)
+            || (sPhone && staffPhoneKey && sPhone.length >= 7 && staffPhoneKey.includes(sPhone))
+            || (sName && normalizedUserKey && sName === normalizedUserKey);
     });
-    let hasResultPermission = myStaffDoc && myStaffDoc.isActive !== false && (
-        myStaffDoc.canManageResults === true
-        || myStaffDoc.canAccessAdmin === true
-        || myStaffDoc.actLikeSuperAdmin === true
+
+    if (isSuperOrAdmin) {
+        return {
+            allowed: true,
+            isAdmin: true,
+            label: myStaffDoc?.name || staffAccess?.name || staffAccess?.displayName || user?.displayName || 'ADMINISTRATOR',
+            staffDoc: myStaffDoc || null
+        };
+    }
+
+    let hasResultPermission = Boolean(
+        (myStaffDoc && myStaffDoc.isActive !== false && (
+            myStaffDoc.canManageResults === true
+            || myStaffDoc.canAccessAdmin === true
+            || myStaffDoc.actLikeSuperAdmin === true
+        ))
         || staffAccess?.result === true
         || staffAccess?.canManageResults === true
         || staffAccess?.canAccessAdmin === true
         || staffAccess?.actLikeSuperAdmin === true
     );
+
     if (!hasResultPermission) {
         const emailToLookup = normalizeEmail(user?.email || staffAccess?.email || staffAccess?.userKey || '');
         if (emailToLookup) {
@@ -242,7 +258,27 @@ const resolveResultAccess = async ({ isAdminUser = false, staffDocs = [], user =
             }
         }
     }
+
     if (!hasResultPermission) return { allowed: false, label: '', staffDoc: null };
+
+    if (myStaffDoc && window.AppSession?.updateStaffAccess) {
+        window.AppSession.updateStaffAccess({
+            collection: myStaffDoc.canCollect === true,
+            worksheet: myStaffDoc.canAccessWorksheet === true,
+            result: myStaffDoc.canManageResults === true,
+            canManageResults: myStaffDoc.canManageResults === true,
+            attendance: myStaffDoc.canAccessAttendance === true,
+            academicPlan: myStaffDoc.canAccessAcademicPlan === true,
+            studentActivity: myStaffDoc.canAccessActivity === true,
+            admin: myStaffDoc.canAccessAdmin === true,
+            actLikeSuperAdmin: myStaffDoc.actLikeSuperAdmin === true,
+            dutyClasses: Array.isArray(myStaffDoc.dutyClasses) ? myStaffDoc.dutyClasses : [],
+            staffId: myStaffDoc.id,
+            name: myStaffDoc.name || '',
+            role: myStaffDoc.role || myStaffDoc.type || 'Staff'
+        });
+    }
+
     return {
         allowed: true,
         isAdmin: false,
@@ -1731,15 +1767,24 @@ const populateReportClasses = (selectedYear) => {
     const reportClassSelect = document.getElementById('report-class-select');
     if (!reportClassSelect) return;
     const year = selectedYear || document.getElementById('report-academic-year')?.value || currentAcademicYear;
-    const yearClasses = getReportClassesForYear(year);
+    const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
+    const rawYearClasses = getReportClassesForYear(year);
+    const yearClasses = isTeacherScope ? rawYearClasses.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : rawYearClasses;
     const previous = reportClassSelect.value;
 
-    let opts = `<option value="">-- Choose Class --</option><option value="ALL">All Classes</option>`;
+    let opts = `<option value="">-- Choose Class --</option>`;
+    if (!isTeacherScope) {
+        opts += `<option value="ALL">All Classes</option>`;
+    } else if (yearClasses.length > 1) {
+        opts += `<option value="ALL">All My Classes</option>`;
+    }
     opts += yearClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     reportClassSelect.innerHTML = opts;
 
-    if (previous && (previous === 'ALL' || yearClasses.includes(previous))) {
+    if (previous && (previous === 'ALL' || yearClasses.some((c) => isClassInDutyScope(previous, [c])))) {
         reportClassSelect.value = previous;
+    } else if (isTeacherScope && yearClasses.length === 1) {
+        reportClassSelect.value = yearClasses[0];
     } else {
         reportClassSelect.value = '';
     }
@@ -1775,7 +1820,7 @@ const populateReportYears = () => {
 
 function populateDropdowns() {
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-    const teacherAllowedClasses = isTeacherScope ? classes.filter((c) => teacherAssignedClasses.includes(c)) : classes;
+    const teacherAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
     const entryClassOpts = `<option value="">-- Choose Class --</option>` + teacherAllowedClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     const allClassOpts = `<option value="">-- Choose Class --</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
 
@@ -1788,7 +1833,7 @@ function populateDropdowns() {
         entryClassSelect.innerHTML = entryClassOpts;
         if (teacherAllowedClasses.length === 1) {
             entryClassSelect.value = teacherAllowedClasses[0];
-        } else if (current && teacherAllowedClasses.includes(current)) {
+        } else if (current && teacherAllowedClasses.some((c) => isClassInDutyScope(current, [c]))) {
             entryClassSelect.value = current;
         }
         updateMarksDownloadAndUploadState();
@@ -1805,7 +1850,7 @@ function populateDropdowns() {
         select.innerHTML = subjectClassOpts;
         if (teacherAllowedClasses.length === 1) {
             select.value = teacherAllowedClasses[0];
-        } else if (current && teacherAllowedClasses.includes(current)) {
+        } else if (current && teacherAllowedClasses.some((c) => isClassInDutyScope(current, [c]))) {
             select.value = current;
         }
     });
@@ -1821,7 +1866,7 @@ function populateDropdowns() {
         schemaListClassFilter.innerHTML = filterOpts;
         if (teacherAllowedClasses.length === 1 && isTeacherScope) {
             schemaListClassFilter.value = teacherAllowedClasses[0];
-        } else if (currentFilter && teacherAllowedClasses.includes(currentFilter)) {
+        } else if (currentFilter && teacherAllowedClasses.some((c) => isClassInDutyScope(currentFilter, [c]))) {
             schemaListClassFilter.value = currentFilter;
         }
     }
@@ -1839,9 +1884,9 @@ function populateDropdowns() {
 // --- Dashboard ---
 function updateDashboard() {
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-    const targetClasses = isTeacherScope ? classes.filter(c => teacherAssignedClasses.includes(c)) : classes;
-    const yearStudents = students.filter((s) => (!isTeacherScope || teacherAssignedClasses.includes(s.class)) && (s.academicYear === currentAcademicYear || !s.academicYear) && String(s.class || '').trim().toLowerCase() !== 'alumni' && s.status !== 'alumni' && s.status !== 'graduated');
-    const yearRows = examResultsCache.filter((row) => (!isTeacherScope || teacherAssignedClasses.includes(row.classLabel)) && (row.academicYear === currentAcademicYear || !row.academicYear));
+    const targetClasses = isTeacherScope ? classes.filter(c => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
+    const yearStudents = students.filter((s) => (!isTeacherScope || isClassInDutyScope(s.class, teacherAssignedClasses)) && (s.academicYear === currentAcademicYear || !s.academicYear) && String(s.class || '').trim().toLowerCase() !== 'alumni' && s.status !== 'alumni' && s.status !== 'graduated');
+    const yearRows = examResultsCache.filter((row) => (!isTeacherScope || isClassInDutyScope(row.classLabel, teacherAssignedClasses)) && (row.academicYear === currentAcademicYear || !row.academicYear));
     const yearPublishedRows = yearRows.filter((row) => row.published === true);
     document.getElementById('dash-total-classes').textContent = targetClasses.length;
     document.getElementById('dash-total-students').textContent = yearStudents.length;
@@ -2047,10 +2092,11 @@ const renderPublishedDraftTables = () => {
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
 
     const publishedRowsRaw = yearRows.filter((row) => row.published === true)
+        .filter((row) => !isTeacherScope || isClassInDutyScope(row.classLabel, teacherAssignedClasses))
         .filter((row) => !publishedClass || row.classLabel === publishedClass)
         .filter((row) => resultMatchesExam(row, publishedExam));
     const draftRowsRaw = yearRows.filter((row) => row.published !== true)
-        .filter((row) => !isTeacherScope || teacherAssignedClasses.includes(row.classLabel))
+        .filter((row) => !isTeacherScope || isClassInDutyScope(row.classLabel, teacherAssignedClasses))
         .filter((row) => !draftClass || row.classLabel === draftClass)
         .filter((row) => resultMatchesExam(row, draftExam));
 
@@ -2260,18 +2306,25 @@ const renderPublishedDraftTables = () => {
     const pubClassEl = document.getElementById('published-class-filter');
     if (pubClassEl) {
         const prev = pubClassEl.value;
-        pubClassEl.innerHTML = `<option value="">All Classes</option>${classes.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
-        if (prev) pubClassEl.value = prev;
+        const pubAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
+        pubClassEl.innerHTML = (pubAllowedClasses.length === 1)
+            ? pubAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')
+            : `<option value="">All Classes</option>${pubAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
+        if (prev && pubAllowedClasses.some((c) => isClassInDutyScope(prev, [c]))) {
+            pubClassEl.value = prev;
+        } else if (pubAllowedClasses.length === 1) {
+            pubClassEl.value = pubAllowedClasses[0];
+        }
     }
 
     const draftClassEl = document.getElementById('draft-class-filter');
     if (draftClassEl) {
         const prevDraft = draftClassEl.value;
-        const draftAllowedClasses = isTeacherScope ? classes.filter((c) => teacherAssignedClasses.includes(c)) : classes;
+        const draftAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
         draftClassEl.innerHTML = (draftAllowedClasses.length === 1)
             ? draftAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')
             : `<option value="">All Classes</option>${draftAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
-        if (prevDraft && draftAllowedClasses.includes(prevDraft)) {
+        if (prevDraft && draftAllowedClasses.some((c) => isClassInDutyScope(prevDraft, [c]))) {
             draftClassEl.value = prevDraft;
         } else if (draftAllowedClasses.length === 1) {
             draftClassEl.value = draftAllowedClasses[0];
@@ -2322,7 +2375,7 @@ const renderExamSetup = () => {
     const classFilter = document.getElementById('schema-list-class-filter')?.value || '';
     const filtered = resultSchemas
         .filter((s) => s.academicYear === currentAcademicYear || !s.academicYear)
-        .filter((s) => !isTeacherScope || teacherAssignedClasses.includes(s.classLabel))
+        .filter((s) => !isTeacherScope || isClassInDutyScope(s.classLabel, teacherAssignedClasses))
         .filter((s) => !classFilter || s.classLabel === classFilter);
     
     if (filtered.length === 0) {
@@ -3177,7 +3230,7 @@ const parseAndReviewBulkMarks = async () => {
     const examId = document.getElementById('entry-exam-select')?.value || '';
     const file = document.getElementById('marks-bulk-file')?.files?.[0];
     if (!className || !examId) return alert('Select class and exam first.');
-    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !teacherAssignedClasses.includes(className)) {
+    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !isClassInDutyScope(className, teacherAssignedClasses)) {
         return alert('You can only upload marks for your assigned classes.');
     }
     if (!file) return alert('Choose a spreadsheet file (.csv or .xlsx) first.');
@@ -3520,7 +3573,7 @@ const saveMarksFromEntry = async (shouldPublish = false) => {
     if(!validateMarksTable()) return alert('Please fix invalid marks before saving.');
 
     const selectedClass = document.getElementById('entry-class-select')?.value || '';
-    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !teacherAssignedClasses.includes(selectedClass)) {
+    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedClass, teacherAssignedClasses)) {
         return alert('You can only enter marks for your assigned classes.');
     }
 
@@ -4222,7 +4275,7 @@ document.getElementById('save-subject-schema-btn')?.addEventListener('click', as
     const classLabel = document.getElementById('subject-class-select').value;
     if (!classLabel) return alert('Select class.');
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-    if (isTeacherScope && !teacherAssignedClasses.includes(classLabel)) {
+    if (isTeacherScope && !isClassInDutyScope(classLabel, teacherAssignedClasses)) {
         return alert('You can only configure subjects for your assigned class (' + teacherAssignedClasses.join(', ') + ').');
     }
     if (!currentAcademicYear) return alert('Set the current academic year first.');
@@ -4306,7 +4359,7 @@ document.getElementById('save-exam-config-btn')?.addEventListener('click', async
     const classLabel = document.getElementById('exam-config-class-select')?.value || '';
     if (!classLabel) return alert('Select class.');
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-    if (isTeacherScope && !teacherAssignedClasses.includes(classLabel)) {
+    if (isTeacherScope && !isClassInDutyScope(classLabel, teacherAssignedClasses)) {
         return alert('You can only configure exams for your assigned class (' + teacherAssignedClasses.join(', ') + ').');
     }
     if (!currentAcademicYear) return alert('Set the current academic year first.');
@@ -4368,7 +4421,7 @@ document.getElementById('exam-list-container')?.addEventListener('click', async 
         const schema = resultSchemas.find((entry) => entry.id === customExamEditBtn.dataset.schemaId);
         if (!schema) return;
         const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-        if (isTeacherScope && !teacherAssignedClasses.includes(schema.classLabel)) {
+        if (isTeacherScope && !isClassInDutyScope(schema.classLabel, teacherAssignedClasses)) {
             return alert('You can only edit custom exams for your assigned class.');
         }
         document.querySelector('.setup-mode-radio[value="exams"]')?.click();
@@ -4386,7 +4439,7 @@ document.getElementById('exam-list-container')?.addEventListener('click', async 
         const examKey = customExamDeleteBtn.dataset.examKey || '';
         if (!schema || !examKey) return;
         const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-        if (isTeacherScope && !teacherAssignedClasses.includes(schema.classLabel)) {
+        if (isTeacherScope && !isClassInDutyScope(schema.classLabel, teacherAssignedClasses)) {
             return alert('You can only delete custom exams for your assigned class.');
         }
         const examLabel = schema.examConfigs?.[examKey]?.label || examKey;
@@ -4409,7 +4462,7 @@ document.getElementById('exam-list-container')?.addEventListener('click', async 
         const schema = resultSchemas.find((entry) => entry.id === editBtn.dataset.id);
         if (!schema) return;
         const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-        if (isTeacherScope && !teacherAssignedClasses.includes(schema.classLabel)) {
+        if (isTeacherScope && !isClassInDutyScope(schema.classLabel, teacherAssignedClasses)) {
             return alert('You can only edit subjects for your assigned class.');
         }
         const classSelect = document.getElementById('subject-class-select');
@@ -4424,7 +4477,7 @@ document.getElementById('exam-list-container')?.addEventListener('click', async 
         const schema = resultSchemas.find((entry) => entry.id === configExamsBtn.dataset.id);
         if (!schema) return;
         const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-        if (isTeacherScope && !teacherAssignedClasses.includes(schema.classLabel)) {
+        if (isTeacherScope && !isClassInDutyScope(schema.classLabel, teacherAssignedClasses)) {
             return alert('You can only configure exams for your assigned class.');
         }
         document.querySelector('.setup-mode-radio[value="exams"]')?.click();
@@ -4440,7 +4493,7 @@ document.getElementById('exam-list-container')?.addEventListener('click', async 
     if (delBtn) {
         const schema = resultSchemas.find((entry) => entry.id === delBtn.dataset.id);
         const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
-        if (isTeacherScope && !teacherAssignedClasses.includes(schema?.classLabel)) {
+        if (isTeacherScope && !isClassInDutyScope(schema?.classLabel, teacherAssignedClasses)) {
             return alert('You can only delete schema for your assigned class.');
         }
         const label = schema ? schema.classLabel : 'this class';
@@ -5464,6 +5517,7 @@ let cachedReportData = null;
 const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) => {
     if (!reportYear || !className || !examId) return null;
 
+    const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
     const isAllClasses = (className === 'ALL');
     let targetClasses;
     if (isAllClasses) {
@@ -5474,8 +5528,10 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
                 .filter(Boolean)
         )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-        targetClasses = publishedExamClasses.length ? publishedExamClasses : getReportClassesForYear(reportYear);
+        const rawTargetClasses = publishedExamClasses.length ? publishedExamClasses : getReportClassesForYear(reportYear);
+        targetClasses = isTeacherScope ? rawTargetClasses.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : rawTargetClasses;
     } else {
+        if (isTeacherScope && !isClassInDutyScope(className, teacherAssignedClasses)) return null;
         targetClasses = [className];
     }
 
@@ -6492,7 +6548,7 @@ const validateMarkValueForMax = (value = '', maxMarks = 0) => {
 const openResultEditModal = (resultId = '') => {
     const row = examResultsCache.find((entry) => entry.id === resultId);
     if (!row) return alert('Result record not found.');
-    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !teacherAssignedClasses.includes(row.classLabel)) {
+    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !isClassInDutyScope(row.classLabel, teacherAssignedClasses)) {
         return alert('You can only view or edit results for your assigned classes.');
     }
     const schema = getSchemaForResultRow(row);
@@ -6535,7 +6591,7 @@ const closeResultEditModal = () => {
 const saveResultEditModal = async () => {
     const row = examResultsCache.find((entry) => entry.id === editingResultId);
     if (!row) return;
-    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !teacherAssignedClasses.includes(row.classLabel)) {
+    if (roleScope === 'staff' && teacherAssignedClasses.length > 0 && !isClassInDutyScope(row.classLabel, teacherAssignedClasses)) {
         return alert('You can only save results for your assigned classes.');
     }
     const inputs = Array.from(document.querySelectorAll('#result-edit-fields .result-edit-mark-input'));

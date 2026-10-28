@@ -190,11 +190,14 @@ const syncStaffAccessRecord = async (staffRecord = {}) => {
         canCollect: staffRecord.canCollect === true,
         canAccessWorksheet: staffRecord.canAccessWorksheet === true,
         canManageResults: staffRecord.canManageResults === true,
+        result: staffRecord.canManageResults === true,
         canAccessAttendance: staffRecord.canAccessAttendance === true,
         canAccessAcademicPlan: staffRecord.canAccessAcademicPlan === true,
         canAccessActivity: staffRecord.canAccessActivity === true,
         canAccessAdmin: staffRecord.canAccessAdmin === true,
         actLikeSuperAdmin: staffRecord.actLikeSuperAdmin === true,
+        dutyClasses: Array.isArray(staffRecord.dutyClasses) ? staffRecord.dutyClasses : [],
+        staffId: staffRecord.id || '',
         name: staffRecord.name || '',
         role: staffRecord.role || '',
         type: staffRecord.type || '',
@@ -222,11 +225,14 @@ const rebuildStaffAccessIndex = async (staffRecords = []) => {
             canCollect: staffRecord.canCollect === true,
             canAccessWorksheet: staffRecord.canAccessWorksheet === true,
             canManageResults: staffRecord.canManageResults === true,
+            result: staffRecord.canManageResults === true,
             canAccessAttendance: staffRecord.canAccessAttendance === true,
             canAccessAcademicPlan: staffRecord.canAccessAcademicPlan === true,
             canAccessActivity: staffRecord.canAccessActivity === true,
             canAccessAdmin: staffRecord.canAccessAdmin === true,
             actLikeSuperAdmin: staffRecord.actLikeSuperAdmin === true,
+            dutyClasses: Array.isArray(staffRecord.dutyClasses) ? staffRecord.dutyClasses : [],
+            staffId: staffRecord.id || '',
             name: staffRecord.name || '',
             role: staffRecord.role || '',
             type: staffRecord.type || '',
@@ -2830,6 +2836,7 @@ document.getElementById('staff-duty-save-btn')?.addEventListener('click', async 
 
         staffRecord.dutyClasses = selectedClasses;
         staffRecord.dutyPaymentDetails = dutyPaymentDetails;
+        await syncStaffAccessRecord(staffRecord);
 
         await logAuditEvent({
             category: 'staff',

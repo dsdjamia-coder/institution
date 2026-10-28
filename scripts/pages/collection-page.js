@@ -28,6 +28,12 @@ let editTouchedItemKeys = new Set();
 let availableFeeAcademicYears = [];
 let selectedFeeAcademicYear = '';
 let selectedDutyClasses = [];
+const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
+const isClassInDutyScope = (clsName = '', dutyList = []) => {
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    const targetNorm = normalizeClassLabel(clsName);
+    return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+};
 let pendingFeeSelectionsByYear = {};
 let isPaymentMutationInFlight = false;
 
@@ -533,7 +539,7 @@ const buildFeeStatusMatrix = () => {
     const fGen = document.getElementById('filter-gender')?.value || 'all';
     const fYear = document.getElementById('filter-academic-year')?.value || currentWorkingAcademicYear;
     const dutyFilteredStudents = (!isCurrentAdmin && selectedDutyClasses.length)
-        ? students.filter((student) => selectedDutyClasses.includes(student.class))
+        ? students.filter((student) => isClassInDutyScope(student.class, selectedDutyClasses))
         : students;
     const list = dutyFilteredStudents.filter(s => (fCls === 'all' || s.class === fCls) && (fGen === 'all' || s.gender === fGen));
     const items = feeItems.filter((i) => {
@@ -857,7 +863,7 @@ const getVisiblePayments = () => {
         if (!isSameCollectorRecord(payment.collectedBy)) return false;
         if (!selectedDutyClasses.length) return true;
         const paymentClass = payment.classLabel || payment.studentClass || getStudentById(payment.studentId)?.class || '';
-        return selectedDutyClasses.includes(paymentClass);
+        return isClassInDutyScope(paymentClass, selectedDutyClasses);
     });
 };
 const getVisibleDonations = () => isCurrentAdmin
@@ -1197,7 +1203,7 @@ const renderFeeYearSwitcher = () => {
 
 const getClassOptionsForCollector = () => {
     if (isCurrentAdmin || !selectedDutyClasses.length) return classes;
-    return classes.filter((cls) => selectedDutyClasses.includes(cls));
+    return classes.filter((cls) => isClassInDutyScope(cls, selectedDutyClasses));
 };
 
 const renderMyClassTab = () => {

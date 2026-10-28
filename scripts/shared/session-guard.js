@@ -255,6 +255,13 @@
             const state = getStaffState();
             return (state?.access && typeof state.access === 'object') ? state.access : null;
         },
+        updateStaffAccess(partialAccess = {}) {
+            const state = getStaffState();
+            if (!state) return;
+            const currentAccess = (state.access && typeof state.access === 'object') ? state.access : {};
+            const updatedAccess = { ...currentAccess, ...partialAccess };
+            writeJson(STAFF_STATE_KEY, { ...state, access: updatedAccess });
+        },
         startAdmin() {
             writeJson(ADMIN_STATE_KEY, buildState({ role: 'admin' }));
             setCurrentRole('admin');
@@ -297,7 +304,7 @@
             }
             setCurrentRole('staff');
             const access = this.getStaffAccess();
-            if (access?.actLikeSuperAdmin === true) {
+            if (access?.actLikeSuperAdmin === true || access?.canAccessAdmin === true || access?.admin === true) {
                 return;
             }
             if (requiredPage === 'collection' && access && access.collection !== true) {
@@ -316,7 +323,7 @@
                 return;
             }
             if (requiredPage === 'result' && access) {
-                const hasResultAccess = access.result === true || access.canManageResults === true;
+                const hasResultAccess = access.result === true || access.canManageResults === true || access.canAccessAdmin === true || access.admin === true || access.actLikeSuperAdmin === true;
                 const collectionFallback = access.collection === true && window.location.search.includes('from=collection');
                 if (!hasResultAccess && !collectionFallback) {
                     setFlash('Access Restricted: Your account does not have Result System page access.');

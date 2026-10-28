@@ -61,6 +61,13 @@ const formatDisplayDate = (dateStr) => {
     }
 };
 
+const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
+const isClassInDutyScope = (clsName = '', dutyList = []) => {
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    const targetNorm = normalizeClassLabel(clsName);
+    return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+};
+
 const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     const classesSet = new Set();
     const addIfClass = (val) => {
@@ -83,11 +90,13 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     };
 
     if (staffDoc) {
+        addIfClass(staffDoc.dutyClasses);
         addIfClass(staffDoc.assignedClass);
         addIfClass(staffDoc.assignedClasses);
         addIfClass(staffDoc.class);
         addIfClass(staffDoc.classes);
         if (staffDoc.customFields) {
+            addIfClass(staffDoc.customFields.dutyClasses);
             addIfClass(staffDoc.customFields.assignedClass);
             addIfClass(staffDoc.customFields.assignedClasses);
             addIfClass(staffDoc.customFields.class);
@@ -99,8 +108,11 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
         }
     }
     if (staffAccess) {
+        addIfClass(staffAccess.dutyClasses);
         addIfClass(staffAccess.assignedClass);
         addIfClass(staffAccess.assignedClasses);
+        addIfClass(staffAccess.class);
+        addIfClass(staffAccess.classes);
     }
     return Array.from(classesSet).map(c => c.trim()).filter(Boolean);
 };
@@ -388,17 +400,34 @@ const setupFirestoreListeners = () => {
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         const staffDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (!isSuperAdmin) {
+            const staffAccess = window.AppSession?.getStaffAccess?.() || {};
+            const staffEmailKey = String(staffAccess.email || currentUserKey || '').trim().toLowerCase();
+            const staffPhoneKey = String(staffAccess.phone || currentUserKey || '').replace(/\D/g, '');
+            const staffIdKey = staffAccess.staffId || '';
+
             const matchedStaff = staffDocs.find(s => 
+                (staffIdKey && s.id === staffIdKey) ||
                 (currentUserKey && (s.username === currentUserKey || s.email === currentUserKey || s.id === currentUserKey)) ||
+                (staffEmailKey && s.email && s.email.toLowerCase() === staffEmailKey) ||
+                (staffPhoneKey && s.phone && String(s.phone).replace(/\D/g, '').includes(staffPhoneKey)) ||
                 (s.name && s.name.toLowerCase() === currentStaffName.toLowerCase())
             );
             if (matchedStaff) {
                 currentStaffDoc = matchedStaff;
-                teacherAssignedClasses = getStaffAssignedClasses(matchedStaff);
+                teacherAssignedClasses = getStaffAssignedClasses(matchedStaff, staffAccess);
+                if (window.AppSession?.updateStaffAccess) {
+                    window.AppSession.updateStaffAccess({
+                        dutyClasses: Array.isArray(matchedStaff.dutyClasses) ? matchedStaff.dutyClasses : [],
+                        staffId: matchedStaff.id,
+                        name: matchedStaff.name || ''
+                    });
+                }
                 if (teacherAssignedClasses.length > 0) {
                     currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
                     updateUserHeaderDisplays();
                 }
+            } else if (staffAccess) {
+                teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
             }
         }
         populateClassDropdowns();
@@ -478,12 +507,13 @@ const getAllowedClassesForTeacher = () => {
     if (isSuperAdmin || teacherAssignedClasses.length === 0) {
         return allClasses;
     }
-    const filtered = allClasses.filter(c => teacherAssignedClasses.includes(c));
+    const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
     return filtered.length ? filtered : allClasses;
 };
 
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
+    const isTeacherScope = (!isSuperAdmin && teacherAssignedClasses.length > 0);
 
     // Standard class selects
     const standardIds = [
@@ -499,7 +529,7 @@ const populateClassDropdowns = () => {
         const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
         select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
 
-        if (prev && allowed.includes(prev)) {
+        if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
             select.value = prev;
         } else if (allowed.length > 0) {
             select.value = allowed[0];
@@ -512,15 +542,19 @@ const populateClassDropdowns = () => {
         if (!select) return;
 
         const prev = select.value;
-        const allOpts = [`<option value="ALL">All Classes</option>`]
-            .concat(allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`))
-            .join('');
+        let allOpts = [];
+        if (!isTeacherScope) {
+            allOpts.push(`<option value="ALL">All Classes</option>`);
+        } else if (allowed.length > 1) {
+            allOpts.push(`<option value="ALL">All My Classes</option>`);
+        }
+        allOpts = allOpts.concat(allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`)).join('');
         select.innerHTML = allOpts;
 
-        if (prev && (prev === 'ALL' || allowed.includes(prev))) {
+        if (prev && (prev === 'ALL' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             select.value = prev;
-        } else {
-            select.value = 'ALL';
+        } else if (allowed.length > 0) {
+            select.value = (isTeacherScope && allowed.length === 1) ? allowed[0] : (prev === 'ALL' ? 'ALL' : allowed[0]);
         }
     });
 
@@ -856,6 +890,9 @@ const clearAllStudents = () => {
 
 const saveDailyAttendance = async () => {
     if (!selectedDailyClass) return alert('Please select a class first.');
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedDailyClass, teacherAssignedClasses)) {
+        return alert('You can only record attendance for your assigned classes.');
+    }
     const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;
     if (!year) return alert('Academic year is not set.');
 
@@ -1326,7 +1363,7 @@ const loadAnalytics = async () => {
             if (s.status === 'alumni' || s.isAlumni) return false;
             const stuClass = s.academicYears?.[year]?.class || s.class || '';
             const matchesYear = (!s.academicYear || s.academicYear === year || s.academicYears?.[year]);
-            return targetClasses.includes(stuClass) && matchesYear;
+            return targetClasses.some(tc => isClassInDutyScope(stuClass, [tc])) && matchesYear;
         });
 
         const filteredList = [];

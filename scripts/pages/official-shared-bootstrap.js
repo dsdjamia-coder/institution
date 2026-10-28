@@ -943,6 +943,74 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     const getStudentGroup = (studentId = '') => studentGroups.find((group) => Array.isArray(group.memberIds) && group.memberIds.includes(studentId));
     const getGroupMemberRows = (group = {}) => (group.memberIds || []).map((memberId) => allStudents.find((student) => student.id === memberId)).filter(Boolean);
 
+    function normalizeClassLabel(str = '') {
+      return String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
+    }
+
+    function isClassInDutyScope(clsName = '', dutyList = []) {
+      if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+      const targetNorm = normalizeClassLabel(clsName);
+      return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+    }
+
+    function getEffectiveStaffAssignedClasses() {
+      const role = window.AppSession?.getRole?.() || '';
+      const isStaffSession = userSession?.source === 'staff' || role === 'staff' || Boolean(window.AppSession?.getStaffAccess?.());
+      const isMasterAdmin = !isStaffSession && (role === 'admin' || userSession?.source === 'firebase' || userSession?.source === 'legacy-admin' || userSession?.type === 'Admin');
+      if (isMasterAdmin) return [];
+
+      const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
+      const staffProfile = getCurrentSessionProfile() || {};
+      if (staffAccess?.actLikeSuperAdmin === true || staffProfile?.actLikeSuperAdmin === true) {
+        return [];
+      }
+
+      const classesSet = new Set();
+      const addIfClass = (val) => {
+        if (!val) return;
+        if (Array.isArray(val)) { val.forEach(addIfClass); return; }
+        const s = String(val).trim();
+        if (!s) return;
+        if (s.includes(',')) { s.split(',').forEach(addIfClass); return; }
+        if (s.includes('/')) { s.split('/').forEach(addIfClass); return; }
+        classesSet.add(s);
+      };
+
+      addIfClass(staffProfile.dutyClasses);
+      addIfClass(staffProfile.assignedClasses);
+      addIfClass(staffProfile.assignedClass);
+      addIfClass(staffProfile.class);
+      addIfClass(staffProfile.classes);
+      addIfClass(staffAccess.dutyClasses);
+      addIfClass(staffAccess.assignedClasses);
+      addIfClass(staffAccess.assignedClass);
+
+      return Array.from(classesSet).map((c) => c.trim()).filter(Boolean);
+    }
+
+    function syncLiveStaffSession() {
+      const profile = getCurrentSessionProfile() || {};
+      if (profile && profile.id && window.AppSession?.updateStaffAccess) {
+        window.AppSession.updateStaffAccess({
+          collection: profile.canCollect === true,
+          worksheet: profile.canAccessWorksheet === true,
+          result: profile.canManageResults === true,
+          canManageResults: profile.canManageResults === true,
+          attendance: profile.canAccessAttendance === true,
+          academicPlan: profile.canAccessAcademicPlan === true,
+          studentActivity: profile.canAccessActivity === true,
+          activity: profile.canAccessActivity === true,
+          admin: profile.canAccessAdmin === true,
+          canAccessAdmin: profile.canAccessAdmin === true,
+          actLikeSuperAdmin: profile.actLikeSuperAdmin === true,
+          dutyClasses: Array.isArray(profile.dutyClasses) ? profile.dutyClasses : [],
+          staffId: profile.id,
+          name: profile.name || '',
+          role: profile.role || profile.type || 'Staff'
+        });
+      }
+    }
+
     const getMobileToggle = () => document.getElementById('official-my-profile-btn') || document.getElementById('mobile-menu-btn');
     const getNavMenu = () => document.querySelector('.nav-menu');
     const setMobileMenuState = (isOpen) => {
@@ -1584,9 +1652,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const getFilteredStudentsList = () => {
       const yearStudents = getStudentsForCurrentAcademicYear();
+      const dutyScope = getEffectiveStaffAssignedClasses();
       return yearStudents
         .filter((student) => {
           const cls = getStudentClass(student);
+          if (dutyScope.length > 0 && !isClassInDutyScope(cls, dutyScope)) return false;
           const gender = normalizeText(student.gender);
           const status = normalizeText(getStudentStatus(student));
           const searchable = Object.entries(student || {})
@@ -1869,7 +1939,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const renderStudents = () => {
       const yearStudents = getStudentsForCurrentAcademicYear();
-      const classOptions = [...new Set(yearStudents.map(getStudentClass))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const dutyScope = getEffectiveStaffAssignedClasses();
+      const rawClassOptions = [...new Set(yearStudents.map(getStudentClass))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : rawClassOptions;
+      if (dutyScope.length > 0 && officialFilters.studentClass && officialFilters.studentClass !== 'ALL' && !isClassInDutyScope(officialFilters.studentClass, dutyScope)) {
+        officialFilters.studentClass = 'ALL';
+      }
       const filteredStudents = getFilteredStudentsList();
 
       const totalCount = filteredStudents.length;
@@ -2544,6 +2619,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const buildClassSummary = () => {
       const yearStudents = getStudentsForCurrentAcademicYear();
+      const dutyScope = getEffectiveStaffAssignedClasses();
       const isAvailableMode = officialFilters.summaryAvailabilityMode !== 'missing';
       const field1Key = officialFilters.summaryCustomField1 || 'mobile';
       const field2Key = officialFilters.summaryCustomField2 || 'uid';
@@ -2554,6 +2630,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const map = new Map();
       yearStudents.forEach((student) => {
         const cls = getStudentClass(student);
+        if (dutyScope.length > 0 && !isClassInDutyScope(cls, dutyScope)) return;
         if (!map.has(cls)) {
           map.set(cls, {
             boys: 0,
@@ -3288,7 +3365,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }));
     };
 
-    const getCurrentSessionProfile = () => {
+    function getCurrentSessionProfile() {
       const isStaff = userSession?.source === 'staff' || window.AppSession?.getRole?.() === 'staff' || Boolean(window.AppSession?.getStaffAccess?.());
       if (isStaff) {
         const staffEmail = normalizeText(userSession?.username || userSession?.email || window.AppSession?.getStaffEmail?.() || window.AppSession?.getStaffAccess?.()?.userKey || '');
@@ -3303,7 +3380,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         if (entry) return entry;
       }
       return userSession || {};
-    };
+    }
     const getAllowedPageLabels = () => {
       const perms = evaluateModulePermissions();
       const labels = [];
@@ -3919,13 +3996,15 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }
 
       const yearStudents = getStudentsForBuilderYear();
+      const dutyScope = getEffectiveStaffAssignedClasses();
+      const scopedStudents = dutyScope.length > 0 ? yearStudents.filter((s) => isClassInDutyScope(getStudentClass(s), dutyScope)) : yearStudents;
       let filteredStudents = [];
       if (!builderConfig.classId) {
         filteredStudents = [];
       } else if (builderConfig.classId === 'ALL') {
-        filteredStudents = [...yearStudents];
+        filteredStudents = [...scopedStudents];
       } else {
-        filteredStudents = yearStudents.filter((s) => getStudentClass(s) === builderConfig.classId);
+        filteredStudents = scopedStudents.filter((s) => getStudentClass(s) === builderConfig.classId);
       }
 
       let rows = [];
@@ -4089,7 +4168,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }
 
       const yearStudents = getStudentsForBuilderYear();
-      const classOptions = [...new Set(yearStudents.map(getStudentClass))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const dutyScope = getEffectiveStaffAssignedClasses();
+      const rawClassOptions = [...new Set(yearStudents.map(getStudentClass))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : rawClassOptions;
+      if (dutyScope.length > 0 && builderConfig.classId && builderConfig.classId !== 'ALL' && !isClassInDutyScope(builderConfig.classId, dutyScope)) {
+        builderConfig.classId = classOptions[0] || 'ALL';
+      }
       const allStaffRecords = buildUnifiedStaffRecords();
       const staffCategories = [...new Set(allStaffRecords.map((s) => s.category).filter(Boolean))].sort();
       const allAlumniRecords = allStudents.filter(isAlumniStudent);
@@ -7166,6 +7250,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       ]);
       allStudents = studentsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       allStaff = staffSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      syncLiveStaffSession();
       studentGroups = groupsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       directoryEntries = dirSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       allFeeItems = feeItemsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
@@ -7351,6 +7436,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           renderAll();
         }
       });
+
+      onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
+        allStaff = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        syncLiveStaffSession();
+      }, () => {});
       if (isWorksheetPage) {
         const rawHash = (window.location.hash || '').replace('#', '');
         const validTabs = ['summary', 'students', 'staff', 'export'];

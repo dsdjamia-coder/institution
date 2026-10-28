@@ -101,6 +101,13 @@
             getStaffEmail() { const state = getStaffState(); return state?.email || ''; },
             isFresh() { const role = getRole(); return isStateFresh(getStateByRole(role), role); },
             getStaffAccess() { const state = getStaffState(); return (state?.access && typeof state.access === 'object') ? state.access : null; },
+            updateStaffAccess(partialAccess = {}) {
+                const state = getStaffState();
+                if (!state) return;
+                const currentAccess = (state.access && typeof state.access === 'object') ? state.access : {};
+                const updatedAccess = { ...currentAccess, ...partialAccess };
+                writeJson(STAFF_STATE_KEY, { ...state, access: updatedAccess });
+            },
             consumeFlash() {
                 const message = sessionStorage.getItem(FLASH_KEY) || '';
                 if (message) sessionStorage.removeItem(FLASH_KEY);
@@ -123,7 +130,7 @@
                 }
                 setCurrentRole('staff');
                 const access = this.getStaffAccess();
-                if (access?.actLikeSuperAdmin === true) {
+                if (access?.actLikeSuperAdmin === true || access?.canAccessAdmin === true || access?.admin === true) {
                     return;
                 }
                 if (requiredPage === 'collection' && access && access.collection !== true) {
@@ -137,7 +144,7 @@
                     return;
                 }
                 if (requiredPage === 'result' && access) {
-                    const hasResultAccess = access.result === true || access.canManageResults === true;
+                    const hasResultAccess = access.result === true || access.canManageResults === true || access.canAccessAdmin === true || access.admin === true || access.actLikeSuperAdmin === true;
                     const collectionFallback = access.collection === true && window.location.search.includes('from=collection');
                     if (!hasResultAccess && !collectionFallback) {
                         setFlash('Access Restricted: Your account does not have Result System page access.');
