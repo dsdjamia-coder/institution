@@ -187,9 +187,12 @@ const syncStaffAccessRecord = async (staffRecord = {}) => {
     await setDoc(getStaffAccessRef(email), {
         email,
         isActive: staffRecord.isActive !== false,
-        canCollect: staffRecord.canCollect !== false,
-        canAccessWorksheet: staffRecord.canAccessWorksheet !== false,
+        canCollect: staffRecord.canCollect === true,
+        canAccessWorksheet: staffRecord.canAccessWorksheet === true,
         canManageResults: staffRecord.canManageResults === true,
+        canAccessAttendance: staffRecord.canAccessAttendance === true,
+        canAccessAcademicPlan: staffRecord.canAccessAcademicPlan === true,
+        canAccessActivity: staffRecord.canAccessActivity === true,
         canAccessAdmin: staffRecord.canAccessAdmin === true,
         actLikeSuperAdmin: staffRecord.actLikeSuperAdmin === true,
         name: staffRecord.name || '',
@@ -216,9 +219,12 @@ const rebuildStaffAccessIndex = async (staffRecords = []) => {
         operations.push((batch) => batch.set(getStaffAccessRef(email), {
             email,
             isActive: staffRecord.isActive !== false,
-            canCollect: staffRecord.canCollect !== false,
-            canAccessWorksheet: staffRecord.canAccessWorksheet !== false,
+            canCollect: staffRecord.canCollect === true,
+            canAccessWorksheet: staffRecord.canAccessWorksheet === true,
             canManageResults: staffRecord.canManageResults === true,
+            canAccessAttendance: staffRecord.canAccessAttendance === true,
+            canAccessAcademicPlan: staffRecord.canAccessAcademicPlan === true,
+            canAccessActivity: staffRecord.canAccessActivity === true,
             canAccessAdmin: staffRecord.canAccessAdmin === true,
             actLikeSuperAdmin: staffRecord.actLikeSuperAdmin === true,
             name: staffRecord.name || '',
@@ -2300,13 +2306,16 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
     const isActive = document.getElementById(`${prefix}-active`)?.checked !== false;
     const showPublic = document.getElementById(`${prefix}-show-public`)?.checked !== false;
     const canCollect = document.getElementById(`${prefix}-can-collect`)?.checked === true;
-    const canAccessWorksheet = document.getElementById(`${prefix}-can-worksheet`)?.checked !== false;
+    const canAccessWorksheet = document.getElementById(`${prefix}-can-worksheet`)?.checked === true;
     const canManageResults = document.getElementById(`${prefix}-can-manage-results`)?.checked === true;
+    const canAccessAttendance = document.getElementById(`${prefix}-can-attendance`)?.checked === true;
+    const canAccessAcademicPlan = document.getElementById(`${prefix}-can-academic-plan`)?.checked === true;
+    const canAccessActivity = document.getElementById(`${prefix}-can-activity`)?.checked === true;
     const canAccessAdmin = document.getElementById(`${prefix}-can-access-admin`)?.checked === true;
     const actLikeSuperAdmin = canAccessAdmin && (document.getElementById(`${prefix}-act-like-super-admin`)?.checked === true);
     const displayOrder = Math.max(1, Number(document.getElementById(`${prefix}-display-order`)?.value || 999));
 
-    const hasAnyPortalAccess = canCollect || canAccessWorksheet || canManageResults || canAccessAdmin;
+    const hasAnyPortalAccess = canCollect || canAccessWorksheet || canManageResults || canAccessAttendance || canAccessAcademicPlan || canAccessActivity || canAccessAdmin;
     const passwordInputExists = fieldElements.some((el) => el.dataset.staffFieldKey === 'password');
     const existingStaffForValidation = (prefix === 'e-st' && editingStaffId) ? allStaff.find((st) => st.id === editingStaffId) : null;
     const effectivePassword = values.password || existingStaffForValidation?.password || '';
@@ -2331,12 +2340,49 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
         canCollect,
         canAccessWorksheet,
         canManageResults,
+        canAccessAttendance,
+        canAccessAcademicPlan,
+        canAccessActivity,
         canAccessAdmin,
         actLikeSuperAdmin,
         displayOrder,
         updatedAt: Date.now()
     };
 };
+
+const setupAccessToggleButtons = (prefix) => {
+    const selectAllBtn = document.getElementById(`${prefix}-access-select-all`);
+    const clearAllBtn = document.getElementById(`${prefix}-access-clear-all`);
+    const moduleCheckboxes = [
+        `${prefix}-can-collect`,
+        `${prefix}-can-worksheet`,
+        `${prefix}-can-manage-results`,
+        `${prefix}-can-attendance`,
+        `${prefix}-can-academic-plan`,
+        `${prefix}-can-activity`,
+        `${prefix}-can-access-admin`
+    ];
+    if (selectAllBtn) {
+        selectAllBtn.onclick = () => {
+            moduleCheckboxes.forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.checked = true;
+            });
+        };
+    }
+    if (clearAllBtn) {
+        clearAllBtn.onclick = () => {
+            moduleCheckboxes.forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.checked = false;
+            });
+            const superEl = document.getElementById(`${prefix}-act-like-super-admin`);
+            if (superEl) superEl.checked = false;
+        };
+    }
+};
+setupAccessToggleButtons('st');
+setupAccessToggleButtons('e-st');
 
 document.getElementById('add-staff-btn').addEventListener('click', async () => {
     if(!requirePermission('staff.manage')) return;
@@ -2353,9 +2399,12 @@ document.getElementById('add-staff-btn').addEventListener('click', async () => {
     document.getElementById('st-display-order').value = '999';
     document.getElementById('st-active').checked = true;
     document.getElementById('st-show-public').checked = true;
-    document.getElementById('st-can-collect').checked = true;
-    document.getElementById('st-can-worksheet').checked = true;
+    document.getElementById('st-can-collect').checked = false;
+    document.getElementById('st-can-worksheet').checked = false;
     document.getElementById('st-can-manage-results').checked = false;
+    document.getElementById('st-can-attendance').checked = false;
+    document.getElementById('st-can-academic-plan').checked = false;
+    document.getElementById('st-can-activity').checked = false;
     document.getElementById('st-can-access-admin').checked = false;
     const stSuperEl = document.getElementById('st-act-like-super-admin');
     if (stSuperEl) stSuperEl.checked = false;
@@ -2432,15 +2481,18 @@ const renderStaffList = () => {
                     </div>
                 </div>
 
-                <!-- Login Permissions Only -->
+                <!-- Module Permissions Only -->
                 <div class="space-y-1">
-                    <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Login Permissions:</div>
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Authorized Module Access:</div>
                     <div class="flex flex-wrap gap-1.5">
-                        ${staffMember.canCollect !== false ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">1. Collection</span>' : ''}
-                        ${staffMember.canAccessWorksheet !== false ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">2. Worksheet</span>' : ''}
-                        ${staffMember.canManageResults ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">3. Result</span>' : ''}
-                        ${staffMember.canAccessAdmin ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">4. Admin${staffMember.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
-                        ${(staffMember.canCollect === false && staffMember.canAccessWorksheet === false && !staffMember.canManageResults && !staffMember.canAccessAdmin) ? '<span class="text-[10px] text-gray-400 italic">No permissions</span>' : ''}
+                        ${staffMember.canCollect === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"><i class="fas fa-hand-holding-dollar mr-1"></i>Collection</span>' : ''}
+                        ${staffMember.canAccessWorksheet === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200"><i class="fas fa-file-excel mr-1"></i>Worksheet</span>' : ''}
+                        ${staffMember.canManageResults === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-square-poll-vertical mr-1"></i>Results</span>' : ''}
+                        ${staffMember.canAccessAttendance === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300"><i class="fas fa-calendar-check mr-1"></i>Attendance</span>' : ''}
+                        ${staffMember.canAccessAcademicPlan === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200"><i class="fas fa-calendar-days mr-1"></i>Academic Plan</span>' : ''}
+                        ${staffMember.canAccessActivity === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"><i class="fas fa-award mr-1"></i>Activity Hub</span>' : ''}
+                        ${staffMember.canAccessAdmin === true ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200"><i class="fas fa-user-shield mr-1"></i>Admin${staffMember.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
+                        ${(!staffMember.canCollect && !staffMember.canAccessWorksheet && !staffMember.canManageResults && !staffMember.canAccessAttendance && !staffMember.canAccessAcademicPlan && !staffMember.canAccessActivity && !staffMember.canAccessAdmin) ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access</span>' : ''}
                     </div>
                 </div>
 
@@ -2566,12 +2618,16 @@ window.openStaffDetailsModal = (id) => {
         </div>
 
         <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
-            <span class="block text-[10px] font-bold uppercase text-indigo-700 mb-1.5">Portal Access Permissions</span>
+            <span class="block text-[10px] font-bold uppercase text-indigo-700 mb-1.5">Official Module Access Permissions</span>
             <div class="flex flex-wrap gap-1.5">
-                ${s.canCollect !== false ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-green-100 text-green-800 border border-green-200">1. Fee Collection</span>' : ''}
-                ${s.canAccessWorksheet !== false ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 border border-blue-200">2. Class Worksheet</span>' : ''}
-                ${s.canManageResults ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">3. Result Portal</span>' : ''}
-                ${s.canAccessAdmin ? `<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 border border-violet-200">4. Admin Panel${s.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
+                ${s.canCollect === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">1. Fee Collection</span>' : ''}
+                ${s.canAccessWorksheet === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-teal-100 text-teal-800 border border-teal-200">2. Class Worksheet</span>' : ''}
+                ${s.canManageResults === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 border border-blue-200">3. Result System</span>' : ''}
+                ${s.canAccessAttendance === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">4. Attendance Register</span>' : ''}
+                ${s.canAccessAcademicPlan === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">5. Academic Planning</span>' : ''}
+                ${s.canAccessActivity === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">6. Activity &amp; Deen Hub</span>' : ''}
+                ${s.canAccessAdmin === true ? `<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 border border-violet-200">7. Admin Panel${s.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
+                ${(!s.canCollect && !s.canAccessWorksheet && !s.canManageResults && !s.canAccessAttendance && !s.canAccessAcademicPlan && !s.canAccessActivity && !s.canAccessAdmin) ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access (Locked)</span>' : ''}
             </div>
         </div>
     `;
@@ -2637,13 +2693,22 @@ window.openEditStaff = (id) => {
     if (publicCheck) publicCheck.checked = staffRecord.showPublic !== false;
 
     const collectCheck = document.getElementById('e-st-can-collect');
-    if (collectCheck) collectCheck.checked = staffRecord.canCollect !== false;
+    if (collectCheck) collectCheck.checked = staffRecord.canCollect === true;
 
     const worksheetCheck = document.getElementById('e-st-can-worksheet');
-    if (worksheetCheck) worksheetCheck.checked = staffRecord.canAccessWorksheet !== false;
+    if (worksheetCheck) worksheetCheck.checked = staffRecord.canAccessWorksheet === true;
 
     const resultsCheck = document.getElementById('e-st-can-manage-results');
     if (resultsCheck) resultsCheck.checked = staffRecord.canManageResults === true;
+
+    const attendanceCheck = document.getElementById('e-st-can-attendance');
+    if (attendanceCheck) attendanceCheck.checked = staffRecord.canAccessAttendance === true;
+
+    const academicPlanCheck = document.getElementById('e-st-can-academic-plan');
+    if (academicPlanCheck) academicPlanCheck.checked = staffRecord.canAccessAcademicPlan === true;
+
+    const activityCheck = document.getElementById('e-st-can-activity');
+    if (activityCheck) activityCheck.checked = staffRecord.canAccessActivity === true;
 
     const adminCheck = document.getElementById('e-st-can-access-admin');
     if (adminCheck) adminCheck.checked = staffRecord.canAccessAdmin === true;
@@ -12129,9 +12194,12 @@ onAuthStateChanged(auth, async (user) => {
                 // Preserve staff identity in session rather than generic admin
                 window.AppSession?.startStaff(authorizedStaffAdmin.name || window.AppSession?.getStaffName?.() || '', staffEmailFromSession, {
                     ...(window.AppSession?.getStaffAccess?.() || {}),
-                    collection: authorizedStaffAdmin.canCollect !== false,
+                    collection: authorizedStaffAdmin.canCollect === true,
                     result: authorizedStaffAdmin.canManageResults === true,
-                    worksheet: authorizedStaffAdmin.canAccessWorksheet !== false,
+                    worksheet: authorizedStaffAdmin.canAccessWorksheet === true,
+                    attendance: authorizedStaffAdmin.canAccessAttendance === true,
+                    academicPlan: authorizedStaffAdmin.canAccessAcademicPlan === true,
+                    studentActivity: authorizedStaffAdmin.canAccessActivity === true,
                     admin: true,
                     canAccessAdmin: true,
                     actLikeSuperAdmin: authorizedStaffAdmin.actLikeSuperAdmin === true,

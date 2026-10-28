@@ -4,14 +4,14 @@
 
   const guardMap = {
     admin: () => window.AppSession.guardAdminPage?.(),
-    collection: () => window.AppSession.guardStaffOrAdminPage?.(),
+    collection: () => window.AppSession.guardStaffPageAccess?.('collection'),
     result: () => window.AppSession.guardStaffPageAccess?.('result'),
     student: () => window.AppSession.guardStudentPage?.(),
     official: () => window.AppSession.guardStaffOrAdminPage?.(),
-    worksheet: () => window.AppSession.guardStaffOrAdminPage?.(),
-    attendance: () => window.AppSession.guardStaffOrAdminPage?.(),
-    academicPlan: () => window.AppSession.guardStaffOrAdminPage?.(),
-    activity: () => window.AppSession.guardStaffOrAdminPage?.()
+    worksheet: () => window.AppSession.guardStaffPageAccess?.('worksheet'),
+    attendance: () => window.AppSession.guardStaffPageAccess?.('attendance'),
+    academicPlan: () => window.AppSession.guardStaffPageAccess?.('academicPlan'),
+    activity: () => window.AppSession.guardStaffPageAccess?.('studentActivity')
   };
 
   const runGuard = guardMap[guardKey];

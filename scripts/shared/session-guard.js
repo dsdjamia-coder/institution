@@ -297,23 +297,47 @@
             }
             setCurrentRole('staff');
             const access = this.getStaffAccess();
+            if (access?.actLikeSuperAdmin === true) {
+                return;
+            }
             if (requiredPage === 'collection' && access && access.collection !== true) {
-                setFlash('Your account does not have collection page access.');
+                setFlash('Access Restricted: Your account does not have Fee Collection page access.');
+                window.location.href = 'official.html';
+                return;
+            }
+            if (requiredPage === 'worksheet' && access && access.worksheet !== true) {
+                setFlash('Access Restricted: Your account does not have Class Worksheet page access.');
                 window.location.href = 'official.html';
                 return;
             }
             if (requiredPage === 'student' && access && access.student !== true) {
-                setFlash('Your account does not have student page access.');
+                setFlash('Access Restricted: Your account does not have Student page access.');
                 window.location.href = 'official.html';
                 return;
             }
             if (requiredPage === 'result' && access) {
-                const hasResultAccess = access.result === true || access.canManageResults === true || access.canAccessAdmin === true || access.admin === true || access.actLikeSuperAdmin === true;
+                const hasResultAccess = access.result === true || access.canManageResults === true;
                 const collectionFallback = access.collection === true && window.location.search.includes('from=collection');
                 if (!hasResultAccess && !collectionFallback) {
-                    setFlash('Your account does not have result page access.');
+                    setFlash('Access Restricted: Your account does not have Result System page access.');
                     window.location.href = 'official.html';
+                    return;
                 }
+            }
+            if (requiredPage === 'attendance' && access && access.attendance !== true) {
+                setFlash('Access Restricted: Your account does not have Attendance Register page access.');
+                window.location.href = 'official.html';
+                return;
+            }
+            if (requiredPage === 'academicPlan' && access && access.academicPlan !== true) {
+                setFlash('Access Restricted: Your account does not have Academic Planning page access.');
+                window.location.href = 'official.html';
+                return;
+            }
+            if (requiredPage === 'studentActivity' && access && access.studentActivity !== true && access.activity !== true) {
+                setFlash('Access Restricted: Your account does not have Activity & Deen Hub page access.');
+                window.location.href = 'official.html';
+                return;
             }
         },
         guardAdminPage() {

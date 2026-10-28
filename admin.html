@@ -325,54 +325,96 @@
                             </label>
                         </div>
 
-                        <!-- Row 2: 4-Portal Access Grid -->
-                        <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-900 mb-2 flex items-center gap-1.5">
-                            <i class="fas fa-key text-indigo-600"></i> 4-Page Portal Access Permissions (Access to all 4 pages)
+                        <!-- Row 2: Official Portal & Module Access Permissions -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                            <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                                <i class="fas fa-key text-indigo-600"></i> Official Portal &amp; Module Access Permissions
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" id="st-access-select-all" class="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-md border border-indigo-200 transition">Select All</button>
+                                <button type="button" id="st-access-clear-all" class="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-200 transition">Clear All</button>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                            <!-- Portal 1: Fee Collection -->
-                            <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-green-300 shadow-2xs cursor-pointer transition">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            <!-- 1: Fee Collection -->
+                            <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-emerald-300 shadow-2xs cursor-pointer transition">
                                 <div class="pr-2">
                                     <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                        <i class="fas fa-cash-register text-green-600"></i>
+                                        <i class="fas fa-hand-holding-dollar text-emerald-600"></i>
                                         <span>1. Fee Collection</span>
                                     </div>
-                                    <p class="text-[10px] text-slate-500 mt-1">Cashier &amp; fee ledger access</p>
+                                    <p class="text-[10px] text-slate-500 mt-1">Receipts, collection &amp; dues ledger</p>
                                 </div>
-                                <input type="checkbox" id="st-can-collect" class="w-4 h-4 mt-0.5 rounded text-green-600 shrink-0" checked>
+                                <input type="checkbox" id="st-can-collect" class="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0">
                             </label>
 
-                            <!-- Portal 2: Class Worksheet -->
+                            <!-- 2: Class Worksheet -->
+                            <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-teal-300 shadow-2xs cursor-pointer transition">
+                                <div class="pr-2">
+                                    <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                        <i class="fas fa-file-excel text-teal-600"></i>
+                                        <span>2. Class Worksheet</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Registers, directory &amp; sheet exports</p>
+                                </div>
+                                <input type="checkbox" id="st-can-worksheet" class="w-4 h-4 mt-0.5 rounded text-teal-600 shrink-0">
+                            </label>
+
+                            <!-- 3: Result System -->
                             <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-blue-300 shadow-2xs cursor-pointer transition">
                                 <div class="pr-2">
                                     <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                        <i class="fas fa-table-list text-blue-600"></i>
-                                        <span>2. Class Worksheet</span>
+                                        <i class="fas fa-square-poll-vertical text-blue-600"></i>
+                                        <span>3. Result System</span>
                                     </div>
-                                    <p class="text-[10px] text-slate-500 mt-1">Student, staff &amp; class workspace</p>
+                                    <p class="text-[10px] text-slate-500 mt-1">Exam marks &amp; report publishing</p>
                                 </div>
-                                <input type="checkbox" id="st-can-worksheet" class="w-4 h-4 mt-0.5 rounded text-blue-600 shrink-0" checked>
+                                <input type="checkbox" id="st-can-manage-results" class="w-4 h-4 mt-0.5 rounded text-blue-600 shrink-0">
                             </label>
 
-                            <!-- Portal 3: Result Management -->
+                            <!-- 4: Attendance Register -->
+                            <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-teal-400 shadow-2xs cursor-pointer transition">
+                                <div class="pr-2">
+                                    <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                        <i class="fas fa-calendar-check text-emerald-600"></i>
+                                        <span>4. Attendance Register</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Daily attendance &amp; monthly records</p>
+                                </div>
+                                <input type="checkbox" id="st-can-attendance" class="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0">
+                            </label>
+
+                            <!-- 5: Academic Planning -->
                             <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-indigo-300 shadow-2xs cursor-pointer transition">
                                 <div class="pr-2">
                                     <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                        <i class="fas fa-square-poll-vertical text-indigo-600"></i>
-                                        <span>3. Result Portal</span>
+                                        <i class="fas fa-calendar-days text-indigo-600"></i>
+                                        <span>5. Academic Planning</span>
                                     </div>
-                                    <p class="text-[10px] text-slate-500 mt-1">Exam marks &amp; result publishing</p>
+                                    <p class="text-[10px] text-slate-500 mt-1">Routine timetable &amp; year plan</p>
                                 </div>
-                                <input type="checkbox" id="st-can-manage-results" class="w-4 h-4 mt-0.5 rounded text-indigo-600 shrink-0">
+                                <input type="checkbox" id="st-can-academic-plan" class="w-4 h-4 mt-0.5 rounded text-indigo-600 shrink-0">
                             </label>
 
-                            <!-- Portal 4: Admin Panel -->
+                            <!-- 6: Activity & Deen Hub -->
+                            <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-amber-300 shadow-2xs cursor-pointer transition">
+                                <div class="pr-2">
+                                    <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                        <i class="fas fa-award text-amber-600"></i>
+                                        <span>6. Activity &amp; Deen Hub</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Conduct tracker, ibadah &amp; badges</p>
+                                </div>
+                                <input type="checkbox" id="st-can-activity" class="w-4 h-4 mt-0.5 rounded text-amber-600 shrink-0">
+                            </label>
+
+                            <!-- 7: Admin Panel -->
                             <div class="rounded-xl bg-white border border-gray-200 hover:border-violet-300 shadow-2xs transition p-3">
                                 <label class="flex items-start justify-between cursor-pointer">
                                     <div class="pr-2">
                                         <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                                             <i class="fas fa-user-shield text-violet-600"></i>
-                                            <span>4. Admin Panel</span>
+                                            <span>7. Admin Panel</span>
                                         </div>
                                         <p class="text-[10px] text-slate-500 mt-1">Full system &amp; settings control</p>
                                     </div>
@@ -2179,52 +2221,98 @@
                     </label>
                 </div>
 
-                <!-- Row 2: 4-Portal Access Grid -->
-                <div class="text-[10px] font-bold uppercase tracking-wider text-indigo-900 mb-2 flex items-center gap-1">
-                    <i class="fas fa-key text-indigo-600"></i> 4-Page Portal Access Permissions (Access to all 4 pages)
+                <!-- Row 2: Official Portal & Module Access Permissions -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1">
+                        <i class="fas fa-key text-indigo-600"></i> Official Portal &amp; Module Access Permissions
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" id="e-st-access-select-all" class="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200 transition">Select All</button>
+                        <button type="button" id="e-st-access-clear-all" class="text-[10px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200 transition">Clear All</button>
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-green-300 shadow-2xs cursor-pointer transition">
+                    <!-- 1: Fee Collection -->
+                    <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-emerald-300 shadow-2xs cursor-pointer transition">
                         <div class="pr-2">
                             <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                <i class="fas fa-cash-register text-green-600"></i>
+                                <i class="fas fa-hand-holding-dollar text-emerald-600"></i>
                                 <span>1. Fee Collection</span>
                             </div>
-                            <p class="text-[10px] text-slate-500 mt-0.5">Cashier & fee ledger access</p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Receipts, collection &amp; dues ledger</p>
                         </div>
-                        <input type="checkbox" id="e-st-can-collect" class="w-4 h-4 mt-0.5 rounded text-green-600 shrink-0">
+                        <input type="checkbox" id="e-st-can-collect" class="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0">
                     </label>
 
+                    <!-- 2: Class Worksheet -->
+                    <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-teal-300 shadow-2xs cursor-pointer transition">
+                        <div class="pr-2">
+                            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                <i class="fas fa-file-excel text-teal-600"></i>
+                                <span>2. Class Worksheet</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Registers, directory &amp; sheet exports</p>
+                        </div>
+                        <input type="checkbox" id="e-st-can-worksheet" class="w-4 h-4 mt-0.5 rounded text-teal-600 shrink-0">
+                    </label>
+
+                    <!-- 3: Result System -->
                     <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-blue-300 shadow-2xs cursor-pointer transition">
                         <div class="pr-2">
                             <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                <i class="fas fa-table-list text-blue-600"></i>
-                                <span>2. Class Worksheet</span>
+                                <i class="fas fa-square-poll-vertical text-blue-600"></i>
+                                <span>3. Result System</span>
                             </div>
-                            <p class="text-[10px] text-slate-500 mt-0.5">Student, staff & class workspace</p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Exam marks &amp; report publishing</p>
                         </div>
-                        <input type="checkbox" id="e-st-can-worksheet" class="w-4 h-4 mt-0.5 rounded text-blue-600 shrink-0">
+                        <input type="checkbox" id="e-st-can-manage-results" class="w-4 h-4 mt-0.5 rounded text-blue-600 shrink-0">
                     </label>
 
+                    <!-- 4: Attendance Register -->
+                    <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-teal-400 shadow-2xs cursor-pointer transition">
+                        <div class="pr-2">
+                            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                <i class="fas fa-calendar-check text-emerald-600"></i>
+                                <span>4. Attendance Register</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Daily attendance &amp; monthly records</p>
+                        </div>
+                        <input type="checkbox" id="e-st-can-attendance" class="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0">
+                    </label>
+
+                    <!-- 5: Academic Planning -->
                     <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-indigo-300 shadow-2xs cursor-pointer transition">
                         <div class="pr-2">
                             <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                <i class="fas fa-square-poll-vertical text-indigo-600"></i>
-                                <span>3. Result Portal</span>
+                                <i class="fas fa-calendar-days text-indigo-600"></i>
+                                <span>5. Academic Planning</span>
                             </div>
-                            <p class="text-[10px] text-slate-500 mt-0.5">Exam marks & result publishing</p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Routine timetable &amp; year plan</p>
                         </div>
-                        <input type="checkbox" id="e-st-can-manage-results" class="w-4 h-4 mt-0.5 rounded text-indigo-600 shrink-0">
+                        <input type="checkbox" id="e-st-can-academic-plan" class="w-4 h-4 mt-0.5 rounded text-indigo-600 shrink-0">
                     </label>
 
-                    <div class="rounded-xl bg-white border border-gray-200 hover:border-violet-300 shadow-2xs transition p-2.5">
+                    <!-- 6: Activity & Deen Hub -->
+                    <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-amber-300 shadow-2xs cursor-pointer transition">
+                        <div class="pr-2">
+                            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                <i class="fas fa-award text-amber-600"></i>
+                                <span>6. Activity &amp; Deen Hub</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Conduct tracker, ibadah &amp; badges</p>
+                        </div>
+                        <input type="checkbox" id="e-st-can-activity" class="w-4 h-4 mt-0.5 rounded text-amber-600 shrink-0">
+                    </label>
+
+                    <!-- 7: Admin Panel -->
+                    <div class="rounded-xl bg-white border border-gray-200 hover:border-violet-300 shadow-2xs transition p-2.5 sm:col-span-2">
                         <label class="flex items-start justify-between cursor-pointer">
                             <div class="pr-2">
                                 <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                                     <i class="fas fa-user-shield text-violet-600"></i>
-                                    <span>4. Admin Panel</span>
+                                    <span>7. Admin Panel</span>
                                 </div>
-                                <p class="text-[10px] text-slate-500 mt-0.5">Full system & settings control</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Full system &amp; settings control</p>
                             </div>
                             <input type="checkbox" id="e-st-can-access-admin" class="w-4 h-4 mt-0.5 rounded text-violet-600 shrink-0">
                         </label>

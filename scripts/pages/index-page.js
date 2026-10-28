@@ -1032,9 +1032,12 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         }
                         const collectorKey = String(activeCollector.email || activeCollector.username || userLogin).trim().toLowerCase();
                         const staffAccess = {
-                            collection: activeCollector.canCollect !== false,
+                            collection: activeCollector.canCollect === true,
+                            worksheet: activeCollector.canAccessWorksheet === true,
                             result: activeCollector.canManageResults === true,
-                            worksheet: activeCollector.canAccessWorksheet !== false,
+                            attendance: activeCollector.canAccessAttendance === true,
+                            academicPlan: activeCollector.canAccessAcademicPlan === true,
+                            studentActivity: activeCollector.canAccessActivity === true,
                             admin: activeCollector.canAccessAdmin === true,
                             canAccessAdmin: activeCollector.canAccessAdmin === true,
                             actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
@@ -1061,9 +1064,12 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                             photo: activeCollector.photo || '',
                             canAccessAdmin: activeCollector.canAccessAdmin === true,
                             actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                            canCollect: activeCollector.canCollect !== false,
-                            canAccessWorksheet: activeCollector.canAccessWorksheet !== false,
+                            canCollect: activeCollector.canCollect === true,
+                            canAccessWorksheet: activeCollector.canAccessWorksheet === true,
                             canManageResults: activeCollector.canManageResults === true,
+                            canAccessAttendance: activeCollector.canAccessAttendance === true,
+                            canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
+                            canAccessActivity: activeCollector.canAccessActivity === true,
                             source: 'staff',
                             access: staffAccess
                         };

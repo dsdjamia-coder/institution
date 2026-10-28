@@ -1131,13 +1131,25 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       } else if (isStaffSession) {
         const staffProfile = getCurrentSessionProfile() || {};
         const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
-        canCollection = staffAccess.collection === true || (staffProfile.canCollect !== false && staffProfile.canCollect !== undefined);
-        canResult = staffAccess.result === true || staffProfile.canManageResults === true;
-        canWorksheet = staffAccess.worksheet !== false && staffProfile.canAccessWorksheet !== false;
-        canAdmin = staffAccess.admin === true || staffAccess.canAccessAdmin === true || staffProfile.canAccessAdmin === true || staffProfile.actLikeSuperAdmin === true;
-        canAttendance = true;
-        canAcademicPlan = true;
-        canStudentActivity = true;
+        const isSuper = staffAccess.actLikeSuperAdmin === true || staffProfile.actLikeSuperAdmin === true;
+
+        if (isSuper) {
+          canCollection = true;
+          canResult = true;
+          canWorksheet = true;
+          canAdmin = true;
+          canAttendance = true;
+          canAcademicPlan = true;
+          canStudentActivity = true;
+        } else {
+          canCollection = staffAccess.collection === true || staffProfile.canCollect === true;
+          canResult = staffAccess.result === true || staffProfile.canManageResults === true;
+          canWorksheet = staffAccess.worksheet === true || staffProfile.canAccessWorksheet === true;
+          canAttendance = staffAccess.attendance === true || staffProfile.canAccessAttendance === true;
+          canAcademicPlan = staffAccess.academicPlan === true || staffProfile.canAccessAcademicPlan === true;
+          canStudentActivity = staffAccess.studentActivity === true || staffAccess.activity === true || staffProfile.canAccessActivity === true;
+          canAdmin = staffAccess.admin === true || staffAccess.canAccessAdmin === true || staffProfile.canAccessAdmin === true;
+        }
       } else if (userSession?.source === 'directory') {
         const entry = directoryEntries.find((item) => item.id === userSession.id);
         const access = getPageAccessItem(entry?.categoryId || userSession.categoryId, entry?.id || userSession.id);
@@ -1147,15 +1159,15 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canResult = Boolean(access.result);
           canWorksheet = true;
           canAdmin = false;
-          canAttendance = true;
-          canAcademicPlan = true;
-          canStudentActivity = true;
+          canAttendance = false;
+          canAcademicPlan = false;
+          canStudentActivity = false;
         }
       } else {
-        canWorksheet = true;
-        canAttendance = true;
-        canAcademicPlan = true;
-        canStudentActivity = true;
+        canWorksheet = false;
+        canAttendance = false;
+        canAcademicPlan = false;
+        canStudentActivity = false;
       }
 
       return {
@@ -7354,6 +7366,25 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           });
         }
         officialPwa?.showPopupIfEligible();
+      }
+
+      const pendingFlash = window.AppSession?.consumeFlash?.();
+      if (pendingFlash) {
+        setTimeout(() => {
+          openOfficialDetailModal(
+            'Access Restricted',
+            `<div class="text-center py-6 px-4">
+              <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 mx-auto flex items-center justify-center text-2xl mb-4 border border-amber-200">
+                <i class="fas fa-shield-halved"></i>
+              </div>
+              <h3 class="text-lg font-extrabold text-slate-900 mb-1">Access Restricted</h3>
+              <p class="text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">${escapeHtml(pendingFlash)}</p>
+              <div class="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 font-medium max-w-sm mx-auto text-left">
+                <b class="text-slate-700">Need Access?</b> Please contact the institution administrator to enable this permission on your staff account profile.
+              </div>
+            </div>`
+          );
+        }, 150);
       }
     };
 

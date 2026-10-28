@@ -101,7 +101,66 @@
             getStaffEmail() { const state = getStaffState(); return state?.email || ''; },
             isFresh() { const role = getRole(); return isStateFresh(getStateByRole(role), role); },
             getStaffAccess() { const state = getStaffState(); return (state?.access && typeof state.access === 'object') ? state.access : null; },
+            consumeFlash() {
+                const message = sessionStorage.getItem(FLASH_KEY) || '';
+                if (message) sessionStorage.removeItem(FLASH_KEY);
+                return message;
+            },
             redirectHome,
+            guardStaffPageAccess(requiredPage = 'collection') {
+                pruneExpiredStates();
+                if (hasAdminSession() && !hasStaffSession()) {
+                    setCurrentRole('admin');
+                    return;
+                }
+                if (!hasStaffSession()) {
+                    if (hasAdminSession()) {
+                        setCurrentRole('admin');
+                        return;
+                    }
+                    redirectHome('Your staff session expired. Please log in again.');
+                    return;
+                }
+                setCurrentRole('staff');
+                const access = this.getStaffAccess();
+                if (access?.actLikeSuperAdmin === true) {
+                    return;
+                }
+                if (requiredPage === 'collection' && access && access.collection !== true) {
+                    setFlash('Access Restricted: Your account does not have Fee Collection page access.');
+                    window.location.href = 'official.html';
+                    return;
+                }
+                if (requiredPage === 'worksheet' && access && access.worksheet !== true) {
+                    setFlash('Access Restricted: Your account does not have Class Worksheet page access.');
+                    window.location.href = 'official.html';
+                    return;
+                }
+                if (requiredPage === 'result' && access) {
+                    const hasResultAccess = access.result === true || access.canManageResults === true;
+                    const collectionFallback = access.collection === true && window.location.search.includes('from=collection');
+                    if (!hasResultAccess && !collectionFallback) {
+                        setFlash('Access Restricted: Your account does not have Result System page access.');
+                        window.location.href = 'official.html';
+                        return;
+                    }
+                }
+                if (requiredPage === 'attendance' && access && access.attendance !== true) {
+                    setFlash('Access Restricted: Your account does not have Attendance Register page access.');
+                    window.location.href = 'official.html';
+                    return;
+                }
+                if (requiredPage === 'academicPlan' && access && access.academicPlan !== true) {
+                    setFlash('Access Restricted: Your account does not have Academic Planning page access.');
+                    window.location.href = 'official.html';
+                    return;
+                }
+                if (requiredPage === 'studentActivity' && access && access.studentActivity !== true && access.activity !== true) {
+                    setFlash('Access Restricted: Your account does not have Activity & Deen Hub page access.');
+                    window.location.href = 'official.html';
+                    return;
+                }
+            },
             guardStaffOrAdminPage() {
                 pruneExpiredStates();
                 if (hasAdminSession()) {
