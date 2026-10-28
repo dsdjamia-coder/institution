@@ -224,10 +224,56 @@
       font-size: 10px;
       letter-spacing: 0.05em;
     }
-    .sticky-col-1 { position: sticky; left: 0; background: #ffffff; z-index: 20; min-width: 40px; }
-    .sticky-col-2 { position: sticky; left: 40px; background: #ffffff; z-index: 20; min-width: 80px; }
-    .sticky-col-3 { position: sticky; left: 120px; background: #ffffff; z-index: 20; min-width: 160px; text-align: left !important; }
-    th.sticky-col-1, th.sticky-col-2, th.sticky-col-3 { background: #f8fafc !important; z-index: 30; }
+    /* Sticky Monthly Register Grid Styling */
+    /* Mobile (< 768px): Only Student Name is sticky at left: 0; Serial (#) and Adm No scroll away smoothly */
+    @media (max-width: 767px) {
+      .sticky-col-1 {
+        position: static !important;
+        min-width: 32px !important;
+        max-width: 36px !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+      }
+      .sticky-col-2 {
+        position: static !important;
+        min-width: 55px !important;
+        max-width: 65px !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+      }
+      .sticky-col-3 {
+        position: sticky !important;
+        left: 0 !important;
+        background: #ffffff !important;
+        z-index: 20;
+        min-width: 120px !important;
+        max-width: 140px !important;
+        text-align: left !important;
+        box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.12);
+      }
+      th.sticky-col-1, th.sticky-col-2 {
+        position: static !important;
+        background: #f8fafc !important;
+      }
+      th.sticky-col-3 {
+        position: sticky !important;
+        left: 0 !important;
+        background: #f8fafc !important;
+        z-index: 30;
+        box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.12);
+      }
+      tr:hover td.sticky-col-3 {
+        background: #f8fafc !important;
+      }
+    }
+
+    /* Desktop (>= 768px): All 3 columns (#, Adm No, Name) stay sticky */
+    @media (min-width: 768px) {
+      .sticky-col-1 { position: sticky; left: 0; background: #ffffff; z-index: 20; min-width: 40px; }
+      .sticky-col-2 { position: sticky; left: 40px; background: #ffffff; z-index: 20; min-width: 80px; }
+      .sticky-col-3 { position: sticky; left: 120px; background: #ffffff; z-index: 20; min-width: 160px; text-align: left !important; }
+      th.sticky-col-1, th.sticky-col-2, th.sticky-col-3 { background: #f8fafc !important; z-index: 30; }
+    }
 
     /* Print Styles */
     @media print {
@@ -396,86 +442,84 @@
         <section id="tab-daily" class="tab-content space-y-3">
           
           <!-- Compact Top Control Bar & Save Button -->
-          <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
-            <div class="flex items-center justify-between flex-wrap gap-2.5">
+          <div class="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+            <!-- Row 1: Selectors & Actions -->
+            <div class="flex items-center justify-between flex-wrap gap-2">
               
-              <!-- Left Selectors Group -->
-              <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                <!-- Academic Year & Class (Side-by-side on mobile) -->
-                <div class="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center">
+              <!-- Left: Academic Year, Class & Date Navigator -->
+              <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap flex-1">
+                <!-- Academic Year & Class (Side-by-side on mobile, compact) -->
+                <div class="grid grid-cols-2 gap-1.5 sm:flex sm:items-center w-full sm:w-auto">
+                  <div class="w-full sm:w-28">
+                    <select id="daily-academic-year" class="w-full p-1.5 sm:p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none shadow-2xs"></select>
+                  </div>
+
                   <div class="w-full sm:w-32">
-                    <select id="daily-academic-year" class="w-full p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none shadow-2xs"></select>
-                  </div>
-
-                  <div class="w-full sm:w-36">
-                    <select id="daily-class-select" class="w-full p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none shadow-2xs"></select>
+                    <select id="daily-class-select" class="w-full p-1.5 sm:p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none shadow-2xs"></select>
                   </div>
                 </div>
 
-                <!-- Date Navigator -->
+                <!-- Date Navigator & Quick Date Picker -->
                 <div class="flex items-center justify-between sm:justify-start gap-1 w-full sm:w-auto">
-                  <button type="button" id="btn-prev-day" class="p-2 px-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs" title="Previous Day">
-                    <i class="fas fa-chevron-left"></i>
+                  <button type="button" id="btn-prev-day" class="p-1.5 px-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs" title="Previous Day">
+                    <i class="fas fa-chevron-left text-[11px]"></i>
                   </button>
-                  <input type="date" id="daily-date-input" class="flex-1 sm:flex-none p-1.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none shadow-2xs text-center sm:w-36">
-                  <button type="button" id="btn-today" class="p-2 px-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs" title="Today">Today</button>
-                  <button type="button" id="btn-next-day" class="p-2 px-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs" title="Next Day">
-                    <i class="fas fa-chevron-right"></i>
+                  <input type="date" id="daily-date-input" class="flex-1 sm:flex-none p-1 sm:p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none shadow-2xs text-center sm:w-36">
+                  <button type="button" id="btn-today" class="p-1 px-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-[11px]" title="Today">Today</button>
+                  <button type="button" id="btn-next-day" class="p-1.5 px-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs" title="Next Day">
+                    <i class="fas fa-chevron-right text-[11px]"></i>
                   </button>
                 </div>
 
-                <!-- Date Badge -->
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <span id="daily-date-badge" class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-extrabold text-xs border border-emerald-200">Date</span>
-                  <span id="daily-holiday-notice" class="hidden px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs border border-amber-300"><i class="fas fa-umbrella-beach mr-1"></i> Holiday / Weekend</span>
-                  <span id="daily-pre-session-notice" class="hidden px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 font-bold text-xs border border-indigo-200"><i class="fas fa-info-circle mr-1"></i> Pre-Session</span>
+                <!-- Holiday / Pre-session Badges (Visible only when applicable) -->
+                <div class="flex items-center gap-1 flex-wrap">
+                  <span id="daily-date-badge" class="hidden sm:inline-block px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-extrabold text-[11px] border border-emerald-200">Date</span>
+                  <span id="daily-holiday-notice" class="hidden px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300"><i class="fas fa-umbrella-beach mr-1"></i> Holiday</span>
+                  <span id="daily-pre-session-notice" class="hidden px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-900 font-bold text-[11px] border border-indigo-200"><i class="fas fa-info-circle mr-1"></i> Pre-Session</span>
                 </div>
               </div>
 
-              <!-- Right: Save Button & Status -->
-              <div class="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto pt-1 sm:pt-0">
+              <!-- Right: Save Button & Save Status -->
+              <div class="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-1 sm:pt-0">
                 <div class="flex items-center gap-1.5 text-xs">
-                  <span id="save-status-indicator" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span id="save-status-text" class="font-bold text-slate-600">Ready</span>
+                  <span id="save-status-indicator" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span id="save-status-text" class="font-bold text-slate-500 text-[11px]">Ready</span>
                 </div>
 
-                <button type="button" id="btn-save-daily" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer">
-                  <i class="fas fa-floppy-disk"></i>
+                <button type="button" id="btn-save-daily" class="flex-1 sm:flex-none px-4 py-1.5 sm:px-5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer">
+                  <i class="fas fa-floppy-disk text-xs"></i>
                   <span>Save Attendance</span>
                 </button>
               </div>
             </div>
 
-            <!-- Quick Batch Buttons Row -->
-            <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100">
-              <div class="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-                <span class="col-span-2 sm:inline-block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mr-0.5 flex items-center gap-1">
-                  <i class="fas fa-bolt text-amber-500 text-xs"></i> Batch Fill:
-                </span>
-                <button type="button" id="btn-mark-all-p" class="px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition shadow-xs border border-emerald-700 flex items-center justify-center gap-1.5 cursor-pointer" title="Mark every student Present">
-                  <i class="fas fa-check-double"></i> <span>All Present (P)</span>
+            <!-- Row 2: Streamlined Single-Line Batch Fill Buttons -->
+            <div class="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
+              <div class="grid grid-cols-4 sm:flex sm:items-center gap-1 sm:gap-2 w-full sm:w-auto">
+                <button type="button" id="btn-mark-all-p" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition shadow-2xs border border-emerald-700 flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Mark all Present">
+                  <i class="fas fa-check text-[10px]"></i> <span>All P</span>
                 </button>
-                <button type="button" id="btn-mark-all-a" class="px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 active:scale-95 text-white transition shadow-xs border border-rose-700 flex items-center justify-center gap-1.5 cursor-pointer" title="Mark every student Absent">
-                  <i class="fas fa-user-xmark"></i> <span>All Absent (A)</span>
+                <button type="button" id="btn-mark-all-a" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-black bg-rose-600 hover:bg-rose-700 active:scale-95 text-white transition shadow-2xs border border-rose-700 flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Mark all Absent">
+                  <i class="fas fa-xmark text-[10px]"></i> <span>All A</span>
                 </button>
-                <button type="button" id="btn-mark-all-l" class="px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 active:scale-95 text-white transition shadow-xs border border-amber-600 flex items-center justify-center gap-1.5 cursor-pointer" title="Mark every student Leave">
-                  <i class="fas fa-envelope-open-text"></i> <span>All Leave (L)</span>
+                <button type="button" id="btn-mark-all-l" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500 hover:bg-amber-600 active:scale-95 text-white transition shadow-2xs border border-amber-600 flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Mark all Leave">
+                  <i class="fas fa-envelope text-[10px]"></i> <span>All L</span>
                 </button>
-                <button type="button" id="btn-clear-all" class="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer" title="Clear all marks">
-                  <i class="fas fa-rotate-left text-slate-400"></i> <span>Clear</span>
+                <button type="button" id="btn-clear-all" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs active:scale-95 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Clear all marks">
+                  <i class="fas fa-rotate-left text-[10px] text-slate-400"></i> <span class="hidden sm:inline">Clear</span>
                 </button>
               </div>
 
-              <!-- Class Pill & Teacher Note -->
-              <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 text-xs">
+              <!-- Class Pill & Teacher Note (Desktop only) -->
+              <div class="hidden sm:flex items-center gap-2 text-xs">
                 <span id="roster-class-pill" class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-800">--</span>
                 <span class="text-slate-400 font-semibold" id="roster-teacher-note">Class Teacher View</span>
               </div>
             </div>
           </div>
 
-          <!-- English Legend Description Strip -->
-          <div class="flex items-center gap-3 sm:gap-6 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs flex-wrap">
+          <!-- English Legend Description Strip (Hidden on mobile to save vertical space, visible on tablet/desktop) -->
+          <div class="hidden sm:flex items-center gap-6 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs flex-wrap">
             <span class="font-extrabold text-slate-700 uppercase tracking-wider text-[10px]">Legend:</span>
             <div class="flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
@@ -491,38 +535,26 @@
             </div>
           </div>
 
-          <!-- Metrics Row -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] font-bold text-slate-500 uppercase">Enrolled Students</span>
-                <i class="fas fa-users text-slate-400"></i>
-              </div>
-              <div id="stat-total-students" class="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">0</div>
+          <!-- Compact Metrics Row (Single slim line on mobile) -->
+          <div class="grid grid-cols-4 gap-1 sm:gap-3">
+            <div class="bg-white p-1.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs text-center">
+              <div class="text-[9px] sm:text-[11px] font-bold text-slate-400 uppercase truncate">Total</div>
+              <div id="stat-total-students" class="text-xs sm:text-2xl font-black text-slate-900 mt-0.5">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded-2xl border border-emerald-200/80 shadow-2xs bg-emerald-50/20">
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] font-bold text-emerald-700 uppercase">Present</span>
-                <span id="stat-present-pct" class="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">0%</span>
-              </div>
-              <div id="stat-present-count" class="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5">0</div>
+            <div class="bg-white p-1.5 sm:p-3 rounded-xl sm:rounded-2xl border border-emerald-200/80 shadow-2xs bg-emerald-50/20 text-center">
+              <div class="text-[9px] sm:text-[11px] font-bold text-emerald-700 uppercase truncate">Pres (<span id="stat-present-pct">0%</span>)</div>
+              <div id="stat-present-count" class="text-xs sm:text-2xl font-black text-emerald-600 mt-0.5">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded-2xl border border-rose-200/80 shadow-2xs bg-rose-50/20">
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] font-bold text-rose-700 uppercase">Absent</span>
-                <i class="fas fa-user-xmark text-rose-400"></i>
-              </div>
-              <div id="stat-absent-count" class="text-xl sm:text-2xl font-black text-rose-600 mt-0.5">0</div>
+            <div class="bg-white p-1.5 sm:p-3 rounded-xl sm:rounded-2xl border border-rose-200/80 shadow-2xs bg-rose-50/20 text-center">
+              <div class="text-[9px] sm:text-[11px] font-bold text-rose-700 uppercase truncate">Absent</div>
+              <div id="stat-absent-count" class="text-xs sm:text-2xl font-black text-rose-600 mt-0.5">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded-2xl border border-amber-200/80 shadow-2xs bg-amber-50/20">
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] font-bold text-amber-700 uppercase">Leave</span>
-                <i class="fas fa-envelope-open-text text-amber-500"></i>
-              </div>
-              <div id="stat-late-count" class="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">0</div>
+            <div class="bg-white p-1.5 sm:p-3 rounded-xl sm:rounded-2xl border border-amber-200/80 shadow-2xs bg-amber-50/20 text-center">
+              <div class="text-[9px] sm:text-[11px] font-bold text-amber-700 uppercase truncate">Leave</div>
+              <div id="stat-late-count" class="text-xs sm:text-2xl font-black text-amber-600 mt-0.5">0</div>
             </div>
           </div>
 

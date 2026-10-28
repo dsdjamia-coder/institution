@@ -1174,7 +1174,7 @@ const loadMonthlyRegister = async () => {
                 <tr class="hover:bg-slate-50/70">
                     <td class="sticky-col-1 font-bold text-slate-400 text-center">${idx + 1}</td>
                     <td class="sticky-col-2 font-mono font-bold text-slate-600 text-center">${escapeHtml(student.adm || student.admNo || '-')}</td>
-                    <td class="sticky-col-3 font-extrabold text-slate-900 text-left">${escapeHtml(student.name || '--')}</td>
+                    <td class="sticky-col-3 font-extrabold text-slate-900 text-left truncate max-w-[130px] sm:max-w-none text-xs" title="${escapeHtml(student.name || '')}">${escapeHtml(student.name || '--')}</td>
                     ${dayCellsHtml}
                     <td class="font-bold text-slate-600 text-center">${curWork}</td>
                     <td class="font-black text-emerald-600 text-center">${curPres}</td>
