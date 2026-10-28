@@ -461,7 +461,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 4: EXAM TIMETABLE & SYLLABUS           -->
+        <!-- TAB 4: EXAM TIMETABLE & ROUTINE            -->
         <!-- ========================================== -->
         <section id="tab-exam-schedule" class="tab-content hidden space-y-4">
           <!-- Controls Bar -->
@@ -476,19 +476,27 @@
                 <select id="exam-tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
               <div>
-                <div class="flex items-center justify-between gap-1 mb-1">
-                  <label for="exam-tt-title-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600">Examination</label>
-                  <button type="button" id="btn-add-exam-name" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer" title="Add a new examination title">
-                    <i class="fas fa-plus"></i> New
+                <label for="exam-tt-title-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Examination</label>
+                <div class="flex items-center gap-2">
+                  <select id="exam-tt-title-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[170px]"></select>
+                  <button type="button" id="btn-add-exam-name" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-extrabold text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer shrink-0" title="Create a new examination">
+                    <i class="fas fa-plus-circle text-indigo-600"></i> New Exam
                   </button>
                 </div>
-                <select id="exam-tt-title-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[170px]"></select>
               </div>
             </div>
 
-            <div class="flex items-center gap-2">
-              <button type="button" id="btn-add-exam-entry" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-plus"></i> Schedule Paper
+            <!-- Action Controls (Matching Class Timetable) -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <label class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl cursor-pointer select-none">
+                <input type="checkbox" id="toggle-exam-timetable-edit" class="rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-xs font-black text-slate-800">Edit Schedule</span>
+              </label>
+              <button type="button" id="btn-add-exam-date" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-calendar-plus"></i> Add Date
+              </button>
+              <button type="button" id="btn-save-exam-timetable" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer hidden">
+                <i class="fas fa-save"></i> Save Schedule
               </button>
               <button type="button" id="btn-print-exam-tt" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <i class="fas fa-print"></i> Print Routine
@@ -496,33 +504,22 @@
             </div>
           </div>
 
-          <!-- Exam Timetable Table Container -->
+          <!-- Exam Timetable Grid Container (Styled Like Class Routine Timetable) -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden" id="exam-timetable-container">
             <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <i class="fas fa-file-pen text-indigo-600"></i>
-                <h3 id="exam-tt-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Scheduled Examination Papers</h3>
+                <h3 id="exam-tt-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Examination Schedule</h3>
               </div>
-              <span id="exam-tt-class-badge" class="text-xs text-indigo-700 font-bold bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">Class --</span>
+              <div class="flex items-center gap-2">
+                <span id="exam-tt-dates-badge" class="text-xs text-indigo-700 font-bold bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">0 Scheduled Days</span>
+                <span id="exam-tt-class-badge" class="text-xs text-slate-700 font-bold bg-white border border-slate-200 px-2.5 py-0.5 rounded-full">Class --</span>
+              </div>
             </div>
 
-            <div class="overflow-x-auto p-4">
-              <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-                    <th class="py-2.5 px-3">#</th>
-                    <th class="py-2.5 px-3">Date</th>
-                    <th class="py-2.5 px-3">Time</th>
-                    <th class="py-2.5 px-3">Subject</th>
-                    <th class="py-2.5 px-3">Portions / Syllabus to Study</th>
-                    <th class="py-2.5 px-3">Invigilator &amp; Room</th>
-                    <th class="py-2.5 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="exam-papers-tbody" class="divide-y divide-slate-100 font-medium">
-                  <!-- Dynamically populated -->
-                </tbody>
-              </table>
+            <!-- Dynamic Timetable Matrix Grid -->
+            <div class="overflow-x-auto p-4" id="exam-schedule-grid">
+              <!-- Dynamically rendered table matching Class Timetable design -->
             </div>
           </div>
         </section>
@@ -778,12 +775,10 @@
           How would you like to apply this new weekly off schedule to your attendance registers and timetable?
         </p>
 
-        <div class="space-y-2.5">
+        <div class="space-y-2.5" id="tt-weekend-confirm-options-group">
           <!-- Option 1: Apply from today onwards -->
-          <button type="button" id="btn-tt-confirm-apply-today" class="w-full text-left p-3.5 rounded-2xl border-2 border-indigo-200 hover:border-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 transition flex items-start gap-3 cursor-pointer group">
-            <div class="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition">
-              <i class="fas fa-clock-rotate-left text-xs"></i>
-            </div>
+          <label class="tt-weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-indigo-500 bg-indigo-50/60 cursor-pointer select-none transition">
+            <input type="radio" name="tt-weekend-apply-scope" value="today" checked class="mt-1 text-indigo-600 focus:ring-indigo-500">
             <div class="flex-1">
               <div class="flex items-center justify-between">
                 <span class="font-black text-xs text-indigo-950">Apply from Today (<span id="tt-confirm-today-date">--</span>) Onwards</span>
@@ -793,25 +788,26 @@
                 Preserves all past monthly registers and historical attendance records under the previous off-day rule. Only today and future dates will follow the new schedule.
               </p>
             </div>
-          </button>
+          </label>
 
           <!-- Option 2: Apply to all dates -->
-          <button type="button" id="btn-tt-confirm-apply-all" class="w-full text-left p-3.5 rounded-2xl border border-slate-200 hover:border-slate-400 bg-white hover:bg-slate-50 transition flex items-start gap-3 cursor-pointer group">
-            <div class="w-7 h-7 rounded-xl bg-slate-700 text-white flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition">
-              <i class="fas fa-globe text-xs"></i>
-            </div>
+          <label class="tt-weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 cursor-pointer select-none transition">
+            <input type="radio" name="tt-weekend-apply-scope" value="all" class="mt-1 text-indigo-600 focus:ring-indigo-500">
             <div class="flex-1">
               <span class="font-black text-xs text-slate-900 block">Apply to All Dates (Entire History)</span>
               <p class="text-[11px] text-slate-600 font-bold mt-0.5">
                 Applies the new weekly off across all past, present, and future dates in this academic year.
               </p>
             </div>
-          </button>
+          </label>
         </div>
 
-        <div class="pt-2 flex justify-end">
+        <div class="pt-2 flex items-center justify-end gap-2">
           <button type="button" class="btn-close-modal px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-tt-weekend-confirm">
             Cancel
+          </button>
+          <button type="button" id="btn-tt-confirm-weekend-ok" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5">
+            <i class="fas fa-check"></i> Confirm &amp; Apply
           </button>
         </div>
       </div>
@@ -1003,6 +999,40 @@
       </div>
     </div>
   </div>
+  <!-- ========================================== -->
+  <!-- MODAL: ADD EXAM DATE                      -->
+  <!-- ========================================== -->
+  <div id="modal-add-exam-date" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-calendar-plus"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-indigo-950">Add Examination Date</h3>
+            <p class="text-[11px] text-indigo-700 font-bold">Pick an exam day to add to the schedule</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-add-exam-date">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div>
+          <label for="modal-exam-picker-date" class="block font-bold text-slate-700 mb-1.5 text-xs">Select Date</label>
+          <input type="date" id="modal-exam-picker-date" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 text-xs">
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" class="btn-close-modal py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-add-exam-date">
+            Cancel
+          </button>
+          <button type="button" id="btn-confirm-add-exam-date" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5">
+            <i class="fas fa-plus"></i> Add Date to Schedule
+          </button>
+        </div>
       </div>
     </div>
   </div>

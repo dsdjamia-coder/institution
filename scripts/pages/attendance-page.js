@@ -1965,8 +1965,27 @@ const setupEventListeners = () => {
 
     // 5. Calendar & Holidays Listeners
     document.getElementById('btn-save-weekends')?.addEventListener('click', saveWeekendConfig);
-    document.getElementById('btn-confirm-apply-today')?.addEventListener('click', () => applyWeekendConfigChange('today'));
-    document.getElementById('btn-confirm-apply-all')?.addEventListener('click', () => applyWeekendConfigChange('all'));
+    
+    document.getElementById('weekend-confirm-options-group')?.addEventListener('change', () => {
+        const isToday = document.querySelector('input[name="weekend-apply-scope"]:checked')?.value === 'today';
+        const cards = document.querySelectorAll('.weekend-confirm-card');
+        if (cards[0]) {
+            cards[0].className = isToday
+                ? 'weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-indigo-500 bg-indigo-50/60 cursor-pointer select-none transition'
+                : 'weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 cursor-pointer select-none transition';
+        }
+        if (cards[1]) {
+            cards[1].className = !isToday
+                ? 'weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-indigo-500 bg-indigo-50/60 cursor-pointer select-none transition'
+                : 'weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 cursor-pointer select-none transition';
+        }
+    });
+
+    document.getElementById('btn-confirm-weekend-ok')?.addEventListener('click', () => {
+        const mode = document.querySelector('input[name="weekend-apply-scope"]:checked')?.value || 'today';
+        applyWeekendConfigChange(mode);
+    });
+
     document.getElementById('btn-add-holiday')?.addEventListener('click', addOrUpdateHoliday);
     document.getElementById('btn-cancel-holiday-edit')?.addEventListener('click', cancelEditHoliday);
 

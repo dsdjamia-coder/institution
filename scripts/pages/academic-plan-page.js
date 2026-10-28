@@ -365,6 +365,24 @@ const setupRealtimeListeners = () => {
             syncTimetableWorkingDaysWithAttendance();
         }
     });
+
+    // 5. Institutional Timetable Structure Sync
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'timetableStructure'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            if (Array.isArray(data.slots) && data.slots.length) {
+                timetableConfig.slots = data.slots;
+                timetableConfig.periodsCount = data.slots.length;
+                timetableConfig.timings = data.slots.map((s, idx) => ({
+                    periodNum: idx + 1,
+                    startTime: s.startTime,
+                    endTime: s.endTime,
+                    label: s.label
+                }));
+                renderTimetableMatrixUI();
+            }
+        }
+    });
 };
 
 const syncTimetableWorkingDaysWithAttendance = () => {
@@ -821,8 +839,14 @@ const loadTimetable = async () => {
         const docSnap = await getDoc(doc(db, `${BASE_PATH}/timetables`, docId));
         if (docSnap.exists()) {
             const data = docSnap.data();
-            timetableConfig = data.config || timetableConfig;
             timetableMatrix = data.matrix || {};
+            if (data.config && Array.isArray(data.config.slots) && data.config.slots.length) {
+                if (!timetableConfig.slots || !timetableConfig.slots.length) {
+                    timetableConfig.slots = data.config.slots;
+                    timetableConfig.periodsCount = data.config.slots.length;
+                    timetableConfig.timings = data.config.timings || [];
+                }
+            }
         } else {
             timetableMatrix = {};
         }
@@ -1360,6 +1384,15 @@ const executeSaveTimetableConfig = async (newConfig) => {
     const docId = getTimetableDocId(year, selectedTtClass);
 
     try {
+        // 1. Save globally to institutional structure settings
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'timetableStructure'), {
+            slots: newConfig.slots,
+            periodsCount: newConfig.periodsCount,
+            timings: newConfig.timings,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        // 2. Save to current class timetable document
         await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
             config: timetableConfig,
             matrix: timetableMatrix,
@@ -1367,7 +1400,7 @@ const executeSaveTimetableConfig = async (newConfig) => {
         }, { merge: true });
 
         closeModal('modal-tt-settings');
-        showToast('Timetable structure settings applied successfully!', 'success');
+        showToast('Timetable structure settings applied across all classes!', 'success');
         renderTimetableMatrixUI();
     } catch (err) {
         alert('Failed to save settings: ' + err.message);
@@ -1813,218 +1846,313 @@ const saveNewExamName = async () => {
     }
 };
 
+// --- Exam Timetable Routine Matrix State ---
+let isExamTimetableEditMode = false;
+let examDates = [];
+let examSessions = [
+    { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '09:00', endTime: '11:30' },
+    { id: 'session_2', label: 'Paper 2 (Afternoon)', startTime: '01:30', endTime: '03:30' }
+];
+let examMatrix = {}; // "${date}_${sessionId}" -> { subjectId, subjectName, subjectCode, isNoExam, portions, invigilator, hall }
+
 const loadExamTimetable = async () => {
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
     currentExamTitle = document.getElementById('exam-tt-title-select')?.value || '';
-    const tbody = document.getElementById('exam-papers-tbody');
     const heading = document.getElementById('exam-tt-view-heading');
-    const badge = document.getElementById('exam-tt-class-badge');
+    const classBadge = document.getElementById('exam-tt-class-badge');
+    const datesBadge = document.getElementById('exam-tt-dates-badge');
 
-    if (heading) heading.textContent = currentExamTitle ? `${currentExamTitle} Routine` : 'Scheduled Examination Papers';
-    if (badge) badge.textContent = `Class ${selectedClass}`;
+    if (heading) heading.textContent = currentExamTitle ? `Class ${selectedClass} - ${currentExamTitle} Routine` : 'Examination Routine';
+    if (classBadge) classBadge.textContent = `Class ${selectedClass}`;
+
+    await ensureClassSubjectsLoaded(year, selectedClass);
 
     if (!currentExamTitle) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-bold">Please select or create an examination.</td></tr>`;
+        const grid = document.getElementById('exam-schedule-grid');
+        if (grid) grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select or create an examination.</div>`;
         return;
     }
 
     try {
         const docId = getExamTimetableDocId(year, selectedClass, currentExamTitle);
         const snap = await getDoc(doc(db, `${BASE_PATH}/examTimetables`, docId));
-        if (snap.exists() && Array.isArray(snap.data().entries)) {
-            examTimetableEntries = snap.data().entries;
-        } else {
-            // Check legacy global doc
-            const legacyDocId = `${String(year).replace(/[^\w-]/g, '_')}__${String(currentExamTitle).replace(/[^\w-]/g, '_')}`;
-            const legacySnap = await getDoc(doc(db, `${BASE_PATH}/examTimetables`, legacyDocId));
-            if (legacySnap.exists() && Array.isArray(legacySnap.data().entries)) {
-                examTimetableEntries = legacySnap.data().entries.filter(e => String(e.classLabel) === String(selectedClass));
-            } else {
-                examTimetableEntries = [];
+        if (snap.exists()) {
+            const data = snap.data();
+            examDates = Array.isArray(data.dates) ? data.dates : [];
+            examSessions = (Array.isArray(data.sessionSlots) && data.sessionSlots.length) ? data.sessionSlots : [
+                { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '09:00', endTime: '11:30' },
+                { id: 'session_2', label: 'Paper 2 (Afternoon)', startTime: '01:30', endTime: '03:30' }
+            ];
+            examMatrix = data.matrix || {};
+
+            // Migrate legacy entries if present and matrix is empty
+            if ((!examDates.length || Object.keys(examMatrix).length === 0) && Array.isArray(data.entries)) {
+                data.entries.forEach(e => {
+                    if (e.date) {
+                        if (!examDates.includes(e.date)) examDates.push(e.date);
+                        const sKey = `${e.date}_session_1`;
+                        examMatrix[sKey] = {
+                            subjectId: e.subjectId || '',
+                            subjectName: e.subject || '',
+                            subjectCode: '',
+                            isNoExam: false,
+                            portions: e.portions || '',
+                            invigilator: e.invigilator || '',
+                            hall: e.hall || ''
+                        };
+                    }
+                });
             }
+        } else {
+            examDates = [];
+            examMatrix = {};
         }
     } catch (err) {
         console.error('Failed to load exam timetable:', err);
     }
 
-    if (!tbody) return;
+    examDates.sort();
+    if (datesBadge) datesBadge.textContent = `${examDates.length} Scheduled Day${examDates.length === 1 ? '' : 's'}`;
 
-    if (!examTimetableEntries.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="p-8 text-center text-slate-400 font-medium">
-                    <i class="fas fa-file-pen text-3xl mb-2 text-slate-300 block"></i>
-                    No exam papers scheduled for Class ${escapeHtml(selectedClass)} in ${escapeHtml(currentExamTitle)} yet.<br>
-                    <button type="button" class="mt-3 px-3.5 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5" onclick="document.getElementById('btn-add-exam-entry').click()">
-                        <i class="fas fa-plus"></i> Schedule First Paper
-                    </button>
-                </td>
-            </tr>`;
+    renderExamTimetableGridUI();
+};
+
+const renderExamTimetableGridUI = () => {
+    const grid = document.getElementById('exam-schedule-grid');
+    if (!grid) return;
+
+    const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+
+    if (!currentExamTitle) {
+        grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select an examination to view schedule.</div>`;
         return;
     }
 
-    // Sort entries chronologically by date and time
-    examTimetableEntries.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.startTime || '').localeCompare(b.startTime || ''));
-
-    tbody.innerHTML = examTimetableEntries.map((e, idx) => `
-        <tr class="hover:bg-slate-50/80 transition">
-            <td class="py-3 px-3 font-bold text-slate-400 text-center">${idx + 1}</td>
-            <td class="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
-                <i class="fas fa-calendar-day text-indigo-600 mr-1.5 text-xs"></i>${formatDisplayDate(e.date)}
-            </td>
-            <td class="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
-                ${e.startTime || '--'} - ${e.endTime || '--'}
-            </td>
-            <td class="py-3 px-3 font-black text-slate-900">
-                <span class="px-2 py-0.5 rounded-md text-xs font-black bg-indigo-50 text-indigo-900 border border-indigo-200">
-                    ${escapeHtml(e.subject || '')}
-                </span>
-            </td>
-            <td class="py-3 px-3 max-w-[240px] truncate font-medium text-slate-600" title="${escapeHtml(e.portions || '')}">
-                ${escapeHtml(e.portions || 'Full Syllabus')}
-            </td>
-            <td class="py-3 px-3 font-medium text-slate-600 text-xs">
-                ${e.invigilator ? `<span class="font-bold text-slate-700"><i class="fas fa-user-tie text-[10px] text-slate-400 mr-1"></i>${escapeHtml(e.invigilator)}</span>` : ''}
-                ${e.hall ? `<span class="text-slate-400 text-[11px] block mt-0.5"><i class="fas fa-door-open text-[9px] mr-1"></i>${escapeHtml(e.hall)}</span>` : ''}
-            </td>
-            <td class="py-3 px-3 text-right">
-                <button type="button" class="btn-del-exam-entry p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-id="${e.id}" title="Remove Paper">
-                    <i class="fas fa-trash-can"></i>
+    if (!examDates.length) {
+        grid.innerHTML = `
+            <div class="p-8 text-center text-slate-400 font-medium">
+                <i class="fas fa-calendar-plus text-3xl mb-2 text-slate-300 block"></i>
+                No exam dates scheduled for Class ${escapeHtml(selectedClass)} in ${escapeHtml(currentExamTitle)} yet.<br>
+                <button type="button" class="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" onclick="document.getElementById('btn-add-exam-date')?.click()">
+                    <i class="fas fa-plus"></i> Add First Exam Date
                 </button>
-            </td>
-        </tr>
-    `).join('');
+            </div>`;
+        return;
+    }
+
+    let html = `
+        <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-44 bg-slate-200/80">Exam Date &amp; Day</th>`;
+
+    examSessions.forEach(session => {
+        html += `
+            <th class="py-2.5 px-3 border-r border-slate-200 min-w-[200px]">
+                <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(session.label)}</div>
+                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${session.startTime || ''} - ${session.endTime || ''}</div>
+            </th>`;
+    });
+    html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
+
+    examDates.forEach(dateStr => {
+        html += `
+            <tr class="hover:bg-slate-50/60 transition">
+                <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap align-top">
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-calendar-day text-indigo-600"></i> ${formatDisplayDate(dateStr)}
+                            </div>
+                            <div class="text-[10px] font-bold text-slate-400 mt-0.5">${dateStr}</div>
+                        </div>
+                        ${isExamTimetableEditMode ? `
+                            <button type="button" class="btn-remove-exam-date p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer" data-date="${dateStr}" title="Remove this exam date">
+                                <i class="fas fa-trash-can text-xs"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>`;
+
+        examSessions.forEach(session => {
+            const cellKey = `${dateStr}_${session.id}`;
+            const cellData = examMatrix[cellKey] || {};
+
+            if (isExamTimetableEditMode) {
+                html += `
+                    <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
+                        <select class="exam-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-date="${dateStr}" data-session="${session.id}">
+                            <option value="">-- Unassigned --</option>
+                            <option value="__NO_EXAM__" ${cellData.isNoExam ? 'selected' : ''} class="font-bold text-amber-700 bg-amber-50">☕ -- No Exam / Study Leave --</option>
+                            ${classSubjectsList.map(s => `
+                                <option value="${s.id}" ${(cellData.subjectId === s.id || cellData.subjectName === s.name) && !cellData.isNoExam ? 'selected' : ''}>
+                                    ${escapeHtml(s.name)} (${escapeHtml(s.code)})
+                                </option>
+                            `).join('')}
+                        </select>
+                        <input type="text" class="exam-cell-portions w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Portions / Syllabus to study" value="${escapeHtml(cellData.portions || '')}" data-date="${dateStr}" data-session="${session.id}">
+                        <div class="grid grid-cols-2 gap-1">
+                            <input type="text" class="exam-cell-invigilator w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Invigilator" value="${escapeHtml(cellData.invigilator || '')}" data-date="${dateStr}" data-session="${session.id}">
+                            <input type="text" class="exam-cell-hall w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Hall / Room" value="${escapeHtml(cellData.hall || '')}" data-date="${dateStr}" data-session="${session.id}">
+                        </div>
+                    </td>`;
+            } else {
+                if (cellData.isNoExam) {
+                    html += `
+                        <td class="p-2.5 border-r border-slate-200 align-top">
+                            <div class="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-center select-none">
+                                <div class="text-[11px] font-black text-amber-900 flex items-center justify-center gap-1.5">
+                                    <i class="fas fa-mug-hot text-amber-600"></i> No Exam / Study Leave
+                                </div>
+                                <div class="text-[10px] font-bold text-amber-700/80 mt-0.5">Free Preparation Day</div>
+                            </div>
+                        </td>`;
+                } else if (cellData.subjectName) {
+                    html += `
+                        <td class="p-2.5 border-r border-slate-200 align-top">
+                            <div class="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs space-y-1">
+                                <div class="font-black text-xs text-indigo-950">${escapeHtml(cellData.subjectName)} ${cellData.subjectCode ? `<span class="text-[10px] font-bold text-indigo-700">(${escapeHtml(cellData.subjectCode)})</span>` : ''}</div>
+                                ${cellData.portions ? `<div class="text-[11px] font-semibold text-slate-600 leading-tight"><i class="fas fa-book-bookmark text-[9px] mr-1 text-indigo-500"></i>${escapeHtml(cellData.portions)}</div>` : ''}
+                                <div class="flex items-center gap-2 pt-0.5 text-[10px] font-bold text-slate-500">
+                                    ${cellData.invigilator ? `<span><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(cellData.invigilator)}</span>` : ''}
+                                    ${cellData.hall ? `<span><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(cellData.hall)}</span>` : ''}
+                                </div>
+                            </div>
+                        </td>`;
+                } else {
+                    html += `
+                        <td class="p-2.5 border-r border-slate-200 align-top">
+                            <div class="p-2.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
+                                No Paper Scheduled
+                            </div>
+                        </td>`;
+                }
+            }
+        });
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    grid.innerHTML = html;
 };
 
-const openExamEntryModal = async () => {
-    const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+const toggleExamTimetableEdit = (isEditing) => {
+    isExamTimetableEditMode = isEditing;
+    const saveBtn = document.getElementById('btn-save-exam-timetable');
+    if (saveBtn) {
+        saveBtn.classList.toggle('hidden', !isEditing);
+    }
+    renderExamTimetableGridUI();
+};
+
+const saveExamTimetableMatrix = async () => {
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+    if (!currentExamTitle) return alert('Please select an examination first.');
 
-    await ensureClassSubjectsLoaded(year, selectedClass);
+    const updatedMatrix = {};
+    const selects = document.querySelectorAll('.exam-cell-subject');
 
-    const classDisplay = document.getElementById('modal-exam-class-display');
-    const classInput = document.getElementById('modal-exam-class-select');
-    if (classDisplay) classDisplay.textContent = `Class ${selectedClass}`;
-    if (classInput) classInput.value = selectedClass;
+    selects.forEach(sel => {
+        const date = sel.dataset.date;
+        const session = sel.dataset.session;
+        const val = sel.value;
+        const cellKey = `${date}_${session}`;
 
-    const subjSelect = document.getElementById('modal-exam-subject-select');
-    const customInput = document.getElementById('modal-exam-subject-custom');
-    if (customInput) {
-        customInput.value = '';
-        customInput.classList.add('hidden');
+        const portionsInput = document.querySelector(`.exam-cell-portions[data-date="${date}"][data-session="${session}"]`);
+        const invigilatorInput = document.querySelector(`.exam-cell-invigilator[data-date="${date}"][data-session="${session}"]`);
+        const hallInput = document.querySelector(`.exam-cell-hall[data-date="${date}"][data-session="${session}"]`);
+
+        if (val === '__NO_EXAM__') {
+            updatedMatrix[cellKey] = {
+                subjectId: '',
+                subjectName: 'No Exam / Study Leave',
+                subjectCode: '',
+                isNoExam: true,
+                portions: portionsInput?.value.trim() || '',
+                invigilator: '',
+                hall: ''
+            };
+        } else if (val) {
+            const subjObj = classSubjectsList.find(s => s.id === val);
+            updatedMatrix[cellKey] = {
+                subjectId: val,
+                subjectName: subjObj ? subjObj.name : 'Subject',
+                subjectCode: subjObj ? subjObj.code : '',
+                isNoExam: false,
+                portions: portionsInput?.value.trim() || '',
+                invigilator: invigilatorInput?.value.trim() || '',
+                hall: hallInput?.value.trim() || ''
+            };
+        }
+    });
+
+    examMatrix = updatedMatrix;
+    const docId = getExamTimetableDocId(year, selectedClass, currentExamTitle);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
+            academicYear: year,
+            classLabel: selectedClass,
+            examTitle: currentExamTitle,
+            dates: examDates,
+            sessionSlots: examSessions,
+            matrix: examMatrix,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast(`Exam routine for Class ${selectedClass} saved successfully!`, 'success');
+        const toggle = document.getElementById('toggle-exam-timetable-edit');
+        if (toggle) toggle.checked = false;
+        toggleExamTimetableEdit(false);
+    } catch (err) {
+        alert('Failed to save exam schedule: ' + err.message);
     }
+};
 
-    if (subjSelect) {
-        let optsHtml = classSubjectsList.map(s => `
-            <option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${escapeHtml(s.code)})</option>
-        `).join('');
-
-        optsHtml += `<option value="__CUSTOM__">+ Other / Custom Subject...</option>`;
-        subjSelect.innerHTML = optsHtml;
-
-        subjSelect.onchange = () => {
-            if (subjSelect.value === '__CUSTOM__') {
-                customInput?.classList.remove('hidden');
-                customInput?.focus();
-            } else {
-                customInput?.classList.add('hidden');
-            }
-        };
-    }
-
-    const dateInput = document.getElementById('modal-exam-date');
-    if (dateInput && !dateInput.value) {
+const openAddExamDateModal = () => {
+    if (!currentExamTitle) return alert('Please select or create an examination first.');
+    const dateInput = document.getElementById('modal-exam-picker-date');
+    if (dateInput) {
         dateInput.value = new Date().toISOString().split('T')[0];
     }
-
-    const portionsInput = document.getElementById('modal-exam-portions');
-    if (portionsInput) portionsInput.value = '';
-    const hallInput = document.getElementById('modal-exam-hall');
-    if (hallInput) hallInput.value = '';
-    const invigInput = document.getElementById('modal-exam-invigilator');
-    if (invigInput) invigInput.value = '';
-
-    openModal('modal-exam-entry');
+    openModal('modal-add-exam-date');
 };
 
-const saveExamEntry = async () => {
-    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
-    const classLabel = document.getElementById('exam-tt-class-select')?.value || '1';
-    const title = document.getElementById('exam-tt-title-select')?.value || 'Examination';
-    const date = document.getElementById('modal-exam-date')?.value;
-    const subjSelect = document.getElementById('modal-exam-subject-select');
-    const customInput = document.getElementById('modal-exam-subject-custom');
+const confirmAddExamDate = () => {
+    const dateInput = document.getElementById('modal-exam-picker-date');
+    const pickedDate = dateInput?.value;
+    if (!pickedDate) return alert('Please select a valid date.');
 
-    let subject = subjSelect?.value || '';
-    if (subject === '__CUSTOM__') {
-        subject = customInput?.value.trim() || '';
+    if (examDates.includes(pickedDate)) {
+        return alert('This date is already included in the exam schedule.');
     }
 
-    const startTime = document.getElementById('modal-exam-start-time')?.value || '08:00';
-    const endTime = document.getElementById('modal-exam-end-time')?.value || '10:00';
-    const portions = document.getElementById('modal-exam-portions')?.value.trim();
-    const hall = document.getElementById('modal-exam-hall')?.value.trim();
-    const invigilator = document.getElementById('modal-exam-invigilator')?.value.trim();
+    examDates.push(pickedDate);
+    examDates.sort();
 
-    if (!date) return alert('Please choose an exam date.');
-    if (!subject) return alert('Please select or enter a subject name.');
+    closeModal('modal-add-exam-date');
+    const datesBadge = document.getElementById('exam-tt-dates-badge');
+    if (datesBadge) datesBadge.textContent = `${examDates.length} Scheduled Day${examDates.length === 1 ? '' : 's'}`;
 
-    const newEntry = {
-        id: `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        date,
-        classLabel,
-        subject,
-        startTime,
-        endTime,
-        portions,
-        hall,
-        invigilator
-    };
-
-    examTimetableEntries.push(newEntry);
-
-    try {
-        const docId = getExamTimetableDocId(year, classLabel, title);
-        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
-            classLabel,
-            academicYear: year,
-            examTitle: title,
-            entries: examTimetableEntries,
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        closeModal('modal-exam-entry');
-        showToast('Exam paper scheduled successfully!', 'success');
-        loadExamTimetable();
-    } catch (err) {
-        alert('Failed to save exam paper: ' + err.message);
-    }
+    renderExamTimetableGridUI();
+    showToast(`Added ${formatDisplayDate(pickedDate)} to exam schedule.`, 'info');
 };
 
-const deleteExamEntry = async (id) => {
-    if (!confirm('Remove this scheduled examination paper?')) return;
-    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
-    const classLabel = document.getElementById('exam-tt-class-select')?.value || '1';
-    const title = document.getElementById('exam-tt-title-select')?.value || 'Examination';
+const removeExamDate = (dateStr) => {
+    if (!confirm(`Are you sure you want to remove ${formatDisplayDate(dateStr)} from the exam schedule?`)) return;
+    examDates = examDates.filter(d => d !== dateStr);
+    Object.keys(examMatrix).forEach(k => {
+        if (k.startsWith(`${dateStr}_`)) {
+            delete examMatrix[k];
+        }
+    });
 
-    examTimetableEntries = examTimetableEntries.filter(e => e.id !== id);
+    const datesBadge = document.getElementById('exam-tt-dates-badge');
+    if (datesBadge) datesBadge.textContent = `${examDates.length} Scheduled Day${examDates.length === 1 ? '' : 's'}`;
 
-    try {
-        const docId = getExamTimetableDocId(year, classLabel, title);
-        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
-            classLabel,
-            academicYear: year,
-            examTitle: title,
-            entries: examTimetableEntries,
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        showToast('Exam entry removed.', 'info');
-        loadExamTimetable();
-    } catch (err) {
-        alert('Failed to remove entry: ' + err.message);
-    }
+    renderExamTimetableGridUI();
 };
 
 // =========================================================================
@@ -2102,8 +2230,25 @@ const setupEventListeners = () => {
     document.getElementById('btn-insert-break-slot')?.addEventListener('click', insertBreakSlot);
 
     // Timetable Weekend Confirmation Listeners
-    document.getElementById('btn-tt-confirm-apply-today')?.addEventListener('click', () => applyTimetableWeekendSync('today'));
-    document.getElementById('btn-tt-confirm-apply-all')?.addEventListener('click', () => applyTimetableWeekendSync('all'));
+    document.getElementById('tt-weekend-confirm-options-group')?.addEventListener('change', () => {
+        const isToday = document.querySelector('input[name="tt-weekend-apply-scope"]:checked')?.value === 'today';
+        const cards = document.querySelectorAll('.tt-weekend-confirm-card');
+        if (cards[0]) {
+            cards[0].className = isToday
+                ? 'tt-weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-indigo-500 bg-indigo-50/60 cursor-pointer select-none transition'
+                : 'tt-weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 cursor-pointer select-none transition';
+        }
+        if (cards[1]) {
+            cards[1].className = !isToday
+                ? 'tt-weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-indigo-500 bg-indigo-50/60 cursor-pointer select-none transition'
+                : 'tt-weekend-confirm-card flex items-start gap-3 p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 cursor-pointer select-none transition';
+        }
+    });
+
+    document.getElementById('btn-tt-confirm-weekend-ok')?.addEventListener('click', () => {
+        const mode = document.querySelector('input[name="tt-weekend-apply-scope"]:checked')?.value || 'today';
+        applyTimetableWeekendSync(mode);
+    });
 
     document.getElementById('tt-timings-container')?.addEventListener('click', (e) => {
         const delBtn = e.target.closest('.btn-remove-slot');
@@ -2183,16 +2328,20 @@ const setupEventListeners = () => {
         await loadExamTimetable();
     });
     document.getElementById('exam-tt-title-select')?.addEventListener('change', loadExamTimetable);
-    document.getElementById('btn-add-exam-entry')?.addEventListener('click', openExamEntryModal);
-    document.getElementById('btn-save-exam-entry')?.addEventListener('click', saveExamEntry);
+    document.getElementById('toggle-exam-timetable-edit')?.addEventListener('change', (e) => {
+        toggleExamTimetableEdit(e.target.checked);
+    });
+    document.getElementById('btn-add-exam-date')?.addEventListener('click', openAddExamDateModal);
+    document.getElementById('btn-confirm-add-exam-date')?.addEventListener('click', confirmAddExamDate);
+    document.getElementById('btn-save-exam-timetable')?.addEventListener('click', saveExamTimetableMatrix);
     document.getElementById('btn-print-exam-tt')?.addEventListener('click', () => window.print());
     document.getElementById('btn-add-exam-name')?.addEventListener('click', openAddExamNameModal);
     document.getElementById('btn-save-new-exam-title')?.addEventListener('click', saveNewExamName);
 
-    document.getElementById('exam-papers-tbody')?.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('.btn-del-exam-entry');
+    document.getElementById('exam-schedule-grid')?.addEventListener('click', (e) => {
+        const delBtn = e.target.closest('.btn-remove-exam-date');
         if (delBtn) {
-            deleteExamEntry(delBtn.dataset.id);
+            removeExamDate(delBtn.dataset.date);
         }
     });
 
