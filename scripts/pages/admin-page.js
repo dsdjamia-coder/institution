@@ -2631,7 +2631,7 @@ window.openStaffDetailsModal = (id) => {
                 ${s.canManageResults === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 border border-blue-200">3. Result System</span>' : ''}
                 ${s.canAccessAttendance === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">4. Attendance Register</span>' : ''}
                 ${s.canAccessAcademicPlan === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">5. Academic Planning</span>' : ''}
-                ${s.canAccessActivity === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">6. Activity &amp; Deen Hub</span>' : ''}
+                ${s.canAccessActivity === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">6. Activity &amp; Rewards</span>' : ''}
                 ${s.canAccessAdmin === true ? `<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 border border-violet-200">7. Admin Panel${s.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
                 ${(!s.canCollect && !s.canAccessWorksheet && !s.canManageResults && !s.canAccessAttendance && !s.canAccessAcademicPlan && !s.canAccessActivity && !s.canAccessAdmin) ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access (Locked)</span>' : ''}
             </div>

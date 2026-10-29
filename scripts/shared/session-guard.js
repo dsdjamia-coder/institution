@@ -348,7 +348,7 @@
                 return;
             }
             if (requiredPage === 'studentActivity' && access && access.studentActivity !== true && access.activity !== true) {
-                setFlash('Access Restricted: Your account does not have Activity & Deen Hub page access.');
+                setFlash('Access Restricted: Your account does not have Activity & Rewards page access.');
                 window.location.href = 'official.html';
                 return;
             }

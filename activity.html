@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' https://www.gstatic.com https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://*.firebaseapp.com;">
-  <title>Student Activity &amp; Deen Hub - Noorul Islam Madrasa</title>
+  <title>Activity &amp; Rewards - Noorul Islam Madrasa</title>
 
   <!-- Session Guards -->
   <script src="scripts/shared/session-guard.js"></script>
@@ -165,7 +165,7 @@
         <div>
           <div class="flex items-center gap-2">
             <span id="header-active-year" class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-amber-300">Loading Session...</span>
-            <span class="text-xs text-slate-400 font-semibold hidden sm:inline">&bull; Activity &amp; Deen Portal</span>
+            <span class="text-xs text-slate-400 font-semibold hidden sm:inline">&bull; Activity &amp; Rewards Portal</span>
           </div>
           <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Noorul Islam Madrasa</h1>
         </div>
@@ -200,8 +200,8 @@
             <i class="fas fa-award"></i>
           </div>
           <div class="drawer-header-title min-w-0">
-            <h2 class="font-extrabold text-sm text-slate-900 truncate">Activity Hub</h2>
-            <p class="text-[10px] text-slate-500 font-bold truncate">Deen, Tasks &amp; Rewards</p>
+            <h2 class="font-extrabold text-sm text-slate-900 truncate">Activity &amp; Rewards</h2>
+            <p class="text-[10px] text-slate-500 font-bold truncate">Tasks, Prayers &amp; Badges</p>
           </div>
         </div>
         <button id="sidebar-collapse-btn" class="text-gray-500 hover:text-amber-600 hover:bg-amber-50 p-2 rounded-lg transition flex items-center justify-center shrink-0" title="Collapse / Expand sidebar">
@@ -211,22 +211,30 @@
 
       <!-- Navigation Links -->
       <nav class="p-3 space-y-1 flex-1 overflow-y-auto">
-        <div class="drawer-heading">Student Deen &amp; Activities</div>
-        <a href="#tasks" class="drawer-link active" data-tab="tab-tasks" title="Routine Tasks">
+        <div class="drawer-heading">Overview</div>
+        <a href="#dashboard" class="drawer-link active" data-tab="tab-dashboard" title="Overview Dashboard">
+          <i class="fas fa-gauge-high w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Dashboard</span>
+        </a>
+
+        <div class="drawer-heading">Routine &amp; Tasks</div>
+        <a href="#task-setup" class="drawer-link" data-tab="tab-task-setup" title="Manage &amp; Add Tasks">
+          <i class="fas fa-plus-circle w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Manage Tasks</span>
+        </a>
+        <a href="#tasks" class="drawer-link" data-tab="tab-tasks" title="Routine Tasks Checklist">
           <i class="fas fa-list-check w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Routine Tasks</span>
         </a>
-        <a href="#ibadah" class="drawer-link" data-tab="tab-ibadah" title="Ibadah &amp; Prayers">
+
+        <div class="drawer-heading">Daily Prayers</div>
+        <a href="#prayer" class="drawer-link" data-tab="tab-prayer" title="Prayer Tracker">
           <i class="fas fa-hands-praying w-5 text-center shrink-0"></i>
-          <span class="nav-text truncate">Ibadah &amp; Prayers</span>
-        </a>
-        <a href="#quran" class="drawer-link" data-tab="tab-quran" title="Quran Progress">
-          <i class="fas fa-book-quran w-5 text-center shrink-0"></i>
-          <span class="nav-text truncate">Quran Progress</span>
+          <span class="nav-text truncate">Prayer</span>
         </a>
 
         <div class="drawer-heading">Gamification &amp; Awards</div>
-        <a href="#rewards" class="drawer-link" data-tab="tab-rewards" title="Rewards &amp; Points Leaderboard">
+        <a href="#rewards" class="drawer-link" data-tab="tab-rewards" title="Rewards, Points &amp; Badges">
           <i class="fas fa-trophy w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Rewards &amp; Points</span>
         </a>
@@ -250,9 +258,285 @@
       <div class="max-w-7xl mx-auto space-y-5">
 
         <!-- ========================================== -->
-        <!-- TAB 1: ROUTINE TASKS                       -->
+        <!-- TAB 1: OVERVIEW DASHBOARD                  -->
         <!-- ========================================== -->
-        <section id="tab-tasks" class="tab-content space-y-4">
+        <section id="tab-dashboard" class="tab-content space-y-5">
+          <!-- Banner Card -->
+          <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-slate-700/50 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">Overview Dashboard</span>
+                <span id="dash-banner-session" class="text-xs text-slate-300 font-semibold">Active Session</span>
+              </div>
+              <h2 id="dash-welcome-heading" class="text-lg sm:text-2xl font-black text-white">Welcome, Staff Member</h2>
+              <p id="dash-duty-summary" class="text-xs text-slate-300 mt-1 font-medium">Duty Classes: Loading...</p>
+            </div>
+
+            <div class="flex items-center gap-2 bg-white/10 backdrop-blur-xs p-2 rounded-2xl border border-white/15">
+              <label for="dashboard-class-select" class="text-xs font-bold text-amber-200">Class:</label>
+              <select id="dashboard-class-select" class="p-1.5 px-3 bg-white text-slate-900 font-bold rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"></select>
+            </div>
+          </div>
+
+          <!-- 4 Quick Stats Metric Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <!-- Total Students -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-xl shrink-0">
+                <i class="fas fa-user-graduate"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Students</div>
+                <div id="dash-stat-students" class="text-xl sm:text-2xl font-black text-slate-900 leading-tight">0</div>
+                <div class="text-[11px] text-slate-500 font-semibold truncate">Active Enrolled</div>
+              </div>
+            </div>
+
+            <!-- Today's Prayer Completion -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center text-xl shrink-0">
+                <i class="fas fa-hands-praying"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Prayer Logged</div>
+                <div id="dash-stat-prayer" class="text-xl sm:text-2xl font-black text-emerald-600 leading-tight">0%</div>
+                <div id="dash-stat-prayer-sub" class="text-[11px] text-slate-500 font-semibold truncate">Today's Record</div>
+              </div>
+            </div>
+
+            <!-- Today's Tasks Completion -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-xl shrink-0">
+                <i class="fas fa-list-check"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Tasks Done</div>
+                <div id="dash-stat-tasks" class="text-xl sm:text-2xl font-black text-blue-600 leading-tight">0%</div>
+                <div id="dash-stat-tasks-sub" class="text-[11px] text-slate-500 font-semibold truncate">Today's Routine</div>
+              </div>
+            </div>
+
+            <!-- Reward Points -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center text-xl shrink-0">
+                <i class="fas fa-medal"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Reward Points</div>
+                <div id="dash-stat-points" class="text-xl sm:text-2xl font-black text-purple-700 leading-tight">0</div>
+                <div id="dash-stat-badges-sub" class="text-[11px] text-slate-500 font-semibold truncate">0 Badges Active</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Navigation Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-prayer">
+              <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
+                <i class="fas fa-hands-praying"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-emerald-700 transition">Prayer Tracker</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">5 Fard &amp; Sunnah prayers with 1-click bulk mark</p>
+              </div>
+            </button>
+
+            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-tasks">
+              <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
+                <i class="fas fa-list-check"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-blue-700 transition">Routine Tasks</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">Daily, weekly, and monthly routine checklist</p>
+              </div>
+            </button>
+
+            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-task-setup">
+              <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
+                <i class="fas fa-plus-circle"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-amber-700 transition">Manage Tasks</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">Add custom daily, weekly &amp; monthly tasks</p>
+              </div>
+            </button>
+
+            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-purple-50/50 border border-slate-200 hover:border-purple-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-rewards">
+              <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
+                <i class="fas fa-trophy"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-purple-700 transition">Rewards &amp; Badges</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">Leaderboard, custom student badges &amp; points</p>
+              </div>
+            </button>
+          </div>
+
+          <!-- Mini Leaderboard Preview & Status Details -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Top Performers Card -->
+            <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-2xs p-5">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                  <i class="fas fa-award text-amber-500"></i>
+                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Top Class Performers</h3>
+                </div>
+                <button type="button" class="dash-quick-nav text-xs font-bold text-amber-600 hover:underline cursor-pointer" data-target="tab-rewards">
+                  Full Leaderboard <i class="fas fa-arrow-right text-[10px] ml-1"></i>
+                </button>
+              </div>
+              <div id="dash-top-performers-container" class="space-y-2.5">
+                <!-- Dynamically populated top 3 -->
+                <div class="p-6 text-center text-slate-400 font-bold text-xs">Loading performers...</div>
+              </div>
+            </div>
+
+            <!-- Today's Log Status -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <i class="fas fa-calendar-check text-emerald-600"></i>
+                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Today's Log Status</h3>
+                </div>
+                <p class="text-xs text-slate-500 mb-4 font-medium">Quick verification for today's logs:</p>
+
+                <div class="space-y-3 text-xs">
+                  <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex items-center gap-2">
+                      <i class="fas fa-hands-praying text-slate-600"></i>
+                      <span class="font-bold text-slate-800">5 Daily Prayers</span>
+                    </div>
+                    <span id="dash-status-prayer-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600">Pending</span>
+                  </div>
+
+                  <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex items-center gap-2">
+                      <i class="fas fa-list-check text-slate-600"></i>
+                      <span class="font-bold text-slate-800">Routine Tasks</span>
+                    </div>
+                    <span id="dash-status-tasks-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600">Pending</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Real-time database sync</span>
+                <span class="text-emerald-600 font-bold"><i class="fas fa-circle text-[8px] mr-1"></i>Active</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: MANAGE & ADD TASKS                  -->
+        <!-- ========================================== -->
+        <section id="tab-task-setup" class="tab-content hidden space-y-5">
+          <!-- Add New Task Card -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+            <div class="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+                  <i class="fas fa-plus"></i>
+                </div>
+                <div>
+                  <h3 class="font-extrabold text-sm text-slate-900">Add New Routine Task</h3>
+                  <p class="text-[11px] text-slate-500 font-semibold">Create routine tasks for Daily, Weekly or Monthly cadence</p>
+                </div>
+              </div>
+              <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">Custom Task Setup</span>
+            </div>
+
+            <form id="form-add-task-def" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              <div class="md:col-span-2">
+                <label for="task-def-title" class="block font-bold text-slate-700 mb-1">Task Title <span class="text-rose-500">*</span></label>
+                <input type="text" id="task-def-title" placeholder="e.g. Morning Adhkar, Uniform Cleanliness, Surah Al-Kahf" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
+              </div>
+
+              <div>
+                <label for="task-def-cadence" class="block font-bold text-slate-700 mb-1">Cadence / Frequency <span class="text-rose-500">*</span></label>
+                <select id="task-def-cadence" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none focus:border-amber-500">
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+
+              <div id="wrapper-task-day-week" class="hidden">
+                <label for="task-def-day-week" class="block font-bold text-slate-700 mb-1">Designated Day (Optional)</label>
+                <select id="task-def-day-week" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none focus:border-amber-500">
+                  <option value="">Any Day (Unfixed)</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                </select>
+              </div>
+
+              <div id="wrapper-task-day-month" class="hidden">
+                <label for="task-def-day-month" class="block font-bold text-slate-700 mb-1">Designated Day/Date (Optional)</label>
+                <select id="task-def-day-month" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none focus:border-amber-500">
+                  <option value="">Any Date (Unfixed)</option>
+                  <option value="1st of Month">1st of Month</option>
+                  <option value="15th of Month">15th of Month</option>
+                  <option value="Last Day of Month">Last Day of Month</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="task-def-points" class="block font-bold text-slate-700 mb-1">Reward Points <span class="text-rose-500">*</span></label>
+                <input type="number" id="task-def-points" value="5" min="1" max="100" class="w-full p-2.5 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none focus:border-amber-500" required>
+              </div>
+
+              <div class="md:col-span-4 flex justify-end gap-2 pt-2">
+                <button type="submit" id="btn-save-new-task-def" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                  <i class="fas fa-plus"></i> Add &amp; Save Task
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- All Configured Tasks List -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-list-check text-amber-600"></i>
+                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">All Configured Tasks</h3>
+              </div>
+              <div class="flex items-center gap-1">
+                <button type="button" class="task-def-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white" data-filter="all">All</button>
+                <button type="button" class="task-def-filter-btn px-3 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-200" data-filter="daily">Daily</button>
+                <button type="button" class="task-def-filter-btn px-3 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-200" data-filter="weekly">Weekly</button>
+                <button type="button" class="task-def-filter-btn px-3 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-200" data-filter="monthly">Monthly</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                    <th class="py-2.5 px-3">#</th>
+                    <th class="py-2.5 px-4">Task Title</th>
+                    <th class="py-2.5 px-3 text-center">Frequency</th>
+                    <th class="py-2.5 px-3 text-center">Schedule / Day</th>
+                    <th class="py-2.5 px-3 text-center">Points</th>
+                    <th class="py-2.5 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="task-defs-table-tbody" class="divide-y divide-slate-100 font-medium">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: ROUTINE TASKS MATRIX                -->
+        <!-- ========================================== -->
+        <section id="tab-tasks" class="tab-content hidden space-y-4">
           <!-- Controls Bar -->
           <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
             <div class="flex items-center gap-3 flex-wrap">
@@ -270,22 +554,19 @@
                 <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Cadence</label>
                 <div class="inline-flex rounded-xl border border-slate-200 p-0.5 bg-slate-100">
                   <button type="button" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer bg-amber-500 text-white shadow-2xs" data-freq="daily">Daily</button>
-                  <button type="button" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-100" data-freq="weekly">Weekly (Friday)</button>
-                  <button type="button" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-100" data-freq="monthly">Monthly</button>
+                  <button type="button" id="btn-tasks-cadence-weekly" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-100" data-freq="weekly">Weekly</button>
+                  <button type="button" id="btn-tasks-cadence-monthly" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-100" data-freq="monthly">Monthly</button>
                 </div>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex items-center gap-2">
-              <button type="button" id="btn-tasks-mark-all" class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition cursor-pointer">
-                <i class="fas fa-check-double mr-1"></i> Mark All Done
-              </button>
               <button type="button" id="btn-tasks-clear-all" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
                 Clear All
               </button>
-              <button type="button" id="btn-open-task-def" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-plus"></i> Add Task Def
+              <button type="button" class="dash-quick-nav px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer" data-target="tab-task-setup">
+                <i class="fas fa-plus"></i> Manage Tasks
               </button>
             </div>
           </div>
@@ -295,7 +576,7 @@
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse text-xs">
                 <thead id="tasks-roster-thead">
-                  <!-- Dynamically populated with columns -->
+                  <!-- Dynamically populated with columns, each task has individual Mark All bulk button -->
                 </thead>
                 <tbody id="tasks-roster-tbody" class="divide-y divide-slate-100 font-medium">
                   <!-- Dynamically populated rows -->
@@ -306,32 +587,29 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 2: SPIRITUAL & IBADAH TRACKER          -->
+        <!-- TAB 4: PRAYER TRACKER                      -->
         <!-- ========================================== -->
-        <section id="tab-ibadah" class="tab-content hidden space-y-4">
+        <section id="tab-prayer" class="tab-content hidden space-y-4">
           <!-- Controls Bar -->
           <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
             <div class="flex items-center gap-3 flex-wrap">
               <div>
-                <label for="ibadah-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
-                <select id="ibadah-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500"></select>
+                <label for="prayer-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
+                <select id="prayer-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500"></select>
               </div>
               <div>
-                <label for="ibadah-date-input" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Date</label>
-                <input type="date" id="ibadah-date-input" class="p-1.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500">
+                <label for="prayer-date-input" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Date</label>
+                <input type="date" id="prayer-date-input" class="p-1.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500">
               </div>
             </div>
 
-            <!-- Batch Helpers -->
+            <!-- Action Buttons -->
             <div class="flex items-center gap-2 flex-wrap">
-              <button type="button" id="btn-batch-subhi-jamaah" class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer">
-                <i class="fas fa-hands-praying text-emerald-600"></i> Subhi in Jama'ah
+              <button type="button" id="btn-open-custom-prayer" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer">
+                <i class="fas fa-plus text-amber-600"></i> Add Sunnah Prayer
               </button>
-              <button type="button" id="btn-batch-all-fard-jamaah" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer">
-                <i class="fas fa-check-double"></i> All 5 in Jama'ah
-              </button>
-              <button type="button" id="btn-save-ibadah" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1 cursor-pointer">
-                <i class="fas fa-floppy-disk"></i> Save Log
+              <button type="button" id="btn-save-prayer" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1 cursor-pointer">
+                <i class="fas fa-floppy-disk"></i> Save Prayer Log
               </button>
             </div>
           </div>
@@ -340,11 +618,11 @@
           <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-around flex-wrap gap-2 text-xs">
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-600 text-white">J</span>
-              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> On-time in Masjid (+15 pts)</span>
+              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> In Masjid (+15 pts)</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white">A</span>
-              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> Individual prayer (+10 pts)</span>
+              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> Individual (+10 pts)</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">Q</span>
@@ -352,26 +630,14 @@
             </div>
           </div>
 
-          <!-- Ibadah Roster Matrix Container -->
+          <!-- Prayer Roster Matrix Container -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-                    <th class="py-2.5 px-3">#</th>
-                    <th class="py-2.5 px-3">Adm No</th>
-                    <th class="py-2.5 px-4">Student Name</th>
-                    <th class="py-2.5 px-2 text-center">Subh</th>
-                    <th class="py-2.5 px-2 text-center">Zuhr</th>
-                    <th class="py-2.5 px-2 text-center">Asr</th>
-                    <th class="py-2.5 px-2 text-center">Maghrib</th>
-                    <th class="py-2.5 px-2 text-center">Isha</th>
-                    <th class="py-2.5 px-3 text-center">Tahajjud</th>
-                    <th class="py-2.5 px-3 text-center">Duha</th>
-                    <th class="py-2.5 px-3 text-center">Tilawat (Mins)</th>
-                  </tr>
+                <thead id="prayer-roster-thead">
+                  <!-- Dynamically populated: 5 Fard prayers + custom Sunnahs, with [J] [A] [Q] bulk buttons under each heading -->
                 </thead>
-                <tbody id="ibadah-roster-tbody" class="divide-y divide-slate-100 font-medium">
+                <tbody id="prayer-roster-tbody" class="divide-y divide-slate-100 font-medium">
                   <!-- Dynamically populated -->
                 </tbody>
               </table>
@@ -380,60 +646,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 3: QURAN PROGRESS TRACKER              -->
-        <!-- ========================================== -->
-        <section id="tab-quran" class="tab-content hidden space-y-4">
-          <!-- Controls Bar -->
-          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
-            <div class="flex items-center gap-3 flex-wrap">
-              <div>
-                <label for="quran-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
-                <select id="quran-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500"></select>
-              </div>
-              <div>
-                <label for="quran-stage-filter" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Stage Filter</label>
-                <select id="quran-stage-filter" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500">
-                  <option value="ALL">All Stages</option>
-                  <option value="qaidah">Qaidah / Noorani</option>
-                  <option value="amma">Juz Amma (30th Para)</option>
-                  <option value="tilawat">Full Quran Tilawat / Recitation</option>
-                  <option value="hifz">Hifz / Memorization</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-slate-500 font-bold">Ustad Recitation &amp; Hifz Register</span>
-            </div>
-          </div>
-
-          <!-- Quran Progress Roster Container -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-                    <th class="py-2.5 px-3">#</th>
-                    <th class="py-2.5 px-3">Adm No</th>
-                    <th class="py-2.5 px-4">Student Name</th>
-                    <th class="py-2.5 px-3">Stage</th>
-                    <th class="py-2.5 px-3">Current Sabaq (Lesson)</th>
-                    <th class="py-2.5 px-3">Mastered / Completed</th>
-                    <th class="py-2.5 px-3">Remaining Portions</th>
-                    <th class="py-2.5 px-3 text-center">Fluency / Khatm</th>
-                    <th class="py-2.5 px-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody id="quran-roster-tbody" class="divide-y divide-slate-100 font-medium">
-                  <!-- Dynamically populated -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- ========================================== -->
-        <!-- TAB 4: REWARDS & POINTS LEADERBOARD        -->
+        <!-- TAB 5: REWARDS & POINTS LEADERBOARD        -->
         <!-- ========================================== -->
         <section id="tab-rewards" class="tab-content hidden space-y-4">
           <!-- Controls Bar -->
@@ -491,7 +704,7 @@
                 <i class="fas fa-medal"></i>
               </div>
               <div>
-                <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Badges Awarded</span>
+                <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Badges Active</span>
                 <h4 id="rewards-total-badges" class="font-black text-xl text-amber-700 leading-tight">0</h4>
                 <p class="text-[10px] text-slate-500 font-bold">Honor Badges Active</p>
               </div>
@@ -505,7 +718,7 @@
                 <i class="fas fa-trophy text-amber-500"></i>
                 <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Class Activity &amp; Conduct Leaderboard</h3>
               </div>
-              <span class="text-xs text-slate-500 font-semibold">Real-time aggregated points from attendance, ibadah, quran &amp; adab</span>
+              <span class="text-xs text-slate-500 font-semibold">Aggregated points from attendance, prayers, tasks &amp; badges</span>
             </div>
 
             <div class="overflow-x-auto">
@@ -516,12 +729,12 @@
                     <th class="py-2.5 px-3">Adm No</th>
                     <th class="py-2.5 px-4">Student Name</th>
                     <th class="py-2.5 px-3 text-center">Att. Pts</th>
-                    <th class="py-2.5 px-3 text-center">Ibadah Pts</th>
-                    <th class="py-2.5 px-3 text-center">Quran Pts</th>
+                    <th class="py-2.5 px-3 text-center">Prayer Pts</th>
                     <th class="py-2.5 px-3 text-center">Tasks Pts</th>
+                    <th class="py-2.5 px-3 text-center">Bonus Pts</th>
                     <th class="py-2.5 px-3 text-center">Total Points</th>
                     <th class="py-2.5 px-4">Badges &amp; Honors</th>
-                    <th class="py-2.5 px-3 text-right">Award</th>
+                    <th class="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="rewards-leaderboard-tbody" class="divide-y divide-slate-100 font-medium">
@@ -540,130 +753,97 @@
   <!-- MODALS                                     -->
   <!-- ========================================== -->
 
-  <!-- 1. Modal: Define Routine Task -->
-  <div id="modal-task-def" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+  <!-- 1. Modal: Add Custom Sunnah Prayer -->
+  <div id="modal-custom-prayer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
-            <i class="fas fa-list-check"></i>
+            <i class="fas fa-hands-praying"></i>
           </div>
-          <h3 class="font-black text-sm text-slate-800">Add Routine Task Definition</h3>
+          <h3 class="font-black text-sm text-slate-800">Manage Extra Sunnah Prayers</h3>
         </div>
-        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-task-def">
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-custom-prayer">
           <i class="fas fa-times"></i>
         </button>
       </div>
 
-      <div class="p-5 space-y-3 text-xs">
+      <div class="p-5 space-y-4 text-xs">
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Task Title <span class="text-rose-500">*</span></label>
-          <input type="text" id="modal-task-title" placeholder="e.g. Morning Adhkar, Uniform Cleanliness" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
+          <label class="block font-bold text-slate-600 mb-1">Prayer Name <span class="text-rose-500">*</span></label>
+          <div class="flex gap-2">
+            <input type="text" id="modal-prayer-name-input" placeholder="e.g. Tahajjud, Duha, Vitr, Rawatib" class="flex-1 p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
+            <button type="button" id="btn-add-custom-prayer-item" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition cursor-pointer">
+              Add
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Default 5 Fard prayers are always active. Add optional Sunnah prayers here.</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block font-bold text-slate-600 mb-1">Cadence / Frequency</label>
-            <select id="modal-task-cadence" class="w-full p-2 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly (Friday)</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-          <div>
-            <label class="block font-bold text-slate-600 mb-1">Reward Points</label>
-            <input type="number" id="modal-task-points" value="5" min="1" max="50" class="w-full p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+        <div>
+          <div class="font-bold text-slate-700 mb-2">Active Custom Sunnah Prayers:</div>
+          <div id="custom-prayers-list" class="space-y-1.5 max-h-48 overflow-y-auto">
+            <!-- Dynamically populated list of custom prayers with remove buttons -->
           </div>
         </div>
 
-        <div class="flex items-center gap-2 pt-2">
-          <button type="button" id="btn-save-task-def" class="flex-grow py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
-            Create Task
-          </button>
-          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-task-def">
-            Cancel
+        <div class="pt-2 border-t border-slate-100 flex justify-end">
+          <button type="button" class="btn-close-modal py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer" data-modal="modal-custom-prayer">
+            Close
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 2. Modal: Evaluate Quran Progress -->
-  <div id="modal-quran-evaluate" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+  <!-- 2. Modal: Assign / Manage Custom Badge -->
+  <div id="modal-custom-badge" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
-            <i class="fas fa-book-quran"></i>
+            <i class="fas fa-medal"></i>
           </div>
           <div>
-            <h3 class="font-black text-sm text-slate-800">Record Quran Lesson &amp; Progress</h3>
-            <p id="modal-quran-student-sub" class="text-[11px] text-amber-700 font-bold">Student Name</p>
+            <h3 class="font-black text-sm text-slate-800">Assign Custom Student Badge</h3>
+            <p id="modal-badge-student-sub" class="text-[11px] text-amber-700 font-bold">Student Name</p>
           </div>
         </div>
-        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-quran-evaluate">
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-custom-badge">
           <i class="fas fa-times"></i>
         </button>
       </div>
 
-      <div class="p-5 space-y-3 text-xs">
-        <input type="hidden" id="modal-quran-student-id">
+      <div class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="modal-badge-student-id">
 
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block font-bold text-slate-600 mb-1">Learning Stage</label>
-            <select id="modal-quran-stage" class="w-full p-2 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
-              <option value="qaidah">Qaidah / Noorani</option>
-              <option value="amma">Juz Amma (30th Para)</option>
-              <option value="tilawat">Full Quran Tilawat / Recitation</option>
-              <option value="hifz">Hifz / Memorization</option>
-            </select>
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Custom Badge Name <span class="text-rose-500">*</span></label>
+          <div class="flex gap-2">
+            <input type="text" id="modal-badge-input" placeholder="e.g. Star Reciter, Disciplined, Best Adab" class="flex-1 p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
+            <button type="button" id="btn-save-custom-badge" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition cursor-pointer">
+              Assign
+            </button>
           </div>
-          <div>
-            <label class="block font-bold text-slate-600 mb-1">Tajweed &amp; Fluency Grade</label>
-            <select id="modal-quran-grade" class="w-full p-2 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none">
-              <option value="Mumtaz (Excellent)">Mumtaz (Excellent)</option>
-              <option value="Jayyid Jiddan (Very Good)">Jayyid Jiddan (Very Good)</option>
-              <option value="Jayyid (Good)">Jayyid (Good)</option>
-              <option value="Needs Practice">Needs Practice</option>
-            </select>
+          <!-- Preset Badge Chips -->
+          <div class="flex items-center gap-1.5 flex-wrap mt-2">
+            <button type="button" class="btn-preset-badge px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 border border-slate-200 cursor-pointer" data-badge="Exemplary Adab">Exemplary Adab</button>
+            <button type="button" class="btn-preset-badge px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 border border-slate-200 cursor-pointer" data-badge="Star Reciter">Star Reciter</button>
+            <button type="button" class="btn-preset-badge px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 border border-slate-200 cursor-pointer" data-badge="Helpful Peer">Helpful Peer</button>
+            <button type="button" class="btn-preset-badge px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 border border-slate-200 cursor-pointer" data-badge="Tahajjud Hero">Tahajjud Hero</button>
           </div>
         </div>
 
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Current Lesson (Sabaq) <span class="text-rose-500">*</span></label>
-          <input type="text" id="modal-quran-sabaq" placeholder="e.g. Surah Al-Mulk (Ayah 1-15, Page 562)" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
+          <div class="font-bold text-slate-700 mb-2">Student's Current Custom Badges:</div>
+          <div id="student-custom-badges-container" class="flex flex-wrap gap-1.5 min-h-12 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+            <!-- Dynamically populated chips with remove buttons -->
+          </div>
         </div>
 
-        <div>
-          <label class="block font-bold text-slate-600 mb-1">Portions Fully Completed / Mastered</label>
-          <input type="text" id="modal-quran-completed" placeholder="e.g. Juz 30, Juz 29, Surah Al-Fatihah" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none">
-        </div>
-
-        <div>
-          <label class="block font-bold text-slate-600 mb-1">Remaining to Complete</label>
-          <input type="text" id="modal-quran-remaining" placeholder="e.g. 28 Juz remaining" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none">
-        </div>
-
-        <!-- Full Khatm Checkbox -->
-        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <label class="flex items-center gap-2.5 cursor-pointer font-black text-amber-950 text-xs">
-            <input type="checkbox" id="modal-quran-is-khatm" class="w-4 h-4 text-amber-600 rounded">
-            <span>Student Fully Completed Target / Khatm Quran!</span>
-          </label>
-        </div>
-
-        <div>
-          <label class="block font-bold text-slate-600 mb-1">Ustad's Remarks / Guidance</label>
-          <input type="text" id="modal-quran-remarks" placeholder="e.g. Masha Allah, very clear pronunciation with Tajweed rules" class="w-full p-2.5 border border-slate-300 rounded-xl font-medium text-slate-800 outline-none">
-        </div>
-
-        <div class="flex items-center gap-2 pt-2">
-          <button type="button" id="btn-save-quran-eval" class="flex-grow py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
-            Save Quran Progress &amp; Award Points
-          </button>
-          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-quran-evaluate">
-            Cancel
+        <div class="pt-2 border-t border-slate-100 flex justify-end">
+          <button type="button" class="btn-close-modal py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer" data-modal="modal-custom-badge">
+            Done
           </button>
         </div>
       </div>
@@ -680,7 +860,7 @@
           </div>
           <h3 class="font-black text-sm text-slate-800">Award Student Bonus Points</h3>
         </div>
-        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-award-points">
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-award-points">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -694,17 +874,17 @@
         <div>
           <label class="block font-bold text-slate-600 mb-1">Points to Award</label>
           <div class="grid grid-cols-4 gap-1.5 pt-1">
-            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50" data-pts="5">+5 pts</button>
-            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50" data-pts="10">+10 pts</button>
-            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50" data-pts="20">+20 pts</button>
-            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50" data-pts="50">+50 pts</button>
+            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50 cursor-pointer" data-pts="5">+5 pts</button>
+            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50 cursor-pointer" data-pts="10">+10 pts</button>
+            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50 cursor-pointer" data-pts="20">+20 pts</button>
+            <button type="button" class="btn-preset-pts py-1.5 rounded-lg border border-slate-200 font-black text-slate-700 hover:bg-amber-50 cursor-pointer" data-pts="50">+50 pts</button>
           </div>
           <input type="number" id="modal-award-points-input" value="10" min="1" max="100" class="w-full mt-2 p-2.5 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
         </div>
 
         <div>
           <label class="block font-bold text-slate-600 mb-1">Reason / Excellence Note <span class="text-rose-500">*</span></label>
-          <input type="text" id="modal-award-reason" placeholder="e.g. Exceptional Adab, Helping Classmates, Memorized Surah" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-amber-500">
+          <input type="text" id="modal-award-reason" placeholder="e.g. Exceptional Adab, Helping Classmates, Punctual Prayer" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-amber-500">
         </div>
 
         <div class="flex items-center gap-2 pt-2">
@@ -729,10 +909,10 @@
           </div>
           <div>
             <h3 class="font-black text-sm text-slate-800">Configure Points &amp; Rubric</h3>
-            <p class="text-[11px] text-amber-700 font-bold">Custom point weights adaptable for any school or madrasa</p>
+            <p class="text-[11px] text-amber-700 font-bold">Custom point weights adaptable for madrasa &amp; school</p>
           </div>
         </div>
-        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-rewards-settings">
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-rewards-settings">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -749,7 +929,7 @@
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
             <div>
-              <div class="font-black text-slate-800">Jama'ah / Congregation Activity</div>
+              <div class="font-black text-slate-800">Jama'ah / Congregation Prayer</div>
               <div class="text-[11px] text-slate-500">Points awarded for congregational prayer</div>
             </div>
             <input type="number" id="rubric-pts-jamaah" value="15" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
@@ -757,18 +937,10 @@
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
             <div>
-              <div class="font-black text-slate-800">On-Time / Ada' Individual Task</div>
+              <div class="font-black text-slate-800">On-Time / Ada' Individual Prayer</div>
               <div class="text-[11px] text-slate-500">Points awarded for individual punctual performance</div>
             </div>
             <input type="number" id="rubric-pts-adaa" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
-          </div>
-
-          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
-            <div>
-              <div class="font-black text-slate-800">Quran / Reading Recitation Milestone</div>
-              <div class="text-[11px] text-slate-500">Points awarded per evaluation milestone</div>
-            </div>
-            <input type="number" id="rubric-pts-quran" value="20" min="0" max="100" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
           </div>
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">

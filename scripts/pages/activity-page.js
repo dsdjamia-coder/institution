@@ -1,7 +1,6 @@
 import { signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
@@ -19,30 +18,33 @@ let availableAcademicYears = [];
 let allStudents = [];
 let allClasses = [];
 
-// --- Tasks State ---
+// --- Dashboard State ---
+let selectedDashClass = '';
+
+// --- Tasks Definition & Config State ---
+let taskDefsList = []; // [ { id, title, cadence, dayOfWeek, dayOfMonth, points } ]
+let taskDefFilter = 'all'; // 'all' | 'daily' | 'weekly' | 'monthly'
+
+// --- Routine Tasks Checklist State ---
 let selectedTasksClass = '';
 let selectedTasksDate = new Date().toISOString().split('T')[0];
 let currentTaskCadence = 'daily'; // 'daily' | 'weekly' | 'monthly'
-let taskDefsList = []; // [ { id, title, cadence, points } ]
 let taskCompletionsMap = {}; // studentId -> { [taskId]: true }
 
-// --- Ibadah State ---
-let selectedIbadahClass = '';
-let selectedIbadahDate = new Date().toISOString().split('T')[0];
-let ibadahRecordsMap = {}; // studentId -> { subh, zuhr, asr, maghrib, isha, tahajjud, duha, tilawat }
-
-// --- Quran Progress State ---
-let selectedQuranClass = '';
-let quranProgressCache = {}; // studentId -> { stage, currentSabaq, completed, remaining, grade, isKhatm, remarks }
+// --- Prayer Tracker State ---
+let selectedPrayerClass = '';
+let selectedPrayerDate = new Date().toISOString().split('T')[0];
+let customPrayersList = []; // [ { id, name } ]
+let prayerRecordsMap = {}; // studentId -> { subh: 'J'|'A'|'Q', zuhr, asr, maghrib, isha, [customId]: 'J'|'A'|'Q' }
 
 // --- Rewards & Leaderboard State ---
 let selectedRewardsClass = '';
-let studentBonusPointsMap = {}; // studentId -> [ { points, reason, date } ]
+let studentBonusPointsMap = {}; // studentId -> [ { id, points, reason, awardedBy, date } ]
+let studentCustomBadgesMap = {}; // studentId -> [ 'Badge Name 1', 'Badge Name 2' ]
 let currentRewardsRubric = {
     attendance: 5,
     jamaah: 15,
     adaa: 10,
-    quran: 20,
     task: 10,
     bonus: 10
 };
@@ -193,12 +195,14 @@ const activateTab = (targetTabId) => {
     }
 
     // Lazy load tab data
-    if (targetTabId === 'tab-tasks') {
+    if (targetTabId === 'tab-dashboard') {
+        loadDashboardView();
+    } else if (targetTabId === 'tab-task-setup') {
+        loadTaskDefsTable();
+    } else if (targetTabId === 'tab-tasks') {
         loadTasksRoster();
-    } else if (targetTabId === 'tab-ibadah') {
-        loadIbadahRoster();
-    } else if (targetTabId === 'tab-quran') {
-        loadQuranRoster();
+    } else if (targetTabId === 'tab-prayer') {
+        loadPrayerRoster();
     } else if (targetTabId === 'tab-rewards') {
         loadRewardsLeaderboard();
     }
@@ -220,11 +224,27 @@ const initTabNavigation = () => {
         });
     });
 
+    // Quick navigation buttons from dashboard or cards
+    document.addEventListener('click', (e) => {
+        const quickNav = e.target.closest('.dash-quick-nav');
+        if (quickNav) {
+            const target = quickNav.dataset.target;
+            if (target) {
+                activateTab(target);
+                const hash = target.replace('tab-', '#');
+                if (hash && window.location.hash !== hash) {
+                    history.pushState(null, '', hash);
+                }
+            }
+        }
+    });
+
     const hash = window.location.hash;
-    if (hash === '#ibadah') activateTab('tab-ibadah');
-    else if (hash === '#quran') activateTab('tab-quran');
+    if (hash === '#task-setup') activateTab('tab-task-setup');
+    else if (hash === '#tasks') activateTab('tab-tasks');
+    else if (hash === '#prayer') activateTab('tab-prayer');
     else if (hash === '#rewards') activateTab('tab-rewards');
-    else activateTab('tab-tasks');
+    else activateTab('tab-dashboard');
 };
 
 // --- Clock Display ---
@@ -249,7 +269,7 @@ const initApp = async () => {
     initTabNavigation();
     startClock();
 
-    const dateInputs = ['tasks-date-input', 'ibadah-date-input'];
+    const dateInputs = ['tasks-date-input', 'prayer-date-input'];
     dateInputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = getTodayDateString();
@@ -297,8 +317,19 @@ const restoreSessionContext = async () => {
 
     const userNameEl = document.getElementById('header-user-name');
     const userRoleEl = document.getElementById('header-user-role');
+    const welcomeHeadingEl = document.getElementById('dash-welcome-heading');
+    const dutySummaryEl = document.getElementById('dash-duty-summary');
+
     if (userNameEl) userNameEl.textContent = currentStaffName;
     if (userRoleEl) userRoleEl.textContent = currentStaffRole;
+    if (welcomeHeadingEl) welcomeHeadingEl.textContent = `Welcome, ${currentStaffName}`;
+    if (dutySummaryEl) {
+        if (isSuperAdmin || teacherAssignedClasses.length === 0) {
+            dutySummaryEl.textContent = 'All Classes Available (Administrator)';
+        } else {
+            dutySummaryEl.textContent = `Duty Classes: Class ${teacherAssignedClasses.join(', Class ')}`;
+        }
+    }
 };
 
 const setupRealtimeListeners = () => {
@@ -325,8 +356,12 @@ const setupRealtimeListeners = () => {
             }
         }
         const activeYearEl = document.getElementById('header-active-year');
+        const dashSessionEl = document.getElementById('dash-banner-session');
         if (activeYearEl) {
             activeYearEl.textContent = currentAcademicYear ? `Session ${currentAcademicYear}` : 'No Active Session';
+        }
+        if (dashSessionEl) {
+            dashSessionEl.textContent = currentAcademicYear ? `Session ${currentAcademicYear}` : 'Active Session';
         }
     });
 
@@ -346,6 +381,9 @@ const setupRealtimeListeners = () => {
     onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
         allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         populateStudentSelect();
+        if (document.getElementById('tab-dashboard') && !document.getElementById('tab-dashboard').classList.contains('hidden')) {
+            loadDashboardView();
+        }
     });
 
     // 5. Staff Roster & Duty Classes Sync
@@ -379,12 +417,52 @@ const setupRealtimeListeners = () => {
                     currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
                     const userRoleEl = document.getElementById('header-user-role');
                     if (userRoleEl) userRoleEl.textContent = currentStaffRole;
+                    const dutySummaryEl = document.getElementById('dash-duty-summary');
+                    if (dutySummaryEl) dutySummaryEl.textContent = `Duty Classes: Class ${teacherAssignedClasses.join(', Class ')}`;
                 }
             } else if (staffAccess) {
                 teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
             }
             populateClassDropdowns();
             populateStudentSelect();
+        }
+    });
+
+    // 6. Custom Prayers Configuration Listener
+    onSnapshot(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), (snap) => {
+        if (snap.exists() && Array.isArray(snap.data().list)) {
+            customPrayersList = snap.data().list;
+        } else {
+            customPrayersList = [];
+        }
+        renderCustomPrayersListInModal();
+        if (document.getElementById('tab-prayer') && !document.getElementById('tab-prayer').classList.contains('hidden')) {
+            loadPrayerRoster();
+        }
+    });
+
+    // 7. Configured Routine Tasks Listener
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions'), (snap) => {
+        if (snap.exists() && Array.isArray(snap.data().tasks)) {
+            taskDefsList = snap.data().tasks;
+        } else {
+            taskDefsList = getDefaultTasksList();
+        }
+        updateCadenceButtonLabels();
+        loadTaskDefsTable();
+        if (document.getElementById('tab-tasks') && !document.getElementById('tab-tasks').classList.contains('hidden')) {
+            loadTasksRoster();
+        }
+    });
+
+    // 8. Custom Badges Listener
+    onSnapshot(collection(db, `${BASE_PATH}/studentCustomBadges`), (snap) => {
+        studentCustomBadgesMap = {};
+        snap.docs.forEach(d => {
+            studentCustomBadgesMap[d.id] = d.data().badges || [];
+        });
+        if (document.getElementById('tab-rewards') && !document.getElementById('tab-rewards').classList.contains('hidden')) {
+            loadRewardsLeaderboard();
         }
     });
 };
@@ -400,14 +478,14 @@ const getAllowedClassesForTeacher = () => {
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
 
-    const standardIds = [
+    const dropdownIds = [
+        'dashboard-class-select',
         'tasks-class-select',
-        'ibadah-class-select',
-        'quran-class-select',
+        'prayer-class-select',
         'rewards-class-select'
     ];
 
-    standardIds.forEach(id => {
+    dropdownIds.forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
 
@@ -422,9 +500,9 @@ const populateClassDropdowns = () => {
         }
     });
 
+    selectedDashClass = document.getElementById('dashboard-class-select')?.value || allowed[0] || '';
     selectedTasksClass = document.getElementById('tasks-class-select')?.value || allowed[0] || '';
-    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || allowed[0] || '';
-    selectedQuranClass = document.getElementById('quran-class-select')?.value || allowed[0] || '';
+    selectedPrayerClass = document.getElementById('prayer-class-select')?.value || allowed[0] || '';
     selectedRewardsClass = document.getElementById('rewards-class-select')?.value || allowed[0] || '';
 };
 
@@ -437,29 +515,275 @@ const populateStudentSelect = () => {
 };
 
 // =========================================================================
-// MODULE 1: ROUTINE TASKS TRACKER LOGIC
+// MODULE 1: OVERVIEW DASHBOARD LOGIC
 // =========================================================================
-const getDefaultTasks = (cadence) => {
-    if (cadence === 'daily') {
-        return [
-            { id: 'task_d1', title: 'Morning Adhkar & Duas', cadence: 'daily', points: 5 },
-            { id: 'task_d2', title: 'Uniform & Personal Cleanliness', cadence: 'daily', points: 5 },
-            { id: 'task_d3', title: 'Class Kit & Books Prepared', cadence: 'daily', points: 5 }
-        ];
-    } else if (cadence === 'weekly') {
-        return [
-            { id: 'task_w1', title: 'Surah Al-Kahf Friday Recitation', cadence: 'weekly', points: 15 },
-            { id: 'task_w2', title: 'Weekly Hifz Review (Dhor)', cadence: 'weekly', points: 10 },
-            { id: 'task_w3', title: 'Islamic Quiz Activity', cadence: 'weekly', points: 10 }
-        ];
-    } else {
-        return [
-            { id: 'task_m1', title: 'Monthly Charity (Sadaqah Drive)', cadence: 'monthly', points: 20 },
-            { id: 'task_m2', title: 'Family Seerah Reading Project', cadence: 'monthly', points: 25 }
-        ];
+const loadDashboardView = async () => {
+    const allowed = getAllowedClassesForTeacher();
+    const classVal = document.getElementById('dashboard-class-select')?.value;
+    selectedDashClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
+
+    const studentsEl = document.getElementById('dash-stat-students');
+    const prayerEl = document.getElementById('dash-stat-prayer');
+    const prayerSubEl = document.getElementById('dash-stat-prayer-sub');
+    const tasksEl = document.getElementById('dash-stat-tasks');
+    const tasksSubEl = document.getElementById('dash-stat-tasks-sub');
+    const pointsEl = document.getElementById('dash-stat-points');
+    const badgesSubEl = document.getElementById('dash-stat-badges-sub');
+    const topContainer = document.getElementById('dash-top-performers-container');
+    const statusPrayerBadge = document.getElementById('dash-status-prayer-badge');
+    const statusTasksBadge = document.getElementById('dash-status-tasks-badge');
+
+    if (!selectedDashClass) {
+        if (studentsEl) studentsEl.textContent = '0';
+        if (prayerEl) prayerEl.textContent = '0%';
+        if (tasksEl) tasksEl.textContent = '0%';
+        if (pointsEl) pointsEl.textContent = '0';
+        if (topContainer) topContainer.innerHTML = `<div class="p-4 text-center text-slate-400 font-bold">No class selected.</div>`;
+        return;
+    }
+
+    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedDashClass]) && s.status !== 'alumni');
+    const totalStudents = classStudents.length;
+    if (studentsEl) studentsEl.textContent = totalStudents;
+
+    const todayDate = getTodayDateString();
+
+    // 1. Fetch Today's Prayer Record for this class
+    let prayerLoggedCount = 0;
+    try {
+        const prayerDocId = `${currentAcademicYear}__${selectedDashClass}__${todayDate}`;
+        const pSnap = await getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId));
+        if (pSnap.exists()) {
+            const recs = pSnap.data().records || {};
+            classStudents.forEach(st => {
+                if (recs[st.id] && (recs[st.id].subh || recs[st.id].zuhr || recs[st.id].asr || recs[st.id].maghrib || recs[st.id].isha)) {
+                    prayerLoggedCount++;
+                }
+            });
+        }
+    } catch (_) {}
+
+    const prayerPct = totalStudents > 0 ? Math.round((prayerLoggedCount / totalStudents) * 100) : 0;
+    if (prayerEl) prayerEl.textContent = `${prayerPct}%`;
+    if (prayerSubEl) prayerSubEl.textContent = `${prayerLoggedCount} of ${totalStudents} Recorded`;
+
+    if (statusPrayerBadge) {
+        if (prayerLoggedCount > 0) {
+            statusPrayerBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300';
+            statusPrayerBadge.textContent = prayerLoggedCount === totalStudents ? 'Completed' : 'Partially Logged';
+        } else {
+            statusPrayerBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600';
+            statusPrayerBadge.textContent = 'Pending';
+        }
+    }
+
+    // 2. Fetch Today's Tasks Record
+    let tasksCheckedCount = 0;
+    let totalPossibleTasks = 0;
+    const dailyDefs = taskDefsList.filter(t => t.cadence === 'daily');
+    try {
+        const taskDocId = `${currentAcademicYear}__${selectedDashClass}__${todayDate}__daily`;
+        const tSnap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, taskDocId));
+        if (tSnap.exists()) {
+            const comps = tSnap.data().completions || {};
+            classStudents.forEach(st => {
+                const stComps = comps[st.id] || {};
+                dailyDefs.forEach(t => {
+                    totalPossibleTasks++;
+                    if (stComps[t.id]) tasksCheckedCount++;
+                });
+            });
+        } else {
+            totalPossibleTasks = totalStudents * dailyDefs.length;
+        }
+    } catch (_) {}
+
+    const tasksPct = totalPossibleTasks > 0 ? Math.round((tasksCheckedCount / totalPossibleTasks) * 100) : 0;
+    if (tasksEl) tasksEl.textContent = `${tasksPct}%`;
+    if (tasksSubEl) tasksSubEl.textContent = `${tasksCheckedCount} Tasks Completed`;
+
+    if (statusTasksBadge) {
+        if (tasksCheckedCount > 0) {
+            statusTasksBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300';
+            statusTasksBadge.textContent = 'Active Today';
+        } else {
+            statusTasksBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600';
+            statusTasksBadge.textContent = 'Pending';
+        }
+    }
+
+    // 3. Compute Top Performers & Total Badges for Dashboard
+    let totalBadgesCount = 0;
+    let aggregatePoints = 0;
+
+    const studentRoster = classStudents.map(student => {
+        const attPts = (currentRewardsRubric.attendance || 5) * 12;
+        const prayerPts = (currentRewardsRubric.jamaah || 15) * 5;
+        const taskPts = (currentRewardsRubric.task || 10) * 3;
+
+        const bonusList = studentBonusPointsMap[student.id] || [];
+        const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
+
+        const customBadges = studentCustomBadgesMap[student.id] || [];
+        const autoBadges = [];
+        const total = attPts + prayerPts + taskPts + bonusPts;
+
+        if (total >= 200) autoBadges.push('Punctual Star');
+        if (prayerPts >= 70) autoBadges.push('Prayer Champion');
+        if (bonusPts > 0) autoBadges.push('Exemplary Adab');
+
+        const allBadges = [...autoBadges, ...customBadges];
+        totalBadgesCount += allBadges.length;
+        aggregatePoints += total;
+
+        return {
+            student,
+            total,
+            badges: allBadges
+        };
+    });
+
+    studentRoster.sort((a, b) => b.total - a.total);
+
+    if (pointsEl) pointsEl.textContent = aggregatePoints;
+    if (badgesSubEl) badgesSubEl.textContent = `${totalBadgesCount} Badges Active`;
+
+    if (topContainer) {
+        const top3 = studentRoster.slice(0, 3);
+        if (!top3.length) {
+            topContainer.innerHTML = `<div class="p-6 text-center text-slate-400 font-bold text-xs">No active students in Class ${selectedDashClass}.</div>`;
+        } else {
+            topContainer.innerHTML = top3.map((item, idx) => {
+                const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
+                const medalBg = idx === 0 ? 'bg-amber-100 text-amber-800 border-amber-300' : (idx === 1 ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-amber-50 text-amber-700 border-amber-200');
+
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-amber-50/40 border border-slate-200 transition">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm border ${medalBg}">${medal}</span>
+                            <div>
+                                <h4 class="font-extrabold text-xs text-slate-900 leading-tight">${escapeHtml(item.student.name || '--')}</h4>
+                                <span class="text-[10px] text-slate-500 font-mono">Adm: ${escapeHtml(item.student.adm || item.student.admNo || '-')}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-black text-xs text-amber-700">${item.total} pts</div>
+                            <div class="text-[10px] text-slate-500 font-bold">${item.badges.length} badges</div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
     }
 };
 
+// =========================================================================
+// MODULE 2: MANAGE & ADD TASKS LOGIC
+// =========================================================================
+const getDefaultTasksList = () => [
+    { id: 'task_d1', title: 'Morning Adhkar & Duas', cadence: 'daily', dayOfWeek: '', dayOfMonth: '', points: 5 },
+    { id: 'task_d2', title: 'Uniform & Personal Cleanliness', cadence: 'daily', dayOfWeek: '', dayOfMonth: '', points: 5 },
+    { id: 'task_d3', title: 'Class Kit & Books Prepared', cadence: 'daily', dayOfWeek: '', dayOfMonth: '', points: 5 },
+    { id: 'task_w1', title: 'Surah Al-Kahf Friday Recitation', cadence: 'weekly', dayOfWeek: 'Friday', dayOfMonth: '', points: 15 },
+    { id: 'task_w2', title: 'Weekly Hifz Review (Dhor)', cadence: 'weekly', dayOfWeek: '', dayOfMonth: '', points: 10 },
+    { id: 'task_m1', title: 'Monthly Charity (Sadaqah Drive)', cadence: 'monthly', dayOfWeek: '', dayOfMonth: '', points: 20 },
+    { id: 'task_m2', title: 'Family Seerah Reading Project', cadence: 'monthly', dayOfWeek: '', dayOfMonth: '1st of Month', points: 25 }
+];
+
+const updateCadenceButtonLabels = () => {
+    // Determine if any weekly task has a designated day
+    const weeklyTasksWithDay = taskDefsList.filter(t => t.cadence === 'weekly' && t.dayOfWeek);
+    const weeklyBtn = document.getElementById('btn-tasks-cadence-weekly');
+    if (weeklyBtn) {
+        if (weeklyTasksWithDay.length === 1) {
+            weeklyBtn.textContent = `Weekly (${weeklyTasksWithDay[0].dayOfWeek})`;
+        } else if (weeklyTasksWithDay.length > 1) {
+            weeklyBtn.textContent = 'Weekly (Scheduled)';
+        } else {
+            weeklyBtn.textContent = 'Weekly';
+        }
+    }
+
+    // Determine monthly task schedule
+    const monthlyTasksWithDate = taskDefsList.filter(t => t.cadence === 'monthly' && t.dayOfMonth);
+    const monthlyBtn = document.getElementById('btn-tasks-cadence-monthly');
+    if (monthlyBtn) {
+        if (monthlyTasksWithDate.length === 1) {
+            monthlyBtn.textContent = `Monthly (${monthlyTasksWithDate[0].dayOfMonth})`;
+        } else if (monthlyTasksWithDate.length > 1) {
+            monthlyBtn.textContent = 'Monthly (Scheduled)';
+        } else {
+            monthlyBtn.textContent = 'Monthly';
+        }
+    }
+};
+
+const loadTaskDefsTable = () => {
+    const tbody = document.getElementById('task-defs-table-tbody');
+    if (!tbody) return;
+
+    let filtered = taskDefsList;
+    if (taskDefFilter !== 'all') {
+        filtered = taskDefsList.filter(t => t.cadence === taskDefFilter);
+    }
+
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold">No tasks found for this filter.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map((task, idx) => {
+        let cadenceBadge = '';
+        if (task.cadence === 'daily') {
+            cadenceBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">Daily</span>';
+        } else if (task.cadence === 'weekly') {
+            cadenceBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200">Weekly</span>';
+        } else {
+            cadenceBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200">Monthly</span>';
+        }
+
+        let scheduleDetail = 'Unfixed';
+        if (task.cadence === 'weekly' && task.dayOfWeek) {
+            scheduleDetail = `Every ${escapeHtml(task.dayOfWeek)}`;
+        } else if (task.cadence === 'monthly' && task.dayOfMonth) {
+            scheduleDetail = escapeHtml(task.dayOfMonth);
+        } else if (task.cadence === 'daily') {
+            scheduleDetail = 'Every Day';
+        }
+
+        return `
+            <tr class="hover:bg-slate-50/80">
+                <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
+                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(task.title)}</td>
+                <td class="py-2.5 px-3 text-center">${cadenceBadge}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-slate-600">${scheduleDetail}</td>
+                <td class="py-2.5 px-3 text-center font-black text-amber-700">+${task.points} pts</td>
+                <td class="py-2.5 px-3 text-right">
+                    <button type="button" class="btn-delete-task-def p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-xs cursor-pointer" data-task-id="${task.id}" title="Delete Task">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            </tr>`;
+    }).join('');
+};
+
+const saveTaskDefinitionsToFirestore = async (tasks) => {
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions'), {
+            tasks,
+            updatedAt: Date.now()
+        }, { merge: true });
+        taskDefsList = tasks;
+        updateCadenceButtonLabels();
+        loadTaskDefsTable();
+        showToast('Task configurations updated successfully!', 'success');
+    } catch (err) {
+        alert('Failed to save task definitions: ' + err.message);
+    }
+};
+
+// =========================================================================
+// MODULE 3: ROUTINE TASKS CHECKLIST LOGIC
+// =========================================================================
 const loadTasksRoster = async () => {
     const allowed = getAllowedClassesForTeacher();
     const classVal = document.getElementById('tasks-class-select')?.value;
@@ -473,7 +797,7 @@ const loadTasksRoster = async () => {
         return;
     }
 
-    taskDefsList = getDefaultTasks(currentTaskCadence);
+    const currentCadenceTasks = taskDefsList.filter(t => t.cadence === currentTaskCadence);
 
     try {
         const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
@@ -489,7 +813,19 @@ const loadTasksRoster = async () => {
                 <th class="py-2.5 px-3">#</th>
                 <th class="py-2.5 px-3">Adm No</th>
                 <th class="py-2.5 px-4">Student Name</th>
-                ${taskDefsList.map(t => `<th class="py-2.5 px-3 text-center">${escapeHtml(t.title)} (${t.points}p)</th>`).join('')}
+                ${currentCadenceTasks.map(t => {
+                    let schedTag = '';
+                    if (t.cadence === 'weekly' && t.dayOfWeek) schedTag = `<div class="text-[9px] text-amber-700 font-normal">(${t.dayOfWeek})</div>`;
+                    if (t.cadence === 'monthly' && t.dayOfMonth) schedTag = `<div class="text-[9px] text-purple-700 font-normal">(${t.dayOfMonth})</div>`;
+                    return `
+                        <th class="py-2 px-3 text-center">
+                            <div class="font-extrabold text-slate-800 text-[11px]">${escapeHtml(t.title)} (${t.points}p)</div>
+                            ${schedTag}
+                            <button type="button" class="btn-bulk-task-col mt-1 px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-600 hover:text-white text-amber-900 font-black text-[10px] transition cursor-pointer" data-task-id="${t.id}" title="Toggle All for ${escapeHtml(t.title)}">
+                                <i class="fas fa-check-double mr-1"></i>All
+                            </button>
+                        </th>`;
+                }).join('')}
                 <th class="py-2.5 px-3 text-center">Score</th>
             </tr>`;
     }
@@ -498,7 +834,7 @@ const loadTasksRoster = async () => {
 
     const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedTasksClass]) && s.status !== 'alumni');
     if (!classStudents.length) {
-        tbody.innerHTML = `<tr><td colspan="${taskDefsList.length + 4}" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedTasksClass}.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${currentCadenceTasks.length + 4}" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedTasksClass}.</td></tr>`;
         return;
     }
 
@@ -511,11 +847,11 @@ const loadTasksRoster = async () => {
                 <td class="py-2 px-3 font-bold text-slate-400">${idx + 1}</td>
                 <td class="py-2 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
                 <td class="py-2 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
-                ${taskDefsList.map(t => {
+                ${currentCadenceTasks.map(t => {
                     const done = Boolean(studentTasks[t.id]);
                     if (done) score += Number(t.points || 0);
                     return `
-                        <td class="py-2 px-3 text-center">
+                        <td class="py-2 px-3 text-center" data-task-id="${t.id}">
                             <input type="checkbox" class="task-check-box w-4 h-4 text-amber-600 rounded cursor-pointer" data-student-id="${student.id}" data-task-id="${t.id}" ${done ? 'checked' : ''}>
                         </td>`;
                 }).join('')}
@@ -542,233 +878,157 @@ const saveTasksCompletionsToFirestore = async () => {
 };
 
 // =========================================================================
-// MODULE 2: SPIRITUAL & IBADAH TRACKER LOGIC
+// MODULE 4: PRAYER TRACKER LOGIC
 // =========================================================================
-const loadIbadahRoster = async () => {
-    const allowed = getAllowedClassesForTeacher();
-    const classVal = document.getElementById('ibadah-class-select')?.value;
-    selectedIbadahClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
-    selectedIbadahDate = document.getElementById('ibadah-date-input')?.value || getTodayDateString();
-    const tbody = document.getElementById('ibadah-roster-tbody');
+const DEFAULT_FARD_PRAYERS = [
+    { key: 'subh', name: 'Subh' },
+    { key: 'zuhr', name: 'Zuhr' },
+    { key: 'asr', name: 'Asr' },
+    { key: 'maghrib', name: 'Maghrib' },
+    { key: 'isha', name: 'Isha' }
+];
 
-    if (!selectedIbadahClass) {
+const getAllActivePrayers = () => {
+    return [
+        ...DEFAULT_FARD_PRAYERS,
+        ...customPrayersList.map(c => ({ key: c.id, name: c.name, isSunnah: true }))
+    ];
+};
+
+const renderCustomPrayersListInModal = () => {
+    const container = document.getElementById('custom-prayers-list');
+    if (!container) return;
+
+    if (!customPrayersList.length) {
+        container.innerHTML = `<div class="p-3 text-center text-slate-400 font-bold bg-slate-50 rounded-xl">No extra Sunnah prayers added yet.</div>`;
+        return;
+    }
+
+    container.innerHTML = customPrayersList.map(p => `
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span class="font-bold text-slate-800">${escapeHtml(p.name)}</span>
+            <button type="button" class="btn-remove-custom-prayer p-1 text-rose-600 hover:bg-rose-50 rounded font-bold cursor-pointer" data-id="${p.id}" title="Remove Prayer">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+    `).join('');
+};
+
+const loadPrayerRoster = async () => {
+    const allowed = getAllowedClassesForTeacher();
+    const classVal = document.getElementById('prayer-class-select')?.value;
+    selectedPrayerClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
+    selectedPrayerDate = document.getElementById('prayer-date-input')?.value || getTodayDateString();
+    const thead = document.getElementById('prayer-roster-thead');
+    const tbody = document.getElementById('prayer-roster-tbody');
+
+    if (!selectedPrayerClass) {
         if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
         return;
     }
 
     try {
-        const docId = `${currentAcademicYear}__${selectedIbadahClass}__${selectedIbadahDate}`;
+        const docId = `${currentAcademicYear}__${selectedPrayerClass}__${selectedPrayerDate}`;
         const snap = await getDoc(doc(db, `${BASE_PATH}/ibadah`, docId));
-        ibadahRecordsMap = snap.exists() ? (snap.data().records || {}) : {};
+        prayerRecordsMap = snap.exists() ? (snap.data().records || {}) : {};
     } catch (_) {
-        ibadahRecordsMap = {};
+        prayerRecordsMap = {};
+    }
+
+    const activePrayers = getAllActivePrayers();
+
+    if (thead) {
+        thead.innerHTML = `
+            <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                <th class="py-2.5 px-3">#</th>
+                <th class="py-2.5 px-3">Adm No</th>
+                <th class="py-2.5 px-4">Student Name</th>
+                ${activePrayers.map(p => `
+                    <th class="py-2 px-2 text-center" data-prayer-col="${p.key}">
+                        <div class="font-extrabold text-slate-900 text-xs">${escapeHtml(p.name)}</div>
+                        ${p.isSunnah ? '<span class="text-[9px] text-amber-700 font-bold uppercase">(Sunnah)</span>' : ''}
+                        <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-white shadow-2xs mt-1">
+                            <button type="button" class="btn-prayer-bulk-mark px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer bg-emerald-100 hover:bg-emerald-600 hover:text-white text-emerald-800 transition" data-prayer="${p.key}" data-val="J" title="Mark All ${escapeHtml(p.name)} as Jama'ah">J</button>
+                            <button type="button" class="btn-prayer-bulk-mark px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer bg-blue-100 hover:bg-blue-600 hover:text-white text-blue-800 transition ml-0.5" data-prayer="${p.key}" data-val="A" title="Mark All ${escapeHtml(p.name)} as Ada'">A</button>
+                            <button type="button" class="btn-prayer-bulk-mark px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer bg-rose-100 hover:bg-rose-600 hover:text-white text-rose-800 transition ml-0.5" data-prayer="${p.key}" data-val="Q" title="Mark All ${escapeHtml(p.name)} as Qaza">Q</button>
+                        </div>
+                    </th>
+                `).join('')}
+            </tr>`;
     }
 
     if (!tbody) return;
 
-    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedIbadahClass]) && s.status !== 'alumni');
+    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedPrayerClass]) && s.status !== 'alumni');
     if (!classStudents.length) {
-        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedIbadahClass}.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${activePrayers.length + 3}" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedPrayerClass}.</td></tr>`;
         return;
     }
 
-    const prayers = ['subh', 'zuhr', 'asr', 'maghrib', 'isha'];
-
     tbody.innerHTML = classStudents.map((student, idx) => {
-        const rec = ibadahRecordsMap[student.id] || {};
+        const rec = prayerRecordsMap[student.id] || {};
 
         return `
             <tr class="hover:bg-slate-50/80" data-student-id="${student.id}">
                 <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
                 <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
                 <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
-                ${prayers.map(p => {
-                    const status = rec[p] || 'A';
+                ${activePrayers.map(p => {
+                    const status = rec[p.key] || 'A';
                     return `
-                        <td class="py-2 px-2 text-center" data-prayer="${p}">
-                            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 ibadah-pill-group">
-                                <button type="button" class="ibadah-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'J' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="J">J</button>
-                                <button type="button" class="ibadah-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'A' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="A">A</button>
-                                <button type="button" class="ibadah-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'Q' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="Q">Q</button>
+                        <td class="py-2 px-2 text-center" data-prayer="${p.key}">
+                            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 prayer-pill-group">
+                                <button type="button" class="prayer-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'J' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="J">J</button>
+                                <button type="button" class="prayer-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'A' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="A">A</button>
+                                <button type="button" class="prayer-toggle-btn px-2 py-0.5 rounded text-[10px] font-black cursor-pointer ${status === 'Q' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-500'}" data-val="Q">Q</button>
                             </div>
                         </td>`;
                 }).join('')}
-                <td class="py-2 px-3 text-center">
-                    <input type="checkbox" class="ibadah-tahajjud-cb w-4 h-4 text-amber-600 rounded" ${rec.tahajjud ? 'checked' : ''}>
-                </td>
-                <td class="py-2 px-3 text-center">
-                    <input type="checkbox" class="ibadah-duha-cb w-4 h-4 text-amber-600 rounded" ${rec.duha ? 'checked' : ''}>
-                </td>
-                <td class="py-2 px-3 text-center">
-                    <input type="number" class="ibadah-tilawat-mins w-16 p-1 text-center font-bold border border-slate-300 rounded text-slate-800" value="${rec.tilawat || 15}" min="0" max="180">
-                </td>
             </tr>`;
     }).join('');
 };
 
-const saveIbadahRecords = async () => {
-    if (!selectedIbadahClass) return alert('Please select a class first.');
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedIbadahClass, teacherAssignedClasses)) {
-        return alert('You can only save Ibadah records for your assigned classes.');
+const savePrayerRecords = async () => {
+    if (!selectedPrayerClass) return alert('Please select a class first.');
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedPrayerClass, teacherAssignedClasses)) {
+        return alert('You can only save prayer records for your assigned classes.');
     }
 
-    const rows = document.querySelectorAll('#ibadah-roster-tbody tr[data-student-id]');
+    const rows = document.querySelectorAll('#prayer-roster-tbody tr[data-student-id]');
     const updated = {};
+    const activePrayers = getAllActivePrayers();
 
     rows.forEach(row => {
         const studentId = row.dataset.studentId;
-        const subh = row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="subh"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
-        const zuhr = row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="zuhr"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
-        const asr = row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="asr"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
-        const maghrib = row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="maghrib"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
-        const isha = row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-emerald-600') ? 'J' : (row.querySelector('[data-prayer="isha"] .ibadah-toggle-btn.bg-rose-600') ? 'Q' : 'A');
-
-        const tahajjud = Boolean(row.querySelector('.ibadah-tahajjud-cb')?.checked);
-        const duha = Boolean(row.querySelector('.ibadah-duha-cb')?.checked);
-        const tilawat = Number(row.querySelector('.ibadah-tilawat-mins')?.value || 0);
-
-        updated[studentId] = { subh, zuhr, asr, maghrib, isha, tahajjud, duha, tilawat };
+        const studentRec = {};
+        activePrayers.forEach(p => {
+            const cell = row.querySelector(`[data-prayer="${p.key}"]`);
+            if (cell) {
+                const isJ = Boolean(cell.querySelector('.prayer-toggle-btn.bg-emerald-600'));
+                const isQ = Boolean(cell.querySelector('.prayer-toggle-btn.bg-rose-600'));
+                studentRec[p.key] = isJ ? 'J' : (isQ ? 'Q' : 'A');
+            }
+        });
+        updated[studentId] = studentRec;
     });
 
-    ibadahRecordsMap = updated;
+    prayerRecordsMap = updated;
 
-    const docId = `${currentAcademicYear}__${selectedIbadahClass}__${selectedIbadahDate}`;
+    const docId = `${currentAcademicYear}__${selectedPrayerClass}__${selectedPrayerDate}`;
     try {
         await setDoc(doc(db, `${BASE_PATH}/ibadah`, docId), {
-            records: ibadahRecordsMap,
+            records: prayerRecordsMap,
             updatedAt: Date.now()
         }, { merge: true });
 
-        showToast('Ibadah records logged successfully!', 'success');
+        showToast('Prayer log saved successfully!', 'success');
     } catch (err) {
-        alert('Failed to save Ibadah records: ' + err.message);
+        alert('Failed to save prayer records: ' + err.message);
     }
 };
 
 // =========================================================================
-// MODULE 3: QURAN READING PROGRESS TRACKER LOGIC
-// =========================================================================
-const loadQuranRoster = async () => {
-    const allowed = getAllowedClassesForTeacher();
-    const classVal = document.getElementById('quran-class-select')?.value;
-    selectedQuranClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
-    const stageFilter = document.getElementById('quran-stage-filter')?.value || 'ALL';
-    const tbody = document.getElementById('quran-roster-tbody');
-
-    if (!selectedQuranClass) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
-        return;
-    }
-
-    try {
-        const snap = await getDocs(collection(db, `${BASE_PATH}/quranProgress`));
-        snap.docs.forEach(d => {
-            quranProgressCache[d.id] = d.data();
-        });
-    } catch (_) {}
-
-    if (!tbody) return;
-
-    let classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedQuranClass]) && s.status !== 'alumni');
-    if (stageFilter !== 'ALL') {
-        classStudents = classStudents.filter(s => (quranProgressCache[s.id]?.stage || 'qaidah') === stageFilter);
-    }
-
-    if (!classStudents.length) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-bold">No students found matching this criteria.</td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = classStudents.map((student, idx) => {
-        const q = quranProgressCache[student.id] || {};
-        const stageLabel = q.stage === 'amma' ? 'Juz Amma' : (q.stage === 'tilawat' ? 'Full Quran Tilawat' : (q.stage === 'hifz' ? 'Hifz Memorization' : 'Qaidah / Noorani'));
-
-        return `
-            <tr class="hover:bg-slate-50/80">
-                <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
-                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
-                <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded font-black text-xs bg-amber-50 text-amber-900 border border-amber-200">${stageLabel}</span></td>
-                <td class="py-2.5 px-3 font-bold text-slate-800">${escapeHtml(q.currentSabaq || 'Lesson 1')}</td>
-                <td class="py-2.5 px-3 font-semibold text-slate-600">${escapeHtml(q.completed || 'Not Started')}</td>
-                <td class="py-2.5 px-3 font-semibold text-slate-500">${escapeHtml(q.remaining || '--')}</td>
-                <td class="py-2.5 px-3 text-center">
-                    ${q.isKhatm ? '<span class="px-2.5 py-0.5 rounded-full font-black text-xs bg-amber-400 text-white shadow-2xs">Khatm Completed!</span>' : `<span class="px-2 py-0.5 rounded text-xs font-bold ${q.grade === 'Mumtaz (Excellent)' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'}">${escapeHtml(q.grade || 'Jayyid')}</span>`}
-                </td>
-                <td class="py-2.5 px-3 text-right">
-                    <button type="button" class="btn-eval-quran px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-black text-xs transition cursor-pointer" data-student-id="${student.id}">
-                        Record Lesson
-                    </button>
-                </td>
-            </tr>`;
-    }).join('');
-};
-
-const openQuranEvaluateModal = (studentId) => {
-    const student = allStudents.find(s => s.id === studentId);
-    if (!student) return;
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(student.class, teacherAssignedClasses)) {
-        return alert('You can only record lessons for students in your assigned classes.');
-    }
-
-    document.getElementById('modal-quran-student-id').value = studentId;
-    document.getElementById('modal-quran-student-sub').textContent = `${student.name} (Adm: ${student.adm || student.admNo || '--'}, Class ${student.class})`;
-
-    const q = quranProgressCache[studentId] || {};
-    document.getElementById('modal-quran-stage').value = q.stage || 'qaidah';
-    document.getElementById('modal-quran-grade').value = q.grade || 'Mumtaz (Excellent)';
-    document.getElementById('modal-quran-sabaq').value = q.currentSabaq || '';
-    document.getElementById('modal-quran-completed').value = q.completed || '';
-    document.getElementById('modal-quran-remaining').value = q.remaining || '';
-    document.getElementById('modal-quran-is-khatm').checked = Boolean(q.isKhatm);
-    document.getElementById('modal-quran-remarks').value = q.remarks || '';
-
-    openModal('modal-quran-evaluate');
-};
-
-const saveQuranProgress = async () => {
-    const studentId = document.getElementById('modal-quran-student-id')?.value;
-    if (!studentId) return;
-    const student = allStudents.find(s => s.id === studentId);
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && student && !isClassInDutyScope(student.class, teacherAssignedClasses)) {
-        return alert('You can only save Quran progress for students in your assigned classes.');
-    }
-
-    const stage = document.getElementById('modal-quran-stage')?.value || 'qaidah';
-    const grade = document.getElementById('modal-quran-grade')?.value;
-    const currentSabaq = document.getElementById('modal-quran-sabaq')?.value.trim();
-    const completed = document.getElementById('modal-quran-completed')?.value.trim();
-    const remaining = document.getElementById('modal-quran-remaining')?.value.trim();
-    const isKhatm = Boolean(document.getElementById('modal-quran-is-khatm')?.checked);
-    const remarks = document.getElementById('modal-quran-remarks')?.value.trim();
-
-    if (!currentSabaq) return alert('Please enter current lesson (Sabaq).');
-
-    const payload = {
-        stage,
-        grade,
-        currentSabaq,
-        completed,
-        remaining,
-        isKhatm,
-        remarks,
-        evaluatedAt: Date.now()
-    };
-
-    try {
-        await setDoc(doc(db, `${BASE_PATH}/quranProgress`, studentId), payload, { merge: true });
-        quranProgressCache[studentId] = payload;
-
-        closeModal('modal-quran-evaluate');
-        showToast('Quran progress logged successfully!', 'success');
-        loadQuranRoster();
-    } catch (err) {
-        alert('Failed to log Quran progress: ' + err.message);
-    }
-};
-
-// =========================================================================
-// MODULE 4: REWARDS, POINTS & LEADERBOARD LOGIC
+// MODULE 5: REWARDS, POINTS & BADGES LEADERBOARD LOGIC
 // =========================================================================
 const loadRewardsRubric = async () => {
     const year = currentAcademicYear;
@@ -786,13 +1046,11 @@ const openRewardsSettingsModal = () => {
     const attInput = document.getElementById('rubric-pts-attendance');
     const jamInput = document.getElementById('rubric-pts-jamaah');
     const adaaInput = document.getElementById('rubric-pts-adaa');
-    const quranInput = document.getElementById('rubric-pts-quran');
     const taskInput = document.getElementById('rubric-pts-task');
 
     if (attInput) attInput.value = currentRewardsRubric.attendance || 5;
     if (jamInput) jamInput.value = currentRewardsRubric.jamaah || 15;
     if (adaaInput) adaaInput.value = currentRewardsRubric.adaa || 10;
-    if (quranInput) quranInput.value = currentRewardsRubric.quran || 20;
     if (taskInput) taskInput.value = currentRewardsRubric.task || 10;
 
     openModal('modal-rewards-settings');
@@ -802,10 +1060,9 @@ const saveRewardsRubric = async () => {
     const attendance = Number(document.getElementById('rubric-pts-attendance')?.value || 5);
     const jamaah = Number(document.getElementById('rubric-pts-jamaah')?.value || 15);
     const adaa = Number(document.getElementById('rubric-pts-adaa')?.value || 10);
-    const quran = Number(document.getElementById('rubric-pts-quran')?.value || 20);
     const task = Number(document.getElementById('rubric-pts-task')?.value || 10);
 
-    currentRewardsRubric = { attendance, jamaah, adaa, quran, task, bonus: 10 };
+    currentRewardsRubric = { attendance, jamaah, adaa, task, bonus: 10 };
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), {
@@ -852,30 +1109,30 @@ const loadRewardsLeaderboard = async () => {
 
     const scores = classStudents.map(student => {
         const attPts = (currentRewardsRubric.attendance || 5) * 12;
-        const ibadahPts = (currentRewardsRubric.jamaah || 15) * 5;
-        const quranPts = quranProgressCache[student.id]?.isKhatm ? (currentRewardsRubric.quran || 20) * 5 : (currentRewardsRubric.quran || 20) * 2;
+        const prayerPts = (currentRewardsRubric.jamaah || 15) * 5;
         const tasksPts = (currentRewardsRubric.task || 10) * 3;
 
         const bonusList = studentBonusPointsMap[student.id] || [];
         const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
 
-        const total = attPts + ibadahPts + quranPts + tasksPts + bonusPts;
+        const total = attPts + prayerPts + tasksPts + bonusPts;
 
-        const badges = [];
-        if (total >= 250) badges.push('Punctual Star');
-        if (quranPts >= 80) badges.push('Quran Star');
-        if (ibadahPts >= 70) badges.push('Congregation Champion');
-        if (bonusPts > 0) badges.push('Exemplary Adab');
+        const autoBadges = [];
+        if (total >= 200) autoBadges.push('Punctual Star');
+        if (prayerPts >= 70) autoBadges.push('Prayer Champion');
+        if (bonusPts > 0) autoBadges.push('Exemplary Adab');
+
+        const customBadges = studentCustomBadgesMap[student.id] || [];
 
         return {
             student,
             attPts,
-            ibadahPts,
-            quranPts,
+            prayerPts,
             tasksPts,
             bonusPts,
             total,
-            badges
+            autoBadges,
+            customBadges
         };
     });
 
@@ -889,7 +1146,7 @@ const loadRewardsLeaderboard = async () => {
         const avg = Math.round(scores.reduce((a, b) => a + b.total, 0) / scores.length);
         if (classAvgEl) classAvgEl.textContent = avg;
 
-        const totalB = scores.reduce((a, b) => a + b.badges.length, 0);
+        const totalB = scores.reduce((a, b) => a + (b.autoBadges.length + b.customBadges.length), 0);
         if (totalBadgesEl) totalBadgesEl.textContent = totalB;
     }
 
@@ -908,17 +1165,21 @@ const loadRewardsLeaderboard = async () => {
                 <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(item.student.adm || item.student.admNo || '-')}</td>
                 <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(item.student.name || '--')}</td>
                 <td class="py-2.5 px-3 text-center font-bold text-slate-600">${item.attPts}</td>
-                <td class="py-2.5 px-3 text-center font-bold text-emerald-600">${item.ibadahPts}</td>
-                <td class="py-2.5 px-3 text-center font-bold text-indigo-600">${item.quranPts}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-emerald-600">${item.prayerPts}</td>
                 <td class="py-2.5 px-3 text-center font-bold text-slate-600">${item.tasksPts}</td>
+                <td class="py-2.5 px-3 text-center font-bold text-purple-600">+${item.bonusPts}</td>
                 <td class="py-2.5 px-3 text-center font-black text-sm text-amber-600">${item.total}</td>
                 <td class="py-2.5 px-4">
                     <div class="flex items-center gap-1 flex-wrap">
-                        ${item.badges.length ? item.badges.map(b => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-200">${escapeHtml(b)}</span>`).join('') : '<span class="text-slate-400 text-[10px]">Earning Badges</span>'}
+                        ${item.autoBadges.map(b => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-200">${escapeHtml(b)}</span>`).join('')}
+                        ${item.customBadges.map(cb => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-900 border border-purple-200 flex items-center gap-1"><i class="fas fa-medal text-[9px] text-purple-600"></i>${escapeHtml(cb)}</span>`).join('')}
+                        <button type="button" class="btn-open-badge-modal px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer" data-student-id="${item.student.id}">
+                            + Badge
+                        </button>
                     </div>
                 </td>
                 <td class="py-2.5 px-3 text-right">
-                    <button type="button" class="btn-award-single-student p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 font-bold text-xs" data-student-id="${item.student.id}">
+                    <button type="button" class="btn-award-single-student p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 font-bold text-xs cursor-pointer" data-student-id="${item.student.id}" title="Award Bonus Points">
                         <i class="fas fa-medal mr-1"></i>+Award
                     </button>
                 </td>
@@ -936,7 +1197,6 @@ const awardBonusPoints = async () => {
     const points = Number(document.getElementById('modal-award-points-input')?.value || 10);
     const reason = document.getElementById('modal-award-reason')?.value.trim();
 
-    if (!studentId) return alert('Please select a student.');
     if (!reason) return alert('Please enter a reason for the award.');
 
     try {
@@ -958,10 +1218,88 @@ const awardBonusPoints = async () => {
         }, { merge: true });
 
         closeModal('modal-award-points');
-        showToast(`Awarded +${points} points to student!`, 'success');
+        showToast(`Awarded +${points} points to ${student.name}!`, 'success');
         loadRewardsLeaderboard();
     } catch (err) {
         alert('Failed to award points: ' + err.message);
+    }
+};
+
+// --- Custom Badge Modal Handlers ---
+const openCustomBadgeModal = (studentId) => {
+    const student = allStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    document.getElementById('modal-badge-student-id').value = studentId;
+    const subEl = document.getElementById('modal-badge-student-sub');
+    if (subEl) subEl.textContent = `${student.name} (Adm: ${student.adm || student.admNo || '--'}, Class ${student.class})`;
+
+    const input = document.getElementById('modal-badge-input');
+    if (input) input.value = '';
+
+    renderStudentCustomBadgesInModal(studentId);
+    openModal('modal-custom-badge');
+};
+
+const renderStudentCustomBadgesInModal = (studentId) => {
+    const container = document.getElementById('student-custom-badges-container');
+    if (!container) return;
+
+    const badges = studentCustomBadgesMap[studentId] || [];
+    if (!badges.length) {
+        container.innerHTML = `<span class="text-xs text-slate-400 font-bold p-1">No custom badges assigned yet.</span>`;
+        return;
+    }
+
+    container.innerHTML = badges.map(b => `
+        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1.5">
+            <i class="fas fa-medal text-purple-600 text-[10px]"></i>
+            ${escapeHtml(b)}
+            <button type="button" class="btn-remove-student-badge text-purple-600 hover:text-rose-600 text-xs ml-0.5 cursor-pointer" data-student-id="${studentId}" data-badge="${escapeHtml(b)}">
+                &times;
+            </button>
+        </span>
+    `).join('');
+};
+
+const addCustomBadgeToStudent = async (studentId, badgeName) => {
+    if (!studentId || !badgeName) return;
+    const existing = studentCustomBadgesMap[studentId] || [];
+    if (existing.includes(badgeName)) {
+        return alert('This badge has already been assigned to this student.');
+    }
+
+    const updated = [...existing, badgeName];
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, studentId), {
+            badges: updated,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        studentCustomBadgesMap[studentId] = updated;
+        renderStudentCustomBadgesInModal(studentId);
+        showToast(`Badge "${badgeName}" assigned!`, 'success');
+        loadRewardsLeaderboard();
+    } catch (err) {
+        alert('Failed to save custom badge: ' + err.message);
+    }
+};
+
+const removeCustomBadgeFromStudent = async (studentId, badgeName) => {
+    const existing = studentCustomBadgesMap[studentId] || [];
+    const updated = existing.filter(b => b !== badgeName);
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, studentId), {
+            badges: updated,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        studentCustomBadgesMap[studentId] = updated;
+        renderStudentCustomBadgesInModal(studentId);
+        showToast(`Badge "${badgeName}" removed!`, 'info');
+        loadRewardsLeaderboard();
+    } catch (err) {
+        alert('Failed to remove custom badge: ' + err.message);
     }
 };
 
@@ -992,22 +1330,98 @@ const setupEventListeners = () => {
         }
     });
 
-    // 2. Routine Tasks Listeners
+    // 2. Dashboard Class Select Listener
+    document.getElementById('dashboard-class-select')?.addEventListener('change', loadDashboardView);
+
+    // 3. Manage Tasks Tab Listeners
+    const cadenceSelect = document.getElementById('task-def-cadence');
+    const wrapperWeek = document.getElementById('wrapper-task-day-week');
+    const wrapperMonth = document.getElementById('wrapper-task-day-month');
+
+    if (cadenceSelect) {
+        cadenceSelect.addEventListener('change', () => {
+            const val = cadenceSelect.value;
+            if (val === 'weekly') {
+                wrapperWeek?.classList.remove('hidden');
+                wrapperMonth?.classList.add('hidden');
+            } else if (val === 'monthly') {
+                wrapperWeek?.classList.add('hidden');
+                wrapperMonth?.classList.remove('hidden');
+            } else {
+                wrapperWeek?.classList.add('hidden');
+                wrapperMonth?.classList.add('hidden');
+            }
+        });
+    }
+
+    document.getElementById('form-add-task-def')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('task-def-title')?.value.trim();
+        const cadence = document.getElementById('task-def-cadence')?.value || 'daily';
+        const dayOfWeek = cadence === 'weekly' ? (document.getElementById('task-def-day-week')?.value || '') : '';
+        const dayOfMonth = cadence === 'monthly' ? (document.getElementById('task-def-day-month')?.value || '') : '';
+        const points = Number(document.getElementById('task-def-points')?.value || 5);
+
+        if (!title) return alert('Please enter a task title.');
+
+        const newTask = {
+            id: `task_${Date.now()}`,
+            title,
+            cadence,
+            dayOfWeek,
+            dayOfMonth,
+            points
+        };
+
+        const updated = [...taskDefsList, newTask];
+        await saveTaskDefinitionsToFirestore(updated);
+
+        // Reset form
+        document.getElementById('task-def-title').value = '';
+        document.getElementById('task-def-points').value = '5';
+    });
+
+    document.querySelectorAll('.task-def-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.task-def-filter-btn').forEach(b => {
+                b.classList.remove('bg-amber-500', 'text-white');
+                b.classList.add('text-slate-600', 'hover:bg-slate-200');
+            });
+            btn.classList.add('bg-amber-500', 'text-white');
+            btn.classList.remove('text-slate-600', 'hover:bg-slate-200');
+            taskDefFilter = btn.dataset.filter || 'all';
+            loadTaskDefsTable();
+        });
+    });
+
+    document.getElementById('task-defs-table-tbody')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-delete-task-def');
+        if (!btn) return;
+        const taskId = btn.dataset.taskId;
+        if (!taskId) return;
+        if (confirm('Are you sure you want to delete this task definition?')) {
+            const updated = taskDefsList.filter(t => t.id !== taskId);
+            await saveTaskDefinitionsToFirestore(updated);
+        }
+    });
+
+    // 4. Routine Tasks Checklist Listeners
     document.getElementById('tasks-class-select')?.addEventListener('change', loadTasksRoster);
     document.getElementById('tasks-date-input')?.addEventListener('change', loadTasksRoster);
     document.querySelectorAll('.tasks-freq-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.tasks-freq-btn').forEach(b => {
-                b.classList.remove('bg-amber-500', 'text-white');
+                b.classList.remove('bg-amber-500', 'text-white', 'shadow-2xs');
                 b.classList.add('text-slate-600', 'hover:bg-slate-100');
             });
-            btn.classList.add('bg-amber-500', 'text-white');
+            btn.classList.add('bg-amber-500', 'text-white', 'shadow-2xs');
             btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
             currentTaskCadence = btn.dataset.freq;
             loadTasksRoster();
         });
     });
 
+    // Individual checkbox change
     document.getElementById('tasks-roster-tbody')?.addEventListener('change', (e) => {
         const cb = e.target.closest('.task-check-box');
         if (!cb) return;
@@ -1030,16 +1444,37 @@ const setupEventListeners = () => {
         saveTasksCompletionsToFirestore();
     });
 
-    document.getElementById('btn-tasks-mark-all')?.addEventListener('click', () => {
-        document.querySelectorAll('.task-check-box').forEach(cb => {
-            cb.checked = true;
-            const studentId = cb.dataset.studentId;
-            const taskId = cb.dataset.taskId;
-            if (!taskCompletionsMap[studentId]) taskCompletionsMap[studentId] = {};
-            taskCompletionsMap[studentId][taskId] = true;
+    // Column header bulk tick button for a specific task
+    document.getElementById('tasks-roster-thead')?.addEventListener('click', (e) => {
+        const bulkBtn = e.target.closest('.btn-bulk-task-col');
+        if (!bulkBtn) return;
+        const taskId = bulkBtn.dataset.taskId;
+        if (!taskId) return;
+
+        const cbs = document.querySelectorAll(`.task-check-box[data-task-id="${taskId}"]`);
+        const allChecked = Array.from(cbs).every(cb => cb.checked);
+        const targetState = !allChecked;
+
+        cbs.forEach(cb => {
+            cb.checked = targetState;
+            const sId = cb.dataset.studentId;
+            if (!taskCompletionsMap[sId]) taskCompletionsMap[sId] = {};
+            taskCompletionsMap[sId][taskId] = targetState;
+
+            const row = cb.closest('tr');
+            if (row) {
+                let total = 0;
+                row.querySelectorAll('.task-check-box:checked').forEach(c => {
+                    const tObj = taskDefsList.find(x => x.id === c.dataset.taskId);
+                    if (tObj) total += Number(tObj.points || 0);
+                });
+                const scoreEl = row.querySelector('.student-task-score');
+                if (scoreEl) scoreEl.textContent = `${total} pts`;
+            }
         });
+
         saveTasksCompletionsToFirestore();
-        loadTasksRoster();
+        showToast(`Task updated for all students!`, 'info');
     });
 
     document.getElementById('btn-tasks-clear-all')?.addEventListener('click', () => {
@@ -1051,38 +1486,18 @@ const setupEventListeners = () => {
         loadTasksRoster();
     });
 
-    document.getElementById('btn-open-task-def')?.addEventListener('click', () => {
-        openModal('modal-task-def');
-    });
+    // 5. Prayer Tracker Listeners
+    document.getElementById('prayer-class-select')?.addEventListener('change', loadPrayerRoster);
+    document.getElementById('prayer-date-input')?.addEventListener('change', loadPrayerRoster);
+    document.getElementById('btn-save-prayer')?.addEventListener('click', savePrayerRecords);
 
-    document.getElementById('btn-save-task-def')?.addEventListener('click', () => {
-        const title = document.getElementById('modal-task-title')?.value.trim();
-        const cadence = document.getElementById('modal-task-cadence')?.value || 'daily';
-        const points = Number(document.getElementById('modal-task-points')?.value || 5);
-        if (!title) return alert('Please enter a task title.');
-
-        getDefaultTasks(cadence).push({
-            id: `task_${Date.now()}`,
-            title,
-            cadence,
-            points
-        });
-        closeModal('modal-task-def');
-        showToast(`Task "${title}" created!`, 'success');
-        loadTasksRoster();
-    });
-
-    // 3. Ibadah Listeners
-    document.getElementById('ibadah-class-select')?.addEventListener('change', loadIbadahRoster);
-    document.getElementById('ibadah-date-input')?.addEventListener('change', loadIbadahRoster);
-    document.getElementById('btn-save-ibadah')?.addEventListener('click', saveIbadahRecords);
-
-    document.getElementById('ibadah-roster-tbody')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.ibadah-toggle-btn');
+    // Individual prayer pill click
+    document.getElementById('prayer-roster-tbody')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.prayer-toggle-btn');
         if (!btn) return;
-        const group = btn.closest('.ibadah-pill-group');
+        const group = btn.closest('.prayer-pill-group');
         if (group) {
-            group.querySelectorAll('.ibadah-toggle-btn').forEach(b => {
+            group.querySelectorAll('.prayer-toggle-btn').forEach(b => {
                 b.classList.remove('bg-emerald-600', 'bg-blue-600', 'bg-rose-600', 'text-white', 'shadow-2xs');
                 b.classList.add('text-slate-500');
             });
@@ -1094,25 +1509,86 @@ const setupEventListeners = () => {
         }
     });
 
-    document.getElementById('btn-batch-subhi-jamaah')?.addEventListener('click', () => {
-        document.querySelectorAll('[data-prayer="subh"] .ibadah-toggle-btn[data-val="J"]').forEach(b => b.click());
-    });
-    document.getElementById('btn-batch-all-fard-jamaah')?.addEventListener('click', () => {
-        document.querySelectorAll('.ibadah-pill-group .ibadah-toggle-btn[data-val="J"]').forEach(b => b.click());
+    // Column header bulk prayer button ([J], [A], [Q])
+    document.getElementById('prayer-roster-thead')?.addEventListener('click', (e) => {
+        const bulkBtn = e.target.closest('.btn-prayer-bulk-mark');
+        if (!bulkBtn) return;
+        const prayerKey = bulkBtn.dataset.prayer;
+        const val = bulkBtn.dataset.val; // 'J' | 'A' | 'Q'
+        if (!prayerKey || !val) return;
+
+        document.querySelectorAll(`[data-prayer="${prayerKey}"] .prayer-pill-group`).forEach(group => {
+            group.querySelectorAll('.prayer-toggle-btn').forEach(b => {
+                b.classList.remove('bg-emerald-600', 'bg-blue-600', 'bg-rose-600', 'text-white', 'shadow-2xs');
+                b.classList.add('text-slate-500');
+            });
+            const targetBtn = group.querySelector(`.prayer-toggle-btn[data-val="${val}"]`);
+            if (targetBtn) {
+                targetBtn.classList.remove('text-slate-500');
+                if (val === 'J') targetBtn.classList.add('bg-emerald-600', 'text-white', 'shadow-2xs');
+                else if (val === 'A') targetBtn.classList.add('bg-blue-600', 'text-white', 'shadow-2xs');
+                else if (val === 'Q') targetBtn.classList.add('bg-rose-600', 'text-white', 'shadow-2xs');
+            }
+        });
+
+        showToast(`Marked ${val === 'J' ? "Jama'ah" : (val === 'A' ? "Ada'" : "Qaza")} for all students!`, 'info');
     });
 
-    // 4. Quran Progress Listeners
-    document.getElementById('quran-class-select')?.addEventListener('change', loadQuranRoster);
-    document.getElementById('quran-stage-filter')?.addEventListener('change', loadQuranRoster);
-    document.getElementById('quran-roster-tbody')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-eval-quran');
-        if (btn) {
-            openQuranEvaluateModal(btn.dataset.studentId);
+    // Custom Sunnah Prayer modal
+    document.getElementById('btn-open-custom-prayer')?.addEventListener('click', () => {
+        renderCustomPrayersListInModal();
+        openModal('modal-custom-prayer');
+    });
+
+    document.getElementById('btn-add-custom-prayer-item')?.addEventListener('click', async () => {
+        const nameInput = document.getElementById('modal-prayer-name-input');
+        const name = nameInput?.value.trim();
+        if (!name) return alert('Please enter prayer name.');
+
+        const id = `prayer_${Date.now()}`;
+        const updated = [...customPrayersList, { id, name }];
+
+        try {
+            await setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
+                list: updated,
+                updatedAt: Date.now()
+            }, { merge: true });
+
+            customPrayersList = updated;
+            if (nameInput) nameInput.value = '';
+            renderCustomPrayersListInModal();
+            loadPrayerRoster();
+            showToast(`Sunnah prayer "${name}" added!`, 'success');
+        } catch (err) {
+            alert('Failed to add custom prayer: ' + err.message);
         }
     });
-    document.getElementById('btn-save-quran-eval')?.addEventListener('click', saveQuranProgress);
 
-    // 5. Rewards & Leaderboard Listeners
+    document.getElementById('custom-prayers-list')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-remove-custom-prayer');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        if (!id) return;
+
+        if (confirm('Remove this custom Sunnah prayer?')) {
+            const updated = customPrayersList.filter(p => p.id !== id);
+            try {
+                await setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
+                    list: updated,
+                    updatedAt: Date.now()
+                }, { merge: true });
+
+                customPrayersList = updated;
+                renderCustomPrayersListInModal();
+                loadPrayerRoster();
+                showToast('Custom prayer removed', 'info');
+            } catch (err) {
+                alert('Failed to remove prayer: ' + err.message);
+            }
+        }
+    });
+
+    // 6. Rewards & Leaderboard Listeners
     document.getElementById('rewards-class-select')?.addEventListener('change', loadRewardsLeaderboard);
     document.getElementById('btn-rewards-settings')?.addEventListener('click', openRewardsSettingsModal);
     document.getElementById('btn-save-rewards-settings')?.addEventListener('click', saveRewardsRubric);
@@ -1121,12 +1597,19 @@ const setupEventListeners = () => {
     document.getElementById('btn-print-leaderboard')?.addEventListener('click', () => window.print());
 
     document.getElementById('rewards-leaderboard-tbody')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-award-single-student');
-        if (btn) {
-            const stuId = btn.dataset.studentId;
+        const btnAward = e.target.closest('.btn-award-single-student');
+        if (btnAward) {
+            const stuId = btnAward.dataset.studentId;
             const select = document.getElementById('modal-award-student-select');
             if (select) select.value = stuId;
             openModal('modal-award-points');
+            return;
+        }
+
+        const btnBadge = e.target.closest('.btn-open-badge-modal');
+        if (btnBadge) {
+            const stuId = btnBadge.dataset.studentId;
+            openCustomBadgeModal(stuId);
         }
     });
 
@@ -1138,7 +1621,34 @@ const setupEventListeners = () => {
         });
     });
 
-    // 6. Sign Out
+    // Custom Badge Modal Listeners
+    document.getElementById('btn-save-custom-badge')?.addEventListener('click', () => {
+        const studentId = document.getElementById('modal-badge-student-id')?.value;
+        const badgeName = document.getElementById('modal-badge-input')?.value.trim();
+        if (!studentId || !badgeName) return alert('Please enter a badge name.');
+        addCustomBadgeToStudent(studentId, badgeName);
+        document.getElementById('modal-badge-input').value = '';
+    });
+
+    document.querySelectorAll('.btn-preset-badge').forEach(b => {
+        b.addEventListener('click', () => {
+            const badge = b.dataset.badge;
+            const input = document.getElementById('modal-badge-input');
+            if (input && badge) input.value = badge;
+        });
+    });
+
+    document.getElementById('student-custom-badges-container')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-remove-student-badge');
+        if (!btn) return;
+        const studentId = btn.dataset.studentId;
+        const badge = btn.dataset.badge;
+        if (studentId && badge) {
+            removeCustomBadgeFromStudent(studentId, badge);
+        }
+    });
+
+    // 7. Sign Out
     document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
     });

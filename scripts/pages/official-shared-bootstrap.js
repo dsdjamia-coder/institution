@@ -1323,8 +1323,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         },
         {
           id: 'studentActivity',
-          title: 'Activity & Deen Hub',
-          desc: 'Routine tasks, ibadah, Quran progress & rewards',
+          title: 'Activity & Rewards',
+          desc: 'Routine tasks, prayers, leaderboard & rewards',
           icon: 'fa-award',
           iconBg: 'bg-amber-50 text-amber-600 border border-amber-200',
           badgeText: 'Conduct',
