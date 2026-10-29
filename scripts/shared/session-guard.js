@@ -255,6 +255,12 @@
             const state = getStaffState();
             return (state?.access && typeof state.access === 'object') ? state.access : null;
         },
+        getStaffState() {
+            return getStaffState();
+        },
+        getAdminState() {
+            return getAdminState();
+        },
         updateStaffAccess(partialAccess = {}) {
             const state = getStaffState();
             if (!state) return;

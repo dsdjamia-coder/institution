@@ -50,6 +50,13 @@ let currentRewardsRubric = {
 // Helper: Normalize Date String
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
+const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
+const isClassInDutyScope = (clsName = '', dutyList = []) => {
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    const targetNorm = normalizeClassLabel(clsName);
+    return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+};
+
 const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     const classesSet = new Set();
     const addIfClass = (val) => {
@@ -64,23 +71,40 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
             str.split(',').forEach((part) => addIfClass(part));
             return;
         }
+        if (str.includes('/')) {
+            str.split('/').forEach((part) => addIfClass(part));
+            return;
+        }
         classesSet.add(str);
     };
 
     if (staffDoc) {
+        addIfClass(staffDoc.dutyClasses);
         addIfClass(staffDoc.assignedClass);
         addIfClass(staffDoc.assignedClasses);
         addIfClass(staffDoc.class);
         addIfClass(staffDoc.classes);
         addIfClass(staffDoc.teachingClasses);
+        if (staffDoc.customFields) {
+            addIfClass(staffDoc.customFields.dutyClasses);
+            addIfClass(staffDoc.customFields.assignedClass);
+            addIfClass(staffDoc.customFields.assignedClasses);
+            addIfClass(staffDoc.customFields.class);
+            addIfClass(staffDoc.customFields.classes);
+        }
+        if (staffDoc.role) {
+            const match = String(staffDoc.role).match(/class\s*([0-9a-zA-Z\s-]+)/i);
+            if (match && match[1]) addIfClass(match[1].trim());
+        }
     }
     if (staffAccess) {
+        addIfClass(staffAccess.dutyClasses);
         addIfClass(staffAccess.assignedClass);
         addIfClass(staffAccess.assignedClasses);
         addIfClass(staffAccess.class);
         addIfClass(staffAccess.classes);
     }
-    return Array.from(classesSet);
+    return Array.from(classesSet).map((c) => c.trim()).filter(Boolean);
 };
 
 // --- Sidebar Management ---
@@ -246,19 +270,30 @@ const initApp = async () => {
 };
 
 const restoreSessionContext = async () => {
-    const staffState = window.AppSession?.getStaffState?.() || {};
+    const role = window.AppSession?.getRole?.() || '';
     const adminState = window.AppSession?.getAdminState?.() || {};
+    const staffState = window.AppSession?.getStaffState?.() || {};
+    const staffAccess = window.AppSession?.getStaffAccess?.() || staffState?.access || {};
 
-    if (adminState && (adminState.role === 'admin' || adminState.isMasterAdmin)) {
+    const isMasterAdmin = (role === 'admin' || adminState?.role === 'admin' || adminState?.isMasterAdmin);
+    const actAsSuperAdmin = staffAccess?.actLikeSuperAdmin === true || staffAccess?.canAccessAdmin === true;
+
+    if (isMasterAdmin || actAsSuperAdmin) {
         isSuperAdmin = true;
-        currentStaffName = 'Administrator';
-        currentStaffRole = 'Super Administrator';
-    } else if (staffState && staffState.profile) {
-        currentStaffDoc = staffState.profile;
-        currentStaffName = staffState.profile.name || 'Staff Member';
-        currentStaffRole = staffState.profile.role || 'Class Teacher';
-        teacherAssignedClasses = getStaffAssignedClasses(staffState.profile, staffState.access);
+        currentStaffName = staffState?.name || 'Administrator';
+        currentStaffRole = actAsSuperAdmin ? 'Super Administrator' : 'Administrator';
+        teacherAssignedClasses = [];
+    } else {
+        isSuperAdmin = false;
+        currentStaffName = staffState?.name || window.AppSession?.getStaffName?.() || 'Staff Member';
+        currentStaffRole = staffAccess?.role || 'Class Teacher';
+        teacherAssignedClasses = getStaffAssignedClasses(staffState?.profile || null, staffAccess);
+        if (teacherAssignedClasses.length > 0) {
+            currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
+        }
     }
+
+    currentUserKey = String(staffAccess?.loginId || staffAccess?.userKey || staffAccess?.email || window.AppSession?.getStaffEmail?.() || '').trim().toLowerCase();
 
     const userNameEl = document.getElementById('header-user-name');
     const userRoleEl = document.getElementById('header-user-role');
@@ -312,14 +347,54 @@ const setupRealtimeListeners = () => {
         allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         populateStudentSelect();
     });
+
+    // 5. Staff Roster & Duty Classes Sync
+    onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
+        const staffDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!isSuperAdmin) {
+            const staffAccess = window.AppSession?.getStaffAccess?.() || {};
+            const staffEmailKey = String(staffAccess.email || window.AppSession?.getStaffEmail?.() || currentUserKey || '').trim().toLowerCase();
+            const staffPhoneKey = String(staffAccess.phone || currentUserKey || '').replace(/\D/g, '');
+            const staffIdKey = staffAccess.staffId || '';
+
+            const matchedStaff = staffDocs.find(s => 
+                (staffIdKey && s.id === staffIdKey) ||
+                (currentUserKey && (s.username === currentUserKey || s.email === currentUserKey || s.id === currentUserKey)) ||
+                (staffEmailKey && s.email && s.email.toLowerCase() === staffEmailKey) ||
+                (staffPhoneKey && s.phone && String(s.phone).replace(/\D/g, '').includes(staffPhoneKey)) ||
+                (s.name && currentStaffName && s.name.toLowerCase() === currentStaffName.toLowerCase())
+            );
+
+            if (matchedStaff) {
+                currentStaffDoc = matchedStaff;
+                teacherAssignedClasses = getStaffAssignedClasses(matchedStaff, staffAccess);
+                if (window.AppSession?.updateStaffAccess) {
+                    window.AppSession.updateStaffAccess({
+                        dutyClasses: Array.isArray(matchedStaff.dutyClasses) ? matchedStaff.dutyClasses : [],
+                        staffId: matchedStaff.id,
+                        name: matchedStaff.name || ''
+                    });
+                }
+                if (teacherAssignedClasses.length > 0) {
+                    currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
+                    const userRoleEl = document.getElementById('header-user-role');
+                    if (userRoleEl) userRoleEl.textContent = currentStaffRole;
+                }
+            } else if (staffAccess) {
+                teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
+            }
+            populateClassDropdowns();
+            populateStudentSelect();
+        }
+    });
 };
 
 const getAllowedClassesForTeacher = () => {
     if (isSuperAdmin || teacherAssignedClasses.length === 0) {
         return allClasses;
     }
-    const filtered = allClasses.filter(c => teacherAssignedClasses.includes(c));
-    return filtered.length ? filtered : allClasses;
+    const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
+    return filtered.length ? filtered : teacherAssignedClasses;
 };
 
 const populateClassDropdowns = () => {
@@ -340,24 +415,24 @@ const populateClassDropdowns = () => {
         const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
         select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
 
-        if (prev && allowed.includes(prev)) {
+        if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
             select.value = prev;
         } else if (allowed.length > 0) {
             select.value = allowed[0];
         }
     });
 
-    selectedTasksClass = document.getElementById('tasks-class-select')?.value || allowed[0] || '1';
-    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || allowed[0] || '1';
-    selectedQuranClass = document.getElementById('quran-class-select')?.value || allowed[0] || '1';
-    selectedRewardsClass = document.getElementById('rewards-class-select')?.value || allowed[0] || '1';
+    selectedTasksClass = document.getElementById('tasks-class-select')?.value || allowed[0] || '';
+    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || allowed[0] || '';
+    selectedQuranClass = document.getElementById('quran-class-select')?.value || allowed[0] || '';
+    selectedRewardsClass = document.getElementById('rewards-class-select')?.value || allowed[0] || '';
 };
 
 const populateStudentSelect = () => {
     const sel = document.getElementById('modal-award-student-select');
     if (!sel) return;
     const allowed = getAllowedClassesForTeacher();
-    const students = allStudents.filter(s => allowed.includes(s.class) && s.status !== 'alumni');
+    const students = allStudents.filter(s => isClassInDutyScope(s.class, allowed) && s.status !== 'alumni');
     sel.innerHTML = students.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (Class ${s.class}, Adm: ${s.adm || s.admNo || '--'})</option>`).join('');
 };
 
@@ -386,7 +461,9 @@ const getDefaultTasks = (cadence) => {
 };
 
 const loadTasksRoster = async () => {
-    selectedTasksClass = document.getElementById('tasks-class-select')?.value || teacherAssignedClasses[0] || '1';
+    const allowed = getAllowedClassesForTeacher();
+    const classVal = document.getElementById('tasks-class-select')?.value;
+    selectedTasksClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
     selectedTasksDate = document.getElementById('tasks-date-input')?.value || getTodayDateString();
     const thead = document.getElementById('tasks-roster-thead');
     const tbody = document.getElementById('tasks-roster-tbody');
@@ -419,7 +496,7 @@ const loadTasksRoster = async () => {
 
     if (!tbody) return;
 
-    const classStudents = allStudents.filter(s => s.class === selectedTasksClass && s.status !== 'alumni');
+    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedTasksClass]) && s.status !== 'alumni');
     if (!classStudents.length) {
         tbody.innerHTML = `<tr><td colspan="${taskDefsList.length + 4}" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedTasksClass}.</td></tr>`;
         return;
@@ -448,6 +525,11 @@ const loadTasksRoster = async () => {
 };
 
 const saveTasksCompletionsToFirestore = async () => {
+    if (!selectedTasksClass) return;
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedTasksClass, teacherAssignedClasses)) {
+        console.warn('Blocked auto-save for unassigned class', selectedTasksClass);
+        return;
+    }
     const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
     try {
         await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
@@ -463,7 +545,9 @@ const saveTasksCompletionsToFirestore = async () => {
 // MODULE 2: SPIRITUAL & IBADAH TRACKER LOGIC
 // =========================================================================
 const loadIbadahRoster = async () => {
-    selectedIbadahClass = document.getElementById('ibadah-class-select')?.value || teacherAssignedClasses[0] || '1';
+    const allowed = getAllowedClassesForTeacher();
+    const classVal = document.getElementById('ibadah-class-select')?.value;
+    selectedIbadahClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
     selectedIbadahDate = document.getElementById('ibadah-date-input')?.value || getTodayDateString();
     const tbody = document.getElementById('ibadah-roster-tbody');
 
@@ -482,7 +566,7 @@ const loadIbadahRoster = async () => {
 
     if (!tbody) return;
 
-    const classStudents = allStudents.filter(s => s.class === selectedIbadahClass && s.status !== 'alumni');
+    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedIbadahClass]) && s.status !== 'alumni');
     if (!classStudents.length) {
         tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">No active students in Class ${selectedIbadahClass}.</td></tr>`;
         return;
@@ -523,6 +607,11 @@ const loadIbadahRoster = async () => {
 };
 
 const saveIbadahRecords = async () => {
+    if (!selectedIbadahClass) return alert('Please select a class first.');
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedIbadahClass, teacherAssignedClasses)) {
+        return alert('You can only save Ibadah records for your assigned classes.');
+    }
+
     const rows = document.querySelectorAll('#ibadah-roster-tbody tr[data-student-id]');
     const updated = {};
 
@@ -560,7 +649,9 @@ const saveIbadahRecords = async () => {
 // MODULE 3: QURAN READING PROGRESS TRACKER LOGIC
 // =========================================================================
 const loadQuranRoster = async () => {
-    selectedQuranClass = document.getElementById('quran-class-select')?.value || teacherAssignedClasses[0] || '1';
+    const allowed = getAllowedClassesForTeacher();
+    const classVal = document.getElementById('quran-class-select')?.value;
+    selectedQuranClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
     const stageFilter = document.getElementById('quran-stage-filter')?.value || 'ALL';
     const tbody = document.getElementById('quran-roster-tbody');
 
@@ -578,7 +669,7 @@ const loadQuranRoster = async () => {
 
     if (!tbody) return;
 
-    let classStudents = allStudents.filter(s => s.class === selectedQuranClass && s.status !== 'alumni');
+    let classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedQuranClass]) && s.status !== 'alumni');
     if (stageFilter !== 'ALL') {
         classStudents = classStudents.filter(s => (quranProgressCache[s.id]?.stage || 'qaidah') === stageFilter);
     }
@@ -616,6 +707,9 @@ const loadQuranRoster = async () => {
 const openQuranEvaluateModal = (studentId) => {
     const student = allStudents.find(s => s.id === studentId);
     if (!student) return;
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(student.class, teacherAssignedClasses)) {
+        return alert('You can only record lessons for students in your assigned classes.');
+    }
 
     document.getElementById('modal-quran-student-id').value = studentId;
     document.getElementById('modal-quran-student-sub').textContent = `${student.name} (Adm: ${student.adm || student.admNo || '--'}, Class ${student.class})`;
@@ -635,6 +729,10 @@ const openQuranEvaluateModal = (studentId) => {
 const saveQuranProgress = async () => {
     const studentId = document.getElementById('modal-quran-student-id')?.value;
     if (!studentId) return;
+    const student = allStudents.find(s => s.id === studentId);
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && student && !isClassInDutyScope(student.class, teacherAssignedClasses)) {
+        return alert('You can only save Quran progress for students in your assigned classes.');
+    }
 
     const stage = document.getElementById('modal-quran-stage')?.value || 'qaidah';
     const grade = document.getElementById('modal-quran-grade')?.value;
@@ -726,7 +824,9 @@ const saveRewardsRubric = async () => {
 const loadRewardsLeaderboard = async () => {
     await loadRewardsRubric();
 
-    selectedRewardsClass = document.getElementById('rewards-class-select')?.value || teacherAssignedClasses[0] || '1';
+    const allowed = getAllowedClassesForTeacher();
+    const classVal = document.getElementById('rewards-class-select')?.value;
+    selectedRewardsClass = (classVal && allowed.some(c => isClassInDutyScope(classVal, [c]))) ? classVal : (allowed[0] || '');
     const tbody = document.getElementById('rewards-leaderboard-tbody');
     const topNameEl = document.getElementById('rewards-top-student-name');
     const topPtsEl = document.getElementById('rewards-top-student-points');
@@ -748,7 +848,7 @@ const loadRewardsLeaderboard = async () => {
         studentBonusPointsMap = {};
     }
 
-    const classStudents = allStudents.filter(s => s.class === selectedRewardsClass && s.status !== 'alumni');
+    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedRewardsClass]) && s.status !== 'alumni');
 
     const scores = classStudents.map(student => {
         const attPts = (currentRewardsRubric.attendance || 5) * 12;
@@ -828,6 +928,11 @@ const loadRewardsLeaderboard = async () => {
 
 const awardBonusPoints = async () => {
     const studentId = document.getElementById('modal-award-student-select')?.value;
+    const student = allStudents.find(s => s.id === studentId);
+    if (!studentId || !student) return alert('Please select a student.');
+    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(student.class, teacherAssignedClasses)) {
+        return alert('You can only award points to students in your assigned classes.');
+    }
     const points = Number(document.getElementById('modal-award-points-input')?.value || 10);
     const reason = document.getElementById('modal-award-reason')?.value.trim();
 
