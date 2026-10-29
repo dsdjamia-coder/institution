@@ -30,12 +30,14 @@ let selectedTasksClass = '';
 let selectedTasksDate = new Date().toISOString().split('T')[0];
 let currentTaskCadence = 'daily'; // 'daily' | 'weekly' | 'monthly'
 let taskCompletionsMap = {}; // studentId -> { [taskId]: true }
+let tasksHaveUnsavedChanges = false;
 
 // --- Prayer Tracker State ---
 let selectedPrayerClass = '';
 let selectedPrayerDate = new Date().toISOString().split('T')[0];
 let customPrayersList = []; // [ { id, name } ]
 let prayerRecordsMap = {}; // studentId -> { subh: 'J'|'A'|'Q', zuhr, asr, maghrib, isha, [customId]: 'J'|'A'|'Q' }
+let prayerHasUnsavedChanges = false;
 
 // --- Rewards & Leaderboard State ---
 let selectedRewardsClass = '';
@@ -45,8 +47,29 @@ let currentRewardsRubric = {
     attendance: 5,
     jamaah: 15,
     adaa: 10,
+    qaza: 0,
+    sunnah: 5,
     task: 10,
     bonus: 10
+};
+
+// --- Confirmation Dialog Handler ---
+let pendingConfirmCallback = null;
+
+const showConfirmDialog = ({ title = 'Confirm Action', message = 'Are you sure you want to proceed?', confirmText = 'Yes, Confirm', confirmBtnClass = 'bg-rose-600 hover:bg-rose-700', onConfirm = null }) => {
+    const titleEl = document.getElementById('modal-confirm-title');
+    const msgEl = document.getElementById('modal-confirm-msg');
+    const okBtn = document.getElementById('btn-confirm-action-ok');
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message;
+    if (okBtn) {
+        okBtn.textContent = confirmText;
+        okBtn.className = `flex-1 py-2.5 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer ${confirmBtnClass}`;
+    }
+
+    pendingConfirmCallback = onConfirm;
+    openModal('modal-confirm-action');
 };
 
 // Helper: Normalize Date String
@@ -261,6 +284,19 @@ const startClock = () => {
     };
     update();
     setInterval(update, 1000);
+};
+
+// --- Unsaved Changes Badges Management ---
+const setTasksUnsavedState = (dirty) => {
+    tasksHaveUnsavedChanges = dirty;
+    const badge = document.getElementById('tasks-unsaved-badge');
+    if (badge) badge.classList.toggle('hidden', !dirty);
+};
+
+const setPrayerUnsavedState = (dirty) => {
+    prayerHasUnsavedChanges = dirty;
+    const badge = document.getElementById('prayer-unsaved-badge');
+    if (badge) badge.classList.toggle('hidden', !dirty);
 };
 
 // --- Initialization & Auth ---
@@ -677,7 +713,7 @@ const loadDashboardView = async () => {
 };
 
 // =========================================================================
-// MODULE 2: MANAGE & ADD TASKS LOGIC
+// MODULE 2: MANAGE & ADD TASKS LOGIC (WITH EDIT & DELETE + CONFIRMATION)
 // =========================================================================
 const getDefaultTasksList = () => [
     { id: 'task_d1', title: 'Morning Adhkar & Duas', cadence: 'daily', dayOfWeek: '', dayOfMonth: '', points: 5 },
@@ -690,7 +726,6 @@ const getDefaultTasksList = () => [
 ];
 
 const updateCadenceButtonLabels = () => {
-    // Determine if any weekly task has a designated day
     const weeklyTasksWithDay = taskDefsList.filter(t => t.cadence === 'weekly' && t.dayOfWeek);
     const weeklyBtn = document.getElementById('btn-tasks-cadence-weekly');
     if (weeklyBtn) {
@@ -703,7 +738,6 @@ const updateCadenceButtonLabels = () => {
         }
     }
 
-    // Determine monthly task schedule
     const monthlyTasksWithDate = taskDefsList.filter(t => t.cadence === 'monthly' && t.dayOfMonth);
     const monthlyBtn = document.getElementById('btn-tasks-cadence-monthly');
     if (monthlyBtn) {
@@ -758,12 +792,48 @@ const loadTaskDefsTable = () => {
                 <td class="py-2.5 px-3 text-center font-bold text-slate-600">${scheduleDetail}</td>
                 <td class="py-2.5 px-3 text-center font-black text-amber-700">+${task.points} pts</td>
                 <td class="py-2.5 px-3 text-right">
-                    <button type="button" class="btn-delete-task-def p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-xs cursor-pointer" data-task-id="${task.id}" title="Delete Task">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
+                    <div class="flex items-center justify-end gap-1">
+                        <button type="button" class="btn-edit-task-def p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 font-bold text-xs cursor-pointer" data-task-id="${task.id}" title="Edit Task">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" class="btn-delete-task-def p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-xs cursor-pointer" data-task-id="${task.id}" title="Delete Task">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>`;
     }).join('');
+};
+
+const openEditTaskModal = (taskId) => {
+    const task = taskDefsList.find(t => t.id === taskId);
+    if (!task) return;
+
+    document.getElementById('edit-task-id').value = task.id;
+    document.getElementById('edit-task-title').value = task.title || '';
+    document.getElementById('edit-task-cadence').value = task.cadence || 'daily';
+    document.getElementById('edit-task-points').value = task.points || 5;
+
+    const wrapperWeek = document.getElementById('wrapper-edit-task-day-week');
+    const wrapperMonth = document.getElementById('wrapper-edit-task-day-month');
+    const selectWeek = document.getElementById('edit-task-day-week');
+    const selectMonth = document.getElementById('edit-task-day-month');
+
+    if (selectWeek) selectWeek.value = task.dayOfWeek || '';
+    if (selectMonth) selectMonth.value = task.dayOfMonth || '';
+
+    if (task.cadence === 'weekly') {
+        wrapperWeek?.classList.remove('hidden');
+        wrapperMonth?.classList.add('hidden');
+    } else if (task.cadence === 'monthly') {
+        wrapperWeek?.classList.add('hidden');
+        wrapperMonth?.classList.remove('hidden');
+    } else {
+        wrapperWeek?.classList.add('hidden');
+        wrapperMonth?.classList.add('hidden');
+    }
+
+    openModal('modal-edit-task-def');
 };
 
 const saveTaskDefinitionsToFirestore = async (tasks) => {
@@ -782,7 +852,7 @@ const saveTaskDefinitionsToFirestore = async (tasks) => {
 };
 
 // =========================================================================
-// MODULE 3: ROUTINE TASKS CHECKLIST LOGIC
+// MODULE 3: ROUTINE TASKS CHECKLIST (WITH EXPLICIT SAVE & UNCHECKED BADGE)
 // =========================================================================
 const loadTasksRoster = async () => {
     const allowed = getAllowedClassesForTeacher();
@@ -791,6 +861,8 @@ const loadTasksRoster = async () => {
     selectedTasksDate = document.getElementById('tasks-date-input')?.value || getTodayDateString();
     const thead = document.getElementById('tasks-roster-thead');
     const tbody = document.getElementById('tasks-roster-tbody');
+
+    setTasksUnsavedState(false);
 
     if (!selectedTasksClass) {
         if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
@@ -861,24 +933,27 @@ const loadTasksRoster = async () => {
 };
 
 const saveTasksCompletionsToFirestore = async () => {
-    if (!selectedTasksClass) return;
+    if (!selectedTasksClass) return alert('Please select a class first.');
     if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedTasksClass, teacherAssignedClasses)) {
-        console.warn('Blocked auto-save for unassigned class', selectedTasksClass);
-        return;
+        return alert('You can only save task completions for your assigned classes.');
     }
+
     const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
     try {
         await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
             completions: taskCompletionsMap,
             updatedAt: Date.now()
         }, { merge: true });
+
+        setTasksUnsavedState(false);
+        showToast('Routine tasks saved successfully!', 'success');
     } catch (err) {
-        console.error('Failed to auto-save task completions:', err);
+        alert('Failed to save task completions: ' + err.message);
     }
 };
 
 // =========================================================================
-// MODULE 4: PRAYER TRACKER LOGIC
+// MODULE 4: PRAYER TRACKER (WITH CUSTOM SUNNAH EDIT/DELETE & EXPLICIT SAVE)
 // =========================================================================
 const DEFAULT_FARD_PRAYERS = [
     { key: 'subh', name: 'Subh' },
@@ -907,9 +982,14 @@ const renderCustomPrayersListInModal = () => {
     container.innerHTML = customPrayersList.map(p => `
         <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <span class="font-bold text-slate-800">${escapeHtml(p.name)}</span>
-            <button type="button" class="btn-remove-custom-prayer p-1 text-rose-600 hover:bg-rose-50 rounded font-bold cursor-pointer" data-id="${p.id}" title="Remove Prayer">
-                <i class="fas fa-trash-alt"></i>
-            </button>
+            <div class="flex items-center gap-1">
+                <button type="button" class="btn-edit-custom-prayer p-1 text-amber-600 hover:bg-amber-50 rounded font-bold cursor-pointer" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Edit Name">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="button" class="btn-remove-custom-prayer p-1 text-rose-600 hover:bg-rose-50 rounded font-bold cursor-pointer" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Remove Prayer">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
         </div>
     `).join('');
 };
@@ -921,6 +1001,8 @@ const loadPrayerRoster = async () => {
     selectedPrayerDate = document.getElementById('prayer-date-input')?.value || getTodayDateString();
     const thead = document.getElementById('prayer-roster-thead');
     const tbody = document.getElementById('prayer-roster-tbody');
+
+    setPrayerUnsavedState(false);
 
     if (!selectedPrayerClass) {
         if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
@@ -1021,6 +1103,7 @@ const savePrayerRecords = async () => {
             updatedAt: Date.now()
         }, { merge: true });
 
+        setPrayerUnsavedState(false);
         showToast('Prayer log saved successfully!', 'success');
     } catch (err) {
         alert('Failed to save prayer records: ' + err.message);
@@ -1028,7 +1111,7 @@ const savePrayerRecords = async () => {
 };
 
 // =========================================================================
-// MODULE 5: REWARDS, POINTS & BADGES LEADERBOARD LOGIC
+// MODULE 5: REWARDS, POINTS, RUBRIC & BADGES LEADERBOARD LOGIC
 // =========================================================================
 const loadRewardsRubric = async () => {
     const year = currentAcademicYear;
@@ -1046,12 +1129,16 @@ const openRewardsSettingsModal = () => {
     const attInput = document.getElementById('rubric-pts-attendance');
     const jamInput = document.getElementById('rubric-pts-jamaah');
     const adaaInput = document.getElementById('rubric-pts-adaa');
+    const qazaInput = document.getElementById('rubric-pts-qaza');
+    const sunnahInput = document.getElementById('rubric-pts-sunnah');
     const taskInput = document.getElementById('rubric-pts-task');
 
-    if (attInput) attInput.value = currentRewardsRubric.attendance || 5;
-    if (jamInput) jamInput.value = currentRewardsRubric.jamaah || 15;
-    if (adaaInput) adaaInput.value = currentRewardsRubric.adaa || 10;
-    if (taskInput) taskInput.value = currentRewardsRubric.task || 10;
+    if (attInput) attInput.value = currentRewardsRubric.attendance ?? 5;
+    if (jamInput) jamInput.value = currentRewardsRubric.jamaah ?? 15;
+    if (adaaInput) adaaInput.value = currentRewardsRubric.adaa ?? 10;
+    if (qazaInput) qazaInput.value = currentRewardsRubric.qaza ?? 0;
+    if (sunnahInput) sunnahInput.value = currentRewardsRubric.sunnah ?? 5;
+    if (taskInput) taskInput.value = currentRewardsRubric.task ?? 10;
 
     openModal('modal-rewards-settings');
 };
@@ -1060,9 +1147,11 @@ const saveRewardsRubric = async () => {
     const attendance = Number(document.getElementById('rubric-pts-attendance')?.value || 5);
     const jamaah = Number(document.getElementById('rubric-pts-jamaah')?.value || 15);
     const adaa = Number(document.getElementById('rubric-pts-adaa')?.value || 10);
+    const qaza = Number(document.getElementById('rubric-pts-qaza')?.value || 0);
+    const sunnah = Number(document.getElementById('rubric-pts-sunnah')?.value || 5);
     const task = Number(document.getElementById('rubric-pts-task')?.value || 10);
 
-    currentRewardsRubric = { attendance, jamaah, adaa, task, bonus: 10 };
+    currentRewardsRubric = { attendance, jamaah, adaa, qaza, sunnah, task, bonus: 10 };
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), {
@@ -1108,9 +1197,9 @@ const loadRewardsLeaderboard = async () => {
     const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedRewardsClass]) && s.status !== 'alumni');
 
     const scores = classStudents.map(student => {
-        const attPts = (currentRewardsRubric.attendance || 5) * 12;
-        const prayerPts = (currentRewardsRubric.jamaah || 15) * 5;
-        const tasksPts = (currentRewardsRubric.task || 10) * 3;
+        const attPts = (currentRewardsRubric.attendance ?? 5) * 12;
+        const prayerPts = (currentRewardsRubric.jamaah ?? 15) * 4 + (currentRewardsRubric.adaa ?? 10) * 1;
+        const tasksPts = (currentRewardsRubric.task ?? 10) * 3;
 
         const bonusList = studentBonusPointsMap[student.id] || [];
         const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
@@ -1119,7 +1208,7 @@ const loadRewardsLeaderboard = async () => {
 
         const autoBadges = [];
         if (total >= 200) autoBadges.push('Punctual Star');
-        if (prayerPts >= 70) autoBadges.push('Prayer Champion');
+        if (prayerPts >= 60) autoBadges.push('Prayer Champion');
         if (bonusPts > 0) autoBadges.push('Exemplary Adab');
 
         const customBadges = studentCustomBadgesMap[student.id] || [];
@@ -1179,9 +1268,14 @@ const loadRewardsLeaderboard = async () => {
                     </div>
                 </td>
                 <td class="py-2.5 px-3 text-right">
-                    <button type="button" class="btn-award-single-student p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 font-bold text-xs cursor-pointer" data-student-id="${item.student.id}" title="Award Bonus Points">
-                        <i class="fas fa-medal mr-1"></i>+Award
-                    </button>
+                    <div class="flex items-center justify-end gap-1">
+                        <button type="button" class="btn-view-bonus-history p-1.5 rounded-lg text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold text-xs cursor-pointer" data-student-id="${item.student.id}" title="View & Edit Points History">
+                            <i class="fas fa-history mr-1"></i>History
+                        </button>
+                        <button type="button" class="btn-award-single-student p-1.5 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold text-xs cursor-pointer" data-student-id="${item.student.id}" title="Award Bonus Points">
+                            <i class="fas fa-medal mr-1"></i>+Award
+                        </button>
+                    </div>
                 </td>
             </tr>`;
     }).join('');
@@ -1225,7 +1319,115 @@ const awardBonusPoints = async () => {
     }
 };
 
-// --- Custom Badge Modal Handlers ---
+// --- Student Bonus Points History Modal (View, Edit & Delete) ---
+const openStudentBonusHistoryModal = (studentId) => {
+    const student = allStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    document.getElementById('modal-bonus-history-student-id').value = studentId;
+    const subEl = document.getElementById('modal-bonus-history-student-sub');
+    if (subEl) subEl.textContent = `${student.name} (Adm: ${student.adm || student.admNo || '--'}, Class ${student.class})`;
+
+    renderStudentBonusHistoryTable(studentId);
+    openModal('modal-student-bonus-history');
+};
+
+const renderStudentBonusHistoryTable = (studentId) => {
+    const tbody = document.getElementById('bonus-history-table-tbody');
+    const totalEl = document.getElementById('modal-bonus-history-total');
+    if (!tbody) return;
+
+    const bonusList = studentBonusPointsMap[studentId] || [];
+    const totalPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
+    if (totalEl) totalEl.textContent = `${totalPts} pts`;
+
+    if (!bonusList.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400 font-bold">No bonus points awarded yet.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = bonusList.map((entry) => `
+        <tr class="hover:bg-slate-50/80">
+            <td class="py-2 px-3 font-mono font-bold text-slate-600">${escapeHtml(entry.date || '--')}</td>
+            <td class="py-2 px-3 font-black text-amber-700">+${entry.points} pts</td>
+            <td class="py-2 px-3 font-medium text-slate-800">${escapeHtml(entry.reason || '--')}</td>
+            <td class="py-2 px-3 text-slate-500 font-semibold">${escapeHtml(entry.awardedBy || 'Staff')}</td>
+            <td class="py-2 px-3 text-right">
+                <div class="flex items-center justify-end gap-1">
+                    <button type="button" class="btn-edit-bonus-entry p-1 text-amber-600 hover:bg-amber-50 rounded font-bold cursor-pointer" data-student-id="${studentId}" data-entry-id="${entry.id}" title="Edit Award">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" class="btn-delete-bonus-entry p-1 text-rose-600 hover:bg-rose-50 rounded font-bold cursor-pointer" data-student-id="${studentId}" data-entry-id="${entry.id}" title="Delete Award">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+};
+
+const editStudentBonusEntry = async (studentId, entryId) => {
+    const bonusList = studentBonusPointsMap[studentId] || [];
+    const entry = bonusList.find(b => b.id === entryId);
+    if (!entry) return;
+
+    const newPtsStr = prompt('Enter updated points amount:', String(entry.points));
+    if (newPtsStr === null) return;
+    const newPts = Number(newPtsStr.trim());
+    if (isNaN(newPts) || newPts <= 0) return alert('Please enter a valid positive points number.');
+
+    const newReason = prompt('Enter updated award reason / note:', entry.reason);
+    if (newReason === null) return;
+    if (!newReason.trim()) return alert('Reason cannot be blank.');
+
+    entry.points = newPts;
+    entry.reason = newReason.trim();
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, studentId), {
+            pointsList: bonusList,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        studentBonusPointsMap[studentId] = bonusList;
+        renderStudentBonusHistoryTable(studentId);
+        showToast('Bonus award updated!', 'success');
+        loadRewardsLeaderboard();
+    } catch (err) {
+        alert('Failed to update bonus entry: ' + err.message);
+    }
+};
+
+const deleteStudentBonusEntry = (studentId, entryId) => {
+    const bonusList = studentBonusPointsMap[studentId] || [];
+    const entry = bonusList.find(b => b.id === entryId);
+    if (!entry) return;
+
+    showConfirmDialog({
+        title: 'Revoke Bonus Points',
+        message: `Are you sure you want to revoke this award of +${entry.points} points (${entry.reason})?`,
+        confirmText: 'Yes, Revoke',
+        confirmBtnClass: 'bg-rose-600 hover:bg-rose-700',
+        onConfirm: async () => {
+            const updated = bonusList.filter(b => b.id !== entryId);
+            try {
+                await setDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, studentId), {
+                    pointsList: updated,
+                    updatedAt: Date.now()
+                }, { merge: true });
+
+                studentBonusPointsMap[studentId] = updated;
+                renderStudentBonusHistoryTable(studentId);
+                showToast('Bonus points revoked', 'info');
+                loadRewardsLeaderboard();
+            } catch (err) {
+                alert('Failed to remove bonus entry: ' + err.message);
+            }
+        }
+    });
+};
+
+// --- Custom Badge Modal Handlers (With Edit & Delete + Confirmation) ---
 const openCustomBadgeModal = (studentId) => {
     const student = allStudents.find(s => s.id === studentId);
     if (!student) return;
@@ -1254,8 +1456,11 @@ const renderStudentCustomBadgesInModal = (studentId) => {
     container.innerHTML = badges.map(b => `
         <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1.5">
             <i class="fas fa-medal text-purple-600 text-[10px]"></i>
-            ${escapeHtml(b)}
-            <button type="button" class="btn-remove-student-badge text-purple-600 hover:text-rose-600 text-xs ml-0.5 cursor-pointer" data-student-id="${studentId}" data-badge="${escapeHtml(b)}">
+            <span>${escapeHtml(b)}</span>
+            <button type="button" class="btn-edit-student-badge text-purple-600 hover:text-amber-700 text-xs ml-1 cursor-pointer" data-student-id="${studentId}" data-badge="${escapeHtml(b)}" title="Edit Badge">
+                <i class="fas fa-pencil-alt text-[10px]"></i>
+            </button>
+            <button type="button" class="btn-remove-student-badge text-purple-600 hover:text-rose-600 text-xs ml-0.5 cursor-pointer" data-student-id="${studentId}" data-badge="${escapeHtml(b)}" title="Remove Badge">
                 &times;
             </button>
         </span>
@@ -1285,9 +1490,15 @@ const addCustomBadgeToStudent = async (studentId, badgeName) => {
     }
 };
 
-const removeCustomBadgeFromStudent = async (studentId, badgeName) => {
+const editCustomBadgeForStudent = async (studentId, oldBadgeName) => {
     const existing = studentCustomBadgesMap[studentId] || [];
-    const updated = existing.filter(b => b !== badgeName);
+    const newBadgeName = prompt('Edit badge name:', oldBadgeName);
+    if (newBadgeName === null) return;
+    const cleanName = newBadgeName.trim();
+    if (!cleanName) return alert('Badge name cannot be empty.');
+    if (cleanName === oldBadgeName) return;
+
+    const updated = existing.map(b => b === oldBadgeName ? cleanName : b);
     try {
         await setDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, studentId), {
             badges: updated,
@@ -1296,11 +1507,38 @@ const removeCustomBadgeFromStudent = async (studentId, badgeName) => {
 
         studentCustomBadgesMap[studentId] = updated;
         renderStudentCustomBadgesInModal(studentId);
-        showToast(`Badge "${badgeName}" removed!`, 'info');
+        showToast(`Badge updated to "${cleanName}"!`, 'success');
         loadRewardsLeaderboard();
     } catch (err) {
-        alert('Failed to remove custom badge: ' + err.message);
+        alert('Failed to edit badge: ' + err.message);
     }
+};
+
+const removeCustomBadgeFromStudent = (studentId, badgeName) => {
+    const student = allStudents.find(s => s.id === studentId);
+    showConfirmDialog({
+        title: 'Remove Custom Badge',
+        message: `Are you sure you want to remove badge "${badgeName}" from ${student?.name || 'student'}?`,
+        confirmText: 'Yes, Remove',
+        confirmBtnClass: 'bg-rose-600 hover:bg-rose-700',
+        onConfirm: async () => {
+            const existing = studentCustomBadgesMap[studentId] || [];
+            const updated = existing.filter(b => b !== badgeName);
+            try {
+                await setDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, studentId), {
+                    badges: updated,
+                    updatedAt: Date.now()
+                }, { merge: true });
+
+                studentCustomBadgesMap[studentId] = updated;
+                renderStudentCustomBadgesInModal(studentId);
+                showToast(`Badge "${badgeName}" removed!`, 'info');
+                loadRewardsLeaderboard();
+            } catch (err) {
+                alert('Failed to remove custom badge: ' + err.message);
+            }
+        }
+    });
 };
 
 // =========================================================================
@@ -1330,6 +1568,20 @@ const setupEventListeners = () => {
         }
     });
 
+    // Confirmation Modal Handlers
+    document.getElementById('btn-confirm-action-ok')?.addEventListener('click', () => {
+        closeModal('modal-confirm-action');
+        if (typeof pendingConfirmCallback === 'function') {
+            const cb = pendingConfirmCallback;
+            pendingConfirmCallback = null;
+            cb();
+        }
+    });
+    document.getElementById('btn-confirm-action-cancel')?.addEventListener('click', () => {
+        closeModal('modal-confirm-action');
+        pendingConfirmCallback = null;
+    });
+
     // 2. Dashboard Class Select Listener
     document.getElementById('dashboard-class-select')?.addEventListener('change', loadDashboardView);
 
@@ -1354,6 +1606,27 @@ const setupEventListeners = () => {
         });
     }
 
+    // Edit task cadence listener
+    const editCadenceSelect = document.getElementById('edit-task-cadence');
+    const editWrapperWeek = document.getElementById('wrapper-edit-task-day-week');
+    const editWrapperMonth = document.getElementById('wrapper-edit-task-day-month');
+    if (editCadenceSelect) {
+        editCadenceSelect.addEventListener('change', () => {
+            const val = editCadenceSelect.value;
+            if (val === 'weekly') {
+                editWrapperWeek?.classList.remove('hidden');
+                editWrapperMonth?.classList.add('hidden');
+            } else if (val === 'monthly') {
+                editWrapperWeek?.classList.add('hidden');
+                editWrapperMonth?.classList.remove('hidden');
+            } else {
+                editWrapperWeek?.classList.add('hidden');
+                editWrapperMonth?.classList.add('hidden');
+            }
+        });
+    }
+
+    // Add new task form submit
     document.getElementById('form-add-task-def')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const title = document.getElementById('task-def-title')?.value.trim();
@@ -1381,6 +1654,30 @@ const setupEventListeners = () => {
         document.getElementById('task-def-points').value = '5';
     });
 
+    // Save edited task form submit
+    document.getElementById('form-edit-task-def')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const taskId = document.getElementById('edit-task-id')?.value;
+        const title = document.getElementById('edit-task-title')?.value.trim();
+        const cadence = document.getElementById('edit-task-cadence')?.value || 'daily';
+        const dayOfWeek = cadence === 'weekly' ? (document.getElementById('edit-task-day-week')?.value || '') : '';
+        const dayOfMonth = cadence === 'monthly' ? (document.getElementById('edit-task-day-month')?.value || '') : '';
+        const points = Number(document.getElementById('edit-task-points')?.value || 5);
+
+        if (!taskId || !title) return alert('Task title cannot be empty.');
+
+        const updated = taskDefsList.map(t => {
+            if (t.id === taskId) {
+                return { ...t, title, cadence, dayOfWeek, dayOfMonth, points };
+            }
+            return t;
+        });
+
+        await saveTaskDefinitionsToFirestore(updated);
+        closeModal('modal-edit-task-def');
+        showToast('Task updated successfully!', 'success');
+    });
+
     document.querySelectorAll('.task-def-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.task-def-filter-btn').forEach(b => {
@@ -1394,18 +1691,35 @@ const setupEventListeners = () => {
         });
     });
 
-    document.getElementById('task-defs-table-tbody')?.addEventListener('click', async (e) => {
-        const btn = e.target.closest('.btn-delete-task-def');
-        if (!btn) return;
-        const taskId = btn.dataset.taskId;
-        if (!taskId) return;
-        if (confirm('Are you sure you want to delete this task definition?')) {
-            const updated = taskDefsList.filter(t => t.id !== taskId);
-            await saveTaskDefinitionsToFirestore(updated);
+    // Edit and Delete buttons on configured tasks table
+    document.getElementById('task-defs-table-tbody')?.addEventListener('click', (e) => {
+        const btnEdit = e.target.closest('.btn-edit-task-def');
+        if (btnEdit) {
+            const taskId = btnEdit.dataset.taskId;
+            if (taskId) openEditTaskModal(taskId);
+            return;
+        }
+
+        const btnDel = e.target.closest('.btn-delete-task-def');
+        if (btnDel) {
+            const taskId = btnDel.dataset.taskId;
+            const task = taskDefsList.find(t => t.id === taskId);
+            if (!task) return;
+
+            showConfirmDialog({
+                title: 'Delete Routine Task',
+                message: `Are you sure you want to delete task "${task.title}"?`,
+                confirmText: 'Yes, Delete',
+                confirmBtnClass: 'bg-rose-600 hover:bg-rose-700',
+                onConfirm: async () => {
+                    const updated = taskDefsList.filter(t => t.id !== taskId);
+                    await saveTaskDefinitionsToFirestore(updated);
+                }
+            });
         }
     });
 
-    // 4. Routine Tasks Checklist Listeners
+    // 4. Routine Tasks Checklist Listeners (Strict Explicit Save)
     document.getElementById('tasks-class-select')?.addEventListener('change', loadTasksRoster);
     document.getElementById('tasks-date-input')?.addEventListener('change', loadTasksRoster);
     document.querySelectorAll('.tasks-freq-btn').forEach(btn => {
@@ -1421,7 +1735,7 @@ const setupEventListeners = () => {
         });
     });
 
-    // Individual checkbox change
+    // Individual checkbox change (NO AUTO-SAVE, flags unsaved changes)
     document.getElementById('tasks-roster-tbody')?.addEventListener('change', (e) => {
         const cb = e.target.closest('.task-check-box');
         if (!cb) return;
@@ -1441,10 +1755,10 @@ const setupEventListeners = () => {
             if (scoreEl) scoreEl.textContent = `${total} pts`;
         }
 
-        saveTasksCompletionsToFirestore();
+        setTasksUnsavedState(true);
     });
 
-    // Column header bulk tick button for a specific task
+    // Column header bulk tick button for a specific task (NO AUTO-SAVE)
     document.getElementById('tasks-roster-thead')?.addEventListener('click', (e) => {
         const bulkBtn = e.target.closest('.btn-bulk-task-col');
         if (!bulkBtn) return;
@@ -1473,8 +1787,7 @@ const setupEventListeners = () => {
             }
         });
 
-        saveTasksCompletionsToFirestore();
-        showToast(`Task updated for all students!`, 'info');
+        setTasksUnsavedState(true);
     });
 
     document.getElementById('btn-tasks-clear-all')?.addEventListener('click', () => {
@@ -1482,16 +1795,21 @@ const setupEventListeners = () => {
             cb.checked = false;
         });
         taskCompletionsMap = {};
-        saveTasksCompletionsToFirestore();
-        loadTasksRoster();
+        document.querySelectorAll('.student-task-score').forEach(el => {
+            el.textContent = '0 pts';
+        });
+        setTasksUnsavedState(true);
     });
 
-    // 5. Prayer Tracker Listeners
+    // Explicit Save Button for Routine Tasks
+    document.getElementById('btn-save-tasks')?.addEventListener('click', saveTasksCompletionsToFirestore);
+
+    // 5. Prayer Tracker Listeners (Strict Explicit Save)
     document.getElementById('prayer-class-select')?.addEventListener('change', loadPrayerRoster);
     document.getElementById('prayer-date-input')?.addEventListener('change', loadPrayerRoster);
     document.getElementById('btn-save-prayer')?.addEventListener('click', savePrayerRecords);
 
-    // Individual prayer pill click
+    // Individual prayer pill click (NO AUTO-SAVE, flags unsaved changes)
     document.getElementById('prayer-roster-tbody')?.addEventListener('click', (e) => {
         const btn = e.target.closest('.prayer-toggle-btn');
         if (!btn) return;
@@ -1506,10 +1824,12 @@ const setupEventListeners = () => {
             if (val === 'J') btn.classList.add('bg-emerald-600', 'text-white', 'shadow-2xs');
             else if (val === 'A') btn.classList.add('bg-blue-600', 'text-white', 'shadow-2xs');
             else if (val === 'Q') btn.classList.add('bg-rose-600', 'text-white', 'shadow-2xs');
+
+            setPrayerUnsavedState(true);
         }
     });
 
-    // Column header bulk prayer button ([J], [A], [Q])
+    // Column header bulk prayer button ([J], [A], [Q]) (NO AUTO-SAVE)
     document.getElementById('prayer-roster-thead')?.addEventListener('click', (e) => {
         const bulkBtn = e.target.closest('.btn-prayer-bulk-mark');
         if (!bulkBtn) return;
@@ -1531,7 +1851,8 @@ const setupEventListeners = () => {
             }
         });
 
-        showToast(`Marked ${val === 'J' ? "Jama'ah" : (val === 'A' ? "Ada'" : "Qaza")} for all students!`, 'info');
+        setPrayerUnsavedState(true);
+        showToast(`Selected ${val === 'J' ? "Jama'ah" : (val === 'A' ? "Ada'" : "Qaza")} for all students. Click "Save Prayer Log" to commit.`, 'info');
     });
 
     // Custom Sunnah Prayer modal
@@ -1564,27 +1885,58 @@ const setupEventListeners = () => {
         }
     });
 
-    document.getElementById('custom-prayers-list')?.addEventListener('click', async (e) => {
-        const btn = e.target.closest('.btn-remove-custom-prayer');
-        if (!btn) return;
-        const id = btn.dataset.id;
-        if (!id) return;
+    // Edit and Remove Custom Sunnah Prayer
+    document.getElementById('custom-prayers-list')?.addEventListener('click', (e) => {
+        const btnEdit = e.target.closest('.btn-edit-custom-prayer');
+        if (btnEdit) {
+            const id = btnEdit.dataset.id;
+            const curName = btnEdit.dataset.name;
+            const newName = prompt('Edit Sunnah prayer name:', curName);
+            if (newName === null) return;
+            const clean = newName.trim();
+            if (!clean) return alert('Prayer name cannot be blank.');
 
-        if (confirm('Remove this custom Sunnah prayer?')) {
-            const updated = customPrayersList.filter(p => p.id !== id);
-            try {
-                await setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
-                    list: updated,
-                    updatedAt: Date.now()
-                }, { merge: true });
-
+            const updated = customPrayersList.map(p => p.id === id ? { ...p, name: clean } : p);
+            setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
+                list: updated,
+                updatedAt: Date.now()
+            }, { merge: true }).then(() => {
                 customPrayersList = updated;
                 renderCustomPrayersListInModal();
                 loadPrayerRoster();
-                showToast('Custom prayer removed', 'info');
-            } catch (err) {
-                alert('Failed to remove prayer: ' + err.message);
-            }
+                showToast(`Sunnah prayer renamed to "${clean}"!`, 'success');
+            });
+            return;
+        }
+
+        const btnRemove = e.target.closest('.btn-remove-custom-prayer');
+        if (btnRemove) {
+            const id = btnRemove.dataset.id;
+            const name = btnRemove.dataset.name;
+            if (!id) return;
+
+            showConfirmDialog({
+                title: 'Remove Sunnah Prayer',
+                message: `Are you sure you want to remove the Sunnah prayer "${name}"?`,
+                confirmText: 'Yes, Remove',
+                confirmBtnClass: 'bg-rose-600 hover:bg-rose-700',
+                onConfirm: async () => {
+                    const updated = customPrayersList.filter(p => p.id !== id);
+                    try {
+                        await setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
+                            list: updated,
+                            updatedAt: Date.now()
+                        }, { merge: true });
+
+                        customPrayersList = updated;
+                        renderCustomPrayersListInModal();
+                        loadPrayerRoster();
+                        showToast('Custom prayer removed', 'info');
+                    } catch (err) {
+                        alert('Failed to remove prayer: ' + err.message);
+                    }
+                }
+            });
         }
     });
 
@@ -1597,6 +1949,13 @@ const setupEventListeners = () => {
     document.getElementById('btn-print-leaderboard')?.addEventListener('click', () => window.print());
 
     document.getElementById('rewards-leaderboard-tbody')?.addEventListener('click', (e) => {
+        const btnHistory = e.target.closest('.btn-view-bonus-history');
+        if (btnHistory) {
+            const stuId = btnHistory.dataset.studentId;
+            openStudentBonusHistoryModal(stuId);
+            return;
+        }
+
         const btnAward = e.target.closest('.btn-award-single-student');
         if (btnAward) {
             const stuId = btnAward.dataset.studentId;
@@ -1610,6 +1969,32 @@ const setupEventListeners = () => {
         if (btnBadge) {
             const stuId = btnBadge.dataset.studentId;
             openCustomBadgeModal(stuId);
+        }
+    });
+
+    // Student bonus history modal actions (Award new, Edit entry, Delete entry)
+    document.getElementById('btn-history-award-new')?.addEventListener('click', () => {
+        const stuId = document.getElementById('modal-bonus-history-student-id')?.value;
+        closeModal('modal-student-bonus-history');
+        const select = document.getElementById('modal-award-student-select');
+        if (select && stuId) select.value = stuId;
+        openModal('modal-award-points');
+    });
+
+    document.getElementById('bonus-history-table-tbody')?.addEventListener('click', (e) => {
+        const btnEdit = e.target.closest('.btn-edit-bonus-entry');
+        if (btnEdit) {
+            const stuId = btnEdit.dataset.studentId;
+            const entryId = btnEdit.dataset.entryId;
+            editStudentBonusEntry(stuId, entryId);
+            return;
+        }
+
+        const btnDel = e.target.closest('.btn-delete-bonus-entry');
+        if (btnDel) {
+            const stuId = btnDel.dataset.studentId;
+            const entryId = btnDel.dataset.entryId;
+            deleteStudentBonusEntry(stuId, entryId);
         }
     });
 
@@ -1639,12 +2024,23 @@ const setupEventListeners = () => {
     });
 
     document.getElementById('student-custom-badges-container')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-remove-student-badge');
-        if (!btn) return;
-        const studentId = btn.dataset.studentId;
-        const badge = btn.dataset.badge;
-        if (studentId && badge) {
-            removeCustomBadgeFromStudent(studentId, badge);
+        const btnEdit = e.target.closest('.btn-edit-student-badge');
+        if (btnEdit) {
+            const studentId = btnEdit.dataset.studentId;
+            const badge = btnEdit.dataset.badge;
+            if (studentId && badge) {
+                editCustomBadgeForStudent(studentId, badge);
+            }
+            return;
+        }
+
+        const btnRemove = e.target.closest('.btn-remove-student-badge');
+        if (btnRemove) {
+            const studentId = btnRemove.dataset.studentId;
+            const badge = btnRemove.dataset.badge;
+            if (studentId && badge) {
+                removeCustomBadgeFromStudent(studentId, badge);
+            }
         }
     });
 

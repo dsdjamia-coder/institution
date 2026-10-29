@@ -522,11 +522,11 @@
                     <th class="py-2.5 px-3 text-center">Frequency</th>
                     <th class="py-2.5 px-3 text-center">Schedule / Day</th>
                     <th class="py-2.5 px-3 text-center">Points</th>
-                    <th class="py-2.5 px-3 text-right">Action</th>
+                    <th class="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="task-defs-table-tbody" class="divide-y divide-slate-100 font-medium">
-                  <!-- Dynamically populated -->
+                  <!-- Dynamically populated with Edit & Delete buttons -->
                 </tbody>
               </table>
             </div>
@@ -560,8 +560,14 @@
               </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="flex items-center gap-2">
+            <!-- Action Buttons (Strict Explicit Save Workflow) -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="tasks-unsaved-badge" class="hidden text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-xl font-bold text-xs">
+                <i class="fas fa-clock mr-1"></i>Unsaved Changes
+              </span>
+              <button type="button" id="btn-save-tasks" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-floppy-disk"></i> Save Routine Tasks
+              </button>
               <button type="button" id="btn-tasks-clear-all" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
                 Clear All
               </button>
@@ -603,8 +609,11 @@
               </div>
             </div>
 
-            <!-- Action Buttons -->
+            <!-- Action Buttons (Strict Explicit Save Workflow) -->
             <div class="flex items-center gap-2 flex-wrap">
+              <span id="prayer-unsaved-badge" class="hidden text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-xl font-bold text-xs">
+                <i class="fas fa-clock mr-1"></i>Unsaved Changes
+              </span>
               <button type="button" id="btn-open-custom-prayer" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer">
                 <i class="fas fa-plus text-amber-600"></i> Add Sunnah Prayer
               </button>
@@ -618,15 +627,15 @@
           <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-around flex-wrap gap-2 text-xs">
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-600 text-white">J</span>
-              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> In Masjid (+15 pts)</span>
+              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> In Masjid</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white">A</span>
-              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> Individual (+10 pts)</span>
+              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> Individual</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">Q</span>
-              <span class="text-slate-700"><strong>Qaza (Missed):</strong> Late or missed (+0 pts)</span>
+              <span class="text-slate-700"><strong>Qaza (Missed):</strong> Late or missed</span>
             </div>
           </div>
 
@@ -753,7 +762,7 @@
   <!-- MODALS                                     -->
   <!-- ========================================== -->
 
-  <!-- 1. Modal: Add Custom Sunnah Prayer -->
+  <!-- 1. Modal: Add & Manage Custom Sunnah Prayer -->
   <div id="modal-custom-prayer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -783,7 +792,7 @@
         <div>
           <div class="font-bold text-slate-700 mb-2">Active Custom Sunnah Prayers:</div>
           <div id="custom-prayers-list" class="space-y-1.5 max-h-48 overflow-y-auto">
-            <!-- Dynamically populated list of custom prayers with remove buttons -->
+            <!-- Dynamically populated list of custom prayers with edit and delete buttons -->
           </div>
         </div>
 
@@ -837,7 +846,7 @@
         <div>
           <div class="font-bold text-slate-700 mb-2">Student's Current Custom Badges:</div>
           <div id="student-custom-badges-container" class="flex flex-wrap gap-1.5 min-h-12 p-2 bg-slate-50 border border-slate-200 rounded-xl">
-            <!-- Dynamically populated chips with remove buttons -->
+            <!-- Dynamically populated chips with edit and remove buttons -->
           </div>
         </div>
 
@@ -899,7 +908,138 @@
     </div>
   </div>
 
-  <!-- 4. Modal: Rewards & Points Rubric Settings -->
+  <!-- 4. Modal: Manage Student Bonus Points History -->
+  <div id="modal-student-bonus-history" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-history"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-800">Student Bonus Points History</h3>
+            <p id="modal-bonus-history-student-sub" class="text-[11px] text-amber-700 font-bold">Student Name</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-student-bonus-history">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="modal-bonus-history-student-id">
+
+        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div>
+            <span class="text-[10px] font-bold text-slate-500 uppercase">Total Bonus Points</span>
+            <div id="modal-bonus-history-total" class="font-black text-base text-purple-700 leading-tight">0 pts</div>
+          </div>
+          <button type="button" id="btn-history-award-new" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs transition cursor-pointer">
+            <i class="fas fa-plus mr-1"></i>+ Award Points
+          </button>
+        </div>
+
+        <div class="overflow-x-auto max-h-64 overflow-y-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+              <tr>
+                <th class="py-2 px-3">Date</th>
+                <th class="py-2 px-3">Points</th>
+                <th class="py-2 px-3">Reason</th>
+                <th class="py-2 px-3">Awarded By</th>
+                <th class="py-2 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="bonus-history-table-tbody" class="divide-y divide-slate-100 font-medium">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 flex justify-end">
+          <button type="button" class="btn-close-modal py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer" data-modal="modal-student-bonus-history">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Modal: Edit Routine Task Definition -->
+  <div id="modal-edit-task-def" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-edit"></i>
+          </div>
+          <h3 class="font-black text-sm text-slate-800">Edit Routine Task Definition</h3>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-edit-task-def">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form id="form-edit-task-def" class="p-5 space-y-3 text-xs">
+        <input type="hidden" id="edit-task-id">
+
+        <div>
+          <label for="edit-task-title" class="block font-bold text-slate-700 mb-1">Task Title <span class="text-rose-500">*</span></label>
+          <input type="text" id="edit-task-title" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label for="edit-task-cadence" class="block font-bold text-slate-700 mb-1">Cadence / Frequency</label>
+            <select id="edit-task-cadence" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div>
+            <label for="edit-task-points" class="block font-bold text-slate-700 mb-1">Reward Points</label>
+            <input type="number" id="edit-task-points" min="1" max="100" class="w-full p-2.5 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none" required>
+          </div>
+        </div>
+
+        <div id="wrapper-edit-task-day-week" class="hidden">
+          <label for="edit-task-day-week" class="block font-bold text-slate-700 mb-1">Designated Day (Optional)</label>
+          <select id="edit-task-day-week" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none">
+            <option value="">Any Day (Unfixed)</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+          </select>
+        </div>
+
+        <div id="wrapper-edit-task-day-month" class="hidden">
+          <label for="edit-task-day-month" class="block font-bold text-slate-700 mb-1">Designated Day/Date (Optional)</label>
+          <select id="edit-task-day-month" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none">
+            <option value="">Any Date (Unfixed)</option>
+            <option value="1st of Month">1st of Month</option>
+            <option value="15th of Month">15th of Month</option>
+            <option value="Last Day of Month">Last Day of Month</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="submit" id="btn-save-edit-task-def" class="flex-grow py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Save Changes
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-edit-task-def">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. Modal: Rewards & Points Rubric Settings (Fully Customizable J/A/Q Points) -->
   <div id="modal-rewards-settings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -929,18 +1069,34 @@
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
             <div>
-              <div class="font-black text-slate-800">Jama'ah / Congregation Prayer</div>
+              <div class="font-black text-emerald-800">Jama'ah / Congregation Prayer [J]</div>
               <div class="text-[11px] text-slate-500">Points awarded for congregational prayer</div>
             </div>
-            <input type="number" id="rubric-pts-jamaah" value="15" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+            <input type="number" id="rubric-pts-jamaah" value="15" min="0" max="100" class="w-20 p-2 border border-emerald-300 rounded-xl font-black text-center text-emerald-900 bg-white outline-none">
           </div>
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
             <div>
-              <div class="font-black text-slate-800">On-Time / Ada' Individual Prayer</div>
+              <div class="font-black text-blue-800">On-Time / Ada' Individual Prayer [A]</div>
               <div class="text-[11px] text-slate-500">Points awarded for individual punctual performance</div>
             </div>
-            <input type="number" id="rubric-pts-adaa" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+            <input type="number" id="rubric-pts-adaa" value="10" min="0" max="100" class="w-20 p-2 border border-blue-300 rounded-xl font-black text-center text-blue-900 bg-white outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-rose-800">Qaza / Missed Prayer [Q]</div>
+              <div class="text-[11px] text-slate-500">Points or penalty for missed/late prayer (default: 0)</div>
+            </div>
+            <input type="number" id="rubric-pts-qaza" value="0" min="-50" max="50" class="w-20 p-2 border border-rose-300 rounded-xl font-black text-center text-rose-900 bg-white outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
+            <div>
+              <div class="font-black text-amber-800">Optional Sunnah Prayer Completed</div>
+              <div class="text-[11px] text-slate-500">Points awarded per extra Sunnah prayer performed</div>
+            </div>
+            <input type="number" id="rubric-pts-sunnah" value="5" min="0" max="50" class="w-20 p-2 border border-amber-300 rounded-xl font-black text-center text-amber-900 bg-white outline-none">
           </div>
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
@@ -957,6 +1113,27 @@
             Save Rubric Settings
           </button>
           <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-rewards-settings">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Modal: In-App Action Confirmation -->
+  <div id="modal-confirm-action" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-5 text-center space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center text-xl mx-auto">
+          <i class="fas fa-triangle-exclamation"></i>
+        </div>
+        <h3 id="modal-confirm-title" class="font-black text-sm text-slate-900">Confirm Action</h3>
+        <p id="modal-confirm-msg" class="text-xs text-slate-500">Are you sure you want to perform this action? This operation cannot be undone.</p>
+        <div class="flex items-center gap-2 pt-3">
+          <button type="button" id="btn-confirm-action-ok" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Yes, Confirm
+          </button>
+          <button type="button" id="btn-confirm-action-cancel" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer">
             Cancel
           </button>
         </div>
