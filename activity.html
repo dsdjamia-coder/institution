@@ -74,6 +74,113 @@
       color: #f59e0b !important;
     }
 
+    /* 2D Frozen / Sticky Table Styles */
+    .sticky-table-container {
+      position: relative;
+      overflow: auto;
+      max-height: 68vh;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      background: #ffffff;
+      -webkit-overflow-scrolling: touch;
+    }
+    .sticky-table {
+      border-collapse: separate !important;
+      border-spacing: 0 !important;
+      width: 100%;
+      font-size: 12px;
+    }
+    .sticky-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: #f1f5f9;
+      border-bottom: 2px solid #cbd5e1;
+      padding: 10px 12px;
+    }
+    /* Fixed Left Columns */
+    .sticky-col-idx {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background: #ffffff;
+      min-width: 44px;
+      max-width: 44px;
+      width: 44px;
+      text-align: center;
+      border-right: 1px solid #e2e8f0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .sticky-col-adm {
+      position: sticky;
+      left: 44px;
+      z-index: 10;
+      background: #ffffff;
+      min-width: 75px;
+      max-width: 85px;
+      width: 75px;
+      border-right: 1px solid #e2e8f0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .sticky-col-name {
+      position: sticky;
+      left: 119px;
+      z-index: 10;
+      background: #ffffff;
+      min-width: 150px;
+      max-width: 190px;
+      width: 160px;
+      border-right: 2px solid #cbd5e1;
+      border-bottom: 1px solid #f1f5f9;
+      box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.08);
+    }
+    /* Top Left Corner intersections have z-index 30 */
+    .sticky-corner-idx {
+      position: sticky;
+      top: 0;
+      left: 0;
+      z-index: 30 !important;
+      background: #e2e8f0 !important;
+      min-width: 44px;
+      max-width: 44px;
+      width: 44px;
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 2px solid #94a3b8;
+    }
+    .sticky-corner-adm {
+      position: sticky;
+      top: 0;
+      left: 44px;
+      z-index: 30 !important;
+      background: #e2e8f0 !important;
+      min-width: 75px;
+      max-width: 85px;
+      width: 75px;
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 2px solid #94a3b8;
+    }
+    .sticky-corner-name {
+      position: sticky;
+      top: 0;
+      left: 119px;
+      z-index: 30 !important;
+      background: #e2e8f0 !important;
+      min-width: 150px;
+      max-width: 190px;
+      width: 160px;
+      border-right: 2px solid #cbd5e1;
+      border-bottom: 2px solid #94a3b8;
+      box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.1);
+    }
+    .sticky-table tbody tr:hover td {
+      background-color: #f8fafc;
+    }
+    .sticky-table tbody tr:hover .sticky-col-idx,
+    .sticky-table tbody tr:hover .sticky-col-adm,
+    .sticky-table tbody tr:hover .sticky-col-name {
+      background-color: #f1f5f9;
+    }
+
     @media (min-width: 1024px) {
       #activity-app.has-desktop-sidebar #side-drawer {
         transform: translateX(0) !important;
@@ -201,7 +308,7 @@
           </div>
           <div class="drawer-header-title min-w-0">
             <h2 class="font-extrabold text-sm text-slate-900 truncate">Activity &amp; Rewards</h2>
-            <p class="text-[10px] text-slate-500 font-bold truncate">Tasks, Prayers &amp; Badges</p>
+            <p class="text-[10px] text-slate-500 font-bold truncate">Habits, Prayers &amp; Badges</p>
           </div>
         </div>
         <button id="sidebar-collapse-btn" class="text-gray-500 hover:text-amber-600 hover:bg-amber-50 p-2 rounded-lg transition flex items-center justify-center shrink-0" title="Collapse / Expand sidebar">
@@ -217,14 +324,14 @@
           <span class="nav-text truncate">Dashboard</span>
         </a>
 
-        <div class="drawer-heading">Routine &amp; Tasks</div>
-        <a href="#task-setup" class="drawer-link" data-tab="tab-task-setup" title="Manage &amp; Add Tasks">
+        <div class="drawer-heading">Habits &amp; Conduct</div>
+        <a href="#task-setup" class="drawer-link" data-tab="tab-task-setup" title="Manage Habits &amp; Tasks">
           <i class="fas fa-plus-circle w-5 text-center shrink-0"></i>
-          <span class="nav-text truncate">Manage Tasks</span>
+          <span class="nav-text truncate">Manage Habits</span>
         </a>
-        <a href="#tasks" class="drawer-link" data-tab="tab-tasks" title="Routine Tasks Checklist">
+        <a href="#tasks" class="drawer-link" data-tab="tab-tasks" title="Daily Habits &amp; Tasks Checklist">
           <i class="fas fa-list-check w-5 text-center shrink-0"></i>
-          <span class="nav-text truncate">Routine Tasks</span>
+          <span class="nav-text truncate">Daily Habits</span>
         </a>
 
         <div class="drawer-heading">Daily Prayers</div>
@@ -304,13 +411,13 @@
               </div>
             </div>
 
-            <!-- Today's Tasks Completion -->
+            <!-- Today's Habits Completion -->
             <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3.5">
               <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-xl shrink-0">
                 <i class="fas fa-list-check"></i>
               </div>
               <div class="min-w-0">
-                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Tasks Done</div>
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Habits Done</div>
                 <div id="dash-stat-tasks" class="text-xl sm:text-2xl font-black text-blue-600 leading-tight">0%</div>
                 <div id="dash-stat-tasks-sub" class="text-[11px] text-slate-500 font-semibold truncate">Today's Routine</div>
               </div>
@@ -329,106 +436,95 @@
             </div>
           </div>
 
-          <!-- Quick Navigation Cards -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-prayer">
-              <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
-                <i class="fas fa-hands-praying"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-emerald-700 transition">Prayer Tracker</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">5 Fard &amp; Sunnah prayers with 1-click bulk mark</p>
-              </div>
-            </button>
-
-            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-tasks">
-              <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
-                <i class="fas fa-list-check"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-blue-700 transition">Routine Tasks</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">Daily, weekly, and monthly routine checklist</p>
-              </div>
-            </button>
-
-            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-task-setup">
-              <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
-                <i class="fas fa-plus-circle"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-amber-700 transition">Manage Tasks</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">Add custom daily, weekly &amp; monthly tasks</p>
-              </div>
-            </button>
-
-            <button type="button" class="dash-quick-nav p-4 bg-white hover:bg-purple-50/50 border border-slate-200 hover:border-purple-300 rounded-2xl transition text-left shadow-2xs group flex items-start gap-3 cursor-pointer" data-target="tab-rewards">
-              <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold group-hover:scale-105 transition shrink-0">
-                <i class="fas fa-trophy"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-sm text-slate-900 group-hover:text-purple-700 transition">Rewards &amp; Badges</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">Leaderboard, custom student badges &amp; points</p>
-              </div>
-            </button>
-          </div>
-
-          <!-- Mini Leaderboard Preview & Status Details -->
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- Top Performers Card -->
-            <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-2xs p-5">
-              <div class="flex items-center justify-between mb-4">
+          <!-- Section 1: Itemized Log Breakdown (Prayers & Habits Detail Tables) -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Card 1: Today's Prayers Detailed Audit -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+              <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
                 <div class="flex items-center gap-2">
-                  <i class="fas fa-award text-amber-500"></i>
-                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Top Class Performers</h3>
+                  <i class="fas fa-hands-praying text-emerald-600"></i>
+                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Today's Prayers Detail</h3>
                 </div>
-                <button type="button" class="dash-quick-nav text-xs font-bold text-amber-600 hover:underline cursor-pointer" data-target="tab-rewards">
-                  Full Leaderboard <i class="fas fa-arrow-right text-[10px] ml-1"></i>
+                <button type="button" class="dash-quick-nav px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer" data-target="tab-prayer">
+                  <span>Open Prayer Tracker</span>
+                  <i class="fas fa-arrow-right text-[10px]"></i>
                 </button>
               </div>
-              <div id="dash-top-performers-container" class="space-y-2.5">
-                <!-- Dynamically populated top 3 -->
-                <div class="p-6 text-center text-slate-400 font-bold text-xs">Loading performers...</div>
+
+              <div class="overflow-x-auto flex-1">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead class="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">Prayer</th>
+                      <th class="py-2.5 px-3 text-center">Recorded / Total</th>
+                      <th class="py-2.5 px-2 text-center text-emerald-700">Jama'ah [J]</th>
+                      <th class="py-2.5 px-2 text-center text-blue-700">Ada' [A]</th>
+                      <th class="py-2.5 px-2 text-center text-rose-700">Qaza [Q]</th>
+                      <th class="py-2.5 px-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash-prayers-detail-tbody" class="divide-y divide-slate-100 font-medium">
+                    <!-- Dynamically populated with Subh, Zuhr, Asr, Maghrib, Isha, Sunnahs -->
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <!-- Today's Log Status -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 flex flex-col justify-between">
-              <div>
-                <div class="flex items-center gap-2 mb-3">
-                  <i class="fas fa-calendar-check text-emerald-600"></i>
-                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Today's Log Status</h3>
+            <!-- Card 2: Today's Habits & Tasks Detailed Audit -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+              <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                  <i class="fas fa-list-check text-blue-600"></i>
+                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Today's Habits &amp; Tasks</h3>
                 </div>
-                <p class="text-xs text-slate-500 mb-4 font-medium">Quick verification for today's logs:</p>
-
-                <div class="space-y-3 text-xs">
-                  <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <div class="flex items-center gap-2">
-                      <i class="fas fa-hands-praying text-slate-600"></i>
-                      <span class="font-bold text-slate-800">5 Daily Prayers</span>
-                    </div>
-                    <span id="dash-status-prayer-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600">Pending</span>
-                  </div>
-
-                  <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <div class="flex items-center gap-2">
-                      <i class="fas fa-list-check text-slate-600"></i>
-                      <span class="font-bold text-slate-800">Routine Tasks</span>
-                    </div>
-                    <span id="dash-status-tasks-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600">Pending</span>
-                  </div>
-                </div>
+                <button type="button" class="dash-quick-nav px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer" data-target="tab-tasks">
+                  <span>Open Daily Habits</span>
+                  <i class="fas fa-arrow-right text-[10px]"></i>
+                </button>
               </div>
 
-              <div class="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Real-time database sync</span>
-                <span class="text-emerald-600 font-bold"><i class="fas fa-circle text-[8px] mr-1"></i>Active</span>
+              <div class="overflow-x-auto flex-1">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead class="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">Habit / Task</th>
+                      <th class="py-2.5 px-3 text-center">Cadence</th>
+                      <th class="py-2.5 px-3 text-center">Completed</th>
+                      <th class="py-2.5 px-3 text-center">Progress</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash-tasks-detail-tbody" class="divide-y divide-slate-100 font-medium">
+                    <!-- Dynamically populated with each configured task -->
+                  </tbody>
+                </table>
               </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Past Days Incomplete & Pending Logs Alert Card -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">
+                  <i class="fas fa-clock-rotate-left"></i>
+                </div>
+                <div>
+                  <h3 class="font-black text-sm text-slate-900">Past Days Pending Logs Tracker</h3>
+                  <p class="text-[11px] text-slate-500 font-medium">Review and complete missing or unlogged days from the past 7 days</p>
+                </div>
+              </div>
+              <span id="dash-backlog-summary-badge" class="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Checking backlog...</span>
+            </div>
+
+            <!-- Dynamic Backlog Alert Container -->
+            <div id="dash-backlog-container" class="space-y-2">
+              <div class="p-6 text-center text-slate-400 font-bold text-xs">Scanning recent days for missing logs...</div>
             </div>
           </div>
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 2: MANAGE & ADD TASKS                  -->
+        <!-- TAB 2: MANAGE & ADD HABITS & TASKS         -->
         <!-- ========================================== -->
         <section id="tab-task-setup" class="tab-content hidden space-y-5">
           <!-- Add New Task Card -->
@@ -439,16 +535,16 @@
                   <i class="fas fa-plus"></i>
                 </div>
                 <div>
-                  <h3 class="font-extrabold text-sm text-slate-900">Add New Routine Task</h3>
+                  <h3 class="font-extrabold text-sm text-slate-900">Add New Habit / Task</h3>
                   <p class="text-[11px] text-slate-500 font-semibold">Create routine tasks for Daily, Weekly or Monthly cadence</p>
                 </div>
               </div>
-              <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">Custom Task Setup</span>
+              <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">Custom Setup</span>
             </div>
 
             <form id="form-add-task-def" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
               <div class="md:col-span-2">
-                <label for="task-def-title" class="block font-bold text-slate-700 mb-1">Task Title <span class="text-rose-500">*</span></label>
+                <label for="task-def-title" class="block font-bold text-slate-700 mb-1">Habit / Task Title <span class="text-rose-500">*</span></label>
                 <input type="text" id="task-def-title" placeholder="e.g. Morning Adhkar, Uniform Cleanliness, Surah Al-Kahf" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
               </div>
 
@@ -492,7 +588,7 @@
 
               <div class="md:col-span-4 flex justify-end gap-2 pt-2">
                 <button type="submit" id="btn-save-new-task-def" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                  <i class="fas fa-plus"></i> Add &amp; Save Task
+                  <i class="fas fa-plus"></i> Add &amp; Save Habit
                 </button>
               </div>
             </form>
@@ -503,7 +599,7 @@
             <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <i class="fas fa-list-check text-amber-600"></i>
-                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">All Configured Tasks</h3>
+                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">All Configured Habits &amp; Tasks</h3>
               </div>
               <div class="flex items-center gap-1">
                 <button type="button" class="task-def-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white" data-filter="all">All</button>
@@ -518,7 +614,7 @@
                 <thead>
                   <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
                     <th class="py-2.5 px-3">#</th>
-                    <th class="py-2.5 px-4">Task Title</th>
+                    <th class="py-2.5 px-4">Habit / Task Title</th>
                     <th class="py-2.5 px-3 text-center">Frequency</th>
                     <th class="py-2.5 px-3 text-center">Schedule / Day</th>
                     <th class="py-2.5 px-3 text-center">Points</th>
@@ -534,7 +630,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 3: ROUTINE TASKS MATRIX                -->
+        <!-- TAB 3: DAILY HABITS & TASKS MATRIX         -->
         <!-- ========================================== -->
         <section id="tab-tasks" class="tab-content hidden space-y-4">
           <!-- Controls Bar -->
@@ -549,13 +645,14 @@
                 <input type="date" id="tasks-date-input" class="p-1.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-amber-500">
               </div>
 
-              <!-- Cadence Filters -->
+              <!-- Cadence Filters (With ALL option) -->
               <div>
                 <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Cadence</label>
                 <div class="inline-flex rounded-xl border border-slate-200 p-0.5 bg-slate-100">
+                  <button type="button" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-200" data-freq="all">All</button>
                   <button type="button" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer bg-amber-500 text-white shadow-2xs" data-freq="daily">Daily</button>
-                  <button type="button" id="btn-tasks-cadence-weekly" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-100" data-freq="weekly">Weekly</button>
-                  <button type="button" id="btn-tasks-cadence-monthly" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-100" data-freq="monthly">Monthly</button>
+                  <button type="button" id="btn-tasks-cadence-weekly" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-200" data-freq="weekly">Weekly</button>
+                  <button type="button" id="btn-tasks-cadence-monthly" class="tasks-freq-btn px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-slate-600 hover:bg-slate-200" data-freq="monthly">Monthly</button>
                 </div>
               </div>
             </div>
@@ -566,29 +663,27 @@
                 <i class="fas fa-clock mr-1"></i>Unsaved Changes
               </span>
               <button type="button" id="btn-save-tasks" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-floppy-disk"></i> Save Routine Tasks
+                <i class="fas fa-floppy-disk"></i> Save Habits Log
               </button>
               <button type="button" id="btn-tasks-clear-all" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
                 Clear All
               </button>
               <button type="button" class="dash-quick-nav px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer" data-target="tab-task-setup">
-                <i class="fas fa-plus"></i> Manage Tasks
+                <i class="fas fa-plus"></i> Manage Habits
               </button>
             </div>
           </div>
 
-          <!-- Tasks Matrix Table Container -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse text-xs">
-                <thead id="tasks-roster-thead">
-                  <!-- Dynamically populated with columns, each task has individual Mark All bulk button -->
-                </thead>
-                <tbody id="tasks-roster-tbody" class="divide-y divide-slate-100 font-medium">
-                  <!-- Dynamically populated rows -->
-                </tbody>
-              </table>
-            </div>
+          <!-- Sticky 2D Frozen Tasks Matrix Table Container -->
+          <div class="sticky-table-container shadow-2xs">
+            <table class="sticky-table text-left text-xs">
+              <thead id="tasks-roster-thead">
+                <!-- Dynamically populated with sticky columns and task headers -->
+              </thead>
+              <tbody id="tasks-roster-tbody" class="divide-y divide-slate-100 font-medium">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -609,11 +704,14 @@
               </div>
             </div>
 
-            <!-- Action Buttons (Strict Explicit Save Workflow) -->
+            <!-- Action Buttons (Strict Explicit Save Workflow + Prayer Rules Button) -->
             <div class="flex items-center gap-2 flex-wrap">
               <span id="prayer-unsaved-badge" class="hidden text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-xl font-bold text-xs">
                 <i class="fas fa-clock mr-1"></i>Unsaved Changes
               </span>
+              <button type="button" id="btn-open-prayer-points-config" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Configure custom points for Jama'ah, Ada', and Qaza">
+                <i class="fas fa-sliders text-amber-600"></i> Prayer Points Rules
+              </button>
               <button type="button" id="btn-open-custom-prayer" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer">
                 <i class="fas fa-plus text-amber-600"></i> Add Sunnah Prayer
               </button>
@@ -623,34 +721,36 @@
             </div>
           </div>
 
-          <!-- Prayer Status Legend -->
+          <!-- Dynamic Prayer Points Status Legend -->
           <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-around flex-wrap gap-2 text-xs">
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-600 text-white">J</span>
-              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> In Masjid</span>
+              <span class="text-slate-700"><strong>Jama'ah (Congregation):</strong> In Masjid (<span id="legend-pts-jamaah" class="font-bold text-emerald-700">+15</span> pts)</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white">A</span>
-              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> Individual</span>
+              <span class="text-slate-700"><strong>Ada' (On-Time):</strong> Individual (<span id="legend-pts-adaa" class="font-bold text-blue-700">+10</span> pts)</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">Q</span>
-              <span class="text-slate-700"><strong>Qaza (Missed):</strong> Late or missed</span>
+              <span class="text-slate-700"><strong>Qaza (Missed):</strong> Late or missed (<span id="legend-pts-qaza" class="font-bold text-rose-700">0</span> pts)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500 text-white">S</span>
+              <span class="text-slate-700"><strong>Sunnah:</strong> Extra prayers (<span id="legend-pts-sunnah" class="font-bold text-amber-700">+5</span> pts)</span>
             </div>
           </div>
 
-          <!-- Prayer Roster Matrix Container -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse text-xs">
-                <thead id="prayer-roster-thead">
-                  <!-- Dynamically populated: 5 Fard prayers + custom Sunnahs, with [J] [A] [Q] bulk buttons under each heading -->
-                </thead>
-                <tbody id="prayer-roster-tbody" class="divide-y divide-slate-100 font-medium">
-                  <!-- Dynamically populated -->
-                </tbody>
-              </table>
-            </div>
+          <!-- Sticky 2D Frozen Prayer Roster Matrix Container -->
+          <div class="sticky-table-container shadow-2xs">
+            <table class="sticky-table text-left text-xs">
+              <thead id="prayer-roster-thead">
+                <!-- Dynamically populated: 5 Fard prayers + custom Sunnahs, with [J] [A] [Q] bulk buttons under each heading -->
+              </thead>
+              <tbody id="prayer-roster-tbody" class="divide-y divide-slate-100 font-medium">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -739,7 +839,7 @@
                     <th class="py-2.5 px-4">Student Name</th>
                     <th class="py-2.5 px-3 text-center">Att. Pts</th>
                     <th class="py-2.5 px-3 text-center">Prayer Pts</th>
-                    <th class="py-2.5 px-3 text-center">Tasks Pts</th>
+                    <th class="py-2.5 px-3 text-center">Habits Pts</th>
                     <th class="py-2.5 px-3 text-center">Bonus Pts</th>
                     <th class="py-2.5 px-3 text-center">Total Points</th>
                     <th class="py-2.5 px-4">Badges &amp; Honors</th>
@@ -965,7 +1065,7 @@
     </div>
   </div>
 
-  <!-- 5. Modal: Edit Routine Task Definition -->
+  <!-- 5. Modal: Edit Habit / Task Definition -->
   <div id="modal-edit-task-def" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -973,7 +1073,7 @@
           <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
             <i class="fas fa-edit"></i>
           </div>
-          <h3 class="font-black text-sm text-slate-800">Edit Routine Task Definition</h3>
+          <h3 class="font-black text-sm text-slate-800">Edit Habit / Task Definition</h3>
         </div>
         <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-edit-task-def">
           <i class="fas fa-times"></i>
@@ -984,7 +1084,7 @@
         <input type="hidden" id="edit-task-id">
 
         <div>
-          <label for="edit-task-title" class="block font-bold text-slate-700 mb-1">Task Title <span class="text-rose-500">*</span></label>
+          <label for="edit-task-title" class="block font-bold text-slate-700 mb-1">Habit / Task Title <span class="text-rose-500">*</span></label>
           <input type="text" id="edit-task-title" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
         </div>
 
@@ -1039,7 +1139,77 @@
     </div>
   </div>
 
-  <!-- 6. Modal: Rewards & Points Rubric Settings (Fully Customizable J/A/Q Points) -->
+  <!-- 6. Modal: Configure Prayer Points Rules (Jama'ah, Ada', Qaza with Minus Marks) -->
+  <div id="modal-prayer-points-config" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-sliders"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-800">Prayer Points Rules</h3>
+            <p class="text-[10px] text-amber-700 font-bold">Applies to all 5 Fard &amp; Sunnah prayers automatically</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-prayer-points-config">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs">
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+          <span class="text-[11px] font-bold text-slate-700">Unified Prayer Rules:</span>
+          <p class="text-[10px] text-slate-500">Configure points for each prayer status once. Supports positive marks, zero, or minus/penalty marks (e.g., -5 for Qaza). These rules automatically govern all prayers across the institution.</p>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between p-2.5 border border-emerald-200 bg-emerald-50/50 rounded-xl">
+            <div>
+              <div class="font-black text-emerald-900">Jama'ah [J] (Masjid / Congregation)</div>
+              <div class="text-[10px] text-emerald-700">Points for praying in congregation</div>
+            </div>
+            <input type="number" id="modal-prayer-pts-jamaah" value="15" min="-100" max="100" class="w-20 p-2 border border-emerald-300 bg-white rounded-xl font-black text-center text-emerald-900 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-blue-200 bg-blue-50/50 rounded-xl">
+            <div>
+              <div class="font-black text-blue-900">Ada' [A] (On-Time Individual)</div>
+              <div class="text-[10px] text-blue-700">Points for praying on-time individually</div>
+            </div>
+            <input type="number" id="modal-prayer-pts-adaa" value="10" min="-100" max="100" class="w-20 p-2 border border-blue-300 bg-white rounded-xl font-black text-center text-blue-900 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-rose-200 bg-rose-50/50 rounded-xl">
+            <div>
+              <div class="font-black text-rose-900">Qaza [Q] (Missed or Late)</div>
+              <div class="text-[10px] text-rose-700">Supports negative penalty marks (e.g. -5, -10, or 0)</div>
+            </div>
+            <input type="number" id="modal-prayer-pts-qaza" value="0" min="-100" max="100" class="w-20 p-2 border border-rose-300 bg-white rounded-xl font-black text-center text-rose-900 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 border border-amber-200 bg-amber-50/50 rounded-xl">
+            <div>
+              <div class="font-black text-amber-900">Sunnah Prayers Completed</div>
+              <div class="text-[10px] text-amber-700">Bonus points awarded per completed Sunnah prayer</div>
+            </div>
+            <input type="number" id="modal-prayer-pts-sunnah" value="5" min="-100" max="100" class="w-20 p-2 border border-amber-300 bg-white rounded-xl font-black text-center text-amber-900 outline-none">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <button type="button" id="btn-save-prayer-points-config" class="flex-grow py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Save &amp; Apply to All Prayers
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-prayer-points-config">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Modal: Rewards & Points Rubric Settings -->
   <div id="modal-rewards-settings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -1069,39 +1239,7 @@
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
             <div>
-              <div class="font-black text-emerald-800">Jama'ah / Congregation Prayer [J]</div>
-              <div class="text-[11px] text-slate-500">Points awarded for congregational prayer</div>
-            </div>
-            <input type="number" id="rubric-pts-jamaah" value="15" min="0" max="100" class="w-20 p-2 border border-emerald-300 rounded-xl font-black text-center text-emerald-900 bg-white outline-none">
-          </div>
-
-          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
-            <div>
-              <div class="font-black text-blue-800">On-Time / Ada' Individual Prayer [A]</div>
-              <div class="text-[11px] text-slate-500">Points awarded for individual punctual performance</div>
-            </div>
-            <input type="number" id="rubric-pts-adaa" value="10" min="0" max="100" class="w-20 p-2 border border-blue-300 rounded-xl font-black text-center text-blue-900 bg-white outline-none">
-          </div>
-
-          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
-            <div>
-              <div class="font-black text-rose-800">Qaza / Missed Prayer [Q]</div>
-              <div class="text-[11px] text-slate-500">Points or penalty for missed/late prayer (default: 0)</div>
-            </div>
-            <input type="number" id="rubric-pts-qaza" value="0" min="-50" max="50" class="w-20 p-2 border border-rose-300 rounded-xl font-black text-center text-rose-900 bg-white outline-none">
-          </div>
-
-          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
-            <div>
-              <div class="font-black text-amber-800">Optional Sunnah Prayer Completed</div>
-              <div class="text-[11px] text-slate-500">Points awarded per extra Sunnah prayer performed</div>
-            </div>
-            <input type="number" id="rubric-pts-sunnah" value="5" min="0" max="50" class="w-20 p-2 border border-amber-300 rounded-xl font-black text-center text-amber-900 bg-white outline-none">
-          </div>
-
-          <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
-            <div>
-              <div class="font-black text-slate-800">Standard Routine Task Completion</div>
+              <div class="font-black text-slate-800">Habits / Tasks Completion</div>
               <div class="text-[11px] text-slate-500">Default points per completed task</div>
             </div>
             <input type="number" id="rubric-pts-task" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
@@ -1120,7 +1258,7 @@
     </div>
   </div>
 
-  <!-- 7. Modal: In-App Action Confirmation -->
+  <!-- 8. Modal: In-App Action Confirmation -->
   <div id="modal-confirm-action" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-5 text-center space-y-3">

@@ -259,6 +259,24 @@ const initTabNavigation = () => {
                     history.pushState(null, '', hash);
                 }
             }
+            return;
+        }
+
+        const btnBacklog = e.target.closest('.btn-resolve-backlog');
+        if (btnBacklog) {
+            const targetTab = btnBacklog.dataset.target;
+            const targetDate = btnBacklog.dataset.date;
+            if (targetTab === 'tab-prayer') {
+                const dateInput = document.getElementById('prayer-date-input');
+                if (dateInput && targetDate) dateInput.value = targetDate;
+                activateTab('tab-prayer');
+                loadPrayerRoster();
+            } else if (targetTab === 'tab-tasks') {
+                const dateInput = document.getElementById('tasks-date-input');
+                if (dateInput && targetDate) dateInput.value = targetDate;
+                activateTab('tab-tasks');
+                loadTasksRoster();
+            }
         }
     });
 
@@ -320,6 +338,7 @@ const initApp = async () => {
             }
         }
         await restoreSessionContext();
+        await loadRewardsRubric();
         setupRealtimeListeners();
         setupEventListeners();
     });
@@ -501,6 +520,14 @@ const setupRealtimeListeners = () => {
             loadRewardsLeaderboard();
         }
     });
+
+    // 9. Rewards & Prayer Points Rubric Listener
+    onSnapshot(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), (snap) => {
+        if (snap.exists() && snap.data().points) {
+            currentRewardsRubric = { ...currentRewardsRubric, ...snap.data().points };
+        }
+        updatePrayerStatusLegendPoints();
+    });
 };
 
 const getAllowedClassesForTeacher = () => {
@@ -565,16 +592,25 @@ const loadDashboardView = async () => {
     const tasksSubEl = document.getElementById('dash-stat-tasks-sub');
     const pointsEl = document.getElementById('dash-stat-points');
     const badgesSubEl = document.getElementById('dash-stat-badges-sub');
-    const topContainer = document.getElementById('dash-top-performers-container');
     const statusPrayerBadge = document.getElementById('dash-status-prayer-badge');
     const statusTasksBadge = document.getElementById('dash-status-tasks-badge');
+
+    const prayersDetailTbody = document.getElementById('dash-prayers-detail-tbody');
+    const tasksDetailTbody = document.getElementById('dash-tasks-detail-tbody');
+    const backlogContainer = document.getElementById('dash-backlog-container');
+    const backlogSummaryBadge = document.getElementById('dash-backlog-summary-badge');
 
     if (!selectedDashClass) {
         if (studentsEl) studentsEl.textContent = '0';
         if (prayerEl) prayerEl.textContent = '0%';
+        if (prayerSubEl) prayerSubEl.textContent = '0 of 0 Recorded';
         if (tasksEl) tasksEl.textContent = '0%';
+        if (tasksSubEl) tasksSubEl.textContent = '0 Tasks Completed';
         if (pointsEl) pointsEl.textContent = '0';
-        if (topContainer) topContainer.innerHTML = `<div class="p-4 text-center text-slate-400 font-bold">No class selected.</div>`;
+        if (badgesSubEl) badgesSubEl.textContent = '0 Badges Active';
+        if (prayersDetailTbody) prayersDetailTbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 font-bold">No class selected.</td></tr>`;
+        if (tasksDetailTbody) tasksDetailTbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No class selected.</td></tr>`;
+        if (backlogContainer) backlogContainer.innerHTML = `<div class="p-6 text-center text-slate-400 font-bold text-xs">Please select a class to view status.</div>`;
         return;
     }
 
@@ -584,15 +620,16 @@ const loadDashboardView = async () => {
 
     const todayDate = getTodayDateString();
 
-    // 1. Fetch Today's Prayer Record for this class
+    // 1. Fetch Today's Prayer Record
     let prayerLoggedCount = 0;
+    let prayerRecs = {};
     try {
         const prayerDocId = `${currentAcademicYear}__${selectedDashClass}__${todayDate}`;
         const pSnap = await getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId));
         if (pSnap.exists()) {
-            const recs = pSnap.data().records || {};
+            prayerRecs = pSnap.data().records || {};
             classStudents.forEach(st => {
-                if (recs[st.id] && (recs[st.id].subh || recs[st.id].zuhr || recs[st.id].asr || recs[st.id].maghrib || recs[st.id].isha)) {
+                if (prayerRecs[st.id] && (prayerRecs[st.id].subh || prayerRecs[st.id].zuhr || prayerRecs[st.id].asr || prayerRecs[st.id].maghrib || prayerRecs[st.id].isha)) {
                     prayerLoggedCount++;
                 }
             });
@@ -604,35 +641,129 @@ const loadDashboardView = async () => {
     if (prayerSubEl) prayerSubEl.textContent = `${prayerLoggedCount} of ${totalStudents} Recorded`;
 
     if (statusPrayerBadge) {
-        if (prayerLoggedCount > 0) {
+        if (prayerLoggedCount === totalStudents && totalStudents > 0) {
             statusPrayerBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300';
-            statusPrayerBadge.textContent = prayerLoggedCount === totalStudents ? 'Completed' : 'Partially Logged';
+            statusPrayerBadge.textContent = 'Completed';
+        } else if (prayerLoggedCount > 0) {
+            statusPrayerBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300';
+            statusPrayerBadge.textContent = 'Partially Logged';
         } else {
             statusPrayerBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600';
             statusPrayerBadge.textContent = 'Pending';
         }
     }
 
-    // 2. Fetch Today's Tasks Record
+    // Populate Itemized Prayers Table
+    const activePrayers = getAllActivePrayers();
+    if (prayersDetailTbody) {
+        if (!totalStudents) {
+            prayersDetailTbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 font-bold">No active students in Class ${escapeHtml(selectedDashClass)}.</td></tr>`;
+        } else {
+            prayersDetailTbody.innerHTML = activePrayers.map(p => {
+                let jCount = 0;
+                let aCount = 0;
+                let qCount = 0;
+                let recordedCount = 0;
+
+                classStudents.forEach(st => {
+                    const stRec = prayerRecs[st.id];
+                    if (stRec && stRec[p.key]) {
+                        recordedCount++;
+                        if (stRec[p.key] === 'J') jCount++;
+                        else if (stRec[p.key] === 'A') aCount++;
+                        else if (stRec[p.key] === 'Q') qCount++;
+                    }
+                });
+
+                const isComplete = recordedCount === totalStudents;
+                const isPartial = recordedCount > 0 && recordedCount < totalStudents;
+                let statusBadge = '';
+                if (isComplete) {
+                    statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">Complete</span>';
+                } else if (isPartial) {
+                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">${totalStudents - recordedCount} Pending</span>`;
+                } else {
+                    statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500">Not Logged</span>';
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50/80">
+                        <td class="py-2.5 px-3 font-black text-slate-800">
+                            ${escapeHtml(p.name)}
+                            ${p.isSunnah ? '<span class="text-[9px] text-amber-700 font-bold ml-1 uppercase">(Sunnah)</span>' : ''}
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-bold text-slate-700">${recordedCount} / ${totalStudents}</td>
+                        <td class="py-2.5 px-2 text-center font-black text-emerald-700 bg-emerald-50/40">${jCount}</td>
+                        <td class="py-2.5 px-2 text-center font-black text-blue-700 bg-blue-50/40">${aCount}</td>
+                        <td class="py-2.5 px-2 text-center font-black text-rose-700 bg-rose-50/40">${qCount}</td>
+                        <td class="py-2.5 px-3 text-center">${statusBadge}</td>
+                    </tr>`;
+            }).join('');
+        }
+    }
+
+    // 2. Fetch Today's Tasks Record (Daily, Weekly, Monthly)
+    const cadences = ['daily', 'weekly', 'monthly'];
+    const todayTaskComps = {};
+    try {
+        const tSnaps = await Promise.all(cadences.map(cad =>
+            getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${currentAcademicYear}__${selectedDashClass}__${todayDate}__${cad}`))
+        ));
+        tSnaps.forEach(s => {
+            if (s.exists()) {
+                const c = s.data().completions || {};
+                Object.keys(c).forEach(id => {
+                    todayTaskComps[id] = Object.assign(todayTaskComps[id] || {}, c[id]);
+                });
+            }
+        });
+    } catch (_) {}
+
     let tasksCheckedCount = 0;
     let totalPossibleTasks = 0;
-    const dailyDefs = taskDefsList.filter(t => t.cadence === 'daily');
-    try {
-        const taskDocId = `${currentAcademicYear}__${selectedDashClass}__${todayDate}__daily`;
-        const tSnap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, taskDocId));
-        if (tSnap.exists()) {
-            const comps = tSnap.data().completions || {};
-            classStudents.forEach(st => {
-                const stComps = comps[st.id] || {};
-                dailyDefs.forEach(t => {
-                    totalPossibleTasks++;
-                    if (stComps[t.id]) tasksCheckedCount++;
-                });
-            });
+
+    if (tasksDetailTbody) {
+        if (!taskDefsList.length) {
+            tasksDetailTbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No habits or tasks defined yet.</td></tr>`;
+        } else if (!totalStudents) {
+            tasksDetailTbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No active students in Class ${escapeHtml(selectedDashClass)}.</td></tr>`;
         } else {
-            totalPossibleTasks = totalStudents * dailyDefs.length;
+            tasksDetailTbody.innerHTML = taskDefsList.map(t => {
+                let completedCount = 0;
+                classStudents.forEach(st => {
+                    totalPossibleTasks++;
+                    if (todayTaskComps[st.id] && todayTaskComps[st.id][t.id]) {
+                        completedCount++;
+                        tasksCheckedCount++;
+                    }
+                });
+                const pct = totalStudents > 0 ? Math.round((completedCount / totalStudents) * 100) : 0;
+
+                let cadenceBadge = '';
+                if (t.cadence === 'daily') cadenceBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">Daily</span>';
+                else if (t.cadence === 'weekly') cadenceBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200">Weekly</span>';
+                else cadenceBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200">Monthly</span>';
+
+                return `
+                    <tr class="hover:bg-slate-50/80">
+                        <td class="py-2.5 px-3">
+                            <div class="font-extrabold text-slate-900">${escapeHtml(t.title)}</div>
+                            <span class="text-[10px] text-amber-700 font-bold">+${t.points} pts</span>
+                        </td>
+                        <td class="py-2.5 px-3 text-center">${cadenceBadge}</td>
+                        <td class="py-2.5 px-3 text-center font-bold text-slate-700">${completedCount} of ${totalStudents}</td>
+                        <td class="py-2.5 px-3 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <div class="w-16 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: ${pct}%"></div>
+                                </div>
+                                <span class="text-[10px] font-black text-slate-600 min-w-[28px]">${pct}%</span>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
         }
-    } catch (_) {}
+    }
 
     const tasksPct = totalPossibleTasks > 0 ? Math.round((tasksCheckedCount / totalPossibleTasks) * 100) : 0;
     if (tasksEl) tasksEl.textContent = `${tasksPct}%`;
@@ -648,67 +779,165 @@ const loadDashboardView = async () => {
         }
     }
 
-    // 3. Compute Top Performers & Total Badges for Dashboard
+    // 3. Overall Points & Badges Stat Cards
     let totalBadgesCount = 0;
     let aggregatePoints = 0;
-
-    const studentRoster = classStudents.map(student => {
+    classStudents.forEach(student => {
         const attPts = (currentRewardsRubric.attendance || 5) * 12;
         const prayerPts = (currentRewardsRubric.jamaah || 15) * 5;
         const taskPts = (currentRewardsRubric.task || 10) * 3;
-
         const bonusList = studentBonusPointsMap[student.id] || [];
         const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
-
         const customBadges = studentCustomBadgesMap[student.id] || [];
         const autoBadges = [];
         const total = attPts + prayerPts + taskPts + bonusPts;
-
         if (total >= 200) autoBadges.push('Punctual Star');
         if (prayerPts >= 70) autoBadges.push('Prayer Champion');
         if (bonusPts > 0) autoBadges.push('Exemplary Adab');
-
-        const allBadges = [...autoBadges, ...customBadges];
-        totalBadgesCount += allBadges.length;
+        totalBadgesCount += autoBadges.length + customBadges.length;
         aggregatePoints += total;
-
-        return {
-            student,
-            total,
-            badges: allBadges
-        };
     });
-
-    studentRoster.sort((a, b) => b.total - a.total);
 
     if (pointsEl) pointsEl.textContent = aggregatePoints;
     if (badgesSubEl) badgesSubEl.textContent = `${totalBadgesCount} Badges Active`;
 
-    if (topContainer) {
-        const top3 = studentRoster.slice(0, 3);
-        if (!top3.length) {
-            topContainer.innerHTML = `<div class="p-6 text-center text-slate-400 font-bold text-xs">No active students in Class ${selectedDashClass}.</div>`;
-        } else {
-            topContainer.innerHTML = top3.map((item, idx) => {
-                const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
-                const medalBg = idx === 0 ? 'bg-amber-100 text-amber-800 border-amber-300' : (idx === 1 ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-amber-50 text-amber-700 border-amber-200');
+    // 4. Past 7 Days Backlog Scanner
+    const pastDays = [];
+    const now = new Date();
+    for (let i = 1; i <= 7; i++) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        pastDays.push(d.toISOString().split('T')[0]);
+    }
 
-                return `
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-amber-50/40 border border-slate-200 transition">
-                        <div class="flex items-center gap-3">
-                            <span class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm border ${medalBg}">${medal}</span>
-                            <div>
-                                <h4 class="font-extrabold text-xs text-slate-900 leading-tight">${escapeHtml(item.student.name || '--')}</h4>
-                                <span class="text-[10px] text-slate-500 font-mono">Adm: ${escapeHtml(item.student.adm || item.student.admNo || '-')}</span>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-black text-xs text-amber-700">${item.total} pts</div>
-                            <div class="text-[10px] text-slate-500 font-bold">${item.badges.length} badges</div>
-                        </div>
-                    </div>`;
-            }).join('');
+    try {
+        const backlogScanPromises = pastDays.map(async (dayStr) => {
+            const prayerDocId = `${currentAcademicYear}__${selectedDashClass}__${dayStr}`;
+            const tasksDocId = `${currentAcademicYear}__${selectedDashClass}__${dayStr}__daily`;
+
+            const [pastPrayerSnap, pastTaskSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId)),
+                getDoc(doc(db, `${BASE_PATH}/taskCompletions`, tasksDocId))
+            ]);
+
+            let prayerMissing = true;
+            let prayerPartial = false;
+            let pLoggedCount = 0;
+
+            if (pastPrayerSnap.exists()) {
+                const recs = pastPrayerSnap.data().records || {};
+                classStudents.forEach(st => {
+                    if (recs[st.id] && (recs[st.id].subh || recs[st.id].zuhr || recs[st.id].asr || recs[st.id].maghrib || recs[st.id].isha)) {
+                        pLoggedCount++;
+                    }
+                });
+                if (pLoggedCount > 0) {
+                    prayerMissing = false;
+                    if (pLoggedCount < totalStudents) {
+                        prayerPartial = true;
+                    }
+                }
+            }
+
+            let tasksMissing = true;
+            if (pastTaskSnap.exists()) {
+                const comps = pastTaskSnap.data().completions || {};
+                let anyChecked = false;
+                classStudents.forEach(st => {
+                    if (comps[st.id] && Object.values(comps[st.id]).some(Boolean)) {
+                        anyChecked = true;
+                    }
+                });
+                if (anyChecked) {
+                    tasksMissing = false;
+                }
+            }
+
+            const hasIssue = prayerMissing || prayerPartial || tasksMissing;
+            return {
+                date: dayStr,
+                prayerMissing,
+                prayerPartial,
+                prayerLoggedCount: pLoggedCount,
+                tasksMissing,
+                hasIssue
+            };
+        });
+
+        const backlogResults = await Promise.all(backlogScanPromises);
+        const incompleteDays = backlogResults.filter(r => r.hasIssue);
+
+        if (backlogSummaryBadge) {
+            if (incompleteDays.length === 0) {
+                backlogSummaryBadge.className = 'text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300';
+                backlogSummaryBadge.textContent = 'All Logs Up-to-Date (Past 7 Days)';
+            } else {
+                backlogSummaryBadge.className = 'text-xs font-bold px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-300';
+                backlogSummaryBadge.textContent = `${incompleteDays.length} Pending Day${incompleteDays.length > 1 ? 's' : ''}`;
+            }
         }
+
+        if (backlogContainer) {
+            if (incompleteDays.length === 0) {
+                backlogContainer.innerHTML = `
+                    <div class="p-6 text-center text-emerald-700 font-bold text-xs bg-emerald-50 rounded-xl border border-emerald-200">
+                        <i class="fas fa-check-circle mr-1.5 text-emerald-600"></i>
+                        All prayer and daily habit logs for the past 7 days are complete!
+                    </div>`;
+            } else {
+                backlogContainer.innerHTML = incompleteDays.map(item => {
+                    const dateObj = new Date(item.date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+
+                    let prayerBadge = '';
+                    let prayerAction = '';
+                    if (item.prayerMissing) {
+                        prayerBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">Prayer Not Logged</span>`;
+                        prayerAction = `<button type="button" class="btn-resolve-backlog px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] transition cursor-pointer shadow-2xs" data-target="tab-prayer" data-date="${item.date}"><i class="fas fa-hands-praying mr-1"></i>Log Prayer</button>`;
+                    } else if (item.prayerPartial) {
+                        prayerBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">Prayer Partial (${totalStudents - item.prayerLoggedCount} pending)</span>`;
+                        prayerAction = `<button type="button" class="btn-resolve-backlog px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] transition cursor-pointer shadow-2xs" data-target="tab-prayer" data-date="${item.date}"><i class="fas fa-hands-praying mr-1"></i>Complete Prayer</button>`;
+                    } else {
+                        prayerBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">Prayer Complete</span>`;
+                    }
+
+                    let taskBadge = '';
+                    let taskAction = '';
+                    if (item.tasksMissing) {
+                        taskBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">Daily Habits Missing</span>`;
+                        taskAction = `<button type="button" class="btn-resolve-backlog px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] transition cursor-pointer shadow-2xs" data-target="tab-tasks" data-date="${item.date}"><i class="fas fa-list-check mr-1"></i>Log Habits</button>`;
+                    } else {
+                        taskBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">Habits Complete</span>`;
+                    }
+
+                    return `
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 hover:bg-amber-50/50 transition flex-wrap gap-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-xs shrink-0">
+                                    <i class="fas fa-calendar-day"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="font-extrabold text-xs text-slate-900">${formattedDate}</span>
+                                        <span class="text-[10px] font-semibold text-slate-500">(${dayName})</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                                        ${prayerBadge}
+                                        ${taskBadge}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5 ml-auto">
+                                ${prayerAction}
+                                ${taskAction}
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+        }
+    } catch (err) {
+        console.warn('Failed to scan recent backlog:', err);
     }
 };
 
@@ -852,7 +1081,7 @@ const saveTaskDefinitionsToFirestore = async (tasks) => {
 };
 
 // =========================================================================
-// MODULE 3: ROUTINE TASKS CHECKLIST (WITH EXPLICIT SAVE & UNCHECKED BADGE)
+// MODULE 3: HABITS & TASKS CHECKLIST (WITH 2D FROZEN TABLE & CADENCE ALL)
 // =========================================================================
 const loadTasksRoster = async () => {
     const allowed = getAllowedClassesForTeacher();
@@ -869,12 +1098,34 @@ const loadTasksRoster = async () => {
         return;
     }
 
-    const currentCadenceTasks = taskDefsList.filter(t => t.cadence === currentTaskCadence);
+    let currentCadenceTasks = [];
+    if (currentTaskCadence === 'all') {
+        currentCadenceTasks = taskDefsList;
+    } else {
+        currentCadenceTasks = taskDefsList.filter(t => t.cadence === currentTaskCadence);
+    }
 
     try {
-        const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
-        const snap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
-        taskCompletionsMap = snap.exists() ? (snap.data().completions || {}) : {};
+        if (currentTaskCadence === 'all') {
+            const cadences = ['daily', 'weekly', 'monthly'];
+            const snaps = await Promise.all(cadences.map(cad =>
+                getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${cad}`))
+            ));
+            taskCompletionsMap = {};
+            snaps.forEach(snap => {
+                if (snap.exists()) {
+                    const comps = snap.data().completions || {};
+                    Object.keys(comps).forEach(sId => {
+                        if (!taskCompletionsMap[sId]) taskCompletionsMap[sId] = {};
+                        Object.assign(taskCompletionsMap[sId], comps[sId]);
+                    });
+                }
+            });
+        } else {
+            const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
+            const snap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
+            taskCompletionsMap = snap.exists() ? (snap.data().completions || {}) : {};
+        }
     } catch (_) {
         taskCompletionsMap = {};
     }
@@ -882,23 +1133,25 @@ const loadTasksRoster = async () => {
     if (thead) {
         thead.innerHTML = `
             <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-                <th class="py-2.5 px-3">#</th>
-                <th class="py-2.5 px-3">Adm No</th>
-                <th class="py-2.5 px-4">Student Name</th>
+                <th class="sticky-corner-idx py-2.5 px-3">#</th>
+                <th class="sticky-corner-adm py-2.5 px-3">Adm No</th>
+                <th class="sticky-corner-name py-2.5 px-4 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">Student Name</th>
                 ${currentCadenceTasks.map(t => {
                     let schedTag = '';
-                    if (t.cadence === 'weekly' && t.dayOfWeek) schedTag = `<div class="text-[9px] text-amber-700 font-normal">(${t.dayOfWeek})</div>`;
-                    if (t.cadence === 'monthly' && t.dayOfMonth) schedTag = `<div class="text-[9px] text-purple-700 font-normal">(${t.dayOfMonth})</div>`;
+                    if (t.cadence === 'weekly' && t.dayOfWeek) schedTag = `<div class="text-[9px] text-amber-700 font-normal">(${escapeHtml(t.dayOfWeek)})</div>`;
+                    if (t.cadence === 'monthly' && t.dayOfMonth) schedTag = `<div class="text-[9px] text-purple-700 font-normal">(${escapeHtml(t.dayOfMonth)})</div>`;
+                    let cadenceTag = currentTaskCadence === 'all' ? `<div class="text-[9px] text-slate-400 font-bold uppercase">${t.cadence}</div>` : '';
                     return `
-                        <th class="py-2 px-3 text-center">
-                            <div class="font-extrabold text-slate-800 text-[11px]">${escapeHtml(t.title)} (${t.points}p)</div>
+                        <th class="py-2 px-3 text-center min-w-[130px]">
+                            ${cadenceTag}
+                            <div class="font-extrabold text-slate-800 text-[11px] leading-tight">${escapeHtml(t.title)} (${t.points}p)</div>
                             ${schedTag}
                             <button type="button" class="btn-bulk-task-col mt-1 px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-600 hover:text-white text-amber-900 font-black text-[10px] transition cursor-pointer" data-task-id="${t.id}" title="Toggle All for ${escapeHtml(t.title)}">
                                 <i class="fas fa-check-double mr-1"></i>All
                             </button>
                         </th>`;
                 }).join('')}
-                <th class="py-2.5 px-3 text-center">Score</th>
+                <th class="py-2.5 px-3 text-center min-w-[80px]">Score</th>
             </tr>`;
     }
 
@@ -915,10 +1168,10 @@ const loadTasksRoster = async () => {
         let score = 0;
 
         return `
-            <tr class="hover:bg-slate-50/80" data-student-id="${student.id}">
-                <td class="py-2 px-3 font-bold text-slate-400">${idx + 1}</td>
-                <td class="py-2 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
-                <td class="py-2 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
+            <tr class="hover:bg-slate-50/80 group" data-student-id="${student.id}">
+                <td class="sticky-col-idx py-2 px-3 font-bold text-slate-400 group-hover:bg-slate-50">${idx + 1}</td>
+                <td class="sticky-col-adm py-2 px-3 font-mono font-bold text-slate-600 group-hover:bg-slate-50">${escapeHtml(student.adm || student.admNo || '-')}</td>
+                <td class="sticky-col-name py-2 px-4 font-black text-slate-900 group-hover:bg-slate-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">${escapeHtml(student.name || '--')}</td>
                 ${currentCadenceTasks.map(t => {
                     const done = Boolean(studentTasks[t.id]);
                     if (done) score += Number(t.points || 0);
@@ -938,22 +1191,44 @@ const saveTasksCompletionsToFirestore = async () => {
         return alert('You can only save task completions for your assigned classes.');
     }
 
-    const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
     try {
-        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
-            completions: taskCompletionsMap,
-            updatedAt: Date.now()
-        }, { merge: true });
+        if (currentTaskCadence === 'all') {
+            const cadences = ['daily', 'weekly', 'monthly'];
+            const savePromises = cadences.map(cad => {
+                const cadenceTasks = taskDefsList.filter(t => t.cadence === cad);
+                const cadenceComps = {};
+                Object.keys(taskCompletionsMap).forEach(sId => {
+                    cadenceComps[sId] = {};
+                    cadenceTasks.forEach(t => {
+                        if (taskCompletionsMap[sId] && taskCompletionsMap[sId][t.id] !== undefined) {
+                            cadenceComps[sId][t.id] = Boolean(taskCompletionsMap[sId][t.id]);
+                        }
+                    });
+                });
+                const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${cad}`;
+                return setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
+                    completions: cadenceComps,
+                    updatedAt: Date.now()
+                }, { merge: true });
+            });
+            await Promise.all(savePromises);
+        } else {
+            const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
+            await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
+                completions: taskCompletionsMap,
+                updatedAt: Date.now()
+            }, { merge: true });
+        }
 
         setTasksUnsavedState(false);
-        showToast('Routine tasks saved successfully!', 'success');
+        showToast('Habits and tasks saved successfully!', 'success');
     } catch (err) {
         alert('Failed to save task completions: ' + err.message);
     }
 };
 
 // =========================================================================
-// MODULE 4: PRAYER TRACKER (WITH CUSTOM SUNNAH EDIT/DELETE & EXPLICIT SAVE)
+// MODULE 4: PRAYER TRACKER (WITH 2D FROZEN TABLE, CUSTOM SUNNAH & EXPLICIT SAVE)
 // =========================================================================
 const DEFAULT_FARD_PRAYERS = [
     { key: 'subh', name: 'Subh' },
@@ -1022,11 +1297,11 @@ const loadPrayerRoster = async () => {
     if (thead) {
         thead.innerHTML = `
             <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-                <th class="py-2.5 px-3">#</th>
-                <th class="py-2.5 px-3">Adm No</th>
-                <th class="py-2.5 px-4">Student Name</th>
+                <th class="sticky-corner-idx py-2.5 px-3">#</th>
+                <th class="sticky-corner-adm py-2.5 px-3">Adm No</th>
+                <th class="sticky-corner-name py-2.5 px-4 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">Student Name</th>
                 ${activePrayers.map(p => `
-                    <th class="py-2 px-2 text-center" data-prayer-col="${p.key}">
+                    <th class="py-2 px-2 text-center min-w-[125px]" data-prayer-col="${p.key}">
                         <div class="font-extrabold text-slate-900 text-xs">${escapeHtml(p.name)}</div>
                         ${p.isSunnah ? '<span class="text-[9px] text-amber-700 font-bold uppercase">(Sunnah)</span>' : ''}
                         <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-white shadow-2xs mt-1">
@@ -1051,10 +1326,10 @@ const loadPrayerRoster = async () => {
         const rec = prayerRecordsMap[student.id] || {};
 
         return `
-            <tr class="hover:bg-slate-50/80" data-student-id="${student.id}">
-                <td class="py-2.5 px-3 font-bold text-slate-400">${idx + 1}</td>
-                <td class="py-2.5 px-3 font-mono font-bold text-slate-600">${escapeHtml(student.adm || student.admNo || '-')}</td>
-                <td class="py-2.5 px-4 font-black text-slate-900">${escapeHtml(student.name || '--')}</td>
+            <tr class="hover:bg-slate-50/80 group" data-student-id="${student.id}">
+                <td class="sticky-col-idx py-2.5 px-3 font-bold text-slate-400 group-hover:bg-slate-50">${idx + 1}</td>
+                <td class="sticky-col-adm py-2.5 px-3 font-mono font-bold text-slate-600 group-hover:bg-slate-50">${escapeHtml(student.adm || student.admNo || '-')}</td>
+                <td class="sticky-col-name py-2.5 px-4 font-black text-slate-900 group-hover:bg-slate-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">${escapeHtml(student.name || '--')}</td>
                 ${activePrayers.map(p => {
                     const status = rec[p.key] || 'A';
                     return `
@@ -1113,6 +1388,71 @@ const savePrayerRecords = async () => {
 // =========================================================================
 // MODULE 5: REWARDS, POINTS, RUBRIC & BADGES LEADERBOARD LOGIC
 // =========================================================================
+const updatePrayerStatusLegendPoints = () => {
+    const elJ = document.getElementById('legend-pts-jamaah');
+    const elA = document.getElementById('legend-pts-adaa');
+    const elQ = document.getElementById('legend-pts-qaza');
+    const elS = document.getElementById('legend-pts-sunnah');
+
+    const jVal = Number(currentRewardsRubric.jamaah ?? 15);
+    const aVal = Number(currentRewardsRubric.adaa ?? 10);
+    const qVal = Number(currentRewardsRubric.qaza ?? 0);
+    const sVal = Number(currentRewardsRubric.sunnah ?? 5);
+
+    if (elJ) elJ.textContent = `${jVal >= 0 ? '+' : ''}${jVal}`;
+    if (elA) elA.textContent = `${aVal >= 0 ? '+' : ''}${aVal}`;
+    if (elQ) elQ.textContent = `${qVal > 0 ? '+' : ''}${qVal}`;
+    if (elS) elS.textContent = `${sVal >= 0 ? '+' : ''}${sVal}`;
+};
+
+const openPrayerPointsConfigModal = () => {
+    const inJ = document.getElementById('modal-prayer-pts-jamaah');
+    const inA = document.getElementById('modal-prayer-pts-adaa');
+    const inQ = document.getElementById('modal-prayer-pts-qaza');
+    const inS = document.getElementById('modal-prayer-pts-sunnah');
+
+    if (inJ) inJ.value = currentRewardsRubric.jamaah ?? 15;
+    if (inA) inA.value = currentRewardsRubric.adaa ?? 10;
+    if (inQ) inQ.value = currentRewardsRubric.qaza ?? 0;
+    if (inS) inS.value = currentRewardsRubric.sunnah ?? 5;
+
+    openModal('modal-prayer-points-config');
+};
+
+const savePrayerPointsConfig = async () => {
+    const inJ = document.getElementById('modal-prayer-pts-jamaah');
+    const inA = document.getElementById('modal-prayer-pts-adaa');
+    const inQ = document.getElementById('modal-prayer-pts-qaza');
+    const inS = document.getElementById('modal-prayer-pts-sunnah');
+
+    const jamaah = inJ ? Number(inJ.value) : (currentRewardsRubric.jamaah ?? 15);
+    const adaa = inA ? Number(inA.value) : (currentRewardsRubric.adaa ?? 10);
+    const qaza = inQ ? Number(inQ.value) : (currentRewardsRubric.qaza ?? 0);
+    const sunnah = inS ? Number(inS.value) : (currentRewardsRubric.sunnah ?? 5);
+
+    currentRewardsRubric = {
+        ...currentRewardsRubric,
+        jamaah,
+        adaa,
+        qaza,
+        sunnah
+    };
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), {
+            points: currentRewardsRubric,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-prayer-points-config');
+        updatePrayerStatusLegendPoints();
+        showToast('Prayer points rules updated & applied to all prayers!', 'success');
+        if (selectedPrayerClass) loadPrayerRoster();
+    } catch (err) {
+        alert('Failed to save prayer points rules: ' + err.message);
+    }
+};
+
 const loadRewardsRubric = async () => {
     const year = currentAcademicYear;
     try {
@@ -1123,6 +1463,7 @@ const loadRewardsRubric = async () => {
     } catch (err) {
         console.error('Failed to load rewards rubric:', err);
     }
+    updatePrayerStatusLegendPoints();
 };
 
 const openRewardsSettingsModal = () => {
@@ -1160,6 +1501,7 @@ const saveRewardsRubric = async () => {
         }, { merge: true });
 
         closeModal('modal-rewards-settings');
+        updatePrayerStatusLegendPoints();
         showToast('Points and rubric settings updated!', 'success');
         loadRewardsLeaderboard();
     } catch (err) {
@@ -1939,6 +2281,10 @@ const setupEventListeners = () => {
             });
         }
     });
+
+    // Prayer Points Rules modal
+    document.getElementById('btn-open-prayer-points-config')?.addEventListener('click', openPrayerPointsConfigModal);
+    document.getElementById('btn-save-prayer-points-config')?.addEventListener('click', savePrayerPointsConfig);
 
     // 6. Rewards & Leaderboard Listeners
     document.getElementById('rewards-class-select')?.addEventListener('change', loadRewardsLeaderboard);
