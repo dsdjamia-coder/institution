@@ -86,6 +86,15 @@ const getOffDaysFromWeekendDays = (weekendDays = [5]) => {
 // --- Timetable State ---
 let selectedTtClass = '';
 let isTimetableEditMode = false;
+let currentClassSlots = [];
+let editingTtSlotId = null;
+let editingExamSessionId = null;
+
+const getDefaultClassSlots = () => [
+    { slotId: 'period_1', slotNum: 1, label: 'Period 1', startTime: '07:00 AM', endTime: '08:00 AM', isBreak: false },
+    { slotId: 'period_2', slotNum: 2, label: 'Period 2', startTime: '08:00 AM', endTime: '09:00 AM', isBreak: false }
+];
+
 let timetableConfig = {
     workingDays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'],
     offDays: ['Friday'],
@@ -322,11 +331,12 @@ const activateTab = (targetTabId) => {
         const y = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
         const c = document.getElementById('exam-tt-class-select')?.value || '1';
         loadAvailableExams(y, c).then(() => {
-            if (examViewMode === 'master') {
-                loadMasterExamTimetable();
-            } else {
-                loadExamTimetable();
-            }
+            loadExamTimetable();
+        });
+    } else if (targetTabId === 'tab-master-timetable') {
+        const y = document.getElementById('master-tt-academic-year')?.value || currentAcademicYear;
+        loadAvailableExams(y, 'all').then(() => {
+            loadMasterExamTimetable();
         });
     }
 };
@@ -351,6 +361,7 @@ const initTabNavigation = () => {
     if (hash === '#timetable') activateTab('tab-timetable');
     else if (hash === '#year-plan' || hash === '#yearplan') activateTab('tab-yearplan');
     else if (hash === '#exam-schedule') activateTab('tab-exam-schedule');
+    else if (hash === '#master-timetable') activateTab('tab-master-timetable');
     else activateTab('tab-subjects');
 };
 
@@ -542,7 +553,8 @@ const populateAcademicYearDropdowns = () => {
         'subj-academic-year',
         'tt-academic-year',
         'yp-academic-year',
-        'exam-tt-academic-year'
+        'exam-tt-academic-year',
+        'master-tt-academic-year'
     ];
     
     dropdownIds.forEach(id => {
@@ -569,11 +581,14 @@ const populateAcademicYearDropdowns = () => {
 };
 
 const getAllowedClassesForTeacher = () => {
-    if (isSuperAdmin || teacherAssignedClasses.length === 0) {
+    if (isSuperAdmin) {
         return allClasses;
     }
-    const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
-    return filtered.length ? filtered : allClasses;
+    if (teacherAssignedClasses && teacherAssignedClasses.length > 0) {
+        const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
+        if (filtered.length) return filtered;
+    }
+    return allClasses;
 };
 
 const populateClassDropdowns = () => {
@@ -852,7 +867,7 @@ const loadAllClassCardsData = async (year = currentAcademicYear) => {
 
 const loadClassSubjects = async () => {
     const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
-    selectedSubjectsClass = document.getElementById('subj-class-select')?.value || 'all';
+    selectedSubjectsClass = 'all';
 
     await loadAllClassCardsData(year);
     renderClassSubjectsUI();
@@ -864,25 +879,7 @@ const renderClassSubjectsUI = () => {
     if (!grid) return;
 
     const allowed = getAllowedClassesForTeacher();
-    const filterClass = document.getElementById('subj-class-select')?.value || 'all';
-    const searchQuery = String(document.getElementById('subj-search-input')?.value || '').trim().toLowerCase();
-
-    let targetClasses = (filterClass === 'all')
-        ? allowed
-        : allowed.filter(c => isClassInDutyScope(c, [filterClass]));
-
-    if (searchQuery) {
-        targetClasses = targetClasses.filter(c => {
-            const data = classCardsData[c] || { subjects: [] };
-            const classMatch = `class ${c}`.toLowerCase().includes(searchQuery) || c.toLowerCase().includes(searchQuery);
-            const subjectMatch = data.subjects.some(s => 
-                String(s.name || '').toLowerCase().includes(searchQuery) ||
-                String(s.code || '').toLowerCase().includes(searchQuery) ||
-                String(s.teacher || '').toLowerCase().includes(searchQuery)
-            );
-            return classMatch || subjectMatch;
-        });
-    }
+    const targetClasses = allowed;
 
     let totalSubjectsAcrossCards = 0;
     targetClasses.forEach(c => {
@@ -897,8 +894,8 @@ const renderClassSubjectsUI = () => {
         grid.innerHTML = `
             <div class="col-span-full p-12 text-center text-slate-400 font-bold bg-white rounded-3xl border border-slate-200">
                 <i class="fas fa-layer-group text-4xl mb-3 text-slate-300 block"></i>
-                No classes match the selected filter or search criteria.<br>
-                <span class="text-xs text-slate-500 font-medium">Try clearing the search box or changing the class filter.</span>
+                No duty classes assigned for this account.<br>
+                <span class="text-xs text-slate-500 font-medium">Please contact administrator to configure assigned classes.</span>
             </div>`;
         return;
     }
@@ -1252,8 +1249,15 @@ const loadTimetable = async () => {
                 getDoc(doc(db, `${BASE_PATH}/timetables`, docId)).catch(() => null),
                 getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
             ]);
+            let clsSlots = getDefaultClassSlots();
+            if (tSnap && tSnap.exists()) {
+                const td = tSnap.data();
+                if (Array.isArray(td.slots) && td.slots.length) clsSlots = td.slots;
+                else if (td.config && Array.isArray(td.config.slots) && td.config.slots.length) clsSlots = td.config.slots;
+            }
             return {
                 classLabel: cls,
+                slots: clsSlots,
                 matrix: tSnap && tSnap.exists() ? (tSnap.data().matrix || {}) : {},
                 subjects: sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects) ? sSnap.data().subjects : []
             };
@@ -1277,15 +1281,16 @@ const loadTimetable = async () => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             timetableMatrix = data.matrix || {};
-            if (data.config && Array.isArray(data.config.slots) && data.config.slots.length) {
-                if (!timetableConfig.slots || !timetableConfig.slots.length) {
-                    timetableConfig.slots = data.config.slots;
-                    timetableConfig.periodsCount = data.config.slots.length;
-                    timetableConfig.timings = data.config.timings || [];
-                }
+            if (Array.isArray(data.slots) && data.slots.length > 0) {
+                currentClassSlots = data.slots;
+            } else if (data.config && Array.isArray(data.config.slots) && data.config.slots.length > 0) {
+                currentClassSlots = data.config.slots;
+            } else {
+                currentClassSlots = getDefaultClassSlots();
             }
         } else {
             timetableMatrix = {};
+            currentClassSlots = getDefaultClassSlots();
         }
         // Always enforce institutional working days and off days derived from attendanceConfig
         timetableConfig.workingDays = getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
@@ -1334,7 +1339,9 @@ const renderTimetableMatrixUI = () => {
         ? timetableConfig.workingDays
         : getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
 
-    const slots = normalizeTimetableSlots(timetableConfig);
+    const slots = (selectedTtClass !== 'all' && Array.isArray(currentClassSlots) && currentClassSlots.length > 0)
+        ? currentClassSlots
+        : normalizeTimetableSlots(timetableConfig);
     const teachingSlotsCount = slots.filter(s => !s.isBreak).length;
 
     if (workingDaysBadge) workingDaysBadge.textContent = `${workingDays.length} Working Days / Wk`;
@@ -1345,8 +1352,9 @@ const renderTimetableMatrixUI = () => {
     if (selectedTtClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
         grid.innerHTML = allowed.map(cls => {
-            const cData = allClassesTimetables[cls] || { matrix: {}, subjects: [] };
+            const cData = allClassesTimetables[cls] || { matrix: {}, subjects: [], slots: [] };
             const matrix = cData.matrix || {};
+            const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0) ? cData.slots : slots;
 
             return `
                 <div class="mb-8 bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -1362,7 +1370,7 @@ const renderTimetableMatrixUI = () => {
                             <thead>
                                 <tr class="bg-slate-50 text-slate-700 uppercase font-extrabold border-b border-slate-200">
                                     <th class="py-2.5 px-3 border-r border-slate-200 w-28 bg-slate-100 font-black">Day / Period</th>
-                                    ${slots.map(s => `
+                                    ${cSlots.map(s => `
                                         <th class="py-2 px-2.5 border-r border-slate-200 min-w-[120px] text-center ${s.isBreak ? 'bg-amber-50 text-amber-900' : ''}">
                                             <div class="font-black text-[11px]">${escapeHtml(s.label)}</div>
                                             <div class="text-[9px] font-semibold text-slate-500">${s.startTime} - ${s.endTime}</div>
@@ -1376,11 +1384,12 @@ const renderTimetableMatrixUI = () => {
                                         <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/70 whitespace-nowrap">
                                             <i class="fas fa-calendar-day text-indigo-600 mr-1.5 text-xs"></i>${day}
                                         </td>
-                                        ${slots.map((s, pIdx) => {
+                                        ${cSlots.map((s, pIdx) => {
                                             const p = pIdx + 1;
                                             const slotKey = `${day}_${s.slotId}`;
                                             const legacyKey = `${day}_${p}`;
-                                            const sData = matrix[slotKey] || matrix[legacyKey] || {};
+                                            const legacyNumKey = `${day}_${s.slotNum}`;
+                                            const sData = matrix[slotKey] || matrix[legacyKey] || matrix[legacyNumKey] || {};
                                             if (s.isBreak) {
                                                 return `<td class="p-2 border-r border-slate-200 text-center bg-amber-50/30 text-amber-700 font-black text-[10px] uppercase select-none"><i class="fas fa-mug-hot text-amber-500 mr-1"></i>${escapeHtml(s.label)}</td>`;
                                             }
@@ -1419,21 +1428,47 @@ const renderTimetableMatrixUI = () => {
     slots.forEach((slot) => {
         if (slot.isBreak) {
             html += `
-                <th class="py-2.5 px-3 border-r border-slate-200 min-w-[100px] text-center bg-amber-50/70 border-b-2 border-b-amber-300">
-                    <div class="text-[11px] font-black text-amber-900 tracking-wider flex items-center justify-center gap-1.5">
-                        <i class="fas fa-mug-hot text-amber-600 text-xs"></i> ${escapeHtml(slot.label)}
+                <th class="py-2.5 px-3 border-r border-slate-200 min-w-[130px] text-center bg-amber-50/70 border-b-2 border-b-amber-300">
+                    <div class="flex items-center justify-between gap-1 mb-1">
+                        <span class="text-[10px] font-black text-amber-900 tracking-wider flex items-center gap-1">
+                            <i class="fas fa-mug-hot text-amber-600"></i> ${escapeHtml(slot.label)}
+                        </span>
+                        <div class="flex items-center gap-0.5">
+                            <button type="button" class="btn-edit-tt-slot p-1 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer" data-slot-id="${slot.slotId}" title="Edit Break">
+                                <i class="fas fa-pen-to-square text-[11px]"></i>
+                            </button>
+                            <button type="button" class="btn-delete-tt-slot p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer" data-slot-id="${slot.slotId}" title="Delete Break">
+                                <i class="fas fa-trash-can text-[11px]"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="text-[10px] font-bold text-amber-700/80 mt-0.5">${slot.startTime} - ${slot.endTime}</div>
+                    <div class="text-[10px] font-bold text-amber-700/80">${slot.startTime} - ${slot.endTime}</div>
                 </th>`;
         } else {
             html += `
                 <th class="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">
-                    <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(slot.label)}</div>
+                    <div class="flex items-center justify-between gap-1 mb-1">
+                        <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(slot.label)}</div>
+                        <div class="flex items-center gap-0.5">
+                            <button type="button" class="btn-edit-tt-slot p-1 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer" data-slot-id="${slot.slotId}" title="Edit Period">
+                                <i class="fas fa-pen-to-square text-[11px]"></i>
+                            </button>
+                            <button type="button" class="btn-delete-tt-slot p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer" data-slot-id="${slot.slotId}" title="Delete Period">
+                                <i class="fas fa-trash-can text-[11px]"></i>
+                            </button>
+                        </div>
+                    </div>
                     <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${slot.startTime} - ${slot.endTime}</div>
                 </th>`;
         }
     });
-    html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
+    html += `
+        <th class="py-2.5 px-3 border-r border-slate-200 min-w-[75px] text-center bg-indigo-50/40">
+            <button type="button" id="btn-add-tt-slot-header" class="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Period or Break">
+                <i class="fas fa-plus"></i> Add
+            </button>
+        </th>
+    </tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
 
     workingDays.forEach(day => {
         html += `
@@ -1497,7 +1532,11 @@ const renderTimetableMatrixUI = () => {
                     </td>`;
             }
         });
-        html += `</tr>`;
+        html += `
+            <td class="p-2 border-r border-slate-200 bg-slate-50/20 text-center text-slate-300 font-bold text-xs select-none">
+                --
+            </td>
+        </tr>`;
     });
 
     html += `</tbody></table>`;
@@ -1559,6 +1598,7 @@ const saveTimetableMatrix = async () => {
     try {
         await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
             config: timetableConfig,
+            slots: currentClassSlots,
             matrix: timetableMatrix,
             updatedAt: Date.now()
         }, { merge: true });
@@ -1571,6 +1611,138 @@ const saveTimetableMatrix = async () => {
         }
     } catch (err) {
         alert('Failed to save timetable: ' + err.message);
+    }
+};
+
+const openAddEditTimetableSlotModal = (slotId = null) => {
+    editingTtSlotId = slotId;
+    const titleEl = document.getElementById('modal-tt-slot-title');
+    const subtitleEl = document.getElementById('modal-tt-slot-subtitle');
+    const idInput = document.getElementById('modal-tt-slot-id');
+    const labelInput = document.getElementById('modal-tt-slot-label');
+    const startInput = document.getElementById('modal-tt-slot-start');
+    const endInput = document.getElementById('modal-tt-slot-end');
+    const typeRadios = document.querySelectorAll('input[name="modal-tt-slot-type"]');
+
+    if (slotId) {
+        const slot = currentClassSlots.find(s => s.slotId === slotId);
+        if (!slot) return;
+        if (titleEl) titleEl.textContent = 'Edit Period / Break';
+        if (subtitleEl) subtitleEl.textContent = `Modify timing & label for Class ${selectedTtClass}`;
+        if (idInput) idInput.value = slot.slotId;
+        if (labelInput) labelInput.value = slot.label;
+        if (startInput) startInput.value = slot.startTime;
+        if (endInput) endInput.value = slot.endTime;
+        typeRadios.forEach(r => {
+            r.checked = slot.isBreak ? (r.value === 'break') : (r.value === 'period');
+        });
+    } else {
+        const nextNum = currentClassSlots.filter(s => !s.isBreak).length + 1;
+        if (titleEl) titleEl.textContent = 'Add Period / Break';
+        if (subtitleEl) subtitleEl.textContent = `Configure new slot for Class ${selectedTtClass}`;
+        if (idInput) idInput.value = '';
+        if (labelInput) labelInput.value = `Period ${nextNum}`;
+        if (startInput) startInput.value = '09:00';
+        if (endInput) endInput.value = '10:00';
+        typeRadios.forEach(r => {
+            r.checked = (r.value === 'period');
+        });
+    }
+    openModal('modal-add-edit-tt-slot');
+};
+
+const saveTimetableSlot = async () => {
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    if (!selectedTtClass || selectedTtClass === 'all') {
+        alert('Please select a specific class to configure periods.');
+        return;
+    }
+    const labelInput = document.getElementById('modal-tt-slot-label');
+    const startInput = document.getElementById('modal-tt-slot-start');
+    const endInput = document.getElementById('modal-tt-slot-end');
+    const isBreak = document.querySelector('input[name="modal-tt-slot-type"]:checked')?.value === 'break';
+
+    const label = labelInput?.value.trim();
+    const startTime = startInput?.value.trim() || '08:00';
+    const endTime = endInput?.value.trim() || '09:00';
+
+    if (!label) {
+        alert('Please provide a name or label for this slot.');
+        return;
+    }
+
+    if (editingTtSlotId) {
+        const idx = currentClassSlots.findIndex(s => s.slotId === editingTtSlotId);
+        if (idx !== -1) {
+            currentClassSlots[idx] = {
+                ...currentClassSlots[idx],
+                label,
+                startTime,
+                endTime,
+                isBreak
+            };
+        }
+    } else {
+        const slotNum = currentClassSlots.length + 1;
+        const newSlot = {
+            slotId: `slot_${Date.now()}`,
+            slotNum,
+            label,
+            startTime,
+            endTime,
+            isBreak
+        };
+        currentClassSlots.push(newSlot);
+    }
+
+    try {
+        const docId = getTimetableDocId(year, selectedTtClass);
+        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
+            slots: currentClassSlots,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-add-edit-tt-slot');
+        renderTimetableMatrixUI();
+        showToast('Timetable period saved successfully.', 'success');
+    } catch (err) {
+        alert('Failed to save period: ' + err.message);
+    }
+};
+
+const deleteTimetableSlot = async (slotId) => {
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    if (!selectedTtClass || selectedTtClass === 'all') return;
+    const targetSlot = currentClassSlots.find(s => s.slotId === slotId);
+    if (!targetSlot) return;
+
+    if (!confirm(`Are you sure you want to delete ${targetSlot.label}? Any assigned classes for this period will also be removed.`)) {
+        return;
+    }
+
+    currentClassSlots = currentClassSlots.filter(s => s.slotId !== slotId);
+
+    // Clean up matrix entries matching this slot
+    const cleanedMatrix = {};
+    Object.entries(timetableMatrix).forEach(([k, v]) => {
+        if (!k.endsWith(`_${slotId}`) && !k.endsWith(`_${targetSlot.slotNum}`)) {
+            cleanedMatrix[k] = v;
+        }
+    });
+    timetableMatrix = cleanedMatrix;
+
+    try {
+        const docId = getTimetableDocId(year, selectedTtClass);
+        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
+            slots: currentClassSlots,
+            matrix: timetableMatrix,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        renderTimetableMatrixUI();
+        showToast('Period removed successfully.', 'success');
+    } catch (err) {
+        alert('Failed to remove period: ' + err.message);
     }
 };
 
@@ -2060,7 +2232,7 @@ const renderYearPlanUI = () => {
                     <div class="p-4 bg-slate-100 border-b-2 border-slate-800 flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
-                            <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Monthly Syllabus Plan (المنهج الشهري)</h4>
+                            <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Monthly Syllabus Plan</h4>
                         </div>
                         <span class="text-xs text-slate-600 font-bold">${subjs.length} Subjects</span>
                     </div>
@@ -2068,8 +2240,8 @@ const renderYearPlanUI = () => {
                         <table class="w-full text-left border-collapse border-2 border-slate-800 text-xs">
                             <thead>
                                 <tr class="bg-slate-100 text-slate-800 border-b-2 border-slate-800 font-extrabold text-[11px]">
-                                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-serif text-slate-900">
-                                        الحصص / Periods
+                                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-black text-slate-900">
+                                        Periods Allocation
                                     </th>
                                     ${subjs.map(s => `
                                         <th class="py-2 px-3 border-r-2 border-slate-800 min-w-[150px] text-center font-black">
@@ -2078,8 +2250,8 @@ const renderYearPlanUI = () => {
                                     `).join('')}
                                 </tr>
                                 <tr class="bg-slate-50 text-slate-900 border-b-2 border-slate-800 font-black text-xs">
-                                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-serif bg-slate-200/60">
-                                        الشهور / Months
+                                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center bg-slate-200/60 font-black">
+                                        Academic Months
                                     </th>
                                     ${subjs.map(s => `
                                         <th class="py-2.5 px-3 border-r-2 border-slate-800 min-w-[150px] text-center">
@@ -2090,30 +2262,31 @@ const renderYearPlanUI = () => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y-2 divide-slate-800 font-medium">
-                                ${months.map(month => {
+                                ${months.map((month, mIdx) => {
                                     const isRevisionMonth = (month === 'Sha\'ban' || month === 'March');
                                     if (isRevisionMonth) {
                                         return `
                                             <tr class="bg-slate-100/90 border-b-2 border-slate-800">
-                                                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center font-serif text-sm">
+                                                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center text-sm">
                                                     ${month}
                                                 </td>
-                                                <td colspan="${subjs.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 font-serif bg-slate-100 border-r-2 border-slate-800 tracking-wider">
-                                                    المراجعة والإمتحانات السنوية (Revision &amp; Annual Examinations)
+                                                <td colspan="${subjs.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 bg-slate-100 border-r-2 border-slate-800 tracking-wider">
+                                                    Revision &amp; Annual Examinations
                                                 </td>
                                             </tr>`;
                                     }
 
                                     return `
                                         <tr class="hover:bg-slate-50 transition border-b border-slate-300">
-                                            <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center font-serif text-sm">
+                                            <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center text-sm">
                                                 ${month}
                                             </td>
                                             ${subjs.map(s => {
                                                 const key = `${month}__${s.id}`;
-                                                const cell = cGrid[key] || {};
+                                                const idxKey = `idx_${mIdx}__${s.id}`;
+                                                const cell = cGrid[key] || cGrid[idxKey] || {};
                                                 return `
-                                                    <td class="p-2 border-r-2 border-slate-800 text-center align-middle font-serif text-xs">
+                                                    <td class="p-2 border-r-2 border-slate-800 text-center align-middle text-xs">
                                                         ${cell.lessonNo ? `<span class="font-black text-slate-900">${escapeHtml(cell.lessonNo)}</span>` : ''}
                                                         ${cell.topic ? `<div class="text-[11px] text-slate-700 font-semibold mt-0.5">${escapeHtml(cell.topic)}</div>` : ''}
                                                         ${(!cell.lessonNo && !cell.topic) ? `<span class="text-slate-300 italic text-[11px]">--</span>` : ''}
@@ -2153,8 +2326,8 @@ const renderYearPlanUI = () => {
             <thead>
                 <!-- Top Tier Header: Period Ratio / Breakdown matching Image 2 -->
                 <tr class="bg-slate-100 text-slate-800 border-b-2 border-slate-800 font-extrabold text-[11px]">
-                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-serif text-slate-900">
-                        الحصص / Periods
+                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-black text-slate-900">
+                        Periods Allocation
                     </th>
                     ${classSubjectsList.map(s => `
                         <th class="py-2 px-3 border-r-2 border-slate-800 min-w-[150px] text-center font-black">
@@ -2165,8 +2338,8 @@ const renderYearPlanUI = () => {
 
                 <!-- Second Tier Header: Subject Names -->
                 <tr class="bg-slate-50 text-slate-900 border-b-2 border-slate-800 font-black text-xs">
-                    <th class="py-3 px-3.5 border-r-2 border-slate-800 w-36 text-center font-serif bg-slate-200/60">
-                        الشهور / Months
+                    <th class="py-3 px-3.5 border-r-2 border-slate-800 w-36 text-center bg-slate-200/60 font-black">
+                        Academic Months
                     </th>
                     ${classSubjectsList.map(s => `
                         <th class="py-2.5 px-3 border-r-2 border-slate-800 min-w-[150px] text-center">
@@ -2178,17 +2351,17 @@ const renderYearPlanUI = () => {
             </thead>
             <tbody class="divide-y-2 divide-slate-800 font-medium">`;
 
-    months.forEach(month => {
+    months.forEach((month, mIdx) => {
         const isRevisionMonth = (month === 'Sha\'ban' || month === 'March');
 
         if (isRevisionMonth && !isYearPlanEditMode) {
             html += `
                 <tr class="bg-slate-100/90 border-b-2 border-slate-800">
-                    <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center font-serif text-sm">
+                    <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center text-sm">
                         ${month}
                     </td>
-                    <td colspan="${classSubjectsList.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 font-serif bg-slate-100 border-r-2 border-slate-800 tracking-wider">
-                        المراجعة والإمتحانات السنوية (Revision &amp; Annual Examinations)
+                    <td colspan="${classSubjectsList.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 bg-slate-100 border-r-2 border-slate-800 tracking-wider">
+                        Revision &amp; Annual Examinations
                     </td>
                 </tr>`;
             return;
@@ -2196,19 +2369,20 @@ const renderYearPlanUI = () => {
 
         html += `
             <tr class="hover:bg-slate-50 transition border-b border-slate-300">
-                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center font-serif text-sm">
+                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center text-sm">
                     ${month}
                 </td>`;
 
         classSubjectsList.forEach(s => {
             const key = `${month}__${s.id}`;
-            const cell = yearPlanGrid[key] || {};
+            const idxKey = `idx_${mIdx}__${s.id}`;
+            const cell = yearPlanGrid[key] || yearPlanGrid[idxKey] || {};
 
             if (isYearPlanEditMode) {
                 html += `
                     <td class="p-2 border-r-2 border-slate-800 align-top bg-amber-50/20">
-                        <input type="text" class="yp-input-lesson w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white font-serif" placeholder="Lesson / e.g. درس ١" value="${escapeHtml(cell.lessonNo || '')}" data-key="${key}">
-                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none mb-1 bg-white" placeholder="Topic / e.g. الفاتحة" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
+                        <input type="text" class="yp-input-lesson w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" placeholder="Lesson / Unit" value="${escapeHtml(cell.lessonNo || '')}" data-key="${key}" data-idx-key="${idxKey}">
+                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none mb-1 bg-white" placeholder="Topic / Chapters" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
                         <input type="text" class="yp-input-pages w-full p-1 text-[11px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages" value="${escapeHtml(cell.pages || '')}" data-key="${key}">
                     </td>`;
             } else {
@@ -2218,13 +2392,13 @@ const renderYearPlanUI = () => {
                     <td class="p-2.5 border-r-2 border-slate-800 text-center align-middle cursor-pointer hover:bg-indigo-50/40 transition yp-cell-clickable" data-month="${month}" data-subject-id="${s.id}" data-subject-name="${escapeHtml(s.name)}">
                         ${hasTarget ? `
                             <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 transition text-center space-y-0.5">
-                                <div class="font-serif font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo || '')}</div>
+                                <div class="font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo || '')}</div>
                                 ${cell.topic ? `<div class="font-semibold text-xs text-slate-700">${escapeHtml(cell.topic)}</div>` : ''}
                                 ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold mt-1">${escapeHtml(cell.pages)}</div>` : ''}
                             </div>
                         ` : `
-                            <div class="p-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 text-center text-slate-400 font-serif text-xs py-3">
-                                + درس
+                            <div class="p-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 text-center text-slate-400 text-xs py-3">
+                                + Plan
                             </div>
                         `}
                     </td>`;
@@ -2260,6 +2434,7 @@ const saveYearPlan = async () => {
     const lessonInputs = document.querySelectorAll('.yp-input-lesson');
     lessonInputs.forEach(input => {
         const key = input.dataset.key;
+        const idxKey = input.dataset.idxKey;
         const topicInput = document.querySelector(`.yp-input-topic[data-key="${key}"]`);
         const pagesInput = document.querySelector(`.yp-input-pages[data-key="${key}"]`);
 
@@ -2267,13 +2442,17 @@ const saveYearPlan = async () => {
         const topic = topicInput?.value.trim() || '';
         const pages = pagesInput?.value.trim() || '';
 
-        const existing = yearPlanGrid[key] || {};
-        yearPlanGrid[key] = {
+        const existing = yearPlanGrid[key] || (idxKey ? yearPlanGrid[idxKey] : {}) || {};
+        const cellData = {
             ...existing,
             lessonNo,
             topic,
             pages
         };
+        yearPlanGrid[key] = cellData;
+        if (idxKey) {
+            yearPlanGrid[idxKey] = cellData;
+        }
     });
 
     try {
@@ -2425,21 +2604,26 @@ const loadAvailableExams = async (year, classLabel) => {
         } catch (_) {}
     }
 
-    const select = document.getElementById('exam-tt-title-select');
-    if (!select) return;
+    const dropdownIds = ['exam-tt-title-select', 'master-tt-exam-select'];
+    dropdownIds.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
 
-    const prevVal = select.value;
-    select.innerHTML = Array.from(examsSet.values()).map(name => `
-        <option value="${escapeHtml(name)}">${escapeHtml(name)}</option>
-    `).join('');
+        const prevVal = select.value;
+        select.innerHTML = Array.from(examsSet.values()).map(name => `
+            <option value="${escapeHtml(name)}">${escapeHtml(name)}</option>
+        `).join('');
 
-    if (prevVal && examsSet.has(prevVal)) {
-        select.value = prevVal;
-    } else {
-        select.value = 'Half-Yearly' && examsSet.has('Half-Yearly') ? 'Half-Yearly' : select.options[0]?.value || '';
-    }
+        if (prevVal && examsSet.has(prevVal)) {
+            select.value = prevVal;
+        } else {
+            select.value = examsSet.has('Half-Yearly') ? 'Half-Yearly' : (select.options[0]?.value || '');
+        }
+    });
 
-    currentExamTitle = select.value;
+    currentExamTitle = document.getElementById('exam-tt-title-select')?.value
+        || document.getElementById('master-tt-exam-select')?.value
+        || 'Half-Yearly';
 };
 
 const openAddExamNameModal = () => {
@@ -2659,10 +2843,11 @@ const loadExamTimetable = async () => {
         if (snap.exists()) {
             const data = snap.data();
             examDates = Array.isArray(data.dates) ? data.dates : [];
-            examSessions = (Array.isArray(data.sessionSlots) && data.sessionSlots.length) ? data.sessionSlots : [
-                { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' },
-                { id: 'session_2', label: 'Paper 2 (Second)', startTime: '08:30', endTime: '09:30' }
-            ];
+            examSessions = (Array.isArray(data.sessions) && data.sessions.length) ? data.sessions : (
+                (Array.isArray(data.sessionSlots) && data.sessionSlots.length) ? data.sessionSlots : [
+                    { id: 'session_1', label: 'Paper 1', startTime: '07:00 AM', endTime: '08:30 AM' }
+                ]
+            );
             examMatrix = data.matrix || {};
 
             if ((!examDates.length || Object.keys(examMatrix).length === 0) && Array.isArray(data.entries)) {
@@ -2685,6 +2870,9 @@ const loadExamTimetable = async () => {
         } else {
             examDates = [];
             examMatrix = {};
+            examSessions = [
+                { id: 'session_1', label: 'Paper 1', startTime: '07:00 AM', endTime: '08:30 AM' }
+            ];
         }
     } catch (err) {
         console.error('Failed to load exam timetable:', err);
@@ -2712,7 +2900,7 @@ const renderExamTimetableGridUI = () => {
             <div class="p-8 text-center text-slate-400 font-medium">
                 <i class="fas fa-calendar-plus text-3xl mb-2 text-slate-300 block"></i>
                 No exam dates scheduled for Class ${escapeHtml(selectedClass)} in ${escapeHtml(currentExamTitle)} yet.<br>
-                <button type="button" class="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" onclick="document.getElementById('btn-add-exam-date')?.click()">
+                <button type="button" class="btn-trigger-add-exam-date mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" data-action="add-exam-date">
                     <i class="fas fa-plus"></i> Add First Exam Date
                 </button>
             </div>`;
@@ -2723,19 +2911,33 @@ const renderExamTimetableGridUI = () => {
         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
                 <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                    <th class="py-3 px-3.5 border-r border-slate-200 w-48 bg-slate-200/80">Exam Date &amp; Day</th>`;
-
-    examSessions.forEach(session => {
-        html += `
-            <th class="py-2.5 px-3 border-r border-slate-200 min-w-[200px]">
-                <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(session.label)}</div>
-                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${session.startTime || ''} - ${session.endTime || ''}</div>
-            </th>`;
-    });
-    html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-48 bg-slate-200/80">Exam Date &amp; Day</th>
+                    ${examSessions.map(session => `
+                        <th class="py-2.5 px-3 border-r border-slate-200 min-w-[200px] relative group">
+                            <div class="flex items-center justify-between gap-1 mb-1">
+                                <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(session.label)}</div>
+                                <div class="flex items-center gap-0.5">
+                                    <button type="button" class="btn-edit-exam-session p-1 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer" data-session-id="${session.id}" title="Edit Paper">
+                                        <i class="fas fa-pen-to-square text-[11px]"></i>
+                                    </button>
+                                    <button type="button" class="btn-delete-exam-session p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer" data-session-id="${session.id}" title="Delete Paper">
+                                        <i class="fas fa-trash-can text-[11px]"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-[10px] font-semibold text-slate-500">${session.startTime || ''} - ${session.endTime || ''}</div>
+                        </th>
+                    `).join('')}
+                    <th class="py-2.5 px-3 border-r border-slate-200 min-w-[85px] text-center bg-indigo-50/40">
+                        <button type="button" id="btn-add-exam-paper-header" class="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Exam Paper">
+                            <i class="fas fa-plus"></i> Add Paper
+                        </button>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 font-medium">`;
 
     examDates.forEach(dateStr => {
-        const arDay = getArabicDayName(dateStr);
         const enDay = getEnglishDayName(dateStr);
 
         html += `
@@ -2746,8 +2948,8 @@ const renderExamTimetableGridUI = () => {
                             <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
                                 <i class="fas fa-calendar-day text-indigo-600"></i> ${dateStr}
                             </div>
-                            <div class="text-[11px] font-serif font-black text-slate-700 mt-0.5">
-                                ${arDay} <span class="font-sans text-[10px] text-slate-400 font-normal">(${enDay})</span>
+                            <div class="text-[11px] font-bold text-slate-600 mt-0.5">
+                                ${enDay}
                             </div>
                         </div>
                         ${isExamTimetableEditMode ? `
@@ -2820,7 +3022,12 @@ const renderExamTimetableGridUI = () => {
                 }
             }
         });
-        html += `</tr>`;
+
+        html += `
+            <td class="p-2 border-r border-slate-200 bg-slate-50/20 text-center text-slate-300 font-bold text-xs select-none">
+                --
+            </td>
+        </tr>`;
     });
 
     html += `</tbody></table>`;
@@ -2828,19 +3035,43 @@ const renderExamTimetableGridUI = () => {
 };
 
 // =========================================================================
-// MASTER CONSOLIDATED EXAM TIMETABLE (IMAGE 1 LAYOUT)
+// MASTER CONSOLIDATED EXAM TIMETABLE
 // =========================================================================
 const loadMasterExamTimetable = async () => {
-    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
-    currentExamTitle = document.getElementById('exam-tt-title-select')?.value || 'Half-Yearly';
+    const year = document.getElementById('master-tt-academic-year')?.value
+        || document.getElementById('exam-tt-academic-year')?.value
+        || currentAcademicYear;
+    currentExamTitle = document.getElementById('master-tt-exam-select')?.value
+        || document.getElementById('exam-tt-title-select')?.value
+        || 'Half-Yearly';
 
+    const instName = institutionConfig.name || 'Noorul Islam Madrasa';
+    const instTagline = institutionConfig.tagline || 'Academic Affairs & Examination Division';
+    const instAddress = `${institutionConfig.address || 'Central Campus'} • Ph: ${institutionConfig.phone || '+91 0000000000'}`;
+    const instPlace = institutionConfig.place || institutionConfig.city || 'Campus';
+
+    const nameEl = document.getElementById('master-inst-name');
+    const subEl = document.getElementById('master-inst-subtitle');
+    const addrEl = document.getElementById('master-inst-address');
     const mainTitle = document.getElementById('master-exam-main-title');
-    const arTitle = document.getElementById('master-exam-arabic-title');
+    const placeEl = document.getElementById('master-exam-place');
     const issueDate = document.getElementById('master-exam-issue-date');
 
-    if (mainTitle) mainTitle.textContent = `${currentExamTitle} (General) Time Table ${year}`;
-    if (arTitle) arTitle.textContent = `جدول ساعات امتحان ${currentExamTitle} السنة ${year}`;
+    if (nameEl) nameEl.textContent = instName;
+    if (subEl) subEl.textContent = instTagline;
+    if (addrEl) addrEl.textContent = instAddress;
+    if (mainTitle) mainTitle.textContent = `${currentExamTitle} Master Examination Timetable (${year})`;
+    if (placeEl) placeEl.textContent = `Place: ${instPlace}`;
     if (issueDate) issueDate.textContent = `Date of Publication: ${new Date().toLocaleDateString('en-GB')}`;
+
+    if (institutionConfig.logoUrl) {
+        const logoImg = document.getElementById('master-inst-logo');
+        const logoContainer = document.getElementById('master-inst-logo-container');
+        if (logoImg && logoContainer) {
+            logoImg.src = institutionConfig.logoUrl;
+            logoContainer.classList.remove('hidden');
+        }
+    }
 
     const grid = document.getElementById('exam-master-grid');
     if (!grid) return;
@@ -2906,12 +3137,12 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
             <div class="p-12 text-center text-slate-400 font-bold border-2 border-dashed border-slate-300 rounded-3xl">
                 <i class="fas fa-calendar-xmark text-4xl mb-3 text-slate-300 block"></i>
                 No examination dates have been scheduled for ${escapeHtml(currentExamTitle)} across any classes yet.<br>
-                <span class="text-xs text-slate-500 font-medium">Switch to Single Class View to add exam dates and assign subjects.</span>
+                <span class="text-xs text-slate-500 font-medium">Switch to Exam Timetable to add dates and schedule papers.</span>
             </div>`;
         return;
     }
 
-    // Default timings band matching Image 1
+    // Default timings band
     const timingBands = {
         0: '07.00am To 09.00am',
         1: '06.30am To 08.30am',
@@ -2924,22 +3155,19 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
     };
 
     let html = `
-        <table class="w-full text-center border-collapse border-2 border-slate-900 text-xs font-serif">
+        <table class="w-full text-center border-collapse border-2 border-slate-900 text-xs">
             <thead>
-                <!-- Top Row: Exam Dates & Arabic Weekdays -->
+                <!-- Top Row: Exam Dates & Weekdays -->
                 <tr class="bg-slate-900 text-white border-b-2 border-slate-900">
-                    <!-- Rightmost/Class Column header in Madrasa style -->
-                    <th class="py-3 px-3 border-r-2 border-white w-20 bg-slate-950 font-black text-sm">
-                        الصف<br><span class="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-300">Class</span>
+                    <th class="py-3 px-3 border-r-2 border-white w-20 bg-slate-950 font-black text-xs uppercase tracking-wider text-white">
+                        Class
                     </th>
                     ${masterExamDates.map(dateStr => {
-                        const arDay = getArabicDayName(dateStr);
                         const enDay = getEnglishDayName(dateStr);
                         return `
                             <th class="py-2.5 px-3 border-r border-slate-700 min-w-[130px] text-center">
-                                <div class="font-sans font-extrabold text-[11px] text-indigo-200 tracking-wider">${dateStr}</div>
-                                <div class="font-black text-sm text-white mt-0.5">${arDay}</div>
-                                <div class="font-sans text-[9px] text-slate-400 font-normal uppercase">(${enDay})</div>
+                                <div class="font-extrabold text-[11px] text-indigo-200 tracking-wider">${dateStr}</div>
+                                <div class="font-bold text-xs text-white mt-0.5">${enDay}</div>
                             </th>
                         `;
                     }).join('')}
@@ -2952,7 +3180,7 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
                     </th>
                     ${masterExamDates.map((_, idx) => `
                         <th class="py-1.5 px-2 border-r border-slate-300 text-center text-slate-700">
-                            ${timingBands[idx % 8] || '06.30am To 08.30am'}
+                            ${timingBands[idx % 8] || '07.00am To 09.00am'}
                         </th>
                     `).join('')}
                 </tr>
@@ -2965,62 +3193,57 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
                     return `
                         <tr class="hover:bg-slate-50 transition border-b-2 border-slate-900">
                             <!-- Class Identifier Cell -->
-                            <td class="py-3 px-2 border-r-2 border-slate-900 font-black text-base text-slate-950 bg-slate-100/90 text-center font-serif">
-                                ${cls}
+                            <td class="py-3 px-2 border-r-2 border-slate-900 font-black text-sm text-slate-950 bg-slate-100/90 text-center">
+                                Class ${cls}
                             </td>
 
                             ${masterExamDates.map(dateStr => {
-                                // Search for scheduled paper in sessions
-                                const s1Key = `${dateStr}_session_1`;
-                                const s2Key = `${dateStr}_session_2`;
-                                const cell1 = matrix[s1Key] || {};
-                                const cell2 = matrix[s2Key] || {};
-
-                                if (cell1.isNoExam) {
+                                const dateKeys = Object.keys(matrix).filter(k => k.startsWith(`${dateStr}_`));
+                                if (!dateKeys.length) {
                                     return `
-                                        <td class="p-2 border-r border-slate-300 text-center bg-amber-50/40 text-amber-800 font-sans font-black text-[10px] uppercase select-none">
-                                            ☕ Study Leave
+                                        <td class="p-2 border-r border-slate-300 text-center text-slate-300 text-xs">
+                                            --
                                         </td>`;
                                 }
 
-                                const subj1 = cell1.subjectName || '';
-                                const subj2 = cell2.subjectName || '';
-
-                                if (!subj1 && !subj2) {
+                                const dateCells = dateKeys.map(k => matrix[k]);
+                                if (dateCells.some(c => c.isNoExam)) {
                                     return `
-                                        <td class="p-2 border-r border-slate-300 text-center text-slate-300 font-sans text-xs">
+                                        <td class="p-2 border-r border-slate-300 text-center bg-amber-50/40 text-amber-800 font-black text-[10px] uppercase select-none">
+                                            Study Leave
+                                        </td>`;
+                                }
+
+                                const assignedSubjects = dateCells.map(c => c.subjectName).filter(Boolean);
+                                if (!assignedSubjects.length) {
+                                    return `
+                                        <td class="p-2 border-r border-slate-300 text-center text-slate-300 text-xs">
                                             --
                                         </td>`;
                                 }
 
                                 return `
                                     <td class="p-2 border-r border-slate-300 text-center align-middle">
-                                        ${subj1 ? `
-                                            <div class="font-black text-sm text-slate-950 leading-tight">
-                                                ${escapeHtml(subj1)}
+                                        ${assignedSubjects.map((s, sIdx) => `
+                                            <div class="font-black text-xs text-slate-950 leading-tight ${sIdx > 0 ? 'mt-1 pt-1 border-t border-slate-200 text-indigo-900' : ''}">
+                                                ${escapeHtml(s)}
                                             </div>
-                                        ` : ''}
-                                        ${subj2 ? `
-                                            <div class="font-black text-xs text-indigo-900 mt-1 pt-1 border-t border-slate-200 leading-tight">
-                                                ${escapeHtml(subj2)}
-                                            </div>
-                                        ` : ''}
+                                        `).join('')}
                                     </td>`;
                             }).join('')}
-                        </tr>
-                    `;
+                        </tr>`;
                 }).join('')}
             </tbody>
         </table>
 
-        <!-- Side Remarks / Practical Exam Notation -->
-        <div class="mt-4 p-3 bg-amber-50/60 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-950 flex items-center justify-between flex-wrap gap-2">
+        <!-- Guidelines Note -->
+        <div class="mt-4 p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-[11px] font-bold text-indigo-950 flex items-center justify-between flex-wrap gap-2">
             <div>
-                <i class="fas fa-info-circle text-amber-600 mr-1.5"></i>
-                <span class="font-black">Practical Examination Note:</span> Class 3: Thursday • Class 4: Monday (or scheduled as notified)
+                <i class="fas fa-info-circle text-indigo-600 mr-1.5"></i>
+                <span class="font-black">Examination Protocol:</span> All students must be seated 15 minutes before the scheduled commencement time.
             </div>
-            <div class="text-[10px] text-amber-800 font-semibold">
-                General Examination Board Guidelines Apply
+            <div class="text-[10px] text-indigo-800 font-semibold">
+                Official Examination Board Routine
             </div>
         </div>
     `;
@@ -3079,6 +3302,7 @@ const saveExamTimetableMatrix = async () => {
             classLabel: selectedClass,
             examTitle: currentExamTitle,
             dates: examDates,
+            sessions: examSessions,
             sessionSlots: examSessions,
             matrix: examMatrix,
             updatedAt: Date.now()
@@ -3090,6 +3314,118 @@ const saveExamTimetableMatrix = async () => {
         toggleExamTimetableEdit(false);
     } catch (err) {
         alert('Failed to save exam schedule: ' + err.message);
+    }
+};
+
+const openAddEditExamSessionModal = (sessionId = null) => {
+    editingExamSessionId = sessionId;
+    const titleEl = document.getElementById('modal-exam-session-title');
+    const idInput = document.getElementById('modal-exam-session-id');
+    const labelInput = document.getElementById('modal-exam-session-label');
+    const startInput = document.getElementById('modal-exam-session-start');
+    const endInput = document.getElementById('modal-exam-session-end');
+
+    if (sessionId) {
+        const session = examSessions.find(s => s.id === sessionId);
+        if (!session) return;
+        if (titleEl) titleEl.textContent = 'Edit Exam Paper';
+        if (idInput) idInput.value = session.id;
+        if (labelInput) labelInput.value = session.label;
+        if (startInput) startInput.value = session.startTime || '08:30';
+        if (endInput) endInput.value = session.endTime || '10:00';
+    } else {
+        const nextNum = examSessions.length + 1;
+        if (titleEl) titleEl.textContent = 'Add Exam Paper';
+        if (idInput) idInput.value = '';
+        if (labelInput) labelInput.value = `Paper ${nextNum}`;
+        if (startInput) startInput.value = '08:30';
+        if (endInput) endInput.value = '10:00';
+    }
+    openModal('modal-add-edit-exam-session');
+};
+
+const saveExamSession = async () => {
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+    const label = document.getElementById('modal-exam-session-label')?.value.trim();
+    const startTime = document.getElementById('modal-exam-session-start')?.value.trim() || '08:30';
+    const endTime = document.getElementById('modal-exam-session-end')?.value.trim() || '10:00';
+
+    if (!label) {
+        alert('Please enter a paper / session name.');
+        return;
+    }
+
+    if (editingExamSessionId) {
+        const idx = examSessions.findIndex(s => s.id === editingExamSessionId);
+        if (idx !== -1) {
+            examSessions[idx] = {
+                ...examSessions[idx],
+                label,
+                startTime,
+                endTime
+            };
+        }
+    } else {
+        const newSession = {
+            id: `session_${Date.now()}`,
+            label,
+            startTime,
+            endTime
+        };
+        examSessions.push(newSession);
+    }
+
+    try {
+        const docId = getExamTimetableDocId(year, selectedClass, currentExamTitle);
+        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
+            sessions: examSessions,
+            sessionSlots: examSessions,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-add-edit-exam-session');
+        renderExamTimetableGridUI();
+        showToast('Exam paper session saved successfully.', 'success');
+    } catch (err) {
+        alert('Failed to save paper session: ' + err.message);
+    }
+};
+
+const deleteExamSession = async (sessionId) => {
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+    const session = examSessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    if (!confirm(`Are you sure you want to delete ${session.label}? Any assigned papers in this session will also be removed.`)) {
+        return;
+    }
+
+    examSessions = examSessions.filter(s => s.id !== sessionId);
+
+    // Clean up matrix entries matching this session
+    const cleanedMatrix = {};
+    Object.entries(examMatrix).forEach(([k, v]) => {
+        if (!k.endsWith(`_${sessionId}`)) {
+            cleanedMatrix[k] = v;
+        }
+    });
+    examMatrix = cleanedMatrix;
+
+    try {
+        const docId = getExamTimetableDocId(year, selectedClass, currentExamTitle);
+        await setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
+            sessions: examSessions,
+            sessionSlots: examSessions,
+            matrix: examMatrix,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        renderExamTimetableGridUI();
+        showToast('Paper session removed.', 'success');
+    } catch (err) {
+        alert('Failed to remove paper: ' + err.message);
     }
 };
 
@@ -3244,6 +3580,22 @@ const setupEventListeners = () => {
     document.getElementById('btn-save-tt-settings')?.addEventListener('click', saveTimetableSettings);
     document.getElementById('btn-print-timetable')?.addEventListener('click', printTimetableRoutine);
 
+    // Dynamic Class Timetable Slots
+    document.getElementById('btn-add-tt-slot-header')?.addEventListener('click', () => openAddEditTimetableSlotModal(null));
+    document.getElementById('btn-save-tt-slot')?.addEventListener('click', saveTimetableSlot);
+    document.getElementById('tt-schedule-grid')?.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit-tt-slot');
+        if (editBtn) {
+            openAddEditTimetableSlotModal(editBtn.dataset.slotId);
+            return;
+        }
+        const delBtn = e.target.closest('.btn-delete-tt-slot');
+        if (delBtn) {
+            deleteTimetableSlot(delBtn.dataset.slotId);
+            return;
+        }
+    });
+
     // Structure Settings Controls
     document.getElementById('tt-working-days-picker')?.addEventListener('change', updateDaysSummaryAndCardStyles);
 
@@ -3394,12 +3746,53 @@ const setupEventListeners = () => {
     document.getElementById('btn-add-exam-name')?.addEventListener('click', openAddExamNameModal);
     document.getElementById('btn-save-new-exam-title')?.addEventListener('click', saveNewExamName);
 
+    // Dynamic Exam Paper Sessions
+    document.getElementById('btn-add-exam-paper-header')?.addEventListener('click', () => openAddEditExamSessionModal(null));
+    document.getElementById('btn-save-exam-session')?.addEventListener('click', saveExamSession);
+
+    // Standalone Master Timetable Listeners
+    document.getElementById('master-tt-academic-year')?.addEventListener('change', async () => {
+        const y = document.getElementById('master-tt-academic-year')?.value;
+        await loadAvailableExams(y, 'all');
+        await loadMasterExamTimetable();
+    });
+    document.getElementById('master-tt-exam-select')?.addEventListener('change', async () => {
+        await loadMasterExamTimetable();
+    });
+    document.getElementById('btn-print-master-timetable')?.addEventListener('click', () => window.print());
+
     document.getElementById('exam-schedule-grid')?.addEventListener('click', (e) => {
         const delBtn = e.target.closest('.btn-remove-exam-date');
         if (delBtn) {
             removeExamDate(delBtn.dataset.date);
+            return;
+        }
+        const editSessionBtn = e.target.closest('.btn-edit-exam-session');
+        if (editSessionBtn) {
+            openAddEditExamSessionModal(editSessionBtn.dataset.sessionId);
+            return;
+        }
+        const delSessionBtn = e.target.closest('.btn-delete-exam-session');
+        if (delSessionBtn) {
+            deleteExamSession(delSessionBtn.dataset.sessionId);
+            return;
         }
     });
+
+    // Delegated click listener for Add First Exam Date triggers
+    document.addEventListener('click', (e) => {
+        const addDateBtn = e.target.closest('[data-action="add-exam-date"]')
+            || e.target.closest('.btn-trigger-add-exam-date')
+            || (e.target.id === 'btn-add-first-exam-date');
+        if (addDateBtn) {
+            openAddExamDateModal();
+        }
+    });
+
+    // Expose helpers globally
+    window.openAddExamDateModal = openAddExamDateModal;
+    window.openAddEditTimetableSlotModal = openAddEditTimetableSlotModal;
+    window.openAddEditExamSessionModal = openAddEditExamSessionModal;
 
     // 6. Sign Out
     document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {

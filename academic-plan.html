@@ -245,6 +245,10 @@
           <i class="fas fa-file-pen w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Exam Timetable</span>
         </a>
+        <a href="#master-timetable" class="drawer-link" data-tab="tab-master-timetable" title="Master Timetable">
+          <i class="fas fa-table-cells w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Master Timetable</span>
+        </a>
       </nav>
 
       <!-- Sidebar Footer (Only Official Hub and Logout) -->
@@ -275,19 +279,8 @@
                 <label for="subj-academic-year" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
                 <select id="subj-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
-              <div>
-                <label for="subj-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class Filter</label>
-                <select id="subj-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[140px]"></select>
-              </div>
-              <div>
-                <label for="subj-search-input" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Search Subject</label>
-                <div class="relative">
-                  <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                  <input type="text" id="subj-search-input" placeholder="Search subject or teacher..." class="pl-8 pr-3 py-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 w-44 sm:w-56">
-                </div>
-              </div>
               <div class="flex items-center self-end">
-                <span id="subj-count-badge" class="px-3 py-1 rounded-xl text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200">0 Classes</span>
+                <span id="subj-count-badge" class="px-3.5 py-2 rounded-xl text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200">0 Classes</span>
               </div>
             </div>
 
@@ -323,13 +316,7 @@
               </div>
               <div>
                 <label for="tt-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
-                <select id="tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Structure Settings</label>
-                <button type="button" id="btn-tt-settings" class="p-2 px-3 border border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition flex items-center gap-1.5 cursor-pointer">
-                  <i class="fas fa-sliders text-indigo-600"></i> Configure Grid &amp; Periods
-                </button>
+                <select id="tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[120px]"></select>
               </div>
             </div>
 
@@ -472,16 +459,6 @@
                   </button>
                 </div>
               </div>
-
-              <!-- Timetable Sub-View Switcher -->
-              <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-end">
-                <button type="button" id="btn-exam-view-single" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-indigo-900 shadow-2xs cursor-pointer">
-                  <i class="fas fa-chalkboard-user mr-1"></i> Class Timetable
-                </button>
-                <button type="button" id="btn-exam-view-master" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition text-slate-600 hover:text-slate-900 cursor-pointer">
-                  <i class="fas fa-table-cells mr-1"></i> Master Timetable (All Classes)
-                </button>
-              </div>
             </div>
 
             <!-- Action Controls (Matching Class Timetable) -->
@@ -526,36 +503,57 @@
               <!-- Dynamically rendered table matching Class Timetable design -->
             </div>
           </div>
+        </section>
 
-          <!-- Master Consolidated Exam Timetable Container (Image 1 Style) -->
-          <div class="bg-white rounded-2xl border-2 border-slate-800 shadow-md overflow-hidden hidden" id="exam-master-timetable-container">
+        <!-- ========================================== -->
+        <!-- TAB 5: MASTER TIMETABLE (ALL CLASSES)      -->
+        <!-- ========================================== -->
+        <section id="tab-master-timetable" class="tab-content hidden space-y-4">
+          <!-- Master Controls Bar -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div>
+                <label for="master-tt-academic-year" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
+                <select id="master-tt-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+              </div>
+              <div>
+                <label for="master-tt-exam-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Examination</label>
+                <select id="master-tt-exam-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[180px]"></select>
+              </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" id="btn-print-master-timetable" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer">
+                <i class="fas fa-print"></i> Print Master Timetable
+              </button>
+            </div>
+          </div>
+
+          <!-- Master Timetable Container -->
+          <div class="bg-white rounded-2xl border-2 border-slate-800 shadow-md overflow-hidden" id="exam-master-timetable-container">
             <!-- Institutional Header Bar -->
-            <div class="p-5 sm:p-7 bg-white border-b-2 border-slate-800 text-center space-y-1.5 relative">
-              <div class="flex items-center justify-between absolute top-4 left-4 right-4 no-print">
-                <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded bg-slate-100 text-slate-700 border border-slate-300">
-                  <i class="fas fa-certificate text-indigo-600 mr-1"></i> Central Council Format
-                </span>
-                <button type="button" id="btn-print-master-exam-tt" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer">
-                  <i class="fas fa-print"></i> Print Master Timetable
-                </button>
+            <div class="p-6 bg-white border-b-2 border-slate-800 text-center space-y-1 relative">
+              <div class="flex items-center justify-center gap-3">
+                <div id="master-inst-logo-container" class="hidden">
+                  <img id="master-inst-logo" src="" alt="Logo" class="w-12 h-12 object-contain">
+                </div>
+                <div>
+                  <h1 id="master-inst-name" class="text-base sm:text-lg font-black text-slate-900 tracking-wide uppercase">
+                    Noorul Islam Madrasa
+                  </h1>
+                  <div id="master-inst-subtitle" class="text-xs sm:text-sm font-extrabold text-indigo-900 tracking-wider">
+                    Academic Affairs &amp; Examination Division
+                  </div>
+                </div>
               </div>
-
-              <div class="text-base sm:text-lg font-black text-slate-900 tracking-wide font-serif">
-                مجلس جمعية المعلمين المركزي لعموم كيرالا الهند
-              </div>
-              <div class="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wider">
-                SAMASTHA KERALA ISLAMIC EDUCATION BOARD &bull; EXAMINATION DIVISION
-              </div>
-              <div class="text-[11px] text-slate-600 font-bold">
-                Samasthalayam, Chelari, P.O. Thenhipalam, Malappuram &bull; Ph: +91 494 2400234
+              <div id="master-inst-address" class="text-[11px] text-slate-600 font-bold">
+                Campus Location &bull; Ph: +91 0000000000
               </div>
               <div class="pt-2 border-t border-slate-200 mt-2">
                 <h2 id="master-exam-main-title" class="text-sm sm:text-base font-black text-slate-950 uppercase tracking-wide">
-                  Half Yearly Examination (General) Time Table
+                  Master Examination Timetable
                 </h2>
-                <div id="master-exam-arabic-title" class="text-sm sm:text-base font-black text-slate-900 font-serif mt-0.5">
-                  جدول ساعات امتحان نصف السنة
-                </div>
               </div>
             </div>
 
@@ -567,12 +565,12 @@
             <!-- Footer Notes & Official Signature Block -->
             <div class="p-5 bg-slate-50 border-t border-slate-300 flex items-center justify-between text-xs font-bold text-slate-700 flex-wrap gap-4">
               <div>
-                <div class="text-[11px] text-slate-500 font-semibold">Place: Samasthalayam, Chelari</div>
+                <div id="master-exam-place" class="text-[11px] text-slate-500 font-semibold">Place: Campus</div>
                 <div id="master-exam-issue-date" class="text-[11px] text-slate-700 font-bold">Date of Publication: --/--/----</div>
               </div>
               <div class="text-center min-w-[160px]">
-                <div class="text-xs font-black uppercase text-slate-900">Chairman / Secretary</div>
-                <div class="text-[10px] text-slate-500 font-semibold">(Central Examination Council)</div>
+                <div class="text-xs font-black uppercase text-slate-900">Head of Institution / Principal</div>
+                <div class="text-[10px] text-slate-500 font-semibold">(Academic &amp; Examination Board)</div>
               </div>
             </div>
           </div>
@@ -1103,6 +1101,122 @@
           </button>
           <button type="button" id="btn-confirm-add-exam-date" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5">
             <i class="fas fa-plus"></i> Add Date to Schedule
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD / EDIT TIMETABLE PERIOD OR BREAK -->
+  <!-- ========================================== -->
+  <div id="modal-add-edit-tt-slot" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div>
+            <h3 id="modal-tt-slot-title" class="font-black text-sm text-indigo-950">Add Period / Break</h3>
+            <p id="modal-tt-slot-subtitle" class="text-[11px] text-indigo-700 font-bold">Configure period or break slot</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-add-edit-tt-slot">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs">
+        <input type="hidden" id="modal-tt-slot-id">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Slot Category</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+              <input type="radio" name="modal-tt-slot-type" value="period" checked class="text-indigo-600">
+              <span class="font-bold text-slate-800">Teaching Period</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+              <input type="radio" name="modal-tt-slot-type" value="break" class="text-indigo-600">
+              <span class="font-bold text-slate-800">Break / Interval</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Slot Label / Name <span class="text-rose-500">*</span></label>
+          <input type="text" id="modal-tt-slot-label" placeholder="e.g. Period 3 or Interval" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Start Time</label>
+            <input type="time" id="modal-tt-slot-start" value="09:00" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">End Time</label>
+            <input type="time" id="modal-tt-slot-end" value="10:00" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" class="btn-close-modal py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-add-edit-tt-slot">
+            Cancel
+          </button>
+          <button type="button" id="btn-save-tt-slot" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5">
+            <i class="fas fa-check"></i> Save Period
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD / EDIT EXAM PAPER SESSION       -->
+  <!-- ========================================== -->
+  <div id="modal-add-edit-exam-session" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-file-signature"></i>
+          </div>
+          <div>
+            <h3 id="modal-exam-session-title" class="font-black text-sm text-indigo-950">Add Exam Paper</h3>
+            <p class="text-[11px] text-indigo-700 font-bold">Configure paper name &amp; exam timing</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-add-edit-exam-session">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs">
+        <input type="hidden" id="modal-exam-session-id">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Paper / Session Name <span class="text-rose-500">*</span></label>
+          <input type="text" id="modal-exam-session-label" placeholder="e.g. Paper 2, Practical, Oral / Viva" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Start Time</label>
+            <input type="time" id="modal-exam-session-start" value="08:30" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">End Time</label>
+            <input type="time" id="modal-exam-session-end" value="10:00" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" class="btn-close-modal py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-add-edit-exam-session">
+            Cancel
+          </button>
+          <button type="button" id="btn-save-exam-session" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5">
+            <i class="fas fa-check"></i> Save Paper Session
           </button>
         </div>
       </div>
