@@ -84,9 +84,11 @@ const getOffDaysFromWeekendDays = (weekendDays = [5]) => {
 };
 
 // --- Timetable State ---
+const ALL_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 let selectedTtClass = '';
 let isTimetableEditMode = false;
 let currentClassSlots = [];
+let currentClassDayStatuses = {};
 let editingTtSlotId = null;
 let editingExamSessionId = null;
 
@@ -599,9 +601,9 @@ const getAllowedClassesForTeacher = () => {
     }
     if (teacherAssignedClasses && teacherAssignedClasses.length > 0) {
         const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
-        if (filtered.length) return filtered;
+        return filtered;
     }
-    return allClasses;
+    return [];
 };
 
 const populateClassDropdowns = () => {
@@ -617,7 +619,7 @@ const populateClassDropdowns = () => {
         }
         opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
         subjClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             subjClassSelect.value = prev;
         } else {
             subjClassSelect.value = isSuperAdmin ? 'all' : (allowed[0] || '1');
@@ -635,7 +637,7 @@ const populateClassDropdowns = () => {
         }
         opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
         ttClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             ttClassSelect.value = prev;
         } else if (allowed.length > 0) {
             ttClassSelect.value = allowed[0];
@@ -653,10 +655,10 @@ const populateClassDropdowns = () => {
         }
         opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
         ypClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             ypClassSelect.value = prev;
         } else if (allowed.length > 0) {
-            ypClassSelect.value = allowed[0];
+            ypClassSelect.value = isSuperAdmin ? 'all' : allowed[0];
         }
         selectedYpClass = ypClassSelect.value;
     }
@@ -1189,13 +1191,251 @@ const jumpToClassTab = (tabId, targetClass) => {
     }
 };
 
-const syncSubjectsFromResultSchema = async () => {
+// --- Result Sync Wizard State ---
+let wizardSelectedClasses = [];
+let wizardDiscoveredSubjects = {}; // cls -> [ { name, code, isAlreadyAdded, checked: true }, ... ]
+
+const openSyncInfoModal = () => {
+    openModal('modal-sync-info');
+};
+
+const openSyncWizardModal = () => {
+    wizardSelectedClasses = [];
+    wizardDiscoveredSubjects = {};
+
+    const step1 = document.getElementById('sync-wizard-step-1');
+    const step2 = document.getElementById('sync-wizard-step-2');
+    const indicator = document.getElementById('sync-wizard-step-indicator');
+    if (step1) step1.classList.remove('hidden');
+    if (step2) step2.classList.add('hidden');
+    if (indicator) indicator.textContent = 'Step 1 of 2: Select Classes';
+
+    const classesListEl = document.getElementById('sync-wizard-classes-list');
+    const allowed = getAllowedClassesForTeacher();
+
+    if (classesListEl) {
+        if (!allowed.length) {
+            classesListEl.innerHTML = `<div class="col-span-full text-slate-400 font-bold p-4 text-center">No duty classes assigned to your account.</div>`;
+        } else {
+            classesListEl.innerHTML = allowed.map(cls => `
+                <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 hover:bg-indigo-50/50 cursor-pointer transition select-none bg-white">
+                    <input type="checkbox" class="sync-class-checkbox w-4 h-4 text-indigo-600 rounded" value="${escapeHtml(cls)}" checked>
+                    <span class="font-black text-slate-800 text-xs">Class ${escapeHtml(cls)}</span>
+                </label>
+            `).join('');
+        }
+    }
+
+    const toggleBtn = document.getElementById('btn-sync-toggle-all-classes');
+    if (toggleBtn) toggleBtn.textContent = 'Deselect All';
+
+    openModal('modal-sync-wizard');
+};
+
+const toggleAllSyncWizardClasses = () => {
+    const checkboxes = document.querySelectorAll('.sync-class-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => { cb.checked = !allChecked; });
+    const btn = document.getElementById('btn-sync-toggle-all-classes');
+    if (btn) btn.textContent = allChecked ? 'Select All' : 'Deselect All';
+};
+
+const proceedSyncWizardToStep2 = async () => {
+    const checkedBoxes = document.querySelectorAll('.sync-class-checkbox:checked');
+    const selected = Array.from(checkedBoxes).map(cb => cb.value);
+    if (!selected.length) {
+        alert('Please select at least one class to sync.');
+        return;
+    }
+
+    wizardSelectedClasses = selected;
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+
+    const subjectsListEl = document.getElementById('sync-wizard-subjects-list');
+    if (subjectsListEl) {
+        subjectsListEl.innerHTML = `<div class="p-6 text-center text-slate-400 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i> Loading subjects from Result Management...</div>`;
+    }
+
+    const step1 = document.getElementById('sync-wizard-step-1');
+    const step2 = document.getElementById('sync-wizard-step-2');
+    const indicator = document.getElementById('sync-wizard-step-indicator');
+    if (step1) step1.classList.add('hidden');
+    if (step2) step2.classList.remove('hidden');
+    if (indicator) indicator.textContent = 'Step 2 of 2: Review & Select Subjects';
+
     try {
-        showToast('Synchronizing with Result Management...', 'info');
-        await loadClassSubjects();
-        showToast('Class subjects synchronized successfully!', 'success');
+        wizardDiscoveredSubjects = {};
+
+        const tasks = selected.map(async (cls) => {
+            const resultDocId = getResultSchemaDocId(year, cls);
+            const subjDocId = getClassSubjectsDocId(year, cls);
+
+            const [rSnap, sSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
+            ]);
+
+            const existingNames = new Set();
+            if (sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects)) {
+                sSnap.data().subjects.forEach(s => {
+                    if (s.name) existingNames.add(String(s.name).trim().toLowerCase());
+                });
+            }
+
+            const discovered = [];
+            const seen = new Set();
+
+            if (rSnap && rSnap.exists()) {
+                const rData = rSnap.data();
+                const rows = Array.isArray(rData.subjectRows) && rData.subjectRows.length
+                    ? rData.subjectRows
+                    : (Array.isArray(rData.subjects) ? rData.subjects.map(s => ({ name: s })) : []);
+
+                rows.forEach(r => {
+                    const name = typeof r === 'string' ? r.trim() : (r.name || '').trim();
+                    if (!name) return;
+                    const lower = name.toLowerCase();
+                    if (seen.has(lower)) return;
+                    seen.add(lower);
+
+                    const code = r.code || name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'SUB';
+                    const isAlreadyAdded = existingNames.has(lower);
+                    discovered.push({
+                        name,
+                        code,
+                        isAlreadyAdded,
+                        checked: true
+                    });
+                });
+            }
+
+            wizardDiscoveredSubjects[cls] = discovered;
+        });
+
+        await Promise.all(tasks);
+
+        renderSyncWizardSubjectsList();
     } catch (err) {
-        alert('Failed to synchronize subjects: ' + err.message);
+        alert('Failed to load examination subjects: ' + err.message);
+    }
+};
+
+const renderSyncWizardSubjectsList = () => {
+    const listEl = document.getElementById('sync-wizard-subjects-list');
+    const countBadge = document.getElementById('sync-wizard-selected-count');
+    if (!listEl) return;
+
+    let html = '';
+    let totalChecked = 0;
+
+    wizardSelectedClasses.forEach(cls => {
+        const subjects = wizardDiscoveredSubjects[cls] || [];
+        html += `
+            <div class="p-3.5 rounded-2xl border border-slate-200 bg-white space-y-2">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span class="font-black text-sm text-slate-900 flex items-center gap-1.5">
+                        <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white text-[11px] flex items-center justify-center font-black">${escapeHtml(cls)}</span>
+                        Class ${escapeHtml(cls)}
+                    </span>
+                    <span class="text-[11px] font-bold text-slate-500">${subjects.length} subjects found</span>
+                </div>
+                ${!subjects.length ? `
+                    <div class="p-3 text-center text-slate-400 font-medium italic text-[11px]">
+                        No examination subjects configured in Result Management for Class ${escapeHtml(cls)}.
+                    </div>
+                ` : `
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        ${subjects.map((s, idx) => {
+                            if (s.checked) totalChecked++;
+                            return `
+                                <label class="flex items-center justify-between p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer select-none transition">
+                                    <div class="flex items-center gap-2">
+                                        <input type="checkbox" class="sync-subject-cb w-4 h-4 text-indigo-600 rounded" data-class="${escapeHtml(cls)}" data-index="${idx}" ${s.checked ? 'checked' : ''}>
+                                        <div>
+                                            <div class="font-black text-slate-800 text-xs">${escapeHtml(s.name)}</div>
+                                            <div class="text-[10px] text-slate-400 font-bold">${escapeHtml(s.code)}</div>
+                                        </div>
+                                    </div>
+                                    ${s.isAlreadyAdded ? `
+                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Exists</span>
+                                    ` : `
+                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">New</span>
+                                    `}
+                                </label>
+                            `;
+                        }).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+    if (countBadge) countBadge.textContent = `${totalChecked} Selected`;
+};
+
+const backSyncWizardToStep1 = () => {
+    const step1 = document.getElementById('sync-wizard-step-1');
+    const step2 = document.getElementById('sync-wizard-step-2');
+    const indicator = document.getElementById('sync-wizard-step-indicator');
+    if (step1) step1.classList.remove('hidden');
+    if (step2) step2.classList.add('hidden');
+    if (indicator) indicator.textContent = 'Step 1 of 2: Select Classes';
+};
+
+const finishSyncWizardImport = async () => {
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    let importedCount = 0;
+    let classesUpdated = 0;
+
+    try {
+        const tasks = wizardSelectedClasses.map(async (cls) => {
+            const subjects = wizardDiscoveredSubjects[cls] || [];
+            const toAdd = subjects.filter(s => s.checked);
+            if (!toAdd.length) return;
+
+            const docId = getClassSubjectsDocId(year, cls);
+            const subjSnap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId)).catch(() => null);
+
+            let existing = [];
+            if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+                existing = [...subjSnap.data().subjects];
+            }
+
+            let modified = false;
+            toAdd.forEach(item => {
+                const lower = item.name.trim().toLowerCase();
+                if (!existing.some(e => String(e.name || '').trim().toLowerCase() === lower)) {
+                    existing.push({
+                        id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                        name: item.name.trim(),
+                        code: item.code || item.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase(),
+                        teacher: '',
+                        weeklyPeriods: 5
+                    });
+                    importedCount++;
+                    modified = true;
+                }
+            });
+
+            if (modified) {
+                await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+                    classLabel: String(cls),
+                    academicYear: String(year),
+                    subjects: existing,
+                    updatedAt: Date.now()
+                }, { merge: true });
+                classesUpdated++;
+            }
+        });
+
+        await Promise.all(tasks);
+
+        closeModal('modal-sync-wizard');
+        showToast(`Successfully imported ${importedCount} subjects across ${classesUpdated} classes!`, 'success');
+        await loadClassSubjects();
+    } catch (err) {
+        alert('Failed to import subjects: ' + err.message);
     }
 };
 
@@ -1272,6 +1512,7 @@ const loadTimetable = async () => {
                 classLabel: cls,
                 slots: clsSlots,
                 matrix: tSnap && tSnap.exists() ? (tSnap.data().matrix || {}) : {},
+                dayStatuses: tSnap && tSnap.exists() ? (tSnap.data().dayStatuses || {}) : {},
                 subjects: sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects) ? sSnap.data().subjects : []
             };
         });
@@ -1294,6 +1535,7 @@ const loadTimetable = async () => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             timetableMatrix = data.matrix || {};
+            currentClassDayStatuses = data.dayStatuses || {};
             if (Array.isArray(data.slots) && data.slots.length > 0) {
                 currentClassSlots = data.slots;
             } else if (data.config && Array.isArray(data.config.slots) && data.config.slots.length > 0) {
@@ -1303,6 +1545,7 @@ const loadTimetable = async () => {
             }
         } else {
             timetableMatrix = {};
+            currentClassDayStatuses = {};
             currentClassSlots = getDefaultClassSlots();
         }
         // Always enforce institutional working days and off days derived from attendanceConfig
@@ -1312,6 +1555,23 @@ const loadTimetable = async () => {
         console.error('Failed to load timetable:', err);
     }
 
+    renderTimetableMatrixUI();
+};
+
+const handleDayStatusChange = async (day, status) => {
+    currentClassDayStatuses[day] = status;
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    if (!selectedTtClass || selectedTtClass === 'all') return;
+    const docId = getTimetableDocId(year, selectedTtClass);
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
+            dayStatuses: currentClassDayStatuses,
+            updatedAt: Date.now()
+        }, { merge: true });
+        showToast(`${day} marked as ${status === 'off' ? 'Off Day (Holiday)' : 'Working Day'}.`, 'info');
+    } catch (err) {
+        console.error('Failed to save day status:', err);
+    }
     renderTimetableMatrixUI();
 };
 
@@ -1348,16 +1608,18 @@ const renderTimetableMatrixUI = () => {
     const workingDaysBadge = document.getElementById('tt-working-days-badge');
     const totalPeriodsBadge = document.getElementById('tt-total-periods-badge');
 
-    const workingDays = timetableConfig.workingDays && timetableConfig.workingDays.length
-        ? timetableConfig.workingDays
-        : getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+    const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
 
     const slots = (selectedTtClass !== 'all' && Array.isArray(currentClassSlots) && currentClassSlots.length > 0)
         ? currentClassSlots
         : normalizeTimetableSlots(timetableConfig);
     const teachingSlotsCount = slots.filter(s => !s.isBreak).length;
 
-    if (workingDaysBadge) workingDaysBadge.textContent = `${workingDays.length} Working Days / Wk`;
+    const activeWorkingDaysCount = ALL_WEEKDAYS.filter(d => {
+        return (currentClassDayStatuses[d] === 'working') || (!currentClassDayStatuses[d] && !instOffDays.includes(d));
+    }).length;
+
+    if (workingDaysBadge) workingDaysBadge.textContent = `${activeWorkingDaysCount} Working Days / Wk`;
     if (totalPeriodsBadge) totalPeriodsBadge.textContent = `${teachingSlotsCount} Teaching Periods / Day`;
 
     if (!grid) return;
@@ -1365,8 +1627,9 @@ const renderTimetableMatrixUI = () => {
     if (selectedTtClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
         grid.innerHTML = allowed.map(cls => {
-            const cData = allClassesTimetables[cls] || { matrix: {}, subjects: [], slots: [] };
+            const cData = allClassesTimetables[cls] || { matrix: {}, subjects: [], slots: [], dayStatuses: {} };
             const matrix = cData.matrix || {};
+            const dayStatuses = cData.dayStatuses || {};
             const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0) ? cData.slots : slots;
 
             return `
@@ -1387,7 +1650,7 @@ const renderTimetableMatrixUI = () => {
                         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                                    <th class="py-2.5 px-3 border-r border-slate-200 w-28 bg-slate-100 font-black">Day / Period</th>
+                                    <th class="py-2.5 px-3 border-r border-slate-200 w-32 bg-slate-100 font-black">Day / Period</th>
                                     ${cSlots.map(s => `
                                         <th class="py-2 px-2.5 border-r border-slate-200 min-w-[120px] text-center ${s.isBreak ? 'bg-amber-50 text-amber-900' : ''}">
                                             <div class="font-black text-[11px]">${escapeHtml(s.label)}</div>
@@ -1397,32 +1660,48 @@ const renderTimetableMatrixUI = () => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200 font-medium">
-                                ${workingDays.map(day => `
-                                    <tr class="hover:bg-slate-50/60 transition">
-                                        <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/70 whitespace-nowrap">
-                                            <i class="fas fa-calendar-day text-indigo-600 mr-1.5 text-xs"></i>${day}
-                                        </td>
-                                        ${cSlots.map((s, pIdx) => {
-                                            const p = pIdx + 1;
-                                            const slotKey = `${day}_${s.slotId}`;
-                                            const legacyKey = `${day}_${p}`;
-                                            const legacyNumKey = `${day}_${s.slotNum}`;
-                                            const sData = matrix[slotKey] || matrix[legacyKey] || matrix[legacyNumKey] || {};
-                                            if (s.isBreak) {
-                                                return `<td class="p-2 border-r border-slate-200 text-center bg-amber-50/30 text-amber-700 font-black text-[10px] uppercase select-none"><i class="fas fa-mug-hot text-amber-500 mr-1"></i>${escapeHtml(s.label)}</td>`;
-                                            }
-                                            return `
-                                                <td class="p-2 border-r border-slate-200 align-top">
-                                                    ${sData.subjectName ? `
-                                                        <div class="p-2 rounded-xl bg-indigo-50/70 border border-indigo-200/80">
-                                                            <div class="font-black text-xs text-slate-900 leading-tight">${escapeHtml(sData.subjectName)}</div>
-                                                            <div class="text-[11px] text-indigo-800 font-semibold mt-1 truncate"><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(sData.teacher || 'Ustad')}</div>
-                                                        </div>
-                                                    ` : `<span class="text-[10px] text-slate-400 italic block text-center py-2">-- Free --</span>`}
-                                                </td>`;
-                                        }).join('')}
-                                    </tr>
-                                `).join('')}
+                                ${ALL_WEEKDAYS.map(day => {
+                                    const isDayOff = (dayStatuses[day] === 'off') || (!dayStatuses[day] && instOffDays.includes(day));
+                                    if (isDayOff) {
+                                        return `
+                                            <tr class="hover:bg-rose-50/20 transition bg-slate-50/40">
+                                                <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-500 bg-slate-100/70 whitespace-nowrap">
+                                                    <i class="fas fa-calendar-day text-slate-400 mr-1.5 text-xs"></i>${day}
+                                                    <span class="ml-1 text-[10px] font-bold text-rose-500 uppercase">(Off)</span>
+                                                </td>
+                                                <td colspan="${cSlots.length}" class="p-2.5 border-r border-slate-200 text-center bg-slate-50 text-slate-400 font-bold text-xs select-none">
+                                                    <i class="fas fa-couch mr-1.5 text-slate-400"></i> Weekly Off Day / Holiday
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }
+                                    return `
+                                        <tr class="hover:bg-slate-50/60 transition">
+                                            <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/70 whitespace-nowrap">
+                                                <i class="fas fa-calendar-day text-indigo-600 mr-1.5 text-xs"></i>${day}
+                                            </td>
+                                            ${cSlots.map((s, pIdx) => {
+                                                const p = pIdx + 1;
+                                                const slotKey = `${day}_${s.slotId}`;
+                                                const legacyKey = `${day}_${p}`;
+                                                const legacyNumKey = `${day}_${s.slotNum}`;
+                                                const sData = matrix[slotKey] || matrix[legacyKey] || matrix[legacyNumKey] || {};
+                                                if (s.isBreak) {
+                                                    return `<td class="p-2 border-r border-slate-200 text-center bg-amber-50/30 text-amber-700 font-black text-[10px] uppercase select-none"><i class="fas fa-mug-hot text-amber-500 mr-1"></i>${escapeHtml(s.label)}</td>`;
+                                                }
+                                                return `
+                                                    <td class="p-2 border-r border-slate-200 align-top">
+                                                        ${sData.subjectName ? `
+                                                            <div class="p-2 rounded-xl bg-indigo-50/70 border border-indigo-200/80">
+                                                                <div class="font-black text-xs text-slate-900 leading-tight">${escapeHtml(sData.subjectName)}</div>
+                                                                <div class="text-[11px] text-indigo-800 font-semibold mt-1 truncate"><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(sData.teacher || 'Ustad')}</div>
+                                                            </div>
+                                                        ` : `<span class="text-[10px] text-slate-400 italic block text-center py-2">-- Free --</span>`}
+                                                    </td>`;
+                                            }).join('')}
+                                        </tr>
+                                    `;
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -1441,7 +1720,7 @@ const renderTimetableMatrixUI = () => {
         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
                 <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                    <th class="py-3 px-3.5 border-r border-slate-200 w-28 bg-slate-200/80">Day / Period</th>`;
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-36 bg-slate-200/80">Day &amp; Status</th>`;
 
     slots.forEach((slot) => {
         if (slot.isBreak) {
@@ -1488,12 +1767,32 @@ const renderTimetableMatrixUI = () => {
         </th>
     </tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
 
-    workingDays.forEach(day => {
+    ALL_WEEKDAYS.forEach(day => {
+        const isDayOff = (currentClassDayStatuses[day] === 'off') || (!currentClassDayStatuses[day] && instOffDays.includes(day));
+
         html += `
-            <tr class="hover:bg-slate-50/60 transition">
-                <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap">
-                    <i class="fas fa-calendar-day text-indigo-600 mr-1.5"></i>${day}
+            <tr class="hover:bg-slate-50/60 transition ${isDayOff ? 'bg-slate-50/30' : ''}">
+                <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap align-middle">
+                    <div class="flex items-center gap-1.5">
+                        <i class="fas fa-calendar-day ${isDayOff ? 'text-slate-400' : 'text-indigo-600'}"></i>
+                        <span>${day}</span>
+                    </div>
+                    <select class="tt-day-status-select mt-1.5 w-full p-1 border ${isDayOff ? 'border-rose-200 bg-rose-50/60 text-rose-700 font-black' : 'border-slate-300 bg-white text-slate-800 font-bold'} rounded-lg text-[11px] outline-none cursor-pointer transition shadow-2xs" data-day="${day}">
+                        <option value="working" ${!isDayOff ? 'selected' : ''}>Working Day</option>
+                        <option value="off" ${isDayOff ? 'selected' : ''}>Off Day (Holiday)</option>
+                    </select>
                 </td>`;
+
+        if (isDayOff) {
+            html += `
+                <td colspan="${slots.length + 1}" class="p-4 border-r border-slate-200 text-center bg-rose-50/20 text-rose-700/80 font-bold text-xs select-none">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-rose-200 shadow-2xs text-rose-600 font-black">
+                        <i class="fas fa-couch text-rose-500"></i> Weekly Off Day / Holiday
+                    </div>
+                </td>
+            </tr>`;
+            return;
+        }
 
         slots.forEach((slot, pIdx) => {
             const p = pIdx + 1;
@@ -1618,6 +1917,7 @@ const saveTimetableMatrix = async () => {
             config: timetableConfig,
             slots: currentClassSlots,
             matrix: timetableMatrix,
+            dayStatuses: currentClassDayStatuses,
             updatedAt: Date.now()
         }, { merge: true });
 
@@ -2948,7 +3248,14 @@ const renderExamTimetableGridUI = () => {
         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
                 <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                    <th class="py-3 px-3.5 border-r border-slate-200 w-48 bg-slate-200/80">Exam Date &amp; Day</th>
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-52 bg-slate-200/80">
+                        <div class="flex items-center justify-between gap-1">
+                            <span>Exam Date &amp; Day</span>
+                            <button type="button" class="btn-trigger-add-exam-date px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] shadow-2xs transition inline-flex items-center gap-1 cursor-pointer" title="Add another exam date">
+                                <i class="fas fa-plus"></i> Date
+                            </button>
+                        </div>
+                    </th>
                     ${examSessions.map(session => `
                         <th class="py-2.5 px-3 border-r border-slate-200 min-w-[200px] relative group">
                             <div class="flex items-center justify-between gap-1 mb-1">
@@ -2986,99 +3293,108 @@ const renderExamTimetableGridUI = () => {
                 </td>
             </tr>`;
     } else {
+        examDates.forEach(dateStr => {
+            const enDay = getEnglishDayName(dateStr);
 
-    examDates.forEach(dateStr => {
-        const enDay = getEnglishDayName(dateStr);
-
-        html += `
-            <tr class="hover:bg-slate-50/60 transition">
-                <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap align-top">
-                    <div class="flex items-center justify-between gap-2">
-                        <div>
-                            <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                                <i class="fas fa-calendar-day text-indigo-600"></i> ${dateStr}
+            html += `
+                <tr class="hover:bg-slate-50/60 transition">
+                    <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap align-top">
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                    <i class="fas fa-calendar-day text-indigo-600"></i> ${dateStr}
+                                </div>
+                                <div class="text-[11px] font-bold text-slate-600 mt-0.5">
+                                    ${enDay}
+                                </div>
                             </div>
-                            <div class="text-[11px] font-bold text-slate-600 mt-0.5">
-                                ${enDay}
-                            </div>
+                            ${isExamTimetableEditMode ? `
+                                <button type="button" class="btn-remove-exam-date p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer" data-date="${dateStr}" title="Remove this exam date">
+                                    <i class="fas fa-trash-can text-xs"></i>
+                                </button>
+                            ` : ''}
                         </div>
-                        ${isExamTimetableEditMode ? `
-                            <button type="button" class="btn-remove-exam-date p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer" data-date="${dateStr}" title="Remove this exam date">
-                                <i class="fas fa-trash-can text-xs"></i>
-                            </button>
-                        ` : ''}
-                    </div>
-                </td>`;
+                    </td>`;
 
-        examSessions.forEach(session => {
-            const cellKey = `${dateStr}_${session.id}`;
-            const cellData = examMatrix[cellKey] || {};
+            examSessions.forEach(session => {
+                const cellKey = `${dateStr}_${session.id}`;
+                const cellData = examMatrix[cellKey] || {};
 
-            if (isExamTimetableEditMode) {
-                html += `
-                    <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
-                        <select class="exam-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-date="${dateStr}" data-session="${session.id}">
-                            <option value="">-- Unassigned --</option>
-                            <option value="__NO_EXAM__" ${cellData.isNoExam ? 'selected' : ''} class="font-bold text-amber-700 bg-amber-50">☕ -- No Exam / Study Leave --</option>
-                            ${classSubjectsList.map(s => `
-                                <option value="${s.id}" ${(cellData.subjectId === s.id || cellData.subjectName === s.name) && !cellData.isNoExam ? 'selected' : ''}>
-                                    ${escapeHtml(s.name)} (${escapeHtml(s.code)})
-                                </option>
-                            `).join('')}
-                        </select>
-                        <input type="text" class="exam-cell-portions w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Portions / Syllabus to study" value="${escapeHtml(cellData.portions || '')}" data-date="${dateStr}" data-session="${session.id}">
-                        <div class="grid grid-cols-2 gap-1">
-                            <select class="exam-cell-invigilator w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white font-bold" data-date="${dateStr}" data-session="${session.id}">
-                                <option value="">-- Invigilator --</option>
-                                ${getActiveTeachers().map(t => `
-                                    <option value="${escapeHtml(t.name || t.id)}" ${cellData.invigilator === t.name ? 'selected' : ''}>
-                                        ${escapeHtml(t.name || 'Staff')}
+                if (isExamTimetableEditMode) {
+                    html += `
+                        <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
+                            <select class="exam-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-date="${dateStr}" data-session="${session.id}">
+                                <option value="">-- Unassigned --</option>
+                                <option value="__NO_EXAM__" ${cellData.isNoExam ? 'selected' : ''} class="font-bold text-amber-700 bg-amber-50">☕ -- No Exam / Study Leave --</option>
+                                ${classSubjectsList.map(s => `
+                                    <option value="${s.id}" ${(cellData.subjectId === s.id || cellData.subjectName === s.name) && !cellData.isNoExam ? 'selected' : ''}>
+                                        ${escapeHtml(s.name)} (${escapeHtml(s.code)})
                                     </option>
                                 `).join('')}
                             </select>
-                            <input type="text" class="exam-cell-hall w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Hall / Room" value="${escapeHtml(cellData.hall || '')}" data-date="${dateStr}" data-session="${session.id}">
-                        </div>
-                    </td>`;
-            } else {
-                if (cellData.isNoExam) {
-                    html += `
-                        <td class="p-2.5 border-r border-slate-200 align-top">
-                            <div class="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-center select-none">
-                                <div class="text-[11px] font-black text-amber-900 flex items-center justify-center gap-1.5">
-                                    <i class="fas fa-mug-hot text-amber-600"></i> No Exam / Study Leave
-                                </div>
-                                <div class="text-[10px] font-bold text-amber-700/80 mt-0.5">Free Preparation Day</div>
-                            </div>
-                        </td>`;
-                } else if (cellData.subjectName) {
-                    html += `
-                        <td class="p-2.5 border-r border-slate-200 align-top">
-                            <div class="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs space-y-1">
-                                <div class="font-black text-xs text-indigo-950">${escapeHtml(cellData.subjectName)} ${cellData.subjectCode ? `<span class="text-[10px] font-bold text-indigo-700">(${escapeHtml(cellData.subjectCode)})</span>` : ''}</div>
-                                ${cellData.portions ? `<div class="text-[11px] font-semibold text-slate-600 leading-tight"><i class="fas fa-book-bookmark text-[9px] mr-1 text-indigo-500"></i>${escapeHtml(cellData.portions)}</div>` : ''}
-                                <div class="flex items-center gap-2 pt-0.5 text-[10px] font-bold text-slate-500">
-                                    ${cellData.invigilator ? `<span><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(cellData.invigilator)}</span>` : ''}
-                                    ${cellData.hall ? `<span><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(cellData.hall)}</span>` : ''}
-                                </div>
+                            <input type="text" class="exam-cell-portions w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Portions / Syllabus to study" value="${escapeHtml(cellData.portions || '')}" data-date="${dateStr}" data-session="${session.id}">
+                            <div class="grid grid-cols-2 gap-1">
+                                <select class="exam-cell-invigilator w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white font-bold" data-date="${dateStr}" data-session="${session.id}">
+                                    <option value="">-- Invigilator --</option>
+                                    ${getActiveTeachers().map(t => `
+                                        <option value="${escapeHtml(t.name || t.id)}" ${cellData.invigilator === t.name ? 'selected' : ''}>
+                                            ${escapeHtml(t.name || 'Staff')}
+                                        </option>
+                                    `).join('')}
+                                </select>
+                                <input type="text" class="exam-cell-hall w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Hall / Room" value="${escapeHtml(cellData.hall || '')}" data-date="${dateStr}" data-session="${session.id}">
                             </div>
                         </td>`;
                 } else {
-                    html += `
-                        <td class="p-2.5 border-r border-slate-200 align-top">
-                            <div class="p-2.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
-                                No Paper Scheduled
-                            </div>
-                        </td>`;
+                    if (cellData.isNoExam) {
+                        html += `
+                            <td class="p-2.5 border-r border-slate-200 align-top">
+                                <div class="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-center select-none">
+                                    <div class="text-[11px] font-black text-amber-900 flex items-center justify-center gap-1.5">
+                                        <i class="fas fa-mug-hot text-amber-600"></i> No Exam / Study Leave
+                                    </div>
+                                    <div class="text-[10px] font-bold text-amber-700/80 mt-0.5">Free Preparation Day</div>
+                                </div>
+                            </td>`;
+                    } else if (cellData.subjectName) {
+                        html += `
+                            <td class="p-2.5 border-r border-slate-200 align-top">
+                                <div class="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs space-y-1">
+                                    <div class="font-black text-xs text-indigo-950">${escapeHtml(cellData.subjectName)} ${cellData.subjectCode ? `<span class="text-[10px] font-bold text-indigo-700">(${escapeHtml(cellData.subjectCode)})</span>` : ''}</div>
+                                    ${cellData.portions ? `<div class="text-[11px] font-semibold text-slate-600 leading-tight"><i class="fas fa-book-bookmark text-[9px] mr-1 text-indigo-500"></i>${escapeHtml(cellData.portions)}</div>` : ''}
+                                    <div class="flex items-center gap-2 pt-0.5 text-[10px] font-bold text-slate-500">
+                                        ${cellData.invigilator ? `<span><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(cellData.invigilator)}</span>` : ''}
+                                        ${cellData.hall ? `<span><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(cellData.hall)}</span>` : ''}
+                                    </div>
+                                </div>
+                            </td>`;
+                    } else {
+                        html += `
+                            <td class="p-2.5 border-r border-slate-200 align-top">
+                                <div class="p-2.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
+                                    No Paper Scheduled
+                                </div>
+                            </td>`;
+                    }
                 }
-            }
+            });
+
+            html += `
+                <td class="p-2 border-r border-slate-200 bg-slate-50/20 text-center text-slate-300 font-bold text-xs select-none">
+                    --
+                </td>
+            </tr>`;
         });
 
+        // Trailing Add Date footer row
         html += `
-            <td class="p-2 border-r border-slate-200 bg-slate-50/20 text-center text-slate-300 font-bold text-xs select-none">
-                --
-            </td>
-        </tr>`;
-    });
+            <tr class="bg-indigo-50/30 border-t-2 border-indigo-100">
+                <td colspan="${examSessions.length + 2}" class="p-2.5 text-center">
+                    <button type="button" class="btn-trigger-add-exam-date px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer">
+                        <i class="fas fa-calendar-plus"></i> Add Next Exam Date
+                    </button>
+                </td>
+            </tr>`;
     }
 
     html += `</tbody></table>`;
@@ -3177,6 +3493,22 @@ const loadMasterExamTimetable = async () => {
     renderMasterExamGridUI(targetClasses, classSubjsMap);
 };
 
+const formatExamTimeDisplay = (start, end) => {
+    if (!start && !end) return '';
+    const to12h = (t) => {
+        if (!t) return '';
+        const parts = String(t).trim().split(':');
+        let h = parseInt(parts[0], 10);
+        if (isNaN(h)) return t;
+        const m = parts[1] || '00';
+        const ampm = h >= 12 ? 'pm' : 'am';
+        h = h % 12 || 12;
+        return `${String(h).padStart(2, '0')}.${m}${ampm}`;
+    };
+    if (start && end) return `${to12h(start)} To ${to12h(end)}`;
+    return to12h(start) || to12h(end);
+};
+
 const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
     const grid = document.getElementById('exam-master-grid');
     if (!grid) return;
@@ -3193,30 +3525,61 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
         return;
     }
 
-    // Default timings band
-    const timingBands = {
-        0: '07.00am To 09.00am',
-        1: '06.30am To 08.30am',
-        2: '06.30am To 08.30am',
-        3: '06.30am To 08.30am',
-        4: '06.30am To 08.30am',
-        5: '06.30am To 08.30am',
-        6: '06.30am To 08.30am',
-        7: '08.00am To 09.30am'
-    };
+    // Determine sessions scheduled for each date across all classes
+    const dateSessionsMap = {};
+    masterExamDates.forEach(dateStr => {
+        const activeSessions = [];
+        const seenIds = new Set();
+
+        classesToRender.forEach(cls => {
+            const cData = masterExamTimetables[cls] || { matrix: {}, sessions: [] };
+            const matrix = cData.matrix || {};
+            const clsSessions = (Array.isArray(cData.sessions) && cData.sessions.length)
+                ? cData.sessions
+                : (Array.isArray(cData.sessionSlots) && cData.sessionSlots.length)
+                    ? cData.sessionSlots
+                    : [
+                        { id: 'session_1', label: 'Paper 1', startTime: '07:00', endTime: '08:30' },
+                        { id: 'session_2', label: 'Paper 2', startTime: '08:30', endTime: '10:00' }
+                      ];
+
+            Object.keys(matrix).forEach(key => {
+                if (key.startsWith(`${dateStr}_`)) {
+                    const sId = key.substring(dateStr.length + 1);
+                    if (!seenIds.has(sId)) {
+                        seenIds.add(sId);
+                        const matched = clsSessions.find(s => s.id === sId) || { id: sId, label: `Paper ${sId}`, startTime: '', endTime: '' };
+                        activeSessions.push(matched);
+                    }
+                }
+            });
+        });
+
+        if (!activeSessions.length) {
+            activeSessions.push({ id: 'session_1', label: 'Paper 1', startTime: '07:00', endTime: '08:30' });
+        } else {
+            activeSessions.sort((a, b) => {
+                if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+                return a.id.localeCompare(b.id);
+            });
+        }
+
+        dateSessionsMap[dateStr] = activeSessions;
+    });
 
     let html = `
         <table class="w-full text-center border-collapse border-2 border-slate-900 text-xs">
             <thead>
-                <!-- Top Row: Exam Dates & Weekdays -->
+                <!-- Top Row: Exam Dates & Weekdays (with colspan for multi-session dates) -->
                 <tr class="bg-slate-900 text-white border-b-2 border-slate-900">
                     <th class="py-3 px-3 border-r-2 border-white w-20 bg-slate-950 font-black text-xs uppercase tracking-wider text-white">
                         Class
                     </th>
                     ${masterExamDates.map(dateStr => {
                         const enDay = getEnglishDayName(dateStr);
+                        const sessions = dateSessionsMap[dateStr] || [];
                         return `
-                            <th class="py-2.5 px-3 border-r border-slate-700 min-w-[130px] text-center">
+                            <th colspan="${sessions.length}" class="py-2.5 px-3 border-r border-slate-700 min-w-[130px] text-center">
                                 <div class="font-extrabold text-[11px] text-indigo-200 tracking-wider">${dateStr}</div>
                                 <div class="font-bold text-xs text-white mt-0.5">${enDay}</div>
                             </th>
@@ -3224,16 +3587,22 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
                     }).join('')}
                 </tr>
 
-                <!-- Second Row: Session Timings Band -->
+                <!-- Second Row: Session Timings Band (Equally divided sub-columns under each date) -->
                 <tr class="bg-slate-100 text-slate-800 border-b-2 border-slate-900 text-[10px] font-sans font-black">
                     <th class="py-1.5 px-2 border-r-2 border-slate-900 bg-slate-200 text-slate-900 uppercase">
                         Timing
                     </th>
-                    ${masterExamDates.map((_, idx) => `
-                        <th class="py-1.5 px-2 border-r border-slate-300 text-center text-slate-700">
-                            ${timingBands[idx % 8] || '07.00am To 09.00am'}
-                        </th>
-                    `).join('')}
+                    ${masterExamDates.map(dateStr => {
+                        const sessions = dateSessionsMap[dateStr] || [];
+                        return sessions.map(s => {
+                            const timingStr = formatExamTimeDisplay(s.startTime, s.endTime) || s.label || '07.00am To 09.00am';
+                            return `
+                                <th class="py-1.5 px-2 border-r border-slate-300 text-center text-slate-700 font-bold">
+                                    ${escapeHtml(timingStr)}
+                                </th>
+                            `;
+                        }).join('');
+                    }).join('')}
                 </tr>
             </thead>
             <tbody class="divide-y-2 divide-slate-900 font-medium text-slate-900">
@@ -3249,38 +3618,38 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
                             </td>
 
                             ${masterExamDates.map(dateStr => {
-                                const dateKeys = Object.keys(matrix).filter(k => k.startsWith(`${dateStr}_`));
-                                if (!dateKeys.length) {
+                                const sessions = dateSessionsMap[dateStr] || [];
+                                return sessions.map(session => {
+                                    const cellKey = `${dateStr}_${session.id}`;
+                                    const cellData = matrix[cellKey];
+
+                                    if (!cellData) {
+                                        return `
+                                            <td class="p-2 border-r border-slate-300 text-center text-slate-300 text-xs">
+                                                --
+                                            </td>`;
+                                    }
+
+                                    if (cellData.isNoExam) {
+                                        return `
+                                            <td class="p-2 border-r border-slate-300 text-center bg-amber-50/40 text-amber-800 font-black text-[10px] uppercase select-none">
+                                                Study Leave
+                                            </td>`;
+                                    }
+
+                                    if (cellData.subjectName) {
+                                        return `
+                                            <td class="p-2 border-r border-slate-300 text-center align-middle font-black text-xs text-slate-950 leading-tight">
+                                                ${escapeHtml(cellData.subjectName)}
+                                                ${cellData.subjectCode ? `<span class="text-[10px] text-indigo-700 font-bold block mt-0.5">(${escapeHtml(cellData.subjectCode)})</span>` : ''}
+                                            </td>`;
+                                    }
+
                                     return `
                                         <td class="p-2 border-r border-slate-300 text-center text-slate-300 text-xs">
                                             --
                                         </td>`;
-                                }
-
-                                const dateCells = dateKeys.map(k => matrix[k]);
-                                if (dateCells.some(c => c.isNoExam)) {
-                                    return `
-                                        <td class="p-2 border-r border-slate-300 text-center bg-amber-50/40 text-amber-800 font-black text-[10px] uppercase select-none">
-                                            Study Leave
-                                        </td>`;
-                                }
-
-                                const assignedSubjects = dateCells.map(c => c.subjectName).filter(Boolean);
-                                if (!assignedSubjects.length) {
-                                    return `
-                                        <td class="p-2 border-r border-slate-300 text-center text-slate-300 text-xs">
-                                            --
-                                        </td>`;
-                                }
-
-                                return `
-                                    <td class="p-2 border-r border-slate-300 text-center align-middle">
-                                        ${assignedSubjects.map((s, sIdx) => `
-                                            <div class="font-black text-xs text-slate-950 leading-tight ${sIdx > 0 ? 'mt-1 pt-1 border-t border-slate-200 text-indigo-900' : ''}">
-                                                ${escapeHtml(s)}
-                                            </div>
-                                        `).join('')}
-                                    </td>`;
+                                }).join('');
                             }).join('')}
                         </tr>`;
                 }).join('')}
@@ -3569,7 +3938,29 @@ const setupEventListeners = () => {
     document.getElementById('subj-search-input')?.addEventListener('input', renderClassSubjectsUI);
     document.getElementById('btn-add-subject')?.addEventListener('click', () => openSubjectModal(null));
     document.getElementById('btn-save-subject')?.addEventListener('click', saveClassSubject);
-    document.getElementById('btn-sync-subjects-schema')?.addEventListener('click', syncSubjectsFromResultSchema);
+    document.getElementById('btn-sync-info')?.addEventListener('click', openSyncInfoModal);
+    document.getElementById('btn-sync-subjects-schema')?.addEventListener('click', openSyncWizardModal);
+    document.getElementById('btn-sync-toggle-all-classes')?.addEventListener('click', toggleAllSyncWizardClasses);
+    document.getElementById('btn-sync-wizard-step1-next')?.addEventListener('click', proceedSyncWizardToStep2);
+    document.getElementById('btn-sync-wizard-step2-back')?.addEventListener('click', backSyncWizardToStep1);
+    document.getElementById('btn-sync-wizard-finish')?.addEventListener('click', finishSyncWizardImport);
+
+    document.getElementById('sync-wizard-subjects-list')?.addEventListener('change', (e) => {
+        const cb = e.target.closest('.sync-subject-cb');
+        if (cb) {
+            const cls = cb.dataset.class;
+            const idx = Number(cb.dataset.index);
+            if (wizardDiscoveredSubjects[cls] && wizardDiscoveredSubjects[cls][idx]) {
+                wizardDiscoveredSubjects[cls][idx].checked = cb.checked;
+                const countBadge = document.getElementById('sync-wizard-selected-count');
+                let totalChecked = 0;
+                Object.values(wizardDiscoveredSubjects).forEach(list => {
+                    list.forEach(s => { if (s.checked) totalChecked++; });
+                });
+                if (countBadge) countBadge.textContent = `${totalChecked} Selected`;
+            }
+        }
+    });
 
     // Cards Grid Delegation
     document.getElementById('subjects-cards-grid')?.addEventListener('click', (e) => {
@@ -3677,6 +4068,16 @@ const setupEventListeners = () => {
             selectedTtClass = cls;
             loadTimetable();
             return;
+        }
+    });
+
+    // Timetable Day Status Dropdown Listener (Working Day vs Off Day)
+    document.getElementById('tt-schedule-grid')?.addEventListener('change', (e) => {
+        const daySel = e.target.closest('.tt-day-status-select');
+        if (daySel) {
+            const day = daySel.dataset.day;
+            const status = daySel.value;
+            handleDayStatusChange(day, status);
         }
     });
 

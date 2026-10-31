@@ -289,8 +289,8 @@
               <button type="button" id="btn-sync-subjects-schema" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Synchronize subjects with Result Management configurations">
                 <i class="fas fa-rotate"></i> Sync with Result
               </button>
-              <button type="button" id="btn-add-subject" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-plus"></i> Add Subject
+              <button type="button" id="btn-sync-info" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 flex items-center justify-center text-xs font-bold transition cursor-pointer" title="How Result Sync Works">
+                <i class="fas fa-circle-info"></i>
               </button>
             </div>
           </div>
@@ -473,9 +473,6 @@
                 <span id="exam-tt-edit-mode-label" class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600">View Only</span>
               </div>
 
-              <button type="button" id="btn-add-exam-date" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-calendar-plus"></i> Add Date
-              </button>
               <button type="button" id="btn-save-exam-timetable" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer hidden">
                 <i class="fas fa-save"></i> Save Schedule
               </button>
@@ -1217,6 +1214,136 @@
           </button>
           <button type="button" id="btn-save-exam-session" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5">
             <i class="fas fa-check"></i> Save Paper Session
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: RESULT SYNC INFORMATION             -->
+  <!-- ========================================== -->
+  <div id="modal-sync-info" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-circle-info"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-indigo-950">How Result Sync Works</h3>
+            <p class="text-[11px] text-indigo-700 font-bold">Automatic subjects import from Result Management</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-sync-info">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs text-slate-700 leading-relaxed">
+        <div class="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-1.5">
+          <div class="font-black text-xs text-indigo-950 flex items-center gap-1.5">
+            <i class="fas fa-bullseye text-indigo-600"></i> Purpose &amp; Objective
+          </div>
+          <p class="text-slate-600 font-medium text-[11px]">
+            Eliminates manual re-entry of subjects. It automatically imports official subject lists configured in Result Management directly into the Academic Plan for your duty classes.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="font-black text-xs text-slate-900 flex items-center gap-1.5">
+            <i class="fas fa-database text-slate-500"></i> Data Source
+          </div>
+          <p class="text-slate-600 font-medium text-[11px]">
+            Subjects are retrieved from each class's examination configurations (<code class="bg-slate-100 px-1 py-0.5 rounded text-indigo-700 font-bold">resultSchemas</code>) for the selected academic year.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="font-black text-xs text-slate-900 flex items-center gap-1.5">
+            <i class="fas fa-sliders text-slate-500"></i> 2-Step Selective Process
+          </div>
+          <ol class="list-decimal pl-4 space-y-1 text-slate-600 text-[11px] font-medium">
+            <li><strong>Select Classes:</strong> Choose which of your assigned classes you want to synchronize.</li>
+            <li><strong>Review &amp; Filter:</strong> Preview discovered subjects for each class, uncheck any unwanted items, and import only what you need.</li>
+          </ol>
+        </div>
+
+        <div class="pt-2 flex justify-end">
+          <button type="button" class="btn-close-modal px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-sync-info">
+            Got It
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: RESULT SYNC WIZARD (2 STEPS)        -->
+  <!-- ========================================== -->
+  <div id="modal-sync-wizard" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all flex flex-col max-h-[85vh]">
+      <!-- Wizard Header -->
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-rotate"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-indigo-950">Sync Subjects from Result Management</h3>
+            <p id="sync-wizard-step-indicator" class="text-[11px] text-indigo-700 font-bold">Step 1 of 2: Select Classes</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-sync-wizard">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Step 1: Class Selection -->
+      <div id="sync-wizard-step-1" class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div class="flex items-center justify-between">
+          <p class="font-bold text-slate-700">Select which classes you want to import subjects for:</p>
+          <button type="button" id="btn-sync-toggle-all-classes" class="text-indigo-600 hover:text-indigo-800 font-black text-xs cursor-pointer">
+            Select All
+          </button>
+        </div>
+
+        <div id="sync-wizard-classes-list" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1">
+          <!-- Populated dynamically with allowed duty classes -->
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" class="btn-close-modal px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-sync-wizard">
+            Cancel
+          </button>
+          <button type="button" id="btn-sync-wizard-step1-next" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+            Continue to Subjects <i class="fas fa-arrow-right text-[10px]"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Subject Review & Selection -->
+      <div id="sync-wizard-step-2" class="p-5 overflow-y-auto space-y-4 text-xs hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="font-bold text-slate-900">Review &amp; Select Subjects</h4>
+            <p class="text-[11px] text-slate-500 font-medium">Uncheck any subjects you do not want to import</p>
+          </div>
+          <span id="sync-wizard-selected-count" class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-black text-[11px] border border-indigo-200">
+            0 Selected
+          </span>
+        </div>
+
+        <div id="sync-wizard-subjects-list" class="space-y-3 max-h-64 overflow-y-auto p-1">
+          <!-- Populated dynamically with discovered subjects per class -->
+        </div>
+
+        <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+          <button type="button" id="btn-sync-wizard-step2-back" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5">
+            <i class="fas fa-arrow-left text-[10px]"></i> Back
+          </button>
+          <button type="button" id="btn-sync-wizard-finish" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+            <i class="fas fa-check"></i> Import Selected Subjects
           </button>
         </div>
       </div>
