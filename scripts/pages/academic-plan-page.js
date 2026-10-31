@@ -1813,7 +1813,7 @@ const renderTimetableMatrixUI = () => {
                             <option value="">-- Free / Recess --</option>
                             ${classSubjectsList.map(s => `
                                 <option value="${s.id}" ${(slotData.subjectId === s.id || slotData.subjectName === s.name) ? 'selected' : ''}>
-                                    ${escapeHtml(s.name)} (${escapeHtml(s.code)})
+                                    ${escapeHtml(s.name)}
                                 </option>
                             `).join('')}
                         </select>
@@ -2481,7 +2481,89 @@ const applyTimetableWeekendSync = async (mode) => {
     }
 };
 
+const setPrintOrientation = (orientation = 'landscape') => {
+    let style = document.getElementById('dynamic-print-page-style');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'dynamic-print-page-style';
+        document.head.appendChild(style);
+    }
+    style.textContent = `@media print { @page { size: A4 ${orientation}; margin: 8mm 10mm; } }`;
+};
+
+const updatePrintBrandingHeaders = (docTitle, dateElId) => {
+    const instName = institutionConfig.name || 'Noorul Islam Madrasa';
+    const instTagline = institutionConfig.tagline || 'Academic Affairs & Examination Division';
+    const instAddress = `${institutionConfig.address || 'Central Campus'} • Ph: ${institutionConfig.phone || '+91 0000000000'}`;
+    const instPlace = institutionConfig.place || institutionConfig.city || 'Campus';
+    const todayStr = new Date().toLocaleDateString('en-GB');
+
+    document.querySelectorAll('.inst-print-name').forEach(el => { el.textContent = instName; });
+    document.querySelectorAll('.inst-print-tagline').forEach(el => { el.textContent = instTagline; });
+    document.querySelectorAll('.inst-print-address').forEach(el => { el.textContent = instAddress; });
+    document.querySelectorAll('.inst-print-place').forEach(el => { el.textContent = `Place: ${instPlace}`; });
+    if (dateElId) {
+        const dEl = document.getElementById(dateElId);
+        if (dEl) dEl.textContent = `Date of Publication: ${todayStr}`;
+    }
+    if (institutionConfig.logoUrl) {
+        document.querySelectorAll('.inst-print-logo').forEach(img => { img.src = institutionConfig.logoUrl; });
+        document.querySelectorAll('.inst-print-logo-wrap').forEach(wrap => { wrap.classList.remove('hidden'); });
+    }
+};
+
 const printTimetableRoutine = () => {
+    const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    const titleEl = document.getElementById('tt-print-doc-title');
+    if (titleEl) {
+        titleEl.textContent = selectedTtClass === 'all'
+            ? `All Classes Routine Timetables (${year})`
+            : `Class ${selectedTtClass} Weekly Routine Timetable (${year})`;
+    }
+    updatePrintBrandingHeaders('Class Routine Timetable', 'tt-print-date');
+    setPrintOrientation('landscape');
+    document.body.setAttribute('data-print-target', 'timetable');
+    window.print();
+};
+
+const printYearPlan = () => {
+    const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
+    const calType = document.getElementById('yp-calendar-type')?.value === 'hijri' ? 'Hijri' : 'Gregorian';
+    const titleEl = document.getElementById('yp-print-doc-title');
+    if (titleEl) {
+        titleEl.textContent = selectedYpClass === 'all'
+            ? `All Classes Academic Syllabus & Lesson Breakdown (${year} - ${calType} Calendar)`
+            : `Class ${selectedYpClass} Academic Syllabus & Lesson Breakdown (${year} - ${calType} Calendar)`;
+    }
+    updatePrintBrandingHeaders('Academic Year Plan', 'yp-print-date');
+    setPrintOrientation('landscape');
+    document.body.setAttribute('data-print-target', 'yearplan');
+    window.print();
+};
+
+const printExamRoutine = () => {
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+    const titleEl = document.getElementById('exam-print-doc-title');
+    if (titleEl) {
+        titleEl.textContent = `${currentExamTitle} Examination Schedule - Class ${selectedClass} (${year})`;
+    }
+    updatePrintBrandingHeaders('Exam Schedule', 'exam-print-date');
+    setPrintOrientation('landscape');
+    document.body.setAttribute('data-print-target', 'exam');
+    window.print();
+};
+
+const printMasterTimetable = () => {
+    const year = document.getElementById('master-tt-academic-year')?.value
+        || document.getElementById('exam-tt-academic-year')?.value
+        || currentAcademicYear;
+    const mainTitle = document.getElementById('master-exam-main-title');
+    if (mainTitle) {
+        mainTitle.textContent = `${currentExamTitle} Master Examination Timetable (${year})`;
+    }
+    setPrintOrientation('landscape');
+    document.body.setAttribute('data-print-target', 'master');
     window.print();
 };
 
@@ -2603,7 +2685,6 @@ const renderYearPlanUI = () => {
                                     ${subjs.map(s => `
                                         <th class="py-2.5 px-3 border-r-2 border-slate-800 min-w-[150px] text-center">
                                             <div class="font-black text-sm text-slate-950">${escapeHtml(s.name)}</div>
-                                            <div class="text-[10px] text-indigo-700 font-bold uppercase mt-0.5">${escapeHtml(s.code || '')}</div>
                                         </th>
                                     `).join('')}
                                 </tr>
@@ -2691,7 +2772,6 @@ const renderYearPlanUI = () => {
                     ${classSubjectsList.map(s => `
                         <th class="py-2.5 px-3 border-r-2 border-slate-800 min-w-[150px] text-center">
                             <div class="font-black text-sm text-slate-950">${escapeHtml(s.name)}</div>
-                            <div class="text-[10px] text-indigo-700 font-bold uppercase mt-0.5">${escapeHtml(s.code || '')}</div>
                         </th>
                     `).join('')}
                 </tr>
@@ -2897,9 +2977,6 @@ const saveYearPlanExecution = async () => {
     }
 };
 
-const printYearPlan = () => {
-    window.print();
-};
 
 // =========================================================================
 // MODULE 4: EXAM TIMETABLE & SYLLABUS LOGIC (CLASS-SCOPED & RESULT-SYNCED)
@@ -3249,12 +3326,7 @@ const renderExamTimetableGridUI = () => {
             <thead>
                 <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
                     <th class="py-3 px-3.5 border-r border-slate-200 w-52 bg-slate-200/80">
-                        <div class="flex items-center justify-between gap-1">
-                            <span>Exam Date &amp; Day</span>
-                            <button type="button" class="btn-trigger-add-exam-date px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] shadow-2xs transition inline-flex items-center gap-1 cursor-pointer" title="Add another exam date">
-                                <i class="fas fa-plus"></i> Date
-                            </button>
-                        </div>
+                        Exam Date &amp; Day
                     </th>
                     ${examSessions.map(session => `
                         <th class="py-2.5 px-3 border-r border-slate-200 min-w-[200px] relative group">
@@ -3328,7 +3400,7 @@ const renderExamTimetableGridUI = () => {
                                 <option value="__NO_EXAM__" ${cellData.isNoExam ? 'selected' : ''} class="font-bold text-amber-700 bg-amber-50">☕ -- No Exam / Study Leave --</option>
                                 ${classSubjectsList.map(s => `
                                     <option value="${s.id}" ${(cellData.subjectId === s.id || cellData.subjectName === s.name) && !cellData.isNoExam ? 'selected' : ''}>
-                                        ${escapeHtml(s.name)} (${escapeHtml(s.code)})
+                                        ${escapeHtml(s.name)}
                                     </option>
                                 `).join('')}
                             </select>
@@ -3360,7 +3432,7 @@ const renderExamTimetableGridUI = () => {
                         html += `
                             <td class="p-2.5 border-r border-slate-200 align-top">
                                 <div class="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs space-y-1">
-                                    <div class="font-black text-xs text-indigo-950">${escapeHtml(cellData.subjectName)} ${cellData.subjectCode ? `<span class="text-[10px] font-bold text-indigo-700">(${escapeHtml(cellData.subjectCode)})</span>` : ''}</div>
+                                    <div class="font-black text-xs text-indigo-950">${escapeHtml(cellData.subjectName)}</div>
                                     ${cellData.portions ? `<div class="text-[11px] font-semibold text-slate-600 leading-tight"><i class="fas fa-book-bookmark text-[9px] mr-1 text-indigo-500"></i>${escapeHtml(cellData.portions)}</div>` : ''}
                                     <div class="flex items-center gap-2 pt-0.5 text-[10px] font-bold text-slate-500">
                                         ${cellData.invigilator ? `<span><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(cellData.invigilator)}</span>` : ''}
@@ -3388,7 +3460,7 @@ const renderExamTimetableGridUI = () => {
 
         // Trailing Add Date footer row
         html += `
-            <tr class="bg-indigo-50/30 border-t-2 border-indigo-100">
+            <tr class="bg-indigo-50/30 border-t-2 border-indigo-100 no-print">
                 <td colspan="${examSessions.length + 2}" class="p-2.5 text-center">
                     <button type="button" class="btn-trigger-add-exam-date px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer">
                         <i class="fas fa-calendar-plus"></i> Add Next Exam Date
@@ -3641,7 +3713,6 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
                                         return `
                                             <td class="p-2 border-r border-slate-300 text-center align-middle font-black text-xs text-slate-950 leading-tight">
                                                 ${escapeHtml(cellData.subjectName)}
-                                                ${cellData.subjectCode ? `<span class="text-[10px] text-indigo-700 font-bold block mt-0.5">(${escapeHtml(cellData.subjectCode)})</span>` : ''}
                                             </td>`;
                                     }
 
@@ -4194,7 +4265,7 @@ const setupEventListeners = () => {
     // 5. Exam Schedule & Master Timetable Listeners
     document.getElementById('btn-exam-view-single')?.addEventListener('click', () => switchExamViewMode('single'));
     document.getElementById('btn-exam-view-master')?.addEventListener('click', () => switchExamViewMode('master'));
-    document.getElementById('btn-print-master-exam-tt')?.addEventListener('click', () => window.print());
+    document.getElementById('btn-print-master-exam-tt')?.addEventListener('click', printMasterTimetable);
 
     document.getElementById('modal-new-exam-class-scope')?.addEventListener('change', (e) => {
         const wrap = document.getElementById('modal-new-exam-specific-class-wrapper');
@@ -4236,7 +4307,7 @@ const setupEventListeners = () => {
     document.getElementById('btn-add-exam-date')?.addEventListener('click', openAddExamDateModal);
     document.getElementById('btn-confirm-add-exam-date')?.addEventListener('click', confirmAddExamDate);
     document.getElementById('btn-save-exam-timetable')?.addEventListener('click', saveExamTimetableMatrix);
-    document.getElementById('btn-print-exam-tt')?.addEventListener('click', () => window.print());
+    document.getElementById('btn-print-exam-tt')?.addEventListener('click', printExamRoutine);
     document.getElementById('btn-add-exam-name')?.addEventListener('click', openAddExamNameModal);
     document.getElementById('btn-save-new-exam-title')?.addEventListener('click', saveNewExamName);
 
@@ -4252,7 +4323,7 @@ const setupEventListeners = () => {
     document.getElementById('master-tt-exam-select')?.addEventListener('change', async () => {
         await loadMasterExamTimetable();
     });
-    document.getElementById('btn-print-master-timetable')?.addEventListener('click', () => window.print());
+    document.getElementById('btn-print-master-timetable')?.addEventListener('click', printMasterTimetable);
 
     document.getElementById('exam-schedule-grid')?.addEventListener('click', (e) => {
         const addSessionBtn = e.target.closest('#btn-add-exam-paper-header') || e.target.closest('.btn-add-exam-session');
@@ -4333,6 +4404,11 @@ const setupEventListeners = () => {
     // 6. Sign Out
     document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
+    });
+
+    // Reset print state on afterprint
+    window.addEventListener('afterprint', () => {
+        document.body.removeAttribute('data-print-target');
     });
 };
 
