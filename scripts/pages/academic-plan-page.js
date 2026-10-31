@@ -132,6 +132,14 @@ let currentYpEndMonth = 'March';
 let isYearPlanEditMode = false;
 let yearPlanGrid = {}; // "month_subjectId" -> { lessonNo, topic, pages, allocatedPeriods, breakdown, progressPercent, status, notes }
 
+// --- Syllabus Progress Tracker State ---
+let selectedStClass = '';
+let selectedStMonth = 'all';
+let selectedStSubject = 'all';
+let stSearchQuery = '';
+let stClassSubjects = [];
+let stCurrentGrid = {};
+
 // --- Exam Timetable State ---
 let currentExamTitle = 'Half-Yearly';
 let examTimetableEntries = [];
@@ -342,6 +350,8 @@ const activateTab = (targetTabId) => {
         loadTimetable();
     } else if (targetTabId === 'tab-yearplan') {
         loadYearPlan();
+    } else if (targetTabId === 'tab-syllabus-tracker') {
+        loadSyllabusTracker();
     } else if (targetTabId === 'tab-exam-schedule') {
         const y = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
         const c = document.getElementById('exam-tt-class-select')?.value || '1';
@@ -375,6 +385,7 @@ const initTabNavigation = () => {
     const hash = window.location.hash;
     if (hash === '#timetable') activateTab('tab-timetable');
     else if (hash === '#year-plan' || hash === '#yearplan') activateTab('tab-yearplan');
+    else if (hash === '#syllabus-tracker') activateTab('tab-syllabus-tracker');
     else if (hash === '#exam-schedule') activateTab('tab-exam-schedule');
     else if (hash === '#master-timetable') activateTab('tab-master-timetable');
     else activateTab('tab-subjects');
@@ -568,6 +579,7 @@ const populateAcademicYearDropdowns = () => {
         'subj-academic-year',
         'tt-academic-year',
         'yp-academic-year',
+        'st-academic-year',
         'exam-tt-academic-year',
         'master-tt-academic-year'
     ];
@@ -663,6 +675,24 @@ const populateClassDropdowns = () => {
         selectedYpClass = ypClassSelect.value;
     }
 
+    // 3B. Syllabus Tracker class select
+    const stClassSelect = document.getElementById('st-class-select');
+    if (stClassSelect) {
+        const prev = stClassSelect.value;
+        let opts = '';
+        if (isSuperAdmin) {
+            opts += `<option value="all">All Classes</option>`;
+        }
+        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        stClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
+        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+            stClassSelect.value = prev;
+        } else if (allowed.length > 0) {
+            stClassSelect.value = allowed[0];
+        }
+        selectedStClass = stClassSelect.value;
+    }
+
     // 4. Exam Timetable class select
     const examClassSelect = document.getElementById('exam-tt-class-select');
     if (examClassSelect) {
@@ -725,6 +755,30 @@ const populateYearPlanMonthDropdowns = () => {
     } else {
         startSel.value = currentYpStartMonth && GREGORIAN_MONTHS.includes(currentYpStartMonth) ? currentYpStartMonth : 'June';
         endSel.value = currentYpEndMonth && GREGORIAN_MONTHS.includes(currentYpEndMonth) ? currentYpEndMonth : 'March';
+    }
+
+    // Also populate Syllabus Tracker filter month select and modal month select
+    const stMonthSel = document.getElementById('st-month-select');
+    if (stMonthSel) {
+        const prev = stMonthSel.value;
+        stMonthSel.innerHTML = `<option value="all">All Months</option>` +
+            monthsList.map(m => `<option value="${m}">${m}</option>`).join('');
+        if (prev && (prev === 'all' || monthsList.includes(prev))) {
+            stMonthSel.value = prev;
+        } else {
+            stMonthSel.value = 'all';
+        }
+    }
+
+    const modalStMonthSel = document.getElementById('modal-st-month');
+    if (modalStMonthSel) {
+        const prev = modalStMonthSel.value;
+        modalStMonthSel.innerHTML = monthsList.map(m => `<option value="${m}">${m}</option>`).join('');
+        if (prev && monthsList.includes(prev)) {
+            modalStMonthSel.value = prev;
+        } else {
+            modalStMonthSel.value = monthsList[0];
+        }
     }
 };
 
@@ -2818,10 +2872,25 @@ const renderYearPlanUI = () => {
                 html += `
                     <td class="p-2.5 border-r-2 border-slate-800 text-center align-middle cursor-pointer hover:bg-indigo-50/40 transition yp-cell-clickable" data-month="${month}" data-subject-id="${s.id}" data-subject-name="${escapeHtml(s.name)}">
                         ${hasTarget ? `
-                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 transition text-center space-y-0.5">
+                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 transition text-center space-y-1">
                                 <div class="font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo || '')}</div>
                                 ${cell.topic ? `<div class="font-semibold text-xs text-slate-700">${escapeHtml(cell.topic)}</div>` : ''}
-                                ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold mt-1">${escapeHtml(cell.pages)}</div>` : ''}
+                                ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold">${escapeHtml(cell.pages)}</div>` : ''}
+                                <div class="pt-0.5 flex items-center justify-center gap-1">
+                                    ${(cell.isCompleted || (cell.progressPercent || 0) === 100) ? `
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <i class="fas fa-circle-check text-emerald-600"></i> Done
+                                        </span>
+                                    ` : ((cell.progressPercent || 0) > 0 ? `
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                            ${cell.progressPercent}%
+                                        </span>
+                                    ` : `
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                                            Planned
+                                        </span>
+                                    `)}
+                                </div>
                             </div>
                         ` : `
                             <div class="p-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 text-center text-slate-400 text-xs py-3">
@@ -2975,6 +3044,606 @@ const saveYearPlanExecution = async () => {
     } catch (err) {
         alert('Failed to save execution plan: ' + err.message);
     }
+};
+
+// =========================================================================
+// MODULE 3B: SYLLABUS PROGRESS TRACKER & CHECKLIST
+// =========================================================================
+
+const jumpToSyllabusTracker = (classLabel, month, subjectId) => {
+    selectedStClass = classLabel || selectedYpClass || '1';
+    selectedStMonth = month || 'all';
+    selectedStSubject = subjectId || 'all';
+
+    const ySel = document.getElementById('st-academic-year');
+    const ypYear = document.getElementById('yp-academic-year')?.value;
+    if (ySel && ypYear) ySel.value = ypYear;
+
+    const cSel = document.getElementById('st-class-select');
+    if (cSel) cSel.value = selectedStClass;
+
+    const mSel = document.getElementById('st-month-select');
+    if (mSel) mSel.value = selectedStMonth;
+
+    activateTab('tab-syllabus-tracker');
+
+    setTimeout(() => {
+        const sSel = document.getElementById('st-subject-select');
+        if (sSel && selectedStSubject) {
+            sSel.value = selectedStSubject;
+            renderSyllabusTrackerUI();
+        }
+    }, 150);
+};
+
+const loadSyllabusTracker = async () => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    selectedStClass = document.getElementById('st-class-select')?.value || selectedYpClass || '1';
+    selectedStMonth = document.getElementById('st-month-select')?.value || 'all';
+    selectedStSubject = document.getElementById('st-subject-select')?.value || 'all';
+    stSearchQuery = document.getElementById('st-search-input')?.value.trim().toLowerCase() || '';
+
+    const viewHeading = document.getElementById('st-view-heading');
+    if (selectedStClass === 'all') {
+        if (viewHeading) viewHeading.textContent = `All Classes Syllabus Progress & Checklist (${year})`;
+        const allowed = getAllowedClassesForTeacher();
+        if (allowed.length > 0) {
+            selectedStClass = allowed[0];
+            const cSel = document.getElementById('st-class-select');
+            if (cSel) cSel.value = selectedStClass;
+        }
+    }
+
+    if (viewHeading) viewHeading.textContent = `Class ${selectedStClass} Syllabus Progress & Daily Checklist (${year})`;
+
+    await ensureClassSubjectsLoaded(year, selectedStClass);
+    stClassSubjects = [...classSubjectsList];
+
+    // Populate subject filter dropdown
+    const stSubjSelect = document.getElementById('st-subject-select');
+    if (stSubjSelect) {
+        const prev = stSubjSelect.value;
+        let opts = `<option value="all">All Subjects (${stClassSubjects.length})</option>`;
+        opts += stClassSubjects.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+        stSubjSelect.innerHTML = opts;
+        if (prev && (prev === 'all' || stClassSubjects.some(s => s.id === prev))) {
+            stSubjSelect.value = prev;
+            selectedStSubject = prev;
+        } else {
+            stSubjSelect.value = 'all';
+            selectedStSubject = 'all';
+        }
+    }
+
+    // Populate modal subject dropdown
+    const modalStSubj = document.getElementById('modal-st-subject');
+    if (modalStSubj) {
+        modalStSubj.innerHTML = stClassSubjects.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+    }
+
+    try {
+        const docId = getYearPlanDocId(year, selectedStClass);
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/yearPlans`, docId));
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            stCurrentGrid = data.grid || {};
+            if (data.calendarType) currentYpCalendarType = data.calendarType;
+        } else {
+            stCurrentGrid = {};
+        }
+    } catch (err) {
+        console.error('Failed to load syllabus tracker data:', err);
+        stCurrentGrid = {};
+    }
+
+    renderSyllabusTrackerUI();
+};
+
+const renderSyllabusTrackerUI = () => {
+    const gridEl = document.getElementById('st-schedule-grid');
+    if (!gridEl) return;
+
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const monthsList = currentYpCalendarType === 'hijri' ? HIJRI_MONTHS : GREGORIAN_MONTHS;
+    const targetMonths = (selectedStMonth && selectedStMonth !== 'all') ? [selectedStMonth] : monthsList;
+    const targetSubjects = (selectedStSubject && selectedStSubject !== 'all')
+        ? stClassSubjects.filter(s => s.id === selectedStSubject)
+        : stClassSubjects;
+
+    // Collect all tracker rows
+    let rows = [];
+    targetMonths.forEach((month, mIdx) => {
+        targetSubjects.forEach(s => {
+            const key = `${month}__${s.id}`;
+            const idxKey = `idx_${mIdx}__${s.id}`;
+            const cell = stCurrentGrid[key] || stCurrentGrid[idxKey] || {};
+            const hasMonthlyTarget = Boolean(cell.topic || cell.lessonNo || cell.pages);
+            const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
+
+            // Main monthly target row
+            if (hasMonthlyTarget || dailyItems.length === 0) {
+                rows.push({
+                    cellKey: key,
+                    itemId: null,
+                    isDaily: false,
+                    month,
+                    subjectId: s.id,
+                    subjectName: s.name,
+                    dayLabel: 'Monthly Plan',
+                    lessonNo: cell.lessonNo || '--',
+                    topic: cell.topic || (hasMonthlyTarget ? '' : 'Unplanned Month'),
+                    pages: cell.pages || '--',
+                    periods: Number(cell.allocatedPeriods || (s.weeklyPeriods || 5) * 4),
+                    isCompleted: Boolean(cell.isCompleted || (cell.progressPercent || 0) === 100),
+                    progressPercent: Number(cell.progressPercent || 0),
+                    notes: cell.notes || cell.breakdown || '',
+                    hasTarget: hasMonthlyTarget
+                });
+            }
+
+            // Sub-sessions / Daily entries
+            dailyItems.forEach((dItem, dIdx) => {
+                rows.push({
+                    cellKey: key,
+                    itemId: dItem.id || `item_${dIdx}`,
+                    isDaily: true,
+                    month,
+                    subjectId: s.id,
+                    subjectName: s.name,
+                    dayLabel: dItem.dayOrSession || `Session ${dIdx + 1}`,
+                    lessonNo: dItem.lessonNo || cell.lessonNo || '--',
+                    topic: dItem.topic || cell.topic || '--',
+                    pages: dItem.pages || cell.pages || '--',
+                    periods: Number(dItem.periods || 1),
+                    isCompleted: Boolean(dItem.isCompleted || (dItem.progressPercent || 0) === 100),
+                    progressPercent: Number(dItem.progressPercent || (dItem.isCompleted ? 100 : 0)),
+                    notes: dItem.notes || '',
+                    hasTarget: true
+                });
+            });
+        });
+    });
+
+    // Apply search filter if present
+    if (stSearchQuery) {
+        rows = rows.filter(r => {
+            const q = stSearchQuery;
+            return (r.topic && r.topic.toLowerCase().includes(q))
+                || (r.lessonNo && r.lessonNo.toLowerCase().includes(q))
+                || (r.subjectName && r.subjectName.toLowerCase().includes(q))
+                || (r.pages && r.pages.toLowerCase().includes(q))
+                || (r.month && r.month.toLowerCase().includes(q))
+                || (r.notes && r.notes.toLowerCase().includes(q));
+        });
+    }
+
+    // Summary statistics
+    const totalCount = rows.filter(r => r.hasTarget).length;
+    const completedCount = rows.filter(r => r.hasTarget && r.isCompleted).length;
+    const completionPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+    const totalPeriods = rows.filter(r => r.hasTarget).reduce((sum, r) => sum + (Number(r.periods) || 0), 0);
+
+    const totalEl = document.getElementById('st-stat-total-lessons');
+    const compEl = document.getElementById('st-stat-completed-lessons');
+    const compPctEl = document.getElementById('st-stat-completion-pct');
+    const periodsEl = document.getElementById('st-stat-total-periods');
+    const barTextEl = document.getElementById('st-progress-bar-text');
+    const barFillEl = document.getElementById('st-progress-bar-fill');
+
+    if (totalEl) totalEl.textContent = totalCount;
+    if (compEl) compEl.textContent = completedCount;
+    if (compPctEl) compPctEl.textContent = `(${completionPct}%)`;
+    if (periodsEl) periodsEl.textContent = `${totalPeriods} Periods`;
+    if (barTextEl) barTextEl.textContent = `${completionPct}%`;
+    if (barFillEl) {
+        barFillEl.style.width = `${completionPct}%`;
+        barFillEl.className = completionPct === 100
+            ? 'bg-emerald-600 h-2.5 rounded-full transition-all duration-300'
+            : 'bg-indigo-600 h-2.5 rounded-full transition-all duration-300';
+    }
+
+    // Update print headers
+    const docTitle = document.getElementById('st-print-doc-title');
+    if (docTitle) {
+        docTitle.textContent = `Class ${selectedStClass} Academic Syllabus Progress Record (${year})`;
+    }
+    const metaEl = document.getElementById('st-print-meta');
+    if (metaEl) {
+        metaEl.textContent = `Academic Year: ${year} • Class: ${selectedStClass} • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth} • Total Lessons: ${totalCount} (${completionPct}% Completed)`;
+    }
+
+    if (!rows.length) {
+        gridEl.innerHTML = `
+            <div class="p-10 text-center text-slate-400">
+                <i class="fas fa-list-check text-4xl mb-3 text-slate-300 block"></i>
+                <div class="text-sm font-bold text-slate-700 mb-1">No Syllabus Tracker Entries Found</div>
+                <p class="text-xs text-slate-500 max-w-md mx-auto mb-4">
+                    There are no planned lessons matching the selected filters. You can configure syllabus targets in the Academic Year Plan tab or add custom lesson entries directly.
+                </p>
+                <button type="button" id="btn-st-empty-add" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs">
+                    <i class="fas fa-plus-circle mr-1"></i> Add First Lesson Entry
+                </button>
+            </div>`;
+        document.getElementById('btn-st-empty-add')?.addEventListener('click', () => openAddEditTrackerEntryModal());
+        return;
+    }
+
+    let html = `
+        <table class="w-full text-left border-collapse border-2 border-slate-900 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-900 border-b-2 border-slate-900 font-black text-xs uppercase tracking-wider">
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-12">#</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Month</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Session / Day</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[150px]">Subject</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[200px]">Lesson / Unit Title</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Portions</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-16">Periods</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-36">Status &amp; Check</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Progress</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[140px]">Teacher Remarks</th>
+                    <th class="py-2.5 px-3 text-center w-28 no-print">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
+
+    rows.forEach((r, idx) => {
+        const isCompleted = r.isCompleted;
+        const rowBg = isCompleted ? 'bg-emerald-50/40 hover:bg-emerald-50/70' : 'hover:bg-slate-50';
+
+        html += `
+            <tr class="${rowBg} transition border-b border-slate-300">
+                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-bold text-slate-500">
+                    ${idx + 1}
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
+                    <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300">
+                        ${escapeHtml(r.month)}
+                    </span>
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
+                    ${r.isDaily ? `
+                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                            <i class="fas fa-calendar-day text-[9px] mr-1"></i>${escapeHtml(r.dayLabel)}
+                        </span>
+                    ` : `
+                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
+                            Monthly Plan
+                        </span>
+                    `}
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800">
+                    <div class="font-black text-xs text-slate-950">${escapeHtml(r.subjectName)}</div>
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800">
+                    ${r.lessonNo && r.lessonNo !== '--' ? `
+                        <div class="font-extrabold text-xs text-slate-900">${escapeHtml(r.lessonNo)}</div>
+                    ` : ''}
+                    <div class="text-xs text-slate-700 font-semibold leading-relaxed">${escapeHtml(r.topic)}</div>
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center font-bold text-indigo-900 text-[11px]">
+                    ${escapeHtml(r.pages)}
+                </td>
+                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-black text-slate-800">
+                    ${r.periods || 1}
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800 text-center align-middle">
+                    <div class="flex items-center justify-center gap-2">
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                            <input type="checkbox" class="st-lesson-checkbox w-5 h-5 rounded cursor-pointer accent-indigo-600 focus:ring-indigo-500" data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}" ${isCompleted ? 'checked' : ''}>
+                        </label>
+                        ${isCompleted ? `
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <i class="fas fa-check text-[9px] text-emerald-600"></i> Done
+                            </span>
+                        ` : `
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Pending
+                            </span>
+                        `}
+                    </div>
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
+                    <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mb-1">
+                        <div class="${isCompleted ? 'bg-emerald-600' : 'bg-indigo-600'} h-1.5 rounded-full" style="width: ${r.progressPercent}%"></div>
+                    </div>
+                    <span class="text-[10px] font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-700'}">${r.progressPercent}%</span>
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800 text-slate-600 text-[11px] leading-relaxed">
+                    ${r.notes ? escapeHtml(r.notes) : '<span class="text-slate-300 italic">--</span>'}
+                </td>
+                <td class="py-3 px-2 text-center align-middle no-print">
+                    <div class="flex items-center justify-center gap-1">
+                        <button type="button" class="btn-edit-st-entry w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer" title="Edit Entry" data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}">
+                            <i class="fas fa-pen text-[10px]"></i>
+                        </button>
+                        ${!r.isDaily ? `
+                            <button type="button" class="btn-add-st-subsession w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition cursor-pointer" title="Add Daily Execution Session" data-cell-key="${r.cellKey}">
+                                <i class="fas fa-plus text-[10px]"></i>
+                            </button>
+                        ` : `
+                            <button type="button" class="btn-del-st-entry w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 flex items-center justify-center transition cursor-pointer" title="Delete Session" data-cell-key="${r.cellKey}" data-item-id="${r.itemId}">
+                                <i class="fas fa-trash-can text-[10px]"></i>
+                            </button>
+                        `}
+                    </div>
+                </td>
+            </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    gridEl.innerHTML = html;
+};
+
+const handleToggleLessonCompletion = async (cellKey, itemId, isChecked) => {
+    if (!cellKey) return;
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const docId = getYearPlanDocId(year, selectedStClass);
+
+    const cell = stCurrentGrid[cellKey] || {};
+
+    if (itemId) {
+        const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
+        const targetItem = dailyItems.find(i => i.id === itemId);
+        if (targetItem) {
+            targetItem.isCompleted = isChecked;
+            targetItem.progressPercent = isChecked ? 100 : 0;
+        }
+        if (dailyItems.length > 0) {
+            const allDone = dailyItems.every(i => i.isCompleted);
+            const doneRatio = Math.round((dailyItems.filter(i => i.isCompleted).length / dailyItems.length) * 100);
+            cell.isCompleted = allDone;
+            cell.progressPercent = doneRatio;
+            cell.status = allDone ? 'Completed' : 'In Progress';
+        }
+    } else {
+        cell.isCompleted = isChecked;
+        cell.progressPercent = isChecked ? 100 : 0;
+        cell.status = isChecked ? 'Completed' : 'In Progress';
+    }
+
+    stCurrentGrid[cellKey] = cell;
+    if (selectedStClass === selectedYpClass) {
+        yearPlanGrid = { ...stCurrentGrid };
+    }
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
+            grid: stCurrentGrid,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast(isChecked ? 'Marked as completed!' : 'Marked as pending', 'success');
+        renderSyllabusTrackerUI();
+    } catch (err) {
+        console.error('Failed to update lesson status:', err);
+        showToast('Failed to save completion status: ' + err.message, 'error');
+    }
+};
+
+const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSession = false) => {
+    const titleEl = document.getElementById('modal-st-title');
+    const subtitleEl = document.getElementById('modal-st-subtitle');
+    const cellKeyInput = document.getElementById('modal-st-cell-key');
+    const itemIdInput = document.getElementById('modal-st-item-id');
+
+    const monthSel = document.getElementById('modal-st-month');
+    const subjSel = document.getElementById('modal-st-subject');
+    const dayLabelInput = document.getElementById('modal-st-day-label');
+    const lessonNoInput = document.getElementById('modal-st-lesson-no');
+    const topicInput = document.getElementById('modal-st-topic');
+    const pagesInput = document.getElementById('modal-st-pages');
+    const periodsInput = document.getElementById('modal-st-periods');
+    const completedCb = document.getElementById('modal-st-completed');
+    const progressSlider = document.getElementById('modal-st-progress-slider');
+    const progressDisplay = document.getElementById('modal-st-progress-display');
+    const sliderVal = document.getElementById('modal-st-slider-val');
+    const notesInput = document.getElementById('modal-st-notes');
+
+    if (cellKeyInput) cellKeyInput.value = cellKey || '';
+    if (itemIdInput) itemIdInput.value = (isNewSubSession ? '' : (itemId || ''));
+
+    if (cellKey) {
+        const parts = cellKey.split('__');
+        const m = parts[0];
+        const sId = parts[1];
+        if (monthSel) monthSel.value = m;
+        if (subjSel) subjSel.value = sId;
+
+        const cell = stCurrentGrid[cellKey] || {};
+        if (itemId && !isNewSubSession) {
+            const dItem = (cell.dailyItems || []).find(i => i.id === itemId) || {};
+            if (titleEl) titleEl.textContent = 'Edit Daily Session Entry';
+            if (subtitleEl) subtitleEl.textContent = `Class ${selectedStClass} • ${m}`;
+            if (dayLabelInput) dayLabelInput.value = dItem.dayOrSession || '';
+            if (lessonNoInput) lessonNoInput.value = dItem.lessonNo || cell.lessonNo || '';
+            if (topicInput) topicInput.value = dItem.topic || '';
+            if (pagesInput) pagesInput.value = dItem.pages || '';
+            if (periodsInput) periodsInput.value = dItem.periods || 1;
+            const isDone = Boolean(dItem.isCompleted);
+            const prog = dItem.progressPercent || (isDone ? 100 : 0);
+            if (completedCb) completedCb.checked = isDone;
+            if (progressSlider) progressSlider.value = prog;
+            if (progressDisplay) progressDisplay.textContent = `${prog}%`;
+            if (sliderVal) sliderVal.textContent = `${prog}%`;
+            if (notesInput) notesInput.value = dItem.notes || '';
+        } else if (isNewSubSession) {
+            if (titleEl) titleEl.textContent = 'Add Daily / Period Session';
+            if (subtitleEl) subtitleEl.textContent = `Add session under ${m}`;
+            if (dayLabelInput) dayLabelInput.value = `Session ${(cell.dailyItems?.length || 0) + 1}`;
+            if (lessonNoInput) lessonNoInput.value = cell.lessonNo || '';
+            if (topicInput) topicInput.value = cell.topic || '';
+            if (pagesInput) pagesInput.value = cell.pages || '';
+            if (periodsInput) periodsInput.value = 1;
+            if (completedCb) completedCb.checked = false;
+            if (progressSlider) progressSlider.value = 0;
+            if (progressDisplay) progressDisplay.textContent = '0%';
+            if (sliderVal) sliderVal.textContent = '0%';
+            if (notesInput) notesInput.value = '';
+        } else {
+            if (titleEl) titleEl.textContent = 'Edit Monthly Syllabus Target';
+            if (subtitleEl) subtitleEl.textContent = `Class ${selectedStClass} • ${m}`;
+            if (dayLabelInput) dayLabelInput.value = 'Monthly Target';
+            if (lessonNoInput) lessonNoInput.value = cell.lessonNo || '';
+            if (topicInput) topicInput.value = cell.topic || '';
+            if (pagesInput) pagesInput.value = cell.pages || '';
+            if (periodsInput) periodsInput.value = cell.allocatedPeriods || 16;
+            const isDone = Boolean(cell.isCompleted);
+            const prog = cell.progressPercent || (isDone ? 100 : 0);
+            if (completedCb) completedCb.checked = isDone;
+            if (progressSlider) progressSlider.value = prog;
+            if (progressDisplay) progressDisplay.textContent = `${prog}%`;
+            if (sliderVal) sliderVal.textContent = `${prog}%`;
+            if (notesInput) notesInput.value = cell.notes || cell.breakdown || '';
+        }
+    } else {
+        if (titleEl) titleEl.textContent = 'Add Lesson Tracker Entry';
+        if (subtitleEl) subtitleEl.textContent = `Class ${selectedStClass} Syllabus Checklist`;
+        if (dayLabelInput) dayLabelInput.value = 'Session 1';
+        if (lessonNoInput) lessonNoInput.value = '';
+        if (topicInput) topicInput.value = '';
+        if (pagesInput) pagesInput.value = '';
+        if (periodsInput) periodsInput.value = 2;
+        if (completedCb) completedCb.checked = false;
+        if (progressSlider) progressSlider.value = 0;
+        if (progressDisplay) progressDisplay.textContent = '0%';
+        if (sliderVal) sliderVal.textContent = '0%';
+        if (notesInput) notesInput.value = '';
+    }
+
+    openModal('modal-st-entry');
+};
+
+const saveTrackerEntry = async () => {
+    const month = document.getElementById('modal-st-month')?.value;
+    const subjectId = document.getElementById('modal-st-subject')?.value;
+    const topic = document.getElementById('modal-st-topic')?.value.trim();
+    if (!month || !subjectId) {
+        alert('Please select both Month and Subject.');
+        return;
+    }
+    if (!topic) {
+        alert('Please enter a Topic or Lesson Title.');
+        return;
+    }
+
+    const key = `${month}__${subjectId}`;
+    const itemId = document.getElementById('modal-st-item-id')?.value;
+    const dayLabel = document.getElementById('modal-st-day-label')?.value.trim() || 'Session';
+    const lessonNo = document.getElementById('modal-st-lesson-no')?.value.trim();
+    const pages = document.getElementById('modal-st-pages')?.value.trim();
+    const periods = Number(document.getElementById('modal-st-periods')?.value || 1);
+    const isCompleted = Boolean(document.getElementById('modal-st-completed')?.checked);
+    const progressPercent = Number(document.getElementById('modal-st-progress-slider')?.value || (isCompleted ? 100 : 0));
+    const notes = document.getElementById('modal-st-notes')?.value.trim();
+
+    const cell = stCurrentGrid[key] || {};
+    cell.dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
+
+    if (itemId) {
+        const itemIdx = cell.dailyItems.findIndex(i => i.id === itemId);
+        if (itemIdx !== -1) {
+            cell.dailyItems[itemIdx] = {
+                ...cell.dailyItems[itemIdx],
+                dayOrSession: dayLabel,
+                lessonNo,
+                topic,
+                pages,
+                periods,
+                isCompleted,
+                progressPercent,
+                notes
+            };
+        }
+    } else if (dayLabel && dayLabel.toLowerCase() !== 'monthly target' && dayLabel.toLowerCase() !== 'monthly plan') {
+        // Add new daily/session item
+        cell.dailyItems.push({
+            id: 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            dayOrSession: dayLabel,
+            lessonNo,
+            topic,
+            pages,
+            periods,
+            isCompleted,
+            progressPercent,
+            notes
+        });
+    } else {
+        // Update main monthly target
+        cell.lessonNo = lessonNo;
+        cell.topic = topic;
+        cell.pages = pages;
+        cell.allocatedPeriods = periods;
+        cell.isCompleted = isCompleted;
+        cell.progressPercent = progressPercent;
+        cell.notes = notes;
+        cell.status = isCompleted ? 'Completed' : (progressPercent > 0 ? 'In Progress' : 'Planned');
+    }
+
+    stCurrentGrid[key] = cell;
+    if (selectedStClass === selectedYpClass) {
+        yearPlanGrid = { ...stCurrentGrid };
+    }
+
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const docId = getYearPlanDocId(year, selectedStClass);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
+            grid: stCurrentGrid,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        closeModal('modal-st-entry');
+        showToast('Lesson tracker entry saved successfully!', 'success');
+        renderSyllabusTrackerUI();
+    } catch (err) {
+        console.error('Failed to save tracker entry:', err);
+        alert('Failed to save entry: ' + err.message);
+    }
+};
+
+const deleteTrackerDailyItem = async (cellKey, itemId) => {
+    if (!cellKey || !itemId) return;
+    if (!confirm('Are you sure you want to delete this session checklist item?')) return;
+
+    const cell = stCurrentGrid[cellKey];
+    if (!cell || !Array.isArray(cell.dailyItems)) return;
+
+    cell.dailyItems = cell.dailyItems.filter(i => i.id !== itemId);
+    stCurrentGrid[cellKey] = cell;
+
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const docId = getYearPlanDocId(year, selectedStClass);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
+            grid: stCurrentGrid,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Session item deleted.', 'info');
+        renderSyllabusTrackerUI();
+    } catch (err) {
+        console.error('Failed to delete item:', err);
+        alert('Failed to delete session item: ' + err.message);
+    }
+};
+
+const printSyllabusTracker = () => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const docTitle = document.getElementById('st-print-doc-title');
+    if (docTitle) {
+        docTitle.textContent = `Class ${selectedStClass} Academic Syllabus Progress Record (${year})`;
+    }
+    const metaEl = document.getElementById('st-print-meta');
+    if (metaEl) {
+        metaEl.textContent = `Academic Year: ${year} • Class: ${selectedStClass} • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth}`;
+    }
+    updatePrintBrandingHeaders('Syllabus Progress Tracker', 'st-print-date');
+    setPrintOrientation('landscape');
+    document.body.setAttribute('data-print-target', 'syllabus-tracker');
+    window.print();
 };
 
 
@@ -4251,7 +4920,7 @@ const setupEventListeners = () => {
             const subjectId = cell.dataset.subjectId;
             const subjectName = cell.dataset.subjectName;
             if (month && subjectId) {
-                openYearPlanExecutionModal(month, subjectId, subjectName);
+                jumpToSyllabusTracker(selectedYpClass, month, subjectId);
             }
         }
     });
@@ -4260,6 +4929,78 @@ const setupEventListeners = () => {
     document.getElementById('modal-yp-progress-slider')?.addEventListener('input', (e) => {
         const valText = document.getElementById('modal-yp-progress-val');
         if (valText) valText.textContent = `${e.target.value}%`;
+    });
+
+    // 4B. Syllabus Progress Tracker Listeners
+    document.getElementById('st-academic-year')?.addEventListener('change', loadSyllabusTracker);
+    document.getElementById('st-class-select')?.addEventListener('change', loadSyllabusTracker);
+    document.getElementById('st-month-select')?.addEventListener('change', (e) => {
+        selectedStMonth = e.target.value;
+        renderSyllabusTrackerUI();
+    });
+    document.getElementById('st-subject-select')?.addEventListener('change', (e) => {
+        selectedStSubject = e.target.value;
+        renderSyllabusTrackerUI();
+    });
+    document.getElementById('st-search-input')?.addEventListener('input', (e) => {
+        stSearchQuery = e.target.value.trim().toLowerCase();
+        renderSyllabusTrackerUI();
+    });
+    document.getElementById('btn-st-add-entry')?.addEventListener('click', () => openAddEditTrackerEntryModal());
+    document.getElementById('btn-print-syllabus-tracker')?.addEventListener('click', printSyllabusTracker);
+
+    document.getElementById('modal-st-completed')?.addEventListener('change', (e) => {
+        const slider = document.getElementById('modal-st-progress-slider');
+        const valText = document.getElementById('modal-st-slider-val');
+        const disp = document.getElementById('modal-st-progress-display');
+        const val = e.target.checked ? 100 : 0;
+        if (slider) slider.value = val;
+        if (valText) valText.textContent = `${val}%`;
+        if (disp) disp.textContent = `${val}%`;
+    });
+
+    document.getElementById('modal-st-progress-slider')?.addEventListener('input', (e) => {
+        const cb = document.getElementById('modal-st-completed');
+        const valText = document.getElementById('modal-st-slider-val');
+        const disp = document.getElementById('modal-st-progress-display');
+        const val = Number(e.target.value);
+        if (valText) valText.textContent = `${val}%`;
+        if (disp) disp.textContent = `${val}%`;
+        if (cb) cb.checked = (val === 100);
+    });
+
+    document.getElementById('btn-save-st-entry')?.addEventListener('click', saveTrackerEntry);
+
+    document.getElementById('st-schedule-grid')?.addEventListener('change', (e) => {
+        const cb = e.target.closest('.st-lesson-checkbox');
+        if (cb) {
+            const cellKey = cb.dataset.cellKey;
+            const itemId = cb.dataset.itemId;
+            handleToggleLessonCompletion(cellKey, itemId, cb.checked);
+        }
+    });
+
+    document.getElementById('st-schedule-grid')?.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit-st-entry');
+        if (editBtn) {
+            const cellKey = editBtn.dataset.cellKey;
+            const itemId = editBtn.dataset.itemId;
+            openAddEditTrackerEntryModal(cellKey, itemId);
+            return;
+        }
+        const addSubBtn = e.target.closest('.btn-add-st-subsession');
+        if (addSubBtn) {
+            const cellKey = addSubBtn.dataset.cellKey;
+            openAddEditTrackerEntryModal(cellKey, null, true);
+            return;
+        }
+        const delBtn = e.target.closest('.btn-del-st-entry');
+        if (delBtn) {
+            const cellKey = delBtn.dataset.cellKey;
+            const itemId = delBtn.dataset.itemId;
+            deleteTrackerDailyItem(cellKey, itemId);
+            return;
+        }
     });
 
     // 5. Exam Schedule & Master Timetable Listeners

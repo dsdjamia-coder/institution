@@ -202,6 +202,7 @@
 
       body[data-print-target="timetable"] #tab-timetable,
       body[data-print-target="yearplan"] #tab-yearplan,
+      body[data-print-target="syllabus-tracker"] #tab-syllabus-tracker,
       body[data-print-target="exam"] #tab-exam-schedule,
       body[data-print-target="master"] #tab-master-timetable {
         display: block !important;
@@ -218,6 +219,7 @@
       /* Box and border styling for print tables */
       #tt-matrix-container,
       #yp-matrix-container,
+      #st-matrix-container,
       #exam-timetable-container,
       #exam-master-timetable-container {
         border: 2px solid #000000 !important;
@@ -347,6 +349,10 @@
         <a href="#year-plan" class="drawer-link" data-tab="tab-yearplan" title="Academic Year Plan">
           <i class="fas fa-calendar-week w-5 text-center shrink-0"></i>
           <span class="nav-text truncate">Academic Year Plan</span>
+        </a>
+        <a href="#syllabus-tracker" class="drawer-link" data-tab="tab-syllabus-tracker" title="Syllabus Progress Tracker">
+          <i class="fas fa-list-check w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Syllabus Tracker</span>
         </a>
         <a href="#exam-schedule" class="drawer-link" data-tab="tab-exam-schedule" title="Exam Timetable &amp; Portions">
           <i class="fas fa-file-pen w-5 text-center shrink-0"></i>
@@ -591,6 +597,148 @@
               <div>
                 <div class="inst-print-place text-[10px] text-slate-600">Place: Campus</div>
                 <div id="yp-print-date" class="text-[10px] text-slate-700 font-bold">Date of Publication: --/--/----</div>
+              </div>
+              <div class="text-center min-w-[160px]">
+                <div class="text-[11px] font-black uppercase text-slate-900">Head of Institution / Principal</div>
+                <div class="text-[9px] text-slate-600">(Academic &amp; Syllabus Board)</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 3B: SYLLABUS PROGRESS TRACKER          -->
+        <!-- ========================================== -->
+        <section id="tab-syllabus-tracker" class="tab-content hidden space-y-4">
+          <!-- Tracker Controls & Filter Bar -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3" id="st-filters-bar">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div>
+                <label for="st-academic-year" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
+                <select id="st-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+              </div>
+              <div>
+                <label for="st-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
+                <select id="st-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[120px]"></select>
+              </div>
+              <div>
+                <label for="st-month-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Month Filter</label>
+                <select id="st-month-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[130px]">
+                  <option value="all">All Months</option>
+                </select>
+              </div>
+              <div>
+                <label for="st-subject-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Subject</label>
+                <select id="st-subject-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[150px]">
+                  <option value="all">All Subjects</option>
+                </select>
+              </div>
+              <div>
+                <label for="st-search-input" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Search Lesson / Topic</label>
+                <div class="relative">
+                  <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                  <input type="text" id="st-search-input" placeholder="Filter lessons..." class="pl-8 pr-3 py-1.5 border border-slate-300 rounded-xl bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 w-44">
+                </div>
+              </div>
+            </div>
+
+            <!-- Tracker Actions -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" id="btn-st-add-entry" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs flex items-center gap-1.5 cursor-pointer" title="Add a custom lesson or daily execution session">
+                <i class="fas fa-plus-circle"></i> Add Lesson Entry
+              </button>
+              <button type="button" id="btn-print-syllabus-tracker" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-print"></i> Print Tracker Sheet
+              </button>
+            </div>
+          </div>
+
+          <!-- Summary Metrics Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="st-metrics-summary">
+            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-base shrink-0">
+                <i class="fas fa-book-bookmark"></i>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Total Lessons</div>
+                <div id="st-stat-total-lessons" class="text-base sm:text-lg font-black text-slate-900 leading-tight">0</div>
+              </div>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-base shrink-0">
+                <i class="fas fa-circle-check"></i>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Completed</div>
+                <div class="flex items-center gap-1.5">
+                  <span id="st-stat-completed-lessons" class="text-base sm:text-lg font-black text-emerald-700 leading-tight">0</span>
+                  <span id="st-stat-completion-pct" class="text-xs font-bold text-slate-500">(0%)</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-base shrink-0">
+                <i class="fas fa-stopwatch"></i>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Periods Tracked</div>
+                <div id="st-stat-total-periods" class="text-base sm:text-lg font-black text-purple-800 leading-tight">0</div>
+              </div>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-center">
+              <div class="flex items-center justify-between text-[10px] uppercase font-black tracking-wider text-slate-400 mb-1">
+                <span>Overall Progress</span>
+                <span id="st-progress-bar-text" class="text-indigo-700 font-extrabold">0%</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                <div id="st-progress-bar-fill" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Matrix Card Container -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden" id="st-matrix-container">
+            <!-- Print Institutional Header -->
+            <div id="st-print-header" class="hidden print:block p-4 border-b-2 border-slate-900 text-center space-y-1">
+              <div class="flex items-center justify-center gap-3">
+                <div class="inst-print-logo-wrap hidden">
+                  <img class="inst-print-logo w-10 h-10 object-contain" src="" alt="Logo">
+                </div>
+                <div>
+                  <h1 class="inst-print-name text-base font-black tracking-wide uppercase text-slate-900">Noorul Islam Madrasa</h1>
+                  <div class="inst-print-tagline text-xs font-bold text-slate-700">Academic Affairs &amp; Syllabus Progress Directorate</div>
+                </div>
+              </div>
+              <div class="inst-print-address text-[10px] text-slate-600 font-semibold">Campus Location &bull; Ph: +91 0000000000</div>
+              <div class="pt-1 border-t border-slate-300 mt-1">
+                <h2 id="st-print-doc-title" class="text-xs sm:text-sm font-black uppercase text-slate-950 tracking-wider">Syllabus Execution &amp; Progress Record Sheet</h2>
+                <div id="st-print-meta" class="text-[11px] font-bold text-slate-700 mt-0.5"></div>
+              </div>
+            </div>
+
+            <!-- Web Table Header Bar -->
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-list-check text-indigo-600"></i>
+                <h3 id="st-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Syllabus Progress &amp; Daily Lesson Checklist</h3>
+              </div>
+              <span class="text-xs text-slate-500 font-semibold">Tick the checkbox when a lesson or session is completed to save progress instantly</span>
+            </div>
+
+            <!-- Table Grid -->
+            <div class="overflow-x-auto p-4" id="st-schedule-grid">
+              <!-- Rendered dynamically as checklist rows -->
+            </div>
+
+            <!-- Print Institutional Footer -->
+            <div id="st-print-footer" class="hidden print:flex p-4 border-t-2 border-slate-900 items-end justify-between text-xs font-bold text-slate-800">
+              <div>
+                <div class="inst-print-place text-[10px] text-slate-600">Place: Campus</div>
+                <div id="st-print-date" class="text-[10px] text-slate-700 font-bold">Date of Publication: --/--/----</div>
+              </div>
+              <div class="text-center min-w-[140px]">
+                <div class="text-[11px] font-black uppercase text-slate-900">Subject / Class Teacher</div>
+                <div class="text-[9px] text-slate-600">(Verification Signature)</div>
               </div>
               <div class="text-center min-w-[160px]">
                 <div class="text-[11px] font-black uppercase text-slate-900">Head of Institution / Principal</div>
@@ -1129,6 +1277,101 @@
             Save Lesson Execution Plan
           </button>
           <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-yearplan-execution">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD / EDIT LESSON TRACKER ENTRY     -->
+  <!-- ========================================== -->
+  <div id="modal-st-entry" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fas fa-list-check"></i>
+          </div>
+          <div>
+            <h3 id="modal-st-title" class="font-black text-sm text-indigo-950">Add Lesson Tracker Entry</h3>
+            <p id="modal-st-subtitle" class="text-[11px] text-indigo-700 font-bold">Record lesson, daily session or portion progress</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-st-entry">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs max-h-[80vh] overflow-y-auto">
+        <input type="hidden" id="modal-st-cell-key">
+        <input type="hidden" id="modal-st-item-id">
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Academic Month <span class="text-rose-500">*</span></label>
+            <select id="modal-st-month" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white"></select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Subject <span class="text-rose-500">*</span></label>
+            <select id="modal-st-subject" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white"></select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Session / Day / Label <span class="text-slate-400 font-normal">(Optional)</span></label>
+            <input type="text" id="modal-st-day-label" placeholder="e.g. Day 1, Week 2, Period 3" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Lesson / Unit Number</label>
+            <input type="text" id="modal-st-lesson-no" placeholder="e.g. Lesson 4" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Topic / Lesson Title <span class="text-rose-500">*</span></label>
+          <input type="text" id="modal-st-topic" placeholder="e.g. Surah Al-Mulk Verses 1-10 or Fundamentals of Taharah" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Portions / Pages <span class="text-slate-400 font-normal">(Optional)</span></label>
+            <input type="text" id="modal-st-pages" placeholder="e.g. pp. 15-20" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Periods Count</label>
+            <input type="number" id="modal-st-periods" value="2" min="1" max="60" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="modal-st-completed" class="w-4 h-4 rounded text-indigo-600 accent-indigo-600">
+            <span class="font-black text-xs text-slate-800">Mark as Completed</span>
+          </label>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] font-bold text-slate-600">Progress:</span>
+            <span id="modal-st-progress-display" class="font-black text-xs text-indigo-700">0%</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Progress Percentage (<span id="modal-st-slider-val">0%</span>)</label>
+          <input type="range" id="modal-st-progress-slider" min="0" max="100" value="0" step="5" class="w-full accent-indigo-600">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Teacher Remarks / Notes <span class="text-slate-400 font-normal">(Optional)</span></label>
+          <textarea id="modal-st-notes" rows="2" placeholder="e.g. Completed with oral recitation practice; students grasped well" class="w-full p-2.5 border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:border-indigo-500"></textarea>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="btn-save-st-entry" class="flex-grow py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+            Save Tracker Entry
+          </button>
+          <button type="button" class="btn-close-modal py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-st-entry">
             Cancel
           </button>
         </div>
