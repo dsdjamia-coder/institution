@@ -143,10 +143,13 @@
       body * { visibility: hidden; }
       #tt-matrix-container, #tt-matrix-container *,
       #yp-matrix-container, #yp-matrix-container *,
-      #exam-timetable-container, #exam-timetable-container * {
+      #exam-timetable-container, #exam-timetable-container *,
+      #exam-master-timetable-container, #exam-master-timetable-container *,
+      #tt-all-classes-container, #tt-all-classes-container *,
+      #yp-all-classes-container, #yp-all-classes-container * {
         visibility: visible;
       }
-      #tt-matrix-container, #yp-matrix-container, #exam-timetable-container {
+      #tt-matrix-container, #yp-matrix-container, #exam-timetable-container, #exam-master-timetable-container, #tt-all-classes-container, #yp-all-classes-container {
         position: absolute;
         left: 0;
         top: 0;
@@ -262,7 +265,7 @@
       <div class="max-w-7xl mx-auto space-y-5">
 
         <!-- ========================================== -->
-        <!-- TAB 1: CLASS SUBJECTS                      -->
+        <!-- TAB 1: CLASS SUBJECTS & CARDS              -->
         <!-- ========================================== -->
         <section id="tab-subjects" class="tab-content space-y-4">
           <!-- Subjects Controls Bar -->
@@ -273,11 +276,18 @@
                 <select id="subj-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
               <div>
-                <label for="subj-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
-                <select id="subj-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+                <label for="subj-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class Filter</label>
+                <select id="subj-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[140px]"></select>
+              </div>
+              <div>
+                <label for="subj-search-input" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Search Subject</label>
+                <div class="relative">
+                  <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                  <input type="text" id="subj-search-input" placeholder="Search subject or teacher..." class="pl-8 pr-3 py-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 w-44 sm:w-56">
+                </div>
               </div>
               <div class="flex items-center self-end">
-                <span id="subj-count-badge" class="px-3 py-1 rounded-xl text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200">0 Subjects Configured</span>
+                <span id="subj-count-badge" class="px-3 py-1 rounded-xl text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200">0 Classes</span>
               </div>
             </div>
 
@@ -292,32 +302,10 @@
             </div>
           </div>
 
-          <!-- Class Subjects Table Container -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="fas fa-book-open text-indigo-600"></i>
-                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Configured Class Subjects</h3>
-              </div>
-              <span class="text-xs text-slate-500 font-semibold">Feeds directly into Timetable, Year Plan &amp; Exam Portions</span>
-            </div>
-
-            <div class="overflow-x-auto p-4">
-              <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
-                    <th class="py-2.5 px-3">#</th>
-                    <th class="py-2.5 px-3">Subject Code</th>
-                    <th class="py-2.5 px-3">Subject Name</th>
-                    <th class="py-2.5 px-3">Assigned Teacher / Instructor</th>
-                    <th class="py-2.5 px-3 text-center">Weekly Periods</th>
-                    <th class="py-2.5 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="subjects-table-body" class="divide-y divide-slate-100 font-medium">
-                  <!-- Dynamically rendered -->
-                </tbody>
-              </table>
+          <!-- Class & Subjects Cards Grid Container -->
+          <div id="subjects-cards-container" class="space-y-4">
+            <div id="subjects-cards-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <!-- Dynamically populated as interactive Class Cards -->
             </div>
           </div>
         </section>
@@ -471,9 +459,9 @@
                 <label for="exam-tt-academic-year" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Academic Year</label>
                 <select id="exam-tt-academic-year" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
-              <div>
+              <div id="exam-tt-class-wrapper">
                 <label for="exam-tt-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
-                <select id="exam-tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+                <select id="exam-tt-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 min-w-[120px]"></select>
               </div>
               <div>
                 <label for="exam-tt-title-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Examination</label>
@@ -484,14 +472,30 @@
                   </button>
                 </div>
               </div>
+
+              <!-- Timetable Sub-View Switcher -->
+              <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-end">
+                <button type="button" id="btn-exam-view-single" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-indigo-900 shadow-2xs cursor-pointer">
+                  <i class="fas fa-chalkboard-user mr-1"></i> Class Timetable
+                </button>
+                <button type="button" id="btn-exam-view-master" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition text-slate-600 hover:text-slate-900 cursor-pointer">
+                  <i class="fas fa-table-cells mr-1"></i> Master Timetable (All Classes)
+                </button>
+              </div>
             </div>
 
             <!-- Action Controls (Matching Class Timetable) -->
             <div class="flex items-center gap-2 flex-wrap">
-              <label class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl cursor-pointer select-none">
-                <input type="checkbox" id="toggle-exam-timetable-edit" class="rounded text-indigo-600 focus:ring-indigo-500">
-                <span class="text-xs font-black text-slate-800">Edit Schedule</span>
-              </label>
+              <!-- Edit Mode Switch -->
+              <div class="flex items-center gap-2 p-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl" id="exam-tt-edit-wrapper">
+                <span class="text-xs font-bold text-slate-700">Edit Mode:</span>
+                <label class="relative inline-flex items-center cursor-pointer select-none">
+                  <input type="checkbox" id="toggle-exam-timetable-edit" class="sr-only peer">
+                  <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+                <span id="exam-tt-edit-mode-label" class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600">View Only</span>
+              </div>
+
               <button type="button" id="btn-add-exam-date" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
                 <i class="fas fa-calendar-plus"></i> Add Date
               </button>
@@ -504,7 +508,7 @@
             </div>
           </div>
 
-          <!-- Exam Timetable Grid Container (Styled Like Class Routine Timetable) -->
+          <!-- Single Class Timetable Grid Container -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden" id="exam-timetable-container">
             <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
@@ -520,6 +524,56 @@
             <!-- Dynamic Timetable Matrix Grid -->
             <div class="overflow-x-auto p-4" id="exam-schedule-grid">
               <!-- Dynamically rendered table matching Class Timetable design -->
+            </div>
+          </div>
+
+          <!-- Master Consolidated Exam Timetable Container (Image 1 Style) -->
+          <div class="bg-white rounded-2xl border-2 border-slate-800 shadow-md overflow-hidden hidden" id="exam-master-timetable-container">
+            <!-- Institutional Header Bar -->
+            <div class="p-5 sm:p-7 bg-white border-b-2 border-slate-800 text-center space-y-1.5 relative">
+              <div class="flex items-center justify-between absolute top-4 left-4 right-4 no-print">
+                <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded bg-slate-100 text-slate-700 border border-slate-300">
+                  <i class="fas fa-certificate text-indigo-600 mr-1"></i> Central Council Format
+                </span>
+                <button type="button" id="btn-print-master-exam-tt" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer">
+                  <i class="fas fa-print"></i> Print Master Timetable
+                </button>
+              </div>
+
+              <div class="text-base sm:text-lg font-black text-slate-900 tracking-wide font-serif">
+                مجلس جمعية المعلمين المركزي لعموم كيرالا الهند
+              </div>
+              <div class="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wider">
+                SAMASTHA KERALA ISLAMIC EDUCATION BOARD &bull; EXAMINATION DIVISION
+              </div>
+              <div class="text-[11px] text-slate-600 font-bold">
+                Samasthalayam, Chelari, P.O. Thenhipalam, Malappuram &bull; Ph: +91 494 2400234
+              </div>
+              <div class="pt-2 border-t border-slate-200 mt-2">
+                <h2 id="master-exam-main-title" class="text-sm sm:text-base font-black text-slate-950 uppercase tracking-wide">
+                  Half Yearly Examination (General) Time Table
+                </h2>
+                <div id="master-exam-arabic-title" class="text-sm sm:text-base font-black text-slate-900 font-serif mt-0.5">
+                  جدول ساعات امتحان نصف السنة
+                </div>
+              </div>
+            </div>
+
+            <!-- Consolidated Grid Table -->
+            <div class="overflow-x-auto p-4 sm:p-6" id="exam-master-grid">
+              <!-- Dynamically rendered matrix with Classes as Rows and Dates as Columns -->
+            </div>
+
+            <!-- Footer Notes & Official Signature Block -->
+            <div class="p-5 bg-slate-50 border-t border-slate-300 flex items-center justify-between text-xs font-bold text-slate-700 flex-wrap gap-4">
+              <div>
+                <div class="text-[11px] text-slate-500 font-semibold">Place: Samasthalayam, Chelari</div>
+                <div id="master-exam-issue-date" class="text-[11px] text-slate-700 font-bold">Date of Publication: --/--/----</div>
+              </div>
+              <div class="text-center min-w-[160px]">
+                <div class="text-xs font-black uppercase text-slate-900">Chairman / Secretary</div>
+                <div class="text-[10px] text-slate-500 font-semibold">(Central Examination Council)</div>
+              </div>
             </div>
           </div>
         </section>
@@ -551,6 +605,10 @@
       <div class="p-5 space-y-3 text-xs">
         <input type="hidden" id="modal-subject-id">
         <div>
+          <label class="block font-bold text-slate-600 mb-1">Target Class <span class="text-rose-500">*</span></label>
+          <select id="modal-subject-class-select" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white"></select>
+        </div>
+        <div>
           <label class="block font-bold text-slate-600 mb-1">Subject Full Name <span class="text-rose-500">*</span></label>
           <input type="text" id="modal-subject-name" placeholder="e.g. English Language, Mathematics, Fiqh al-Muyassar" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
         </div>
@@ -560,7 +618,9 @@
         </div>
         <div>
           <label class="block font-bold text-slate-600 mb-1">Assigned Teacher / Instructor <span class="text-slate-400 font-normal">(Optional)</span></label>
-          <input type="text" id="modal-subject-teacher" placeholder="e.g. Ust. Abdullah, Mrs. Sarah" class="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 outline-none focus:border-indigo-500">
+          <select id="modal-subject-teacher" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white">
+            <option value="">-- Select Teacher --</option>
+          </select>
         </div>
         <div>
           <label class="block font-bold text-slate-600 mb-1">Weekly Periods Target <span class="text-slate-400 font-normal">(Optional)</span></label>
@@ -986,6 +1046,18 @@
         <div>
           <label class="block font-bold text-slate-600 mb-1">Examination Title <span class="text-rose-500">*</span></label>
           <input type="text" id="modal-new-exam-title" placeholder="e.g. First Terminal, Model Exam, Unit Test 1" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-600 mb-1">Target Class Scope</label>
+          <select id="modal-new-exam-class-scope" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white">
+            <option value="current">Current Selected Class</option>
+            <option value="specific">Choose Specific Class...</option>
+            <option value="all">All Classes (Institution-wide)</option>
+          </select>
+        </div>
+        <div id="modal-new-exam-specific-class-wrapper" class="hidden">
+          <label class="block font-bold text-slate-600 mb-1">Select Class</label>
+          <select id="modal-new-exam-specific-class" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white"></select>
         </div>
 
         <div class="flex items-center gap-2 pt-2">

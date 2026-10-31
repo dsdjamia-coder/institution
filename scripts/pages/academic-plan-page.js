@@ -12,16 +12,60 @@ let currentStaffRole = 'Class Teacher';
 let currentUserKey = '';
 let currentStaffDoc = null;
 let teacherAssignedClasses = [];
+let allStaffList = [];
 
 let institutionConfig = {};
 let currentAcademicYear = '';
 let availableAcademicYears = [];
 let allClasses = [];
 
-// --- Class Subjects State ---
-let selectedSubjectsClass = '';
+// --- Class Subjects State & Cards ---
+let selectedSubjectsClass = 'all';
 let classSubjectsList = []; // [ { id, name, code, teacher, weeklyPeriods } ]
 let editingSubjectId = null;
+let editingSubjectClass = '';
+let classCardsData = {}; // classLabel -> { subjects: [], customExams: [] }
+let subjectSearchQuery = '';
+
+// --- Exam Definitions & Arabic Constants ---
+const DEFAULT_EXAM_DEFS = [
+    { key: 'quarterly', label: 'Quarterly' },
+    { key: 'halfYearly', label: 'Half-Yearly' },
+    { key: 'annual', label: 'Annual' }
+];
+
+const ARABIC_WEEKDAYS = {
+    'Sunday': 'الأحد',
+    'Monday': 'الإثنين',
+    'Tuesday': 'الثلاثاء',
+    'Wednesday': 'الأربعاء',
+    'Thursday': 'الخميس',
+    'Friday': 'الجمعة',
+    'Saturday': 'السبت'
+};
+
+const getActiveTeachers = () => {
+    return allStaffList.filter(s => s && s.isActive !== false);
+};
+
+const populateTeacherDropdowns = () => {
+    const teachers = getActiveTeachers();
+    const modalTeacherSel = document.getElementById('modal-subject-teacher');
+    if (modalTeacherSel) {
+        const prev = modalTeacherSel.value;
+        modalTeacherSel.innerHTML = `<option value="">-- Select Teacher --</option>` +
+            teachers.map(t => `<option value="${escapeHtml(t.name || t.id)}">${escapeHtml(t.name || 'Staff')} (${escapeHtml(t.role || 'Teacher')})</option>`).join('');
+        if (prev) modalTeacherSel.value = prev;
+    }
+
+    const modalInvigSel = document.getElementById('modal-exam-invigilator');
+    if (modalInvigSel && modalInvigSel.tagName === 'SELECT') {
+        const prev = modalInvigSel.value;
+        modalInvigSel.innerHTML = `<option value="">-- Unassigned --</option>` +
+            teachers.map(t => `<option value="${escapeHtml(t.name || t.id)}">${escapeHtml(t.name || 'Staff')}</option>`).join('');
+        if (prev) modalInvigSel.value = prev;
+    }
+};
 
 // --- Attendance & Weekly Off Sync State ---
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -65,8 +109,15 @@ let isYearPlanEditMode = false;
 let yearPlanGrid = {}; // "month_subjectId" -> { lessonNo, topic, pages, allocatedPeriods, breakdown, progressPercent, status, notes }
 
 // --- Exam Timetable State ---
-let currentExamTitle = 'First Term Examination';
+let currentExamTitle = 'Half-Yearly';
 let examTimetableEntries = [];
+let examViewMode = 'single'; // 'single' | 'master'
+let isMasterExamEditMode = false;
+let masterExamDates = [];
+let masterExamTimetables = {};
+let masterExamSessions = [
+    { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' }
+];
 
 const GREGORIAN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const HIJRI_MONTHS = [
@@ -95,6 +146,30 @@ const formatDisplayDate = (dateStr) => {
         return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
     } catch (_) {
         return dateStr;
+    }
+};
+
+const getArabicDayName = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        const dayIdx = dt.getDay(); // 0 is Sunday
+        const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+        return days[dayIdx] || '';
+    } catch (_) {
+        return '';
+    }
+};
+
+const getEnglishDayName = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        return dt.toLocaleDateString('en-GB', { weekday: 'short' });
+    } catch (_) {
+        return '';
     }
 };
 
@@ -246,7 +321,13 @@ const activateTab = (targetTabId) => {
     } else if (targetTabId === 'tab-exam-schedule') {
         const y = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
         const c = document.getElementById('exam-tt-class-select')?.value || '1';
-        loadAvailableExams(y, c).then(() => loadExamTimetable());
+        loadAvailableExams(y, c).then(() => {
+            if (examViewMode === 'master') {
+                loadMasterExamTimetable();
+            } else {
+                loadExamTimetable();
+            }
+        });
     }
 };
 
@@ -294,6 +375,7 @@ const initApp = async () => {
     initSidebarState();
     initTabNavigation();
     startClock();
+    setupEventListeners();
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
@@ -305,7 +387,6 @@ const initApp = async () => {
         }
         await restoreSessionContext();
         setupRealtimeListeners();
-        setupEventListeners();
     });
 };
 
@@ -407,6 +488,8 @@ const setupRealtimeListeners = () => {
     // 6. Live Staff & Duty Classes Sync
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         const staffDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allStaffList = staffDocs;
+        populateTeacherDropdowns();
         if (!isSuperAdmin) {
             const staffAccess = window.AppSession?.getStaffAccess?.() || {};
             const staffEmailKey = String(staffAccess.email || '').trim().toLowerCase();
@@ -438,6 +521,8 @@ const setupRealtimeListeners = () => {
                 teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
             }
             populateClassDropdowns();
+        } else {
+            populateTeacherDropdowns();
         }
     });
 };
@@ -494,28 +579,100 @@ const getAllowedClassesForTeacher = () => {
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
 
-    const standardIds = [
-        'subj-class-select',
-        'tt-class-select',
-        'yp-class-select',
-        'exam-tt-class-select',
-        'modal-exam-class-select'
-    ];
-
-    standardIds.forEach(id => {
-        const select = document.getElementById(id);
-        if (!select) return;
-
-        const prev = select.value;
-        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
-        select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-
-        if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
-            select.value = prev;
-        } else if (allowed.length > 0) {
-            select.value = allowed[0];
+    // 1. Subject class filter
+    const subjClassSelect = document.getElementById('subj-class-select');
+    if (subjClassSelect) {
+        const prev = subjClassSelect.value;
+        let opts = '';
+        if (isSuperAdmin) {
+            opts += `<option value="all">All Classes</option>`;
         }
-    });
+        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        subjClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+            subjClassSelect.value = prev;
+        } else {
+            subjClassSelect.value = isSuperAdmin ? 'all' : (allowed[0] || '1');
+        }
+        selectedSubjectsClass = subjClassSelect.value;
+    }
+
+    // 2. Timetable class select
+    const ttClassSelect = document.getElementById('tt-class-select');
+    if (ttClassSelect) {
+        const prev = ttClassSelect.value;
+        let opts = '';
+        if (isSuperAdmin) {
+            opts += `<option value="all">All Classes (Full Routine)</option>`;
+        }
+        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        ttClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+            ttClassSelect.value = prev;
+        } else if (allowed.length > 0) {
+            ttClassSelect.value = allowed[0];
+        }
+        selectedTtClass = ttClassSelect.value;
+    }
+
+    // 3. Year plan class select
+    const ypClassSelect = document.getElementById('yp-class-select');
+    if (ypClassSelect) {
+        const prev = ypClassSelect.value;
+        let opts = '';
+        if (isSuperAdmin) {
+            opts += `<option value="all">All Classes (Full Syllabus)</option>`;
+        }
+        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        ypClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+            ypClassSelect.value = prev;
+        } else if (allowed.length > 0) {
+            ypClassSelect.value = allowed[0];
+        }
+        selectedYpClass = ypClassSelect.value;
+    }
+
+    // 4. Exam Timetable class select
+    const examClassSelect = document.getElementById('exam-tt-class-select');
+    if (examClassSelect) {
+        const prev = examClassSelect.value;
+        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        examClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
+        if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
+            examClassSelect.value = prev;
+        } else if (allowed.length > 0) {
+            examClassSelect.value = allowed[0];
+        }
+    }
+
+    // 5. Modal Subject Class Select
+    const modalSubjClass = document.getElementById('modal-subject-class-select');
+    if (modalSubjClass) {
+        const prev = modalSubjClass.value;
+        modalSubjClass.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        if (prev && allowed.includes(prev)) {
+            modalSubjClass.value = prev;
+        } else if (allowed.length > 0) {
+            modalSubjClass.value = allowed[0];
+        }
+    }
+
+    // 6. Modal Exam Specific Class Select
+    const modalExamSpecificClass = document.getElementById('modal-new-exam-specific-class');
+    if (modalExamSpecificClass) {
+        const list = (allClasses && allClasses.length) ? allClasses : allowed;
+        modalExamSpecificClass.innerHTML = list.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+    }
+
+    // 7. Modal Exam Class Display
+    const modalExamClassDisplay = document.getElementById('modal-exam-class-display');
+    const modalExamClassInput = document.getElementById('modal-exam-class-select');
+    if (modalExamClassDisplay && modalExamClassInput) {
+        const cls = examClassSelect?.value || allowed[0] || '1';
+        modalExamClassDisplay.textContent = `Class ${cls}`;
+        modalExamClassInput.value = cls;
+    }
 
     populateYearPlanMonthDropdowns();
 };
@@ -594,160 +751,309 @@ const syncClassSubjectsToResultSchema = async (year, classLabel, subjects) => {
     }
 };
 
-const loadClassSubjects = async () => {
-    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
-    selectedSubjectsClass = document.getElementById('subj-class-select')?.value || teacherAssignedClasses[0] || '1';
-    const tbody = document.getElementById('subjects-table-body');
+const loadAllClassCardsData = async (year = currentAcademicYear) => {
+    const allowed = getAllowedClassesForTeacher();
+    const tasks = allowed.map(async (cls) => {
+        const docId = getClassSubjectsDocId(year, cls);
+        const resultDocId = getResultSchemaDocId(year, cls);
+        try {
+            const [subjSnap, resultSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId)).catch(() => null)
+            ]);
 
-    if (!selectedSubjectsClass) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
-        return;
-    }
-
-    try {
-        const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
-        const resultDocId = getResultSchemaDocId(year, selectedSubjectsClass);
-
-        const [subjSnap, resultSnap] = await Promise.all([
-            getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId)).catch(() => null),
-            getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId)).catch(() => null)
-        ]);
-
-        let loadedFromPlan = [];
-        if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
-            loadedFromPlan = subjSnap.data().subjects;
-        }
-
-        let loadedFromResult = [];
-        if (resultSnap && resultSnap.exists()) {
-            const rData = resultSnap.data();
-            if (Array.isArray(rData.subjectRows) && rData.subjectRows.length) {
-                loadedFromResult = rData.subjectRows.map(r => r.name).filter(Boolean);
-            } else if (Array.isArray(rData.subjects) && rData.subjects.length) {
-                loadedFromResult = rData.subjects.filter(Boolean);
+            let loadedFromPlan = [];
+            if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+                loadedFromPlan = subjSnap.data().subjects;
             }
-        }
 
-        if (loadedFromPlan.length > 0) {
-            classSubjectsList = [...loadedFromPlan];
-            let hasNewFromResult = false;
-            loadedFromResult.forEach(rName => {
-                const trimmed = String(rName).trim();
-                if (!trimmed) return;
-                const exists = classSubjectsList.some(s => String(s.name || '').trim().toLowerCase() === trimmed.toLowerCase());
-                if (!exists) {
-                    const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'SUB';
-                    classSubjectsList.push({
-                        id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            let loadedFromResult = [];
+            let customExams = [];
+            if (resultSnap && resultSnap.exists()) {
+                const rData = resultSnap.data();
+                if (Array.isArray(rData.subjectRows) && rData.subjectRows.length) {
+                    loadedFromResult = rData.subjectRows.map(r => r.name).filter(Boolean);
+                } else if (Array.isArray(rData.subjects) && rData.subjects.length) {
+                    loadedFromResult = rData.subjects.filter(Boolean);
+                }
+
+                const configs = rData.examConfigs || {};
+                Object.entries(configs).forEach(([key, cfg]) => {
+                    if (cfg && cfg.disabled !== true && !['quarterly', 'halfYearly', 'annual'].includes(key.toLowerCase())) {
+                        customExams.push({
+                            key,
+                            label: cfg.label || key
+                        });
+                    }
+                });
+            }
+
+            let mergedSubjects = [];
+            if (loadedFromPlan.length > 0) {
+                mergedSubjects = [...loadedFromPlan];
+                let hasNew = false;
+                loadedFromResult.forEach(rName => {
+                    const trimmed = String(rName).trim();
+                    if (!trimmed) return;
+                    if (!mergedSubjects.some(s => String(s.name || '').trim().toLowerCase() === trimmed.toLowerCase())) {
+                        mergedSubjects.push({
+                            id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                            name: trimmed,
+                            code: trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'SUB',
+                            teacher: '',
+                            weeklyPeriods: 5
+                        });
+                        hasNew = true;
+                    }
+                });
+                if (hasNew) {
+                    setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+                        subjects: mergedSubjects,
+                        updatedAt: Date.now()
+                    }, { merge: true }).catch(() => null);
+                }
+            } else if (loadedFromResult.length > 0) {
+                mergedSubjects = loadedFromResult.map((rName, idx) => {
+                    const trimmed = String(rName).trim();
+                    return {
+                        id: `subj_${Date.now()}_${idx}`,
                         name: trimmed,
-                        code: code,
+                        code: trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`,
                         teacher: '',
                         weeklyPeriods: 5
-                    });
-                    hasNewFromResult = true;
-                }
-            });
-            if (hasNewFromResult) {
-                await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
-                    subjects: classSubjectsList,
+                    };
+                });
+                setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
+                    subjects: mergedSubjects,
                     updatedAt: Date.now()
-                }, { merge: true });
+                }, { merge: true }).catch(() => null);
             }
-        } else if (loadedFromResult.length > 0) {
-            classSubjectsList = loadedFromResult.map((rName, idx) => {
-                const trimmed = String(rName).trim();
-                const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`;
-                return {
-                    id: `subj_${Date.now()}_${idx}`,
-                    name: trimmed,
-                    code: code,
-                    teacher: '',
-                    weeklyPeriods: 5
-                };
-            });
-            await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
-                subjects: classSubjectsList,
-                updatedAt: Date.now()
-            }, { merge: true });
-        } else {
-            // Clean empty state - zero dummy subjects injected
-            classSubjectsList = [];
-        }
-    } catch (err) {
-        console.error('Failed to load class subjects:', err);
-    }
 
+            return {
+                classLabel: cls,
+                subjects: mergedSubjects,
+                customExams
+            };
+        } catch (_) {
+            return {
+                classLabel: cls,
+                subjects: [],
+                customExams: []
+            };
+        }
+    });
+
+    const results = await Promise.all(tasks);
+    classCardsData = {};
+    results.forEach(res => {
+        classCardsData[res.classLabel] = res;
+    });
+};
+
+const loadClassSubjects = async () => {
+    const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    selectedSubjectsClass = document.getElementById('subj-class-select')?.value || 'all';
+
+    await loadAllClassCardsData(year);
     renderClassSubjectsUI();
 };
 
 const renderClassSubjectsUI = () => {
-    const tbody = document.getElementById('subjects-table-body');
+    const grid = document.getElementById('subjects-cards-grid');
     const badge = document.getElementById('subj-count-badge');
-    if (badge) badge.textContent = `${classSubjectsList.length} Subject${classSubjectsList.length === 1 ? '' : 's'} Configured`;
+    if (!grid) return;
 
-    if (!tbody) return;
+    const allowed = getAllowedClassesForTeacher();
+    const filterClass = document.getElementById('subj-class-select')?.value || 'all';
+    const searchQuery = String(document.getElementById('subj-search-input')?.value || '').trim().toLowerCase();
 
-    if (!classSubjectsList.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="p-8 text-center text-slate-400 font-medium">
-                    <i class="fas fa-book-bookmark text-3xl mb-2 text-slate-300 block"></i>
-                    No subjects configured for Class ${escapeHtml(selectedSubjectsClass)} yet.<br>
-                    <span class="text-xs text-slate-500">Subjects added here or in Result Management are automatically synchronized.</span><br>
-                    <button type="button" class="mt-3 px-3.5 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5" onclick="document.getElementById('btn-add-subject').click()">
-                        <i class="fas fa-plus"></i> Add First Subject
-                    </button>
-                </td>
-            </tr>`;
+    let targetClasses = (filterClass === 'all')
+        ? allowed
+        : allowed.filter(c => isClassInDutyScope(c, [filterClass]));
+
+    if (searchQuery) {
+        targetClasses = targetClasses.filter(c => {
+            const data = classCardsData[c] || { subjects: [] };
+            const classMatch = `class ${c}`.toLowerCase().includes(searchQuery) || c.toLowerCase().includes(searchQuery);
+            const subjectMatch = data.subjects.some(s => 
+                String(s.name || '').toLowerCase().includes(searchQuery) ||
+                String(s.code || '').toLowerCase().includes(searchQuery) ||
+                String(s.teacher || '').toLowerCase().includes(searchQuery)
+            );
+            return classMatch || subjectMatch;
+        });
+    }
+
+    let totalSubjectsAcrossCards = 0;
+    targetClasses.forEach(c => {
+        totalSubjectsAcrossCards += (classCardsData[c]?.subjects?.length || 0);
+    });
+
+    if (badge) {
+        badge.textContent = `${targetClasses.length} Class Card${targetClasses.length === 1 ? '' : 's'} • ${totalSubjectsAcrossCards} Total Subjects`;
+    }
+
+    if (!targetClasses.length) {
+        grid.innerHTML = `
+            <div class="col-span-full p-12 text-center text-slate-400 font-bold bg-white rounded-3xl border border-slate-200">
+                <i class="fas fa-layer-group text-4xl mb-3 text-slate-300 block"></i>
+                No classes match the selected filter or search criteria.<br>
+                <span class="text-xs text-slate-500 font-medium">Try clearing the search box or changing the class filter.</span>
+            </div>`;
         return;
     }
 
-    tbody.innerHTML = classSubjectsList.map((s, idx) => `
-        <tr class="hover:bg-slate-50/80 transition">
-            <td class="py-3 px-3 font-bold text-slate-400 text-center">${idx + 1}</td>
-            <td class="py-3 px-3">
-                <span class="px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200">
-                    ${escapeHtml(s.code || 'SUBJ')}
-                </span>
-            </td>
-            <td class="py-3 px-3 font-extrabold text-slate-900">${escapeHtml(s.name || '--')}</td>
-            <td class="py-3 px-3 font-semibold text-slate-600">
-                <i class="fas fa-user-tie text-[10px] text-slate-400 mr-1.5"></i>${escapeHtml(s.teacher || 'Not Assigned')}
-            </td>
-            <td class="py-3 px-3 text-center">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    ${s.weeklyPeriods || 5} Periods / Wk
-                </span>
-            </td>
-            <td class="py-3 px-3 text-right">
-                <div class="flex items-center justify-end gap-1.5">
-                    <button type="button" class="btn-edit-subject p-1.5 rounded-lg text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition cursor-pointer" data-id="${s.id}" title="Edit Subject">
-                        <i class="fas fa-pen-to-square"></i>
-                    </button>
-                    <button type="button" class="btn-del-subject p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-id="${s.id}" title="Delete Subject">
-                        <i class="fas fa-trash-can"></i>
+    grid.innerHTML = targetClasses.map(c => {
+        const cardData = classCardsData[c] || { subjects: [], customExams: [] };
+        const subjects = cardData.subjects || [];
+        const customExams = cardData.customExams || [];
+        const totalPeriods = subjects.reduce((sum, s) => sum + Number(s.weeklyPeriods || 5), 0);
+
+        return `
+            <div class="class-card bg-white rounded-3xl border border-slate-200 shadow-2xs hover:shadow-md transition overflow-hidden flex flex-col justify-between" data-class="${escapeHtml(c)}">
+                <!-- Card Top Header -->
+                <div class="p-4 bg-gradient-to-r from-slate-50 via-white to-indigo-50/40 border-b border-slate-200 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-sm">
+                            ${escapeHtml(c)}
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(c)}</h4>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    ${subjects.length} Subj
+                                </span>
+                            </div>
+                            <div class="text-[11px] font-bold text-slate-500 mt-0.5">
+                                <i class="fas fa-clock text-slate-400 text-[10px] mr-1"></i>${totalPeriods} Periods / Week
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-card-add-subject px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black transition flex items-center gap-1 cursor-pointer" data-class="${escapeHtml(c)}">
+                        <i class="fas fa-plus text-[10px]"></i> Add Subj
                     </button>
                 </div>
-            </td>
-        </tr>
-    `).join('');
+
+                <!-- Subjects Roster Area -->
+                <div class="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                            <span>Configured Subjects (${subjects.length})</span>
+                            <span>Periods</span>
+                        </div>
+
+                        ${subjects.length ? `
+                            <div class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                                ${subjects.map(s => `
+                                    <div class="p-2.5 rounded-2xl bg-slate-50/80 hover:bg-slate-100/70 border border-slate-200/80 transition flex items-center justify-between gap-2 text-xs">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                                                    ${escapeHtml(s.code || 'SUB')}
+                                                </span>
+                                                <span class="font-black text-slate-900 truncate">${escapeHtml(s.name)}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2 text-[10px] text-slate-500 font-semibold mt-1">
+                                                <span class="truncate"><i class="fas fa-user-tie text-[9px] mr-1 text-slate-400"></i>${escapeHtml(s.teacher || 'Unassigned')}</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white text-indigo-700 border border-slate-200">
+                                                ${s.weeklyPeriods || 5} P/Wk
+                                            </span>
+                                            <div class="flex items-center gap-1">
+                                                <button type="button" class="btn-edit-subject p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition cursor-pointer" data-id="${escapeHtml(s.id)}" data-class="${escapeHtml(c)}" title="Edit Subject">
+                                                    <i class="fas fa-pen-to-square text-xs"></i>
+                                                </button>
+                                                <button type="button" class="btn-del-subject p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white transition cursor-pointer" data-id="${escapeHtml(s.id)}" data-class="${escapeHtml(c)}" title="Delete Subject">
+                                                    <i class="fas fa-trash-can text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div class="p-4 rounded-2xl border border-dashed border-slate-200 text-center text-slate-400 font-bold text-xs py-5">
+                                No subjects added for Class ${escapeHtml(c)} yet.<br>
+                                <span class="text-[11px] text-slate-500 font-medium">Click "Add Subj" to configure the first subject.</span>
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Active Examinations Roster for this Class -->
+                    <div class="pt-3 border-t border-slate-100 space-y-1.5">
+                        <div class="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                            <span>Applicable Examinations</span>
+                            <button type="button" class="btn-card-manage-exams text-indigo-600 hover:text-indigo-800 text-[10px] font-extrabold cursor-pointer" data-class="${escapeHtml(c)}">
+                                <i class="fas fa-plus-circle mr-0.5"></i> Custom Exam
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <i class="fas fa-check-circle text-[8px] text-emerald-600"></i> Quarterly
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <i class="fas fa-check-circle text-[8px] text-emerald-600"></i> Half-Yearly
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <i class="fas fa-check-circle text-[8px] text-emerald-600"></i> Annual
+                            </span>
+                            ${customExams.map(ex => `
+                                <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                                    ${escapeHtml(ex.label)}
+                                    <i class="fas fa-times text-[9px] hover:text-rose-600 cursor-pointer btn-card-delete-exam" data-key="${escapeHtml(ex.key)}" data-class="${escapeHtml(c)}" title="Delete custom exam from this class"></i>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Bottom Direct Navigation Shortcuts -->
+                <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs font-bold gap-2">
+                    <button type="button" class="btn-card-goto-tt flex-1 py-1.5 px-2 rounded-xl bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 hover:text-indigo-600 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs" data-class="${escapeHtml(c)}" title="Open Routine Timetable for Class ${escapeHtml(c)}">
+                        <i class="fas fa-calendar-days text-[10px] text-indigo-600"></i> Routine
+                    </button>
+                    <button type="button" class="btn-card-goto-yp flex-1 py-1.5 px-2 rounded-xl bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 hover:text-indigo-600 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs" data-class="${escapeHtml(c)}" title="Open Syllabus Year Plan for Class ${escapeHtml(c)}">
+                        <i class="fas fa-calendar-check text-[10px] text-indigo-600"></i> Syllabus
+                    </button>
+                    <button type="button" class="btn-card-goto-exam flex-1 py-1.5 px-2 rounded-xl bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 hover:text-indigo-600 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs" data-class="${escapeHtml(c)}" title="Open Exam Timetable for Class ${escapeHtml(c)}">
+                        <i class="fas fa-file-pen text-[10px] text-indigo-600"></i> Exam TT
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
 };
 
-const openSubjectModal = (subject = null) => {
+const openSubjectModal = (subject = null, targetClass = null) => {
     editingSubjectId = subject ? subject.id : null;
+    const allowed = getAllowedClassesForTeacher();
+    editingSubjectClass = targetClass || (subject ? (editingSubjectClass || selectedSubjectsClass) : (selectedSubjectsClass !== 'all' ? selectedSubjectsClass : (allowed[0] || '1')));
+
     const titleEl = document.getElementById('modal-subject-title');
     const idInput = document.getElementById('modal-subject-id');
     const codeInput = document.getElementById('modal-subject-code');
     const nameInput = document.getElementById('modal-subject-name');
-    const teacherInput = document.getElementById('modal-subject-teacher');
+    const teacherSelect = document.getElementById('modal-subject-teacher');
     const periodsInput = document.getElementById('modal-subject-weekly-periods');
+    const classSelect = document.getElementById('modal-subject-class-select');
 
-    if (titleEl) titleEl.textContent = subject ? 'Edit Class Subject' : 'Add Class Subject';
+    if (titleEl) titleEl.textContent = subject ? `Edit Subject (Class ${editingSubjectClass})` : `Add Subject (Class ${editingSubjectClass})`;
     if (idInput) idInput.value = subject ? subject.id : '';
     if (codeInput) codeInput.value = subject ? subject.code : '';
     if (nameInput) nameInput.value = subject ? subject.name : '';
-    if (teacherInput) teacherInput.value = subject ? (subject.teacher || '') : '';
     if (periodsInput) periodsInput.value = subject ? (subject.weeklyPeriods || 5) : 5;
+
+    if (classSelect) {
+        classSelect.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        classSelect.value = editingSubjectClass;
+    }
+
+    populateTeacherDropdowns();
+    if (teacherSelect && subject) {
+        teacherSelect.value = subject.teacher || '';
+    }
 
     openModal('modal-subject-edit');
 };
@@ -757,6 +1063,7 @@ const saveClassSubject = async () => {
     const name = document.getElementById('modal-subject-name')?.value.trim();
     const teacher = document.getElementById('modal-subject-teacher')?.value.trim() || '';
     const weeklyPeriods = Number(document.getElementById('modal-subject-weekly-periods')?.value || 5);
+    const targetClass = document.getElementById('modal-subject-class-select')?.value || editingSubjectClass || '1';
 
     if (!name) return alert('Please enter a subject name.');
 
@@ -765,68 +1072,114 @@ const saveClassSubject = async () => {
     }
 
     const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
-    const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
-
-    if (editingSubjectId) {
-        const item = classSubjectsList.find(s => s.id === editingSubjectId);
-        if (item) {
-            item.code = code;
-            item.name = name;
-            item.teacher = teacher;
-            item.weeklyPeriods = weeklyPeriods;
-        }
-    } else {
-        classSubjectsList.push({
-            id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            code,
-            name,
-            teacher,
-            weeklyPeriods
-        });
-    }
+    const docId = getClassSubjectsDocId(year, targetClass);
 
     try {
+        const snap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId)).catch(() => null);
+        let subjectsList = snap && snap.exists() && Array.isArray(snap.data().subjects) ? snap.data().subjects : [];
+
+        if (editingSubjectId) {
+            const item = subjectsList.find(s => s.id === editingSubjectId);
+            if (item) {
+                item.code = code;
+                item.name = name;
+                item.teacher = teacher;
+                item.weeklyPeriods = weeklyPeriods;
+            } else {
+                subjectsList.push({ id: editingSubjectId, code, name, teacher, weeklyPeriods });
+            }
+        } else {
+            subjectsList.push({
+                id: `subj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                code,
+                name,
+                teacher,
+                weeklyPeriods
+            });
+        }
+
         await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
-            subjects: classSubjectsList,
+            subjects: subjectsList,
             updatedAt: Date.now()
         }, { merge: true });
 
         // Bi-directional sync: update resultSchemas as well
-        await syncClassSubjectsToResultSchema(year, selectedSubjectsClass, classSubjectsList);
+        await syncClassSubjectsToResultSchema(year, targetClass, subjectsList);
 
         closeModal('modal-subject-edit');
-        showToast(`Subject "${name}" saved and synchronized successfully!`, 'success');
-        renderClassSubjectsUI();
+        showToast(`Subject "${name}" saved for Class ${targetClass}!`, 'success');
+        await loadClassSubjects();
     } catch (err) {
         alert('Failed to save subject: ' + err.message);
     }
 };
 
-const deleteClassSubject = async (subjectId) => {
-    if (!confirm('Are you sure you want to delete this subject? It will also be updated in Result Management.')) return;
-    classSubjectsList = classSubjectsList.filter(s => s.id !== subjectId);
+const deleteClassSubject = async (subjectId, targetClass) => {
+    if (!confirm(`Are you sure you want to delete this subject from Class ${targetClass}?`)) return;
 
     const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
-    const docId = getClassSubjectsDocId(year, selectedSubjectsClass);
+    const docId = getClassSubjectsDocId(year, targetClass);
 
     try {
+        const snap = await getDoc(doc(db, `${BASE_PATH}/classSubjects`, docId)).catch(() => null);
+        let subjectsList = snap && snap.exists() && Array.isArray(snap.data().subjects) ? snap.data().subjects : [];
+        subjectsList = subjectsList.filter(s => s.id !== subjectId);
+
         await setDoc(doc(db, `${BASE_PATH}/classSubjects`, docId), {
-            subjects: classSubjectsList,
+            subjects: subjectsList,
             updatedAt: Date.now()
         }, { merge: true });
 
-        // Bi-directional sync: update resultSchemas as well
-        await syncClassSubjectsToResultSchema(year, selectedSubjectsClass, classSubjectsList);
-
-        showToast('Subject removed and synchronized.', 'info');
-        renderClassSubjectsUI();
+        await syncClassSubjectsToResultSchema(year, targetClass, subjectsList);
+        showToast(`Subject removed from Class ${targetClass}.`, 'info');
+        await loadClassSubjects();
     } catch (err) {
         alert('Failed to delete subject: ' + err.message);
     }
 };
 
-const syncSubjectsFromResultSchema = async () => {
+const deleteCustomExamFromCard = async (examKey, targetClass) => {
+    if (!confirm(`Are you sure you want to delete this custom exam from Class ${targetClass}?`)) return;
     const year = document.getElementById('subj-academic-year')?.value || currentAcademicYear;
+    const resultDocId = getResultSchemaDocId(year, targetClass);
+
+    try {
+        const snap = await getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId));
+        if (snap.exists()) {
+            const data = snap.data();
+            const configs = data.examConfigs || {};
+            if (configs[examKey]) {
+                delete configs[examKey];
+                await setDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId), {
+                    examConfigs: configs,
+                    updatedAt: Date.now()
+                }, { merge: true });
+                showToast(`Custom exam deleted from Class ${targetClass}.`, 'info');
+                await loadClassSubjects();
+            }
+        }
+    } catch (err) {
+        alert('Failed to delete exam: ' + err.message);
+    }
+};
+
+const jumpToClassTab = (tabId, targetClass) => {
+    const tabLink = document.querySelector(`.drawer-link[data-tab="${tabId}"]`);
+    if (tabLink) tabLink.click();
+
+    if (tabId === 'tab-timetable') {
+        const sel = document.getElementById('tt-class-select');
+        if (sel) { sel.value = targetClass; sel.dispatchEvent(new Event('change')); }
+    } else if (tabId === 'tab-yearplan') {
+        const sel = document.getElementById('yp-class-select');
+        if (sel) { sel.value = targetClass; sel.dispatchEvent(new Event('change')); }
+    } else if (tabId === 'tab-exam-schedule') {
+        const sel = document.getElementById('exam-tt-class-select');
+        if (sel) { sel.value = targetClass; sel.dispatchEvent(new Event('change')); }
+    }
+};
+
+const syncSubjectsFromResultSchema = async () => {
     try {
         showToast('Synchronizing with Result Management...', 'info');
         await loadClassSubjects();
@@ -882,10 +1235,37 @@ const ensureClassSubjectsLoaded = async (year, classLabel) => {
     }
 };
 
+let allClassesTimetables = {}; // classLabel -> { matrix, subjects }
+
 const loadTimetable = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
     selectedTtClass = document.getElementById('tt-class-select')?.value || selectedSubjectsClass || '1';
     const heading = document.getElementById('tt-view-heading');
+
+    if (selectedTtClass === 'all') {
+        if (heading) heading.textContent = `All Classes Routine Timetables (${year})`;
+        const allowed = getAllowedClassesForTeacher();
+        const tasks = allowed.map(async (cls) => {
+            const docId = getTimetableDocId(year, cls);
+            const subjDocId = getClassSubjectsDocId(year, cls);
+            const [tSnap, sSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/timetables`, docId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
+            ]);
+            return {
+                classLabel: cls,
+                matrix: tSnap && tSnap.exists() ? (tSnap.data().matrix || {}) : {},
+                subjects: sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects) ? sSnap.data().subjects : []
+            };
+        });
+        const results = await Promise.all(tasks);
+        allClassesTimetables = {};
+        results.forEach(r => { allClassesTimetables[r.classLabel] = r; });
+        timetableConfig.workingDays = getWorkingDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+        timetableConfig.offDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+        renderTimetableMatrixUI();
+        return;
+    }
 
     if (heading) heading.textContent = `Class ${selectedTtClass} Weekly Routine Timetable (${year})`;
 
@@ -962,6 +1342,69 @@ const renderTimetableMatrixUI = () => {
 
     if (!grid) return;
 
+    if (selectedTtClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        grid.innerHTML = allowed.map(cls => {
+            const cData = allClassesTimetables[cls] || { matrix: {}, subjects: [] };
+            const matrix = cData.matrix || {};
+
+            return `
+                <div class="mb-8 bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+                    <div class="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
+                            <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Routine Timetable</h4>
+                        </div>
+                        <span class="text-xs text-slate-500 font-bold">${cData.subjects.length} Subjects</span>
+                    </div>
+                    <div class="overflow-x-auto p-4">
+                        <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-700 uppercase font-extrabold border-b border-slate-200">
+                                    <th class="py-2.5 px-3 border-r border-slate-200 w-28 bg-slate-100 font-black">Day / Period</th>
+                                    ${slots.map(s => `
+                                        <th class="py-2 px-2.5 border-r border-slate-200 min-w-[120px] text-center ${s.isBreak ? 'bg-amber-50 text-amber-900' : ''}">
+                                            <div class="font-black text-[11px]">${escapeHtml(s.label)}</div>
+                                            <div class="text-[9px] font-semibold text-slate-500">${s.startTime} - ${s.endTime}</div>
+                                        </th>
+                                    `).join('')}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 font-medium">
+                                ${workingDays.map(day => `
+                                    <tr class="hover:bg-slate-50/60 transition">
+                                        <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/70 whitespace-nowrap">
+                                            <i class="fas fa-calendar-day text-indigo-600 mr-1.5 text-xs"></i>${day}
+                                        </td>
+                                        ${slots.map((s, pIdx) => {
+                                            const p = pIdx + 1;
+                                            const slotKey = `${day}_${s.slotId}`;
+                                            const legacyKey = `${day}_${p}`;
+                                            const sData = matrix[slotKey] || matrix[legacyKey] || {};
+                                            if (s.isBreak) {
+                                                return `<td class="p-2 border-r border-slate-200 text-center bg-amber-50/30 text-amber-700 font-black text-[10px] uppercase select-none"><i class="fas fa-mug-hot text-amber-500 mr-1"></i>${escapeHtml(s.label)}</td>`;
+                                            }
+                                            return `
+                                                <td class="p-2 border-r border-slate-200 align-top">
+                                                    ${sData.subjectName ? `
+                                                        <div class="p-2 rounded-xl bg-indigo-50/70 border border-indigo-200/80">
+                                                            <div class="font-black text-xs text-slate-900 leading-tight">${escapeHtml(sData.subjectName)}</div>
+                                                            <div class="text-[11px] text-indigo-800 font-semibold mt-1 truncate"><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(sData.teacher || 'Ustad')}</div>
+                                                        </div>
+                                                    ` : `<span class="text-[10px] text-slate-400 italic block text-center py-2">-- Free --</span>`}
+                                                </td>`;
+                                        }).join('')}
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        return;
+    }
+
     if (!selectedTtClass) {
         grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select a class to view routine timetable.</div>`;
         return;
@@ -1022,7 +1465,17 @@ const renderTimetableMatrixUI = () => {
                                 </option>
                             `).join('')}
                         </select>
-                        <input type="text" class="tt-cell-teacher w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Teacher / Ustad" value="${escapeHtml(slotData.teacher || '')}" data-day="${day}" data-slot="${slot.slotId}" data-period="${p}">
+                        <select class="tt-cell-teacher w-full p-1 text-[11px] border border-slate-300 rounded-lg text-slate-800 outline-none mb-1 bg-white font-bold" data-day="${day}" data-slot="${slot.slotId}" data-period="${p}">
+                            <option value="">-- Select Teacher --</option>
+                            ${getActiveTeachers().map(t => `
+                                <option value="${escapeHtml(t.name || t.id)}" ${(slotData.teacher === t.name || slotData.teacher === t.id) ? 'selected' : ''}>
+                                    ${escapeHtml(t.name || 'Staff')}
+                                </option>
+                            `).join('')}
+                            ${slotData.teacher && !getActiveTeachers().some(t => t.name === slotData.teacher || t.id === slotData.teacher) ? `
+                                <option value="${escapeHtml(slotData.teacher)}" selected>${escapeHtml(slotData.teacher)}</option>
+                            ` : ''}
+                        </select>
                         <input type="text" class="tt-cell-room w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Room / Hall" value="${escapeHtml(slotData.room || '')}" data-day="${day}" data-slot="${slot.slotId}" data-period="${p}">
                     </td>`;
             } else {
@@ -1522,10 +1975,35 @@ const getYearPlanDocId = (year, classLabel) => {
     return `${cleanY}__${cleanC}`;
 };
 
+let allClassesYearPlans = {}; // classLabel -> { grid, subjects, calendarType, startMonth, endMonth }
+
 const loadYearPlan = async () => {
     const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
     selectedYpClass = document.getElementById('yp-class-select')?.value || selectedSubjectsClass || '1';
     const heading = document.getElementById('yp-view-heading');
+
+    if (selectedYpClass === 'all') {
+        if (heading) heading.textContent = `All Classes Academic Year Syllabus Plans (${year})`;
+        const allowed = getAllowedClassesForTeacher();
+        const tasks = allowed.map(async (cls) => {
+            const docId = getYearPlanDocId(year, cls);
+            const subjDocId = getClassSubjectsDocId(year, cls);
+            const [ySnap, sSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/yearPlans`, docId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
+            ]);
+            return {
+                classLabel: cls,
+                grid: ySnap && ySnap.exists() ? (ySnap.data().grid || {}) : {},
+                subjects: sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects) ? sSnap.data().subjects : []
+            };
+        });
+        const results = await Promise.all(tasks);
+        allClassesYearPlans = {};
+        results.forEach(r => { allClassesYearPlans[r.classLabel] = r; });
+        renderYearPlanUI();
+        return;
+    }
 
     if (heading) heading.textContent = `Class ${selectedYpClass} Academic Year Syllabus Plan (${year})`;
 
@@ -1559,6 +2037,99 @@ const renderYearPlanUI = () => {
     const grid = document.getElementById('yp-schedule-grid');
     if (!grid) return;
 
+    const startMonth = document.getElementById('yp-start-month')?.value || currentYpStartMonth;
+    const endMonth = document.getElementById('yp-end-month')?.value || currentYpEndMonth;
+    const months = getSessionMonthsList(currentYpCalendarType, startMonth, endMonth);
+
+    if (selectedYpClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        grid.innerHTML = allowed.map(cls => {
+            const cData = allClassesYearPlans[cls] || { grid: {}, subjects: [] };
+            const subjs = cData.subjects || [];
+            const cGrid = cData.grid || {};
+
+            if (!subjs.length) {
+                return `
+                    <div class="mb-8 p-6 bg-white rounded-3xl border border-slate-200 text-center text-slate-400 font-bold">
+                        Class ${escapeHtml(cls)} has no subjects configured yet.
+                    </div>`;
+            }
+
+            return `
+                <div class="mb-8 bg-white rounded-3xl border-2 border-slate-800 shadow-sm overflow-hidden">
+                    <div class="p-4 bg-slate-100 border-b-2 border-slate-800 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
+                            <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Monthly Syllabus Plan (المنهج الشهري)</h4>
+                        </div>
+                        <span class="text-xs text-slate-600 font-bold">${subjs.length} Subjects</span>
+                    </div>
+                    <div class="overflow-x-auto p-4">
+                        <table class="w-full text-left border-collapse border-2 border-slate-800 text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-800 border-b-2 border-slate-800 font-extrabold text-[11px]">
+                                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-serif text-slate-900">
+                                        الحصص / Periods
+                                    </th>
+                                    ${subjs.map(s => `
+                                        <th class="py-2 px-3 border-r-2 border-slate-800 min-w-[150px] text-center font-black">
+                                            ${(s.weeklyPeriods || 5) * 35} - ${s.weeklyPeriods || 5}
+                                        </th>
+                                    `).join('')}
+                                </tr>
+                                <tr class="bg-slate-50 text-slate-900 border-b-2 border-slate-800 font-black text-xs">
+                                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-serif bg-slate-200/60">
+                                        الشهور / Months
+                                    </th>
+                                    ${subjs.map(s => `
+                                        <th class="py-2.5 px-3 border-r-2 border-slate-800 min-w-[150px] text-center">
+                                            <div class="font-black text-sm text-slate-950">${escapeHtml(s.name)}</div>
+                                            <div class="text-[10px] text-indigo-700 font-bold uppercase mt-0.5">${escapeHtml(s.code || '')}</div>
+                                        </th>
+                                    `).join('')}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y-2 divide-slate-800 font-medium">
+                                ${months.map(month => {
+                                    const isRevisionMonth = (month === 'Sha\'ban' || month === 'March');
+                                    if (isRevisionMonth) {
+                                        return `
+                                            <tr class="bg-slate-100/90 border-b-2 border-slate-800">
+                                                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center font-serif text-sm">
+                                                    ${month}
+                                                </td>
+                                                <td colspan="${subjs.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 font-serif bg-slate-100 border-r-2 border-slate-800 tracking-wider">
+                                                    المراجعة والإمتحانات السنوية (Revision &amp; Annual Examinations)
+                                                </td>
+                                            </tr>`;
+                                    }
+
+                                    return `
+                                        <tr class="hover:bg-slate-50 transition border-b border-slate-300">
+                                            <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center font-serif text-sm">
+                                                ${month}
+                                            </td>
+                                            ${subjs.map(s => {
+                                                const key = `${month}__${s.id}`;
+                                                const cell = cGrid[key] || {};
+                                                return `
+                                                    <td class="p-2 border-r-2 border-slate-800 text-center align-middle font-serif text-xs">
+                                                        ${cell.lessonNo ? `<span class="font-black text-slate-900">${escapeHtml(cell.lessonNo)}</span>` : ''}
+                                                        ${cell.topic ? `<div class="text-[11px] text-slate-700 font-semibold mt-0.5">${escapeHtml(cell.topic)}</div>` : ''}
+                                                        ${(!cell.lessonNo && !cell.topic) ? `<span class="text-slate-300 italic text-[11px]">--</span>` : ''}
+                                                    </td>`;
+                                            }).join('')}
+                                        </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        return;
+    }
+
     if (!selectedYpClass) {
         grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select a class.</div>`;
         return;
@@ -1577,30 +2148,56 @@ const renderYearPlanUI = () => {
         return;
     }
 
-    const startMonth = document.getElementById('yp-start-month')?.value || currentYpStartMonth;
-    const endMonth = document.getElementById('yp-end-month')?.value || currentYpEndMonth;
-    const months = getSessionMonthsList(currentYpCalendarType, startMonth, endMonth);
-
     let html = `
-        <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+        <table class="w-full text-left border-collapse border-2 border-slate-800 text-xs">
             <thead>
-                <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                    <th class="py-3 px-3.5 border-r border-slate-200 w-32 bg-slate-200/80">Month</th>`;
+                <!-- Top Tier Header: Period Ratio / Breakdown matching Image 2 -->
+                <tr class="bg-slate-100 text-slate-800 border-b-2 border-slate-800 font-extrabold text-[11px]">
+                    <th class="py-2.5 px-3 border-r-2 border-slate-800 w-36 text-center font-serif text-slate-900">
+                        الحصص / Periods
+                    </th>
+                    ${classSubjectsList.map(s => `
+                        <th class="py-2 px-3 border-r-2 border-slate-800 min-w-[150px] text-center font-black">
+                            ${(s.weeklyPeriods || 5) * 35} - ${s.weeklyPeriods || 5}
+                        </th>
+                    `).join('')}
+                </tr>
 
-    classSubjectsList.forEach(s => {
-        html += `
-            <th class="py-2.5 px-3 border-r border-slate-200 min-w-[180px]">
-                <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(s.name)}</div>
-                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${escapeHtml(s.code)} &bull; ${s.weeklyPeriods || 5} Periods/Wk</div>
-            </th>`;
-    });
-    html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
+                <!-- Second Tier Header: Subject Names -->
+                <tr class="bg-slate-50 text-slate-900 border-b-2 border-slate-800 font-black text-xs">
+                    <th class="py-3 px-3.5 border-r-2 border-slate-800 w-36 text-center font-serif bg-slate-200/60">
+                        الشهور / Months
+                    </th>
+                    ${classSubjectsList.map(s => `
+                        <th class="py-2.5 px-3 border-r-2 border-slate-800 min-w-[150px] text-center">
+                            <div class="font-black text-sm text-slate-950">${escapeHtml(s.name)}</div>
+                            <div class="text-[10px] text-indigo-700 font-bold uppercase mt-0.5">${escapeHtml(s.code || '')}</div>
+                        </th>
+                    `).join('')}
+                </tr>
+            </thead>
+            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
 
     months.forEach(month => {
+        const isRevisionMonth = (month === 'Sha\'ban' || month === 'March');
+
+        if (isRevisionMonth && !isYearPlanEditMode) {
+            html += `
+                <tr class="bg-slate-100/90 border-b-2 border-slate-800">
+                    <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center font-serif text-sm">
+                        ${month}
+                    </td>
+                    <td colspan="${classSubjectsList.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 font-serif bg-slate-100 border-r-2 border-slate-800 tracking-wider">
+                        المراجعة والإمتحانات السنوية (Revision &amp; Annual Examinations)
+                    </td>
+                </tr>`;
+            return;
+        }
+
         html += `
-            <tr class="hover:bg-slate-50/60 transition">
-                <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap">
-                    <i class="fas fa-calendar-check text-indigo-600 mr-1.5"></i>${month}
+            <tr class="hover:bg-slate-50 transition border-b border-slate-300">
+                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center font-serif text-sm">
+                    ${month}
                 </td>`;
 
         classSubjectsList.forEach(s => {
@@ -1609,36 +2206,25 @@ const renderYearPlanUI = () => {
 
             if (isYearPlanEditMode) {
                 html += `
-                    <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
-                        <input type="text" class="yp-input-lesson w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" placeholder="Lesson / Chapter #" value="${escapeHtml(cell.lessonNo || '')}" data-key="${key}">
-                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none mb-1 bg-white" placeholder="Topics / Chapter Title" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
-                        <input type="text" class="yp-input-pages w-full p-1 text-[11px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages (e.g. pp. 1-25)" value="${escapeHtml(cell.pages || '')}" data-key="${key}">
+                    <td class="p-2 border-r-2 border-slate-800 align-top bg-amber-50/20">
+                        <input type="text" class="yp-input-lesson w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white font-serif" placeholder="Lesson / e.g. درس ١" value="${escapeHtml(cell.lessonNo || '')}" data-key="${key}">
+                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none mb-1 bg-white" placeholder="Topic / e.g. الفاتحة" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
+                        <input type="text" class="yp-input-pages w-full p-1 text-[11px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages" value="${escapeHtml(cell.pages || '')}" data-key="${key}">
                     </td>`;
             } else {
                 const hasTarget = Boolean(cell.topic || cell.lessonNo);
-                const status = cell.status || 'Planned';
-                let statusClass = 'bg-blue-50 text-blue-700 border-blue-200';
-                if (status === 'In Progress') statusClass = 'bg-amber-50 text-amber-800 border-amber-200';
-                else if (status === 'Completed') statusClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-                else if (status === 'Behind Schedule') statusClass = 'bg-rose-50 text-rose-800 border-rose-200';
 
                 html += `
-                    <td class="p-2.5 border-r border-slate-200 align-top cursor-pointer hover:bg-indigo-50/40 transition yp-cell-clickable" data-month="${month}" data-subject-id="${s.id}" data-subject-name="${escapeHtml(s.name)}">
+                    <td class="p-2.5 border-r-2 border-slate-800 text-center align-middle cursor-pointer hover:bg-indigo-50/40 transition yp-cell-clickable" data-month="${month}" data-subject-id="${s.id}" data-subject-name="${escapeHtml(s.name)}">
                         ${hasTarget ? `
-                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 transition">
-                                <div class="flex items-center justify-between gap-1 mb-1">
-                                    <span class="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${statusClass}">${status}</span>
-                                    <span class="text-[10px] font-bold text-slate-500">${cell.allocatedPeriods || 16} P</span>
-                                </div>
-                                <div class="font-extrabold text-xs text-slate-900 leading-tight">${cell.lessonNo ? `${escapeHtml(cell.lessonNo)}: ` : ''}${escapeHtml(cell.topic || 'Untitled Topic')}</div>
-                                ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold mt-1"><i class="fas fa-file-lines text-[9px] mr-1"></i>${escapeHtml(cell.pages)}</div>` : ''}
-                                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-                                    <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${cell.progressPercent || 0}%"></div>
-                                </div>
+                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 transition text-center space-y-0.5">
+                                <div class="font-serif font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo || '')}</div>
+                                ${cell.topic ? `<div class="font-semibold text-xs text-slate-700">${escapeHtml(cell.topic)}</div>` : ''}
+                                ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold mt-1">${escapeHtml(cell.pages)}</div>` : ''}
                             </div>
                         ` : `
-                            <div class="p-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 text-center text-slate-400 font-bold text-[11px] py-3">
-                                + Set Target
+                            <div class="p-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 text-center text-slate-400 font-serif text-xs py-3">
+                                + درس
                             </div>
                         `}
                     </td>`;
@@ -1802,39 +2388,41 @@ const getExamTimetableDocId = (year, classLabel, examTitle) => {
 const loadAvailableExams = async (year, classLabel) => {
     const examsSet = new Map();
 
-    // 1. Fetch from resultSchemas for this specific class
-    try {
-        const resultDocId = getResultSchemaDocId(year, classLabel);
-        const snap = await getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId));
-        if (snap.exists()) {
-            const data = snap.data();
-            const configs = data.examConfigs || {};
-            Object.entries(configs).forEach(([key, cfg]) => {
-                if (cfg && cfg.disabled !== true) {
-                    const lbl = cfg.label || key;
-                    examsSet.set(lbl, lbl);
-                }
-            });
-        }
-    } catch (_) {}
+    // 1. Seed standard defaults aligned with Result Management
+    DEFAULT_EXAM_DEFS.forEach(e => {
+        examsSet.set(e.label, e.label);
+    });
 
-    // 2. Check across all resultSchemas for this academic year to gather all active exam types
-    try {
-        const qSnap = await getDocs(query(collection(db, `${BASE_PATH}/resultSchemas`), where('academicYear', '==', String(year))));
-        qSnap.docs.forEach(d => {
-            const configs = d.data().examConfigs || {};
-            Object.entries(configs).forEach(([key, cfg]) => {
-                if (cfg && cfg.disabled !== true) {
-                    const lbl = cfg.label || key;
-                    examsSet.set(lbl, lbl);
-                }
+    // 2. Fetch class-specific custom exams from resultSchemas
+    if (classLabel && classLabel !== 'all') {
+        try {
+            const resultDocId = getResultSchemaDocId(year, classLabel);
+            const snap = await getDoc(doc(db, `${BASE_PATH}/resultSchemas`, resultDocId));
+            if (snap.exists()) {
+                const data = snap.data();
+                const configs = data.examConfigs || {};
+                Object.entries(configs).forEach(([key, cfg]) => {
+                    if (cfg && cfg.disabled !== true) {
+                        const lbl = cfg.label || key;
+                        examsSet.set(lbl, lbl);
+                    }
+                });
+            }
+        } catch (_) {}
+    } else {
+        // Only if "all" (e.g. Admin Master view), gather exams
+        try {
+            const qSnap = await getDocs(query(collection(db, `${BASE_PATH}/resultSchemas`), where('academicYear', '==', String(year))));
+            qSnap.docs.forEach(d => {
+                const configs = d.data().examConfigs || {};
+                Object.entries(configs).forEach(([key, cfg]) => {
+                    if (cfg && cfg.disabled !== true) {
+                        const lbl = cfg.label || key;
+                        examsSet.set(lbl, lbl);
+                    }
+                });
             });
-        });
-    } catch (_) {}
-
-    // 3. Fallback: If no exams configured anywhere in resultSchemas, include standard institutional exams
-    if (examsSet.size === 0) {
-        ['First Term Examination', 'Half Yearly Examination', 'Annual Examination'].forEach(e => examsSet.set(e, e));
+        } catch (_) {}
     }
 
     const select = document.getElementById('exam-tt-title-select');
@@ -1848,7 +2436,7 @@ const loadAvailableExams = async (year, classLabel) => {
     if (prevVal && examsSet.has(prevVal)) {
         select.value = prevVal;
     } else {
-        select.selectedIndex = 0;
+        select.value = 'Half-Yearly' && examsSet.has('Half-Yearly') ? 'Half-Yearly' : select.options[0]?.value || '';
     }
 
     currentExamTitle = select.value;
@@ -1857,6 +2445,24 @@ const loadAvailableExams = async (year, classLabel) => {
 const openAddExamNameModal = () => {
     const input = document.getElementById('modal-new-exam-title');
     if (input) input.value = '';
+
+    const scopeSel = document.getElementById('modal-new-exam-class-scope');
+    const specificWrapper = document.getElementById('modal-new-exam-specific-class-wrapper');
+    const specificSel = document.getElementById('modal-new-exam-specific-class');
+
+    if (scopeSel) {
+        scopeSel.value = 'current';
+        // If not admin, hide 'all' option
+        const allOpt = scopeSel.querySelector('option[value="all"]');
+        if (allOpt) allOpt.disabled = !isSuperAdmin;
+    }
+    if (specificWrapper) specificWrapper.classList.add('hidden');
+
+    if (specificSel) {
+        const allowed = getAllowedClassesForTeacher();
+        specificSel.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+    }
+
     openModal('modal-add-exam-name');
 };
 
@@ -1867,37 +2473,58 @@ const saveNewExamName = async () => {
 
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+    const scope = document.getElementById('modal-new-exam-class-scope')?.value || 'current';
+    const specificClass = document.getElementById('modal-new-exam-specific-class')?.value || selectedClass;
+
+    let targetClasses = [];
+    if (scope === 'all' && isSuperAdmin) {
+        targetClasses = (allClasses && allClasses.length) ? allClasses : getAllowedClassesForTeacher();
+    } else if (scope === 'specific') {
+        targetClasses = [specificClass];
+    } else {
+        targetClasses = [selectedClass];
+    }
 
     try {
-        const resultDocId = getResultSchemaDocId(year, selectedClass);
-        const resultRef = doc(db, `${BASE_PATH}/resultSchemas`, resultDocId);
-        const snap = await getDoc(resultRef);
-
-        const existingData = snap.exists() ? snap.data() : {};
-        const examConfigs = existingData.examConfigs || {};
         const examKey = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `exam_${Date.now()}`;
 
-        examConfigs[examKey] = {
-            label: title,
-            subjects: [],
-            isDefault: false
-        };
+        const tasks = targetClasses.map(async (cls) => {
+            const resultDocId = getResultSchemaDocId(year, cls);
+            const resultRef = doc(db, `${BASE_PATH}/resultSchemas`, resultDocId);
+            const snap = await getDoc(resultRef);
 
-        await setDoc(resultRef, {
-            classLabel: String(selectedClass),
-            academicYear: String(year),
-            examConfigs: examConfigs,
-            updatedAt: Date.now()
-        }, { merge: true });
+            const existingData = snap.exists() ? snap.data() : {};
+            const examConfigs = existingData.examConfigs || {};
+
+            examConfigs[examKey] = {
+                label: title,
+                subjects: [],
+                isDefault: false
+            };
+
+            return setDoc(resultRef, {
+                classLabel: String(cls),
+                academicYear: String(year),
+                examConfigs: examConfigs,
+                updatedAt: Date.now()
+            }, { merge: true });
+        });
+
+        await Promise.all(tasks);
 
         closeModal('modal-add-exam-name');
-        showToast(`Examination "${title}" created and synchronized with Result Management!`, 'success');
+        showToast(`Examination "${title}" created for ${targetClasses.length === 1 ? `Class ${targetClasses[0]}` : 'all classes'}!`, 'success');
 
         await loadAvailableExams(year, selectedClass);
         const select = document.getElementById('exam-tt-title-select');
         if (select) select.value = title;
         currentExamTitle = title;
-        loadExamTimetable();
+
+        if (examViewMode === 'master') {
+            await loadMasterExamTimetable();
+        } else {
+            await loadExamTimetable();
+        }
     } catch (err) {
         alert('Failed to save examination: ' + err.message);
     }
@@ -1907,15 +2534,110 @@ const saveNewExamName = async () => {
 let isExamTimetableEditMode = false;
 let examDates = [];
 let examSessions = [
-    { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '09:00', endTime: '11:30' },
-    { id: 'session_2', label: 'Paper 2 (Afternoon)', startTime: '01:30', endTime: '03:30' }
+    { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' },
+    { id: 'session_2', label: 'Paper 2 (Second)', startTime: '08:30', endTime: '09:30' }
 ];
 let examMatrix = {}; // "${date}_${sessionId}" -> { subjectId, subjectName, subjectCode, isNoExam, portions, invigilator, hall }
+
+const switchExamViewMode = async (mode) => {
+    examViewMode = mode;
+    const btnSingle = document.getElementById('btn-exam-view-single');
+    const btnMaster = document.getElementById('btn-exam-view-master');
+    const singleContainer = document.getElementById('exam-timetable-container');
+    const masterContainer = document.getElementById('exam-master-timetable-container');
+    const classWrapper = document.getElementById('exam-tt-class-wrapper');
+    const addDateBtn = document.getElementById('btn-add-exam-date');
+    const saveScheduleBtn = document.getElementById('btn-save-exam-timetable');
+    const printRoutineBtn = document.getElementById('btn-print-exam-tt');
+    const editToggle = document.getElementById('toggle-exam-timetable-edit');
+
+    if (mode === 'master') {
+        if (btnSingle) {
+            btnSingle.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold transition text-slate-600 hover:text-slate-900 cursor-pointer';
+        }
+        if (btnMaster) {
+            btnMaster.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-indigo-900 shadow-2xs cursor-pointer';
+        }
+        if (singleContainer) singleContainer.classList.add('hidden');
+        if (masterContainer) masterContainer.classList.remove('hidden');
+        if (classWrapper) classWrapper.classList.add('hidden');
+        if (addDateBtn) addDateBtn.classList.add('hidden');
+        if (saveScheduleBtn) saveScheduleBtn.classList.add('hidden');
+        if (printRoutineBtn) printRoutineBtn.classList.add('hidden');
+
+        if (editToggle) {
+            editToggle.checked = isMasterExamEditMode;
+            updateExamEditToggleUI(isMasterExamEditMode);
+        }
+
+        await loadMasterExamTimetable();
+    } else {
+        if (btnSingle) {
+            btnSingle.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-indigo-900 shadow-2xs cursor-pointer';
+        }
+        if (btnMaster) {
+            btnMaster.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold transition text-slate-600 hover:text-slate-900 cursor-pointer';
+        }
+        if (singleContainer) singleContainer.classList.remove('hidden');
+        if (masterContainer) masterContainer.classList.add('hidden');
+        if (classWrapper) classWrapper.classList.remove('hidden');
+        if (addDateBtn) addDateBtn.classList.remove('hidden');
+        if (printRoutineBtn) printRoutineBtn.classList.remove('hidden');
+
+        if (editToggle) {
+            editToggle.checked = isExamTimetableEditMode;
+            updateExamEditToggleUI(isExamTimetableEditMode);
+        }
+
+        await loadExamTimetable();
+    }
+};
+
+const updateExamEditToggleUI = (isEditing) => {
+    const label = document.getElementById('exam-tt-edit-mode-label');
+    if (label) {
+        label.textContent = isEditing ? 'Editing' : 'View Only';
+        label.className = isEditing
+            ? 'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-600 text-white'
+            : 'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600';
+    }
+};
+
+const toggleExamTimetableEdit = (isEditing) => {
+    if (examViewMode === 'master') {
+        if (!isSuperAdmin) {
+            const toggle = document.getElementById('toggle-exam-timetable-edit');
+            if (toggle) toggle.checked = false;
+            updateExamEditToggleUI(false);
+            showToast('Only Admin can toggle Edit Mode on the Master Timetable.', 'warning');
+            return;
+        }
+        isMasterExamEditMode = isEditing;
+        updateExamEditToggleUI(isEditing);
+        renderMasterExamGridUI();
+    } else {
+        const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+        if (!isSuperAdmin && !isClassInDutyScope(selectedClass, teacherAssignedClasses)) {
+            const toggle = document.getElementById('toggle-exam-timetable-edit');
+            if (toggle) toggle.checked = false;
+            updateExamEditToggleUI(false);
+            showToast(`You can only edit schedule for your assigned duty class (${teacherAssignedClasses.join(', ')}).`, 'warning');
+            return;
+        }
+        isExamTimetableEditMode = isEditing;
+        updateExamEditToggleUI(isEditing);
+        const saveBtn = document.getElementById('btn-save-exam-timetable');
+        if (saveBtn) {
+            saveBtn.classList.toggle('hidden', !isEditing);
+        }
+        renderExamTimetableGridUI();
+    }
+};
 
 const loadExamTimetable = async () => {
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
-    currentExamTitle = document.getElementById('exam-tt-title-select')?.value || '';
+    currentExamTitle = document.getElementById('exam-tt-title-select')?.value || 'Half-Yearly';
     const heading = document.getElementById('exam-tt-view-heading');
     const classBadge = document.getElementById('exam-tt-class-badge');
     const datesBadge = document.getElementById('exam-tt-dates-badge');
@@ -1938,12 +2660,11 @@ const loadExamTimetable = async () => {
             const data = snap.data();
             examDates = Array.isArray(data.dates) ? data.dates : [];
             examSessions = (Array.isArray(data.sessionSlots) && data.sessionSlots.length) ? data.sessionSlots : [
-                { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '09:00', endTime: '11:30' },
-                { id: 'session_2', label: 'Paper 2 (Afternoon)', startTime: '01:30', endTime: '03:30' }
+                { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' },
+                { id: 'session_2', label: 'Paper 2 (Second)', startTime: '08:30', endTime: '09:30' }
             ];
             examMatrix = data.matrix || {};
 
-            // Migrate legacy entries if present and matrix is empty
             if ((!examDates.length || Object.keys(examMatrix).length === 0) && Array.isArray(data.entries)) {
                 data.entries.forEach(e => {
                     if (e.date) {
@@ -2002,7 +2723,7 @@ const renderExamTimetableGridUI = () => {
         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
                 <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                    <th class="py-3 px-3.5 border-r border-slate-200 w-44 bg-slate-200/80">Exam Date &amp; Day</th>`;
+                    <th class="py-3 px-3.5 border-r border-slate-200 w-48 bg-slate-200/80">Exam Date &amp; Day</th>`;
 
     examSessions.forEach(session => {
         html += `
@@ -2014,15 +2735,20 @@ const renderExamTimetableGridUI = () => {
     html += `</tr></thead><tbody class="divide-y divide-slate-200 font-medium">`;
 
     examDates.forEach(dateStr => {
+        const arDay = getArabicDayName(dateStr);
+        const enDay = getEnglishDayName(dateStr);
+
         html += `
             <tr class="hover:bg-slate-50/60 transition">
                 <td class="py-3 px-3.5 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap align-top">
                     <div class="flex items-center justify-between gap-2">
                         <div>
                             <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                                <i class="fas fa-calendar-day text-indigo-600"></i> ${formatDisplayDate(dateStr)}
+                                <i class="fas fa-calendar-day text-indigo-600"></i> ${dateStr}
                             </div>
-                            <div class="text-[10px] font-bold text-slate-400 mt-0.5">${dateStr}</div>
+                            <div class="text-[11px] font-serif font-black text-slate-700 mt-0.5">
+                                ${arDay} <span class="font-sans text-[10px] text-slate-400 font-normal">(${enDay})</span>
+                            </div>
                         </div>
                         ${isExamTimetableEditMode ? `
                             <button type="button" class="btn-remove-exam-date p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer" data-date="${dateStr}" title="Remove this exam date">
@@ -2050,7 +2776,14 @@ const renderExamTimetableGridUI = () => {
                         </select>
                         <input type="text" class="exam-cell-portions w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Portions / Syllabus to study" value="${escapeHtml(cellData.portions || '')}" data-date="${dateStr}" data-session="${session.id}">
                         <div class="grid grid-cols-2 gap-1">
-                            <input type="text" class="exam-cell-invigilator w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Invigilator" value="${escapeHtml(cellData.invigilator || '')}" data-date="${dateStr}" data-session="${session.id}">
+                            <select class="exam-cell-invigilator w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white font-bold" data-date="${dateStr}" data-session="${session.id}">
+                                <option value="">-- Invigilator --</option>
+                                ${getActiveTeachers().map(t => `
+                                    <option value="${escapeHtml(t.name || t.id)}" ${cellData.invigilator === t.name ? 'selected' : ''}>
+                                        ${escapeHtml(t.name || 'Staff')}
+                                    </option>
+                                `).join('')}
+                            </select>
                             <input type="text" class="exam-cell-hall w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Hall / Room" value="${escapeHtml(cellData.hall || '')}" data-date="${dateStr}" data-session="${session.id}">
                         </div>
                     </td>`;
@@ -2094,13 +2827,205 @@ const renderExamTimetableGridUI = () => {
     grid.innerHTML = html;
 };
 
-const toggleExamTimetableEdit = (isEditing) => {
-    isExamTimetableEditMode = isEditing;
-    const saveBtn = document.getElementById('btn-save-exam-timetable');
-    if (saveBtn) {
-        saveBtn.classList.toggle('hidden', !isEditing);
+// =========================================================================
+// MASTER CONSOLIDATED EXAM TIMETABLE (IMAGE 1 LAYOUT)
+// =========================================================================
+const loadMasterExamTimetable = async () => {
+    const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
+    currentExamTitle = document.getElementById('exam-tt-title-select')?.value || 'Half-Yearly';
+
+    const mainTitle = document.getElementById('master-exam-main-title');
+    const arTitle = document.getElementById('master-exam-arabic-title');
+    const issueDate = document.getElementById('master-exam-issue-date');
+
+    if (mainTitle) mainTitle.textContent = `${currentExamTitle} (General) Time Table ${year}`;
+    if (arTitle) arTitle.textContent = `جدول ساعات امتحان ${currentExamTitle} السنة ${year}`;
+    if (issueDate) issueDate.textContent = `Date of Publication: ${new Date().toLocaleDateString('en-GB')}`;
+
+    const grid = document.getElementById('exam-master-grid');
+    if (!grid) return;
+    grid.innerHTML = `<div class="p-12 text-center text-slate-400 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i> Loading consolidated examination matrix...</div>`;
+
+    const targetClasses = (allClasses && allClasses.length) ? allClasses : getAllowedClassesForTeacher();
+    const datesSet = new Set();
+    const timetablesMap = {};
+    const classSubjsMap = {};
+
+    const tasks = targetClasses.map(async (cls) => {
+        try {
+            const docId = getExamTimetableDocId(year, cls, currentExamTitle);
+            const subjDocId = getClassSubjectsDocId(year, cls);
+            const [snap, sSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/examTimetables`, docId)),
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId))
+            ]);
+
+            if (snap.exists()) {
+                const d = snap.data();
+                timetablesMap[cls] = d;
+                if (Array.isArray(d.dates)) {
+                    d.dates.forEach(dt => datesSet.add(dt));
+                }
+                if (d.matrix) {
+                    Object.keys(d.matrix).forEach(k => {
+                        const [dt] = k.split('_');
+                        if (dt) datesSet.add(dt);
+                    });
+                }
+            } else {
+                timetablesMap[cls] = { dates: [], matrix: {} };
+            }
+
+            if (sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects)) {
+                classSubjsMap[cls] = sSnap.data().subjects;
+            } else {
+                classSubjsMap[cls] = [];
+            }
+        } catch (_) {
+            timetablesMap[cls] = { dates: [], matrix: {} };
+            classSubjsMap[cls] = [];
+        }
+    });
+
+    await Promise.all(tasks);
+
+    masterExamDates = Array.from(datesSet).sort((a, b) => new Date(a) - new Date(b));
+    masterExamTimetables = timetablesMap;
+
+    renderMasterExamGridUI(targetClasses, classSubjsMap);
+};
+
+const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
+    const grid = document.getElementById('exam-master-grid');
+    if (!grid) return;
+
+    const classesToRender = targetClasses || (allClasses && allClasses.length ? allClasses : getAllowedClassesForTeacher());
+
+    if (!masterExamDates.length) {
+        grid.innerHTML = `
+            <div class="p-12 text-center text-slate-400 font-bold border-2 border-dashed border-slate-300 rounded-3xl">
+                <i class="fas fa-calendar-xmark text-4xl mb-3 text-slate-300 block"></i>
+                No examination dates have been scheduled for ${escapeHtml(currentExamTitle)} across any classes yet.<br>
+                <span class="text-xs text-slate-500 font-medium">Switch to Single Class View to add exam dates and assign subjects.</span>
+            </div>`;
+        return;
     }
-    renderExamTimetableGridUI();
+
+    // Default timings band matching Image 1
+    const timingBands = {
+        0: '07.00am To 09.00am',
+        1: '06.30am To 08.30am',
+        2: '06.30am To 08.30am',
+        3: '06.30am To 08.30am',
+        4: '06.30am To 08.30am',
+        5: '06.30am To 08.30am',
+        6: '06.30am To 08.30am',
+        7: '08.00am To 09.30am'
+    };
+
+    let html = `
+        <table class="w-full text-center border-collapse border-2 border-slate-900 text-xs font-serif">
+            <thead>
+                <!-- Top Row: Exam Dates & Arabic Weekdays -->
+                <tr class="bg-slate-900 text-white border-b-2 border-slate-900">
+                    <!-- Rightmost/Class Column header in Madrasa style -->
+                    <th class="py-3 px-3 border-r-2 border-white w-20 bg-slate-950 font-black text-sm">
+                        الصف<br><span class="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-300">Class</span>
+                    </th>
+                    ${masterExamDates.map(dateStr => {
+                        const arDay = getArabicDayName(dateStr);
+                        const enDay = getEnglishDayName(dateStr);
+                        return `
+                            <th class="py-2.5 px-3 border-r border-slate-700 min-w-[130px] text-center">
+                                <div class="font-sans font-extrabold text-[11px] text-indigo-200 tracking-wider">${dateStr}</div>
+                                <div class="font-black text-sm text-white mt-0.5">${arDay}</div>
+                                <div class="font-sans text-[9px] text-slate-400 font-normal uppercase">(${enDay})</div>
+                            </th>
+                        `;
+                    }).join('')}
+                </tr>
+
+                <!-- Second Row: Session Timings Band -->
+                <tr class="bg-slate-100 text-slate-800 border-b-2 border-slate-900 text-[10px] font-sans font-black">
+                    <th class="py-1.5 px-2 border-r-2 border-slate-900 bg-slate-200 text-slate-900 uppercase">
+                        Timing
+                    </th>
+                    ${masterExamDates.map((_, idx) => `
+                        <th class="py-1.5 px-2 border-r border-slate-300 text-center text-slate-700">
+                            ${timingBands[idx % 8] || '06.30am To 08.30am'}
+                        </th>
+                    `).join('')}
+                </tr>
+            </thead>
+            <tbody class="divide-y-2 divide-slate-900 font-medium text-slate-900">
+                ${classesToRender.map(cls => {
+                    const cData = masterExamTimetables[cls] || { matrix: {} };
+                    const matrix = cData.matrix || {};
+
+                    return `
+                        <tr class="hover:bg-slate-50 transition border-b-2 border-slate-900">
+                            <!-- Class Identifier Cell -->
+                            <td class="py-3 px-2 border-r-2 border-slate-900 font-black text-base text-slate-950 bg-slate-100/90 text-center font-serif">
+                                ${cls}
+                            </td>
+
+                            ${masterExamDates.map(dateStr => {
+                                // Search for scheduled paper in sessions
+                                const s1Key = `${dateStr}_session_1`;
+                                const s2Key = `${dateStr}_session_2`;
+                                const cell1 = matrix[s1Key] || {};
+                                const cell2 = matrix[s2Key] || {};
+
+                                if (cell1.isNoExam) {
+                                    return `
+                                        <td class="p-2 border-r border-slate-300 text-center bg-amber-50/40 text-amber-800 font-sans font-black text-[10px] uppercase select-none">
+                                            ☕ Study Leave
+                                        </td>`;
+                                }
+
+                                const subj1 = cell1.subjectName || '';
+                                const subj2 = cell2.subjectName || '';
+
+                                if (!subj1 && !subj2) {
+                                    return `
+                                        <td class="p-2 border-r border-slate-300 text-center text-slate-300 font-sans text-xs">
+                                            --
+                                        </td>`;
+                                }
+
+                                return `
+                                    <td class="p-2 border-r border-slate-300 text-center align-middle">
+                                        ${subj1 ? `
+                                            <div class="font-black text-sm text-slate-950 leading-tight">
+                                                ${escapeHtml(subj1)}
+                                            </div>
+                                        ` : ''}
+                                        ${subj2 ? `
+                                            <div class="font-black text-xs text-indigo-900 mt-1 pt-1 border-t border-slate-200 leading-tight">
+                                                ${escapeHtml(subj2)}
+                                            </div>
+                                        ` : ''}
+                                    </td>`;
+                            }).join('')}
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+
+        <!-- Side Remarks / Practical Exam Notation -->
+        <div class="mt-4 p-3 bg-amber-50/60 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-950 flex items-center justify-between flex-wrap gap-2">
+            <div>
+                <i class="fas fa-info-circle text-amber-600 mr-1.5"></i>
+                <span class="font-black">Practical Examination Note:</span> Class 3: Thursday • Class 4: Monday (or scheduled as notified)
+            </div>
+            <div class="text-[10px] text-amber-800 font-semibold">
+                General Examination Board Guidelines Apply
+            </div>
+        </div>
+    `;
+
+    grid.innerHTML = html;
 };
 
 const saveExamTimetableMatrix = async () => {
@@ -2239,23 +3164,72 @@ const setupEventListeners = () => {
         }
     });
 
-    // 2. Class Subjects Listeners
+    // 2. Class Subjects & Cards Listeners
     document.getElementById('subj-academic-year')?.addEventListener('change', loadClassSubjects);
     document.getElementById('subj-class-select')?.addEventListener('change', loadClassSubjects);
+    document.getElementById('subj-search-input')?.addEventListener('input', renderClassSubjectsUI);
     document.getElementById('btn-add-subject')?.addEventListener('click', () => openSubjectModal(null));
     document.getElementById('btn-save-subject')?.addEventListener('click', saveClassSubject);
     document.getElementById('btn-sync-subjects-schema')?.addEventListener('click', syncSubjectsFromResultSchema);
 
-    document.getElementById('subjects-table-body')?.addEventListener('click', (e) => {
-        const editBtn = e.target.closest('.btn-edit-subject');
-        if (editBtn) {
-            const subj = classSubjectsList.find(s => s.id === editBtn.dataset.id);
-            if (subj) openSubjectModal(subj);
+    // Cards Grid Delegation
+    document.getElementById('subjects-cards-grid')?.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('.btn-card-add-subject');
+        if (addBtn) {
+            openSubjectModal(null, addBtn.dataset.class);
             return;
         }
+
+        const editBtn = e.target.closest('.btn-edit-subject');
+        if (editBtn) {
+            const cls = editBtn.dataset.class;
+            const id = editBtn.dataset.id;
+            const cData = classCardsData[cls];
+            const subj = cData?.subjects?.find(s => s.id === id);
+            if (subj) openSubjectModal(subj, cls);
+            return;
+        }
+
         const delBtn = e.target.closest('.btn-del-subject');
         if (delBtn) {
-            deleteClassSubject(delBtn.dataset.id);
+            deleteClassSubject(delBtn.dataset.id, delBtn.dataset.class);
+            return;
+        }
+
+        const manageExamsBtn = e.target.closest('.btn-card-manage-exams');
+        if (manageExamsBtn) {
+            openAddExamNameModal();
+            const scopeSel = document.getElementById('modal-new-exam-class-scope');
+            if (scopeSel) scopeSel.value = 'specific';
+            const specWrap = document.getElementById('modal-new-exam-specific-class-wrapper');
+            if (specWrap) specWrap.classList.remove('hidden');
+            const specSel = document.getElementById('modal-new-exam-specific-class');
+            if (specSel) specSel.value = manageExamsBtn.dataset.class;
+            return;
+        }
+
+        const delExamBtn = e.target.closest('.btn-card-delete-exam');
+        if (delExamBtn) {
+            deleteCustomExamFromCard(delExamBtn.dataset.key, delExamBtn.dataset.class);
+            return;
+        }
+
+        const gotoTtBtn = e.target.closest('.btn-card-goto-tt');
+        if (gotoTtBtn) {
+            jumpToClassTab('tab-timetable', gotoTtBtn.dataset.class);
+            return;
+        }
+
+        const gotoYpBtn = e.target.closest('.btn-card-goto-yp');
+        if (gotoYpBtn) {
+            jumpToClassTab('tab-yearplan', gotoYpBtn.dataset.class);
+            return;
+        }
+
+        const gotoExamBtn = e.target.closest('.btn-card-goto-exam');
+        if (gotoExamBtn) {
+            jumpToClassTab('tab-exam-schedule', gotoExamBtn.dataset.class);
+            return;
         }
     });
 
@@ -2371,20 +3345,45 @@ const setupEventListeners = () => {
         if (valText) valText.textContent = `${e.target.value}%`;
     });
 
-    // 5. Exam Schedule Listeners
+    // 5. Exam Schedule & Master Timetable Listeners
+    document.getElementById('btn-exam-view-single')?.addEventListener('click', () => switchExamViewMode('single'));
+    document.getElementById('btn-exam-view-master')?.addEventListener('click', () => switchExamViewMode('master'));
+    document.getElementById('btn-print-master-exam-tt')?.addEventListener('click', () => window.print());
+
+    document.getElementById('modal-new-exam-class-scope')?.addEventListener('change', (e) => {
+        const wrap = document.getElementById('modal-new-exam-specific-class-wrapper');
+        if (wrap) {
+            wrap.classList.toggle('hidden', e.target.value !== 'specific');
+        }
+    });
+
     document.getElementById('exam-tt-academic-year')?.addEventListener('change', async () => {
         const y = document.getElementById('exam-tt-academic-year')?.value;
         const c = document.getElementById('exam-tt-class-select')?.value;
         await loadAvailableExams(y, c);
-        await loadExamTimetable();
+        if (examViewMode === 'master') {
+            await loadMasterExamTimetable();
+        } else {
+            await loadExamTimetable();
+        }
     });
     document.getElementById('exam-tt-class-select')?.addEventListener('change', async () => {
         const y = document.getElementById('exam-tt-academic-year')?.value;
         const c = document.getElementById('exam-tt-class-select')?.value;
         await loadAvailableExams(y, c);
-        await loadExamTimetable();
+        if (examViewMode === 'master') {
+            await loadMasterExamTimetable();
+        } else {
+            await loadExamTimetable();
+        }
     });
-    document.getElementById('exam-tt-title-select')?.addEventListener('change', loadExamTimetable);
+    document.getElementById('exam-tt-title-select')?.addEventListener('change', async () => {
+        if (examViewMode === 'master') {
+            await loadMasterExamTimetable();
+        } else {
+            await loadExamTimetable();
+        }
+    });
     document.getElementById('toggle-exam-timetable-edit')?.addEventListener('change', (e) => {
         toggleExamTimetableEdit(e.target.checked);
     });
