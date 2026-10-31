@@ -90,9 +90,22 @@ let currentClassSlots = [];
 let editingTtSlotId = null;
 let editingExamSessionId = null;
 
+const normalizeTimeTo24h = (str) => {
+    if (!str) return '08:00';
+    str = String(str).trim();
+    const match = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!match) return str.slice(0, 5);
+    let hours = parseInt(match[1], 10);
+    const mins = match[2];
+    const ampm = match[3] ? match[3].toUpperCase() : null;
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    return `${String(hours).padStart(2, '0')}:${mins}`;
+};
+
 const getDefaultClassSlots = () => [
-    { slotId: 'period_1', slotNum: 1, label: 'Period 1', startTime: '07:00 AM', endTime: '08:00 AM', isBreak: false },
-    { slotId: 'period_2', slotNum: 2, label: 'Period 2', startTime: '08:00 AM', endTime: '09:00 AM', isBreak: false }
+    { slotId: 'period_1', slotNum: 1, label: 'Period 1', startTime: '07:00', endTime: '08:00', isBreak: false },
+    { slotId: 'period_2', slotNum: 2, label: 'Period 2', startTime: '08:00', endTime: '09:00', isBreak: false }
 ];
 
 let timetableConfig = {
@@ -1358,12 +1371,17 @@ const renderTimetableMatrixUI = () => {
 
             return `
                 <div class="mb-8 bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
-                    <div class="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200 flex items-center justify-between">
+                    <div class="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
                         <div class="flex items-center gap-2.5">
                             <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
                             <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Routine Timetable</h4>
                         </div>
-                        <span class="text-xs text-slate-500 font-bold">${cData.subjects.length} Subjects</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500 font-bold">${cData.subjects.length} Subjects</span>
+                            <button type="button" class="btn-goto-class-tt px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition shadow-2xs inline-flex items-center gap-1.5" data-class="${escapeHtml(cls)}">
+                                <i class="fas fa-pen-to-square"></i> Manage Class ${escapeHtml(cls)}
+                            </button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto p-4">
                         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
@@ -1464,7 +1482,7 @@ const renderTimetableMatrixUI = () => {
     });
     html += `
         <th class="py-2.5 px-3 border-r border-slate-200 min-w-[75px] text-center bg-indigo-50/40">
-            <button type="button" id="btn-add-tt-slot-header" class="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Period or Break">
+            <button type="button" id="btn-add-tt-slot-header" class="btn-add-tt-slot inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Period or Break">
                 <i class="fas fa-plus"></i> Add
             </button>
         </th>
@@ -1616,6 +1634,16 @@ const saveTimetableMatrix = async () => {
 
 const openAddEditTimetableSlotModal = (slotId = null) => {
     editingTtSlotId = slotId;
+    if (!selectedTtClass || selectedTtClass === 'all') {
+        const sel = document.getElementById('tt-class-select');
+        const allowed = getAllowedClassesForTeacher();
+        if (sel && sel.value && sel.value !== 'all') {
+            selectedTtClass = sel.value;
+        } else if (allowed.length > 0) {
+            selectedTtClass = allowed[0];
+            if (sel) sel.value = selectedTtClass;
+        }
+    }
     const titleEl = document.getElementById('modal-tt-slot-title');
     const subtitleEl = document.getElementById('modal-tt-slot-subtitle');
     const idInput = document.getElementById('modal-tt-slot-id');
@@ -1631,31 +1659,50 @@ const openAddEditTimetableSlotModal = (slotId = null) => {
         if (subtitleEl) subtitleEl.textContent = `Modify timing & label for Class ${selectedTtClass}`;
         if (idInput) idInput.value = slot.slotId;
         if (labelInput) labelInput.value = slot.label;
-        if (startInput) startInput.value = slot.startTime;
-        if (endInput) endInput.value = slot.endTime;
+        if (startInput) startInput.value = normalizeTimeTo24h(slot.startTime);
+        if (endInput) endInput.value = normalizeTimeTo24h(slot.endTime);
         typeRadios.forEach(r => {
             r.checked = slot.isBreak ? (r.value === 'break') : (r.value === 'period');
         });
     } else {
         const nextNum = currentClassSlots.filter(s => !s.isBreak).length + 1;
+        const lastSlot = currentClassSlots.length > 0 ? currentClassSlots[currentClassSlots.length - 1] : null;
+        let defaultStart = '09:00';
+        let defaultEnd = '10:00';
+        if (lastSlot && lastSlot.endTime) {
+            defaultStart = normalizeTimeTo24h(lastSlot.endTime);
+            const [h, m] = defaultStart.split(':').map(Number);
+            const nextH = (h + 1) % 24;
+            defaultEnd = `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+        }
         if (titleEl) titleEl.textContent = 'Add Period / Break';
         if (subtitleEl) subtitleEl.textContent = `Configure new slot for Class ${selectedTtClass}`;
         if (idInput) idInput.value = '';
         if (labelInput) labelInput.value = `Period ${nextNum}`;
-        if (startInput) startInput.value = '09:00';
-        if (endInput) endInput.value = '10:00';
+        if (startInput) startInput.value = defaultStart;
+        if (endInput) endInput.value = defaultEnd;
         typeRadios.forEach(r => {
             r.checked = (r.value === 'period');
         });
     }
     openModal('modal-add-edit-tt-slot');
+    setTimeout(() => { labelInput?.focus(); labelInput?.select(); }, 50);
 };
 
 const saveTimetableSlot = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
     if (!selectedTtClass || selectedTtClass === 'all') {
-        alert('Please select a specific class to configure periods.');
-        return;
+        const sel = document.getElementById('tt-class-select');
+        const allowed = getAllowedClassesForTeacher();
+        if (sel && sel.value && sel.value !== 'all') {
+            selectedTtClass = sel.value;
+        } else if (allowed.length > 0) {
+            selectedTtClass = allowed[0];
+            if (sel) sel.value = selectedTtClass;
+        } else {
+            alert('Please select a specific class to configure periods.');
+            return;
+        }
     }
     const labelInput = document.getElementById('modal-tt-slot-label');
     const startInput = document.getElementById('modal-tt-slot-start');
@@ -2845,7 +2892,8 @@ const loadExamTimetable = async () => {
             examDates = Array.isArray(data.dates) ? data.dates : [];
             examSessions = (Array.isArray(data.sessions) && data.sessions.length) ? data.sessions : (
                 (Array.isArray(data.sessionSlots) && data.sessionSlots.length) ? data.sessionSlots : [
-                    { id: 'session_1', label: 'Paper 1', startTime: '07:00 AM', endTime: '08:30 AM' }
+                    { id: 'session_1', label: 'Paper 1', startTime: '07:00', endTime: '08:30' },
+                    { id: 'session_2', label: 'Paper 2', startTime: '08:30', endTime: '10:00' }
                 ]
             );
             examMatrix = data.matrix || {};
@@ -2871,7 +2919,8 @@ const loadExamTimetable = async () => {
             examDates = [];
             examMatrix = {};
             examSessions = [
-                { id: 'session_1', label: 'Paper 1', startTime: '07:00 AM', endTime: '08:30 AM' }
+                { id: 'session_1', label: 'Paper 1', startTime: '07:00', endTime: '08:30' },
+                { id: 'session_2', label: 'Paper 2', startTime: '08:30', endTime: '10:00' }
             ];
         }
     } catch (err) {
@@ -2892,18 +2941,6 @@ const renderExamTimetableGridUI = () => {
 
     if (!currentExamTitle) {
         grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select an examination to view schedule.</div>`;
-        return;
-    }
-
-    if (!examDates.length) {
-        grid.innerHTML = `
-            <div class="p-8 text-center text-slate-400 font-medium">
-                <i class="fas fa-calendar-plus text-3xl mb-2 text-slate-300 block"></i>
-                No exam dates scheduled for Class ${escapeHtml(selectedClass)} in ${escapeHtml(currentExamTitle)} yet.<br>
-                <button type="button" class="btn-trigger-add-exam-date mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" data-action="add-exam-date">
-                    <i class="fas fa-plus"></i> Add First Exam Date
-                </button>
-            </div>`;
         return;
     }
 
@@ -2929,13 +2966,26 @@ const renderExamTimetableGridUI = () => {
                         </th>
                     `).join('')}
                     <th class="py-2.5 px-3 border-r border-slate-200 min-w-[85px] text-center bg-indigo-50/40">
-                        <button type="button" id="btn-add-exam-paper-header" class="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Exam Paper">
+                        <button type="button" id="btn-add-exam-paper-header" class="btn-add-exam-session inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Exam Paper">
                             <i class="fas fa-plus"></i> Add Paper
                         </button>
                     </th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200 font-medium">`;
+
+    if (!examDates.length) {
+        html += `
+            <tr class="hover:bg-slate-50/60 transition">
+                <td colspan="${examSessions.length + 2}" class="p-8 text-center text-slate-400 font-medium bg-slate-50/40">
+                    <i class="fas fa-calendar-plus text-3xl mb-2 text-slate-300 block"></i>
+                    No exam dates scheduled for Class ${escapeHtml(selectedClass)} in ${escapeHtml(currentExamTitle)} yet.<br>
+                    <button type="button" class="btn-trigger-add-exam-date mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" data-action="add-exam-date">
+                        <i class="fas fa-plus"></i> Add First Exam Date
+                    </button>
+                </td>
+            </tr>`;
+    } else {
 
     examDates.forEach(dateStr => {
         const enDay = getEnglishDayName(dateStr);
@@ -3029,6 +3079,7 @@ const renderExamTimetableGridUI = () => {
             </td>
         </tr>`;
     });
+    }
 
     html += `</tbody></table>`;
     grid.innerHTML = html;
@@ -3331,17 +3382,29 @@ const openAddEditExamSessionModal = (sessionId = null) => {
         if (titleEl) titleEl.textContent = 'Edit Exam Paper';
         if (idInput) idInput.value = session.id;
         if (labelInput) labelInput.value = session.label;
-        if (startInput) startInput.value = session.startTime || '08:30';
-        if (endInput) endInput.value = session.endTime || '10:00';
+        if (startInput) startInput.value = normalizeTimeTo24h(session.startTime || '08:30');
+        if (endInput) endInput.value = normalizeTimeTo24h(session.endTime || '10:00');
     } else {
         const nextNum = examSessions.length + 1;
+        const lastSession = examSessions.length > 0 ? examSessions[examSessions.length - 1] : null;
+        let defaultStart = '10:00';
+        let defaultEnd = '11:30';
+        if (lastSession && lastSession.endTime) {
+            defaultStart = normalizeTimeTo24h(lastSession.endTime);
+            const [h, m] = defaultStart.split(':').map(Number);
+            const totalMins = (h * 60) + (m || 0) + 90;
+            const nextH = Math.floor(totalMins / 60) % 24;
+            const nextM = totalMins % 60;
+            defaultEnd = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+        }
         if (titleEl) titleEl.textContent = 'Add Exam Paper';
         if (idInput) idInput.value = '';
         if (labelInput) labelInput.value = `Paper ${nextNum}`;
-        if (startInput) startInput.value = '08:30';
-        if (endInput) endInput.value = '10:00';
+        if (startInput) startInput.value = defaultStart;
+        if (endInput) endInput.value = defaultEnd;
     }
     openModal('modal-add-edit-exam-session');
+    setTimeout(() => { labelInput?.focus(); labelInput?.select(); }, 50);
 };
 
 const saveExamSession = async () => {
@@ -3581,19 +3644,49 @@ const setupEventListeners = () => {
     document.getElementById('btn-print-timetable')?.addEventListener('click', printTimetableRoutine);
 
     // Dynamic Class Timetable Slots
-    document.getElementById('btn-add-tt-slot-header')?.addEventListener('click', () => openAddEditTimetableSlotModal(null));
     document.getElementById('btn-save-tt-slot')?.addEventListener('click', saveTimetableSlot);
     document.getElementById('tt-schedule-grid')?.addEventListener('click', (e) => {
+        const addSlotBtn = e.target.closest('#btn-add-tt-slot-header') || e.target.closest('.btn-add-tt-slot');
+        if (addSlotBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAddEditTimetableSlotModal(null);
+            return;
+        }
         const editBtn = e.target.closest('.btn-edit-tt-slot');
         if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             openAddEditTimetableSlotModal(editBtn.dataset.slotId);
             return;
         }
         const delBtn = e.target.closest('.btn-delete-tt-slot');
         if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             deleteTimetableSlot(delBtn.dataset.slotId);
             return;
         }
+        const gotoClassBtn = e.target.closest('.btn-goto-class-tt');
+        if (gotoClassBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cls = gotoClassBtn.dataset.class;
+            const sel = document.getElementById('tt-class-select');
+            if (sel) sel.value = cls;
+            selectedTtClass = cls;
+            loadTimetable();
+            return;
+        }
+    });
+
+    ['modal-tt-slot-label', 'modal-tt-slot-start', 'modal-tt-slot-end'].forEach(id => {
+        document.getElementById(id)?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveTimetableSlot();
+            }
+        });
     });
 
     // Structure Settings Controls
@@ -3747,7 +3840,6 @@ const setupEventListeners = () => {
     document.getElementById('btn-save-new-exam-title')?.addEventListener('click', saveNewExamName);
 
     // Dynamic Exam Paper Sessions
-    document.getElementById('btn-add-exam-paper-header')?.addEventListener('click', () => openAddEditExamSessionModal(null));
     document.getElementById('btn-save-exam-session')?.addEventListener('click', saveExamSession);
 
     // Standalone Master Timetable Listeners
@@ -3762,30 +3854,73 @@ const setupEventListeners = () => {
     document.getElementById('btn-print-master-timetable')?.addEventListener('click', () => window.print());
 
     document.getElementById('exam-schedule-grid')?.addEventListener('click', (e) => {
+        const addSessionBtn = e.target.closest('#btn-add-exam-paper-header') || e.target.closest('.btn-add-exam-session');
+        if (addSessionBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAddEditExamSessionModal(null);
+            return;
+        }
         const delBtn = e.target.closest('.btn-remove-exam-date');
         if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             removeExamDate(delBtn.dataset.date);
             return;
         }
         const editSessionBtn = e.target.closest('.btn-edit-exam-session');
         if (editSessionBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             openAddEditExamSessionModal(editSessionBtn.dataset.sessionId);
             return;
         }
         const delSessionBtn = e.target.closest('.btn-delete-exam-session');
         if (delSessionBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             deleteExamSession(delSessionBtn.dataset.sessionId);
+            return;
+        }
+        const addDateBtn = e.target.closest('[data-action="add-exam-date"]') || e.target.closest('.btn-trigger-add-exam-date');
+        if (addDateBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAddExamDateModal();
             return;
         }
     });
 
-    // Delegated click listener for Add First Exam Date triggers
+    ['modal-exam-session-label', 'modal-exam-session-start', 'modal-exam-session-end'].forEach(id => {
+        document.getElementById(id)?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveExamSession();
+            }
+        });
+    });
+
+    // Delegated click listener for Add buttons anywhere in document
     document.addEventListener('click', (e) => {
+        const addSlotBtn = e.target.closest('#btn-add-tt-slot-header') || e.target.closest('.btn-add-tt-slot');
+        if (addSlotBtn) {
+            e.preventDefault();
+            openAddEditTimetableSlotModal(null);
+            return;
+        }
+        const addSessionBtn = e.target.closest('#btn-add-exam-paper-header') || e.target.closest('.btn-add-exam-session');
+        if (addSessionBtn) {
+            e.preventDefault();
+            openAddEditExamSessionModal(null);
+            return;
+        }
         const addDateBtn = e.target.closest('[data-action="add-exam-date"]')
             || e.target.closest('.btn-trigger-add-exam-date')
             || (e.target.id === 'btn-add-first-exam-date');
         if (addDateBtn) {
+            e.preventDefault();
             openAddExamDateModal();
+            return;
         }
     });
 
