@@ -308,7 +308,7 @@
           </div>
           <div class="drawer-header-title min-w-0">
             <h2 class="font-extrabold text-sm text-slate-900 truncate">Activity &amp; Rewards</h2>
-            <p class="text-[10px] text-slate-500 font-bold truncate">Habits, Prayers &amp; Badges</p>
+            <p class="text-[10px] text-slate-500 font-bold truncate">Activities, Prayers &amp; Badges</p>
           </div>
         </div>
         <button id="sidebar-collapse-btn" class="text-gray-500 hover:text-amber-600 hover:bg-amber-50 p-2 rounded-lg transition flex items-center justify-center shrink-0" title="Collapse / Expand sidebar">
@@ -324,14 +324,14 @@
           <span class="nav-text truncate">Dashboard</span>
         </a>
 
-        <div class="drawer-heading">Habits &amp; Conduct</div>
-        <a href="#task-setup" class="drawer-link" data-tab="tab-task-setup" title="Manage Habits &amp; Tasks">
+        <div class="drawer-heading">Activities &amp; Conduct</div>
+        <a href="#task-setup" class="drawer-link" data-tab="tab-task-setup" title="Manage Activities">
           <i class="fas fa-plus-circle w-5 text-center shrink-0"></i>
-          <span class="nav-text truncate">Manage Habits</span>
+          <span class="nav-text truncate">Manage Activity</span>
         </a>
-        <a href="#tasks" class="drawer-link" data-tab="tab-tasks" title="Daily Habits &amp; Tasks Checklist">
+        <a href="#tasks" class="drawer-link" data-tab="tab-tasks" title="Activity Pointing Matrix">
           <i class="fas fa-list-check w-5 text-center shrink-0"></i>
-          <span class="nav-text truncate">Daily Habits</span>
+          <span class="nav-text truncate">Activity Pointing</span>
         </a>
 
         <div class="drawer-heading">Daily Prayers</div>
@@ -417,7 +417,7 @@
                 <i class="fas fa-list-check"></i>
               </div>
               <div class="min-w-0">
-                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Habits Done</div>
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Activities Done</div>
                 <div id="dash-stat-tasks" class="text-xl sm:text-2xl font-black text-blue-600 leading-tight">0%</div>
                 <div id="dash-stat-tasks-sub" class="text-[11px] text-slate-500 font-semibold truncate">Today's Routine</div>
               </div>
@@ -436,7 +436,7 @@
             </div>
           </div>
 
-          <!-- Section 1: Itemized Log Breakdown (Prayers & Habits Detail Tables) -->
+          <!-- Section 1: Itemized Log Breakdown (Prayers & Activities Detail Tables) -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <!-- Card 1: Today's Prayers Detailed Audit -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
@@ -470,15 +470,15 @@
               </div>
             </div>
 
-            <!-- Card 2: Today's Habits & Tasks Detailed Audit -->
+            <!-- Card 2: Today's Activities & Tasks Detailed Audit -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
               <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
                 <div class="flex items-center gap-2">
                   <i class="fas fa-list-check text-blue-600"></i>
-                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Today's Habits &amp; Tasks</h3>
+                  <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">Today's Activities &amp; Tasks</h3>
                 </div>
                 <button type="button" class="dash-quick-nav px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer" data-target="tab-tasks">
-                  <span>Open Daily Habits</span>
+                  <span>Open Activity Pointing</span>
                   <i class="fas fa-arrow-right text-[10px]"></i>
                 </button>
               </div>
@@ -487,7 +487,7 @@
                 <table class="w-full text-left border-collapse text-xs">
                   <thead class="bg-slate-100/70 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
                     <tr>
-                      <th class="py-2.5 px-3">Habit / Task</th>
+                      <th class="py-2.5 px-3">Activity / Task</th>
                       <th class="py-2.5 px-3 text-center">Cadence</th>
                       <th class="py-2.5 px-3 text-center">Completed</th>
                       <th class="py-2.5 px-3 text-center">Progress</th>
@@ -524,7 +524,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 2: MANAGE & ADD HABITS & TASKS         -->
+        <!-- TAB 2: MANAGE & ADD ACTIVITIES             -->
         <!-- ========================================== -->
         <section id="tab-task-setup" class="tab-content hidden space-y-5">
           <!-- Add New Task Card -->
@@ -535,8 +535,8 @@
                   <i class="fas fa-plus"></i>
                 </div>
                 <div>
-                  <h3 class="font-extrabold text-sm text-slate-900">Add New Habit / Task</h3>
-                  <p class="text-[11px] text-slate-500 font-semibold">Create routine tasks for Daily, Weekly or Monthly cadence</p>
+                  <h3 class="font-extrabold text-sm text-slate-900">Add New Activity</h3>
+                  <p class="text-[11px] text-slate-500 font-semibold">Configure routine activities for Daily, Weekly or Monthly cadence</p>
                 </div>
               </div>
               <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">Custom Setup</span>
@@ -544,8 +544,8 @@
 
             <form id="form-add-task-def" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
               <div class="md:col-span-2">
-                <label for="task-def-title" class="block font-bold text-slate-700 mb-1">Habit / Task Title <span class="text-rose-500">*</span></label>
-                <input type="text" id="task-def-title" placeholder="e.g. Morning Adhkar, Uniform Cleanliness, Surah Al-Kahf" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
+                <label for="task-def-title" class="block font-bold text-slate-700 mb-1">Activity Title <span class="text-rose-500">*</span></label>
+                <input type="text" id="task-def-title" placeholder="e.g. Morning Adhkar, Cleanliness, Surah Al-Kahf" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
               </div>
 
               <div>
@@ -561,7 +561,7 @@
                 <label for="task-def-day-week" class="block font-bold text-slate-700 mb-1">Designated Day (Optional)</label>
                 <select id="task-def-day-week" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none focus:border-amber-500">
                   <option value="">Any Day (Unfixed)</option>
-                  <option value="Friday">Friday</option>
+                  <option value="Friday">Friday (Jumu'ah)</option>
                   <option value="Saturday">Saturday</option>
                   <option value="Sunday">Sunday</option>
                   <option value="Monday">Monday</option>
@@ -572,11 +572,40 @@
               </div>
 
               <div id="wrapper-task-day-month" class="hidden">
-                <label for="task-def-day-month" class="block font-bold text-slate-700 mb-1">Designated Day/Date (Optional)</label>
+                <label for="task-def-day-month" class="block font-bold text-slate-700 mb-1">Designated Day / Date (Optional)</label>
                 <select id="task-def-day-month" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none focus:border-amber-500">
                   <option value="">Any Date (Unfixed)</option>
                   <option value="1st of Month">1st of Month</option>
+                  <option value="2nd of Month">2nd of Month</option>
+                  <option value="3rd of Month">3rd of Month</option>
+                  <option value="4th of Month">4th of Month</option>
+                  <option value="5th of Month">5th of Month</option>
+                  <option value="6th of Month">6th of Month</option>
+                  <option value="7th of Month">7th of Month</option>
+                  <option value="8th of Month">8th of Month</option>
+                  <option value="9th of Month">9th of Month</option>
+                  <option value="10th of Month">10th of Month</option>
+                  <option value="11th of Month">11th of Month</option>
+                  <option value="12th of Month">12th of Month</option>
+                  <option value="13th of Month">13th of Month</option>
+                  <option value="14th of Month">14th of Month</option>
                   <option value="15th of Month">15th of Month</option>
+                  <option value="16th of Month">16th of Month</option>
+                  <option value="17th of Month">17th of Month</option>
+                  <option value="18th of Month">18th of Month</option>
+                  <option value="19th of Month">19th of Month</option>
+                  <option value="20th of Month">20th of Month</option>
+                  <option value="21st of Month">21st of Month</option>
+                  <option value="22nd of Month">22nd of Month</option>
+                  <option value="23rd of Month">23rd of Month</option>
+                  <option value="24th of Month">24th of Month</option>
+                  <option value="25th of Month">25th of Month</option>
+                  <option value="26th of Month">26th of Month</option>
+                  <option value="27th of Month">27th of Month</option>
+                  <option value="28th of Month">28th of Month</option>
+                  <option value="29th of Month">29th of Month</option>
+                  <option value="30th of Month">30th of Month</option>
+                  <option value="31st of Month">31st of Month</option>
                   <option value="Last Day of Month">Last Day of Month</option>
                 </select>
               </div>
@@ -588,7 +617,7 @@
 
               <div class="md:col-span-4 flex justify-end gap-2 pt-2">
                 <button type="submit" id="btn-save-new-task-def" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                  <i class="fas fa-plus"></i> Add &amp; Save Habit
+                  <i class="fas fa-plus"></i> Add &amp; Save Activity
                 </button>
               </div>
             </form>
@@ -599,7 +628,7 @@
             <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <i class="fas fa-list-check text-amber-600"></i>
-                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">All Configured Habits &amp; Tasks</h3>
+                <h3 class="font-black text-sm text-slate-900 uppercase tracking-wider">All Configured Activities</h3>
               </div>
               <div class="flex items-center gap-1">
                 <button type="button" class="task-def-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white" data-filter="all">All</button>
@@ -614,7 +643,7 @@
                 <thead>
                   <tr class="bg-slate-100 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
                     <th class="py-2.5 px-3">#</th>
-                    <th class="py-2.5 px-4">Habit / Task Title</th>
+                    <th class="py-2.5 px-4">Activity Title</th>
                     <th class="py-2.5 px-3 text-center">Frequency</th>
                     <th class="py-2.5 px-3 text-center">Schedule / Day</th>
                     <th class="py-2.5 px-3 text-center">Points</th>
@@ -630,7 +659,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 3: DAILY HABITS & TASKS MATRIX         -->
+        <!-- TAB 3: ACTIVITY POINTING MATRIX            -->
         <!-- ========================================== -->
         <section id="tab-tasks" class="tab-content hidden space-y-4">
           <!-- Controls Bar -->
@@ -663,13 +692,13 @@
                 <i class="fas fa-clock mr-1"></i>Unsaved Changes
               </span>
               <button type="button" id="btn-save-tasks" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-floppy-disk"></i> Save Habits Log
+                <i class="fas fa-floppy-disk"></i> Save Activities Log
               </button>
               <button type="button" id="btn-tasks-clear-all" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
                 Clear All
               </button>
               <button type="button" class="dash-quick-nav px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer" data-target="tab-task-setup">
-                <i class="fas fa-plus"></i> Manage Habits
+                <i class="fas fa-plus"></i> Manage Activity
               </button>
             </div>
           </div>
@@ -839,7 +868,7 @@
                     <th class="py-2.5 px-4">Student Name</th>
                     <th class="py-2.5 px-3 text-center">Att. Pts</th>
                     <th class="py-2.5 px-3 text-center">Prayer Pts</th>
-                    <th class="py-2.5 px-3 text-center">Habits Pts</th>
+                    <th class="py-2.5 px-3 text-center">Activity Pts</th>
                     <th class="py-2.5 px-3 text-center">Bonus Pts</th>
                     <th class="py-2.5 px-3 text-center">Total Points</th>
                     <th class="py-2.5 px-4">Badges &amp; Honors</th>
@@ -1065,7 +1094,7 @@
     </div>
   </div>
 
-  <!-- 5. Modal: Edit Habit / Task Definition -->
+  <!-- 5. Modal: Edit Activity Definition -->
   <div id="modal-edit-task-def" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
       <div class="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -1073,7 +1102,7 @@
           <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
             <i class="fas fa-edit"></i>
           </div>
-          <h3 class="font-black text-sm text-slate-800">Edit Habit / Task Definition</h3>
+          <h3 class="font-black text-sm text-slate-800">Edit Activity Definition</h3>
         </div>
         <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-edit-task-def">
           <i class="fas fa-times"></i>
@@ -1084,7 +1113,7 @@
         <input type="hidden" id="edit-task-id">
 
         <div>
-          <label for="edit-task-title" class="block font-bold text-slate-700 mb-1">Habit / Task Title <span class="text-rose-500">*</span></label>
+          <label for="edit-task-title" class="block font-bold text-slate-700 mb-1">Activity Title <span class="text-rose-500">*</span></label>
           <input type="text" id="edit-task-title" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500" required>
         </div>
 
@@ -1107,7 +1136,7 @@
           <label for="edit-task-day-week" class="block font-bold text-slate-700 mb-1">Designated Day (Optional)</label>
           <select id="edit-task-day-week" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none">
             <option value="">Any Day (Unfixed)</option>
-            <option value="Friday">Friday</option>
+            <option value="Friday">Friday (Jumu'ah)</option>
             <option value="Saturday">Saturday</option>
             <option value="Sunday">Sunday</option>
             <option value="Monday">Monday</option>
@@ -1118,11 +1147,40 @@
         </div>
 
         <div id="wrapper-edit-task-day-month" class="hidden">
-          <label for="edit-task-day-month" class="block font-bold text-slate-700 mb-1">Designated Day/Date (Optional)</label>
+          <label for="edit-task-day-month" class="block font-bold text-slate-700 mb-1">Designated Day / Date (Optional)</label>
           <select id="edit-task-day-month" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold text-slate-800 outline-none">
             <option value="">Any Date (Unfixed)</option>
             <option value="1st of Month">1st of Month</option>
+            <option value="2nd of Month">2nd of Month</option>
+            <option value="3rd of Month">3rd of Month</option>
+            <option value="4th of Month">4th of Month</option>
+            <option value="5th of Month">5th of Month</option>
+            <option value="6th of Month">6th of Month</option>
+            <option value="7th of Month">7th of Month</option>
+            <option value="8th of Month">8th of Month</option>
+            <option value="9th of Month">9th of Month</option>
+            <option value="10th of Month">10th of Month</option>
+            <option value="11th of Month">11th of Month</option>
+            <option value="12th of Month">12th of Month</option>
+            <option value="13th of Month">13th of Month</option>
+            <option value="14th of Month">14th of Month</option>
             <option value="15th of Month">15th of Month</option>
+            <option value="16th of Month">16th of Month</option>
+            <option value="17th of Month">17th of Month</option>
+            <option value="18th of Month">18th of Month</option>
+            <option value="19th of Month">19th of Month</option>
+            <option value="20th of Month">20th of Month</option>
+            <option value="21st of Month">21st of Month</option>
+            <option value="22nd of Month">22nd of Month</option>
+            <option value="23rd of Month">23rd of Month</option>
+            <option value="24th of Month">24th of Month</option>
+            <option value="25th of Month">25th of Month</option>
+            <option value="26th of Month">26th of Month</option>
+            <option value="27th of Month">27th of Month</option>
+            <option value="28th of Month">28th of Month</option>
+            <option value="29th of Month">29th of Month</option>
+            <option value="30th of Month">30th of Month</option>
+            <option value="31st of Month">31st of Month</option>
             <option value="Last Day of Month">Last Day of Month</option>
           </select>
         </div>
@@ -1239,8 +1297,8 @@
 
           <div class="flex items-center justify-between p-2.5 border border-slate-200 rounded-xl bg-slate-50">
             <div>
-              <div class="font-black text-slate-800">Habits / Tasks Completion</div>
-              <div class="text-[11px] text-slate-500">Default points per completed task</div>
+              <div class="font-black text-slate-800">Activity Completion</div>
+              <div class="text-[11px] text-slate-500">Default points per completed activity</div>
             </div>
             <input type="number" id="rubric-pts-task" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
           </div>

@@ -13,7 +13,7 @@ let currentStaffDoc = null;
 let teacherAssignedClasses = [];
 
 let institutionConfig = {};
-let currentAcademicYear = '';
+let currentAcademicYear = '2025-2026';
 let availableAcademicYears = [];
 let allStudents = [];
 let allClasses = [];
@@ -317,11 +317,25 @@ const setPrayerUnsavedState = (dirty) => {
     if (badge) badge.classList.toggle('hidden', !dirty);
 };
 
+const reloadActiveTabRoster = () => {
+    const activeTab = document.querySelector('.tab-content:not(.hidden)')?.id;
+    if (activeTab === 'tab-dashboard') {
+        loadDashboardView();
+    } else if (activeTab === 'tab-tasks') {
+        loadTasksRoster();
+    } else if (activeTab === 'tab-prayer') {
+        loadPrayerRoster();
+    } else if (activeTab === 'tab-rewards') {
+        loadRewardsLeaderboard();
+    }
+};
+
 // --- Initialization & Auth ---
 const initApp = async () => {
     initSidebarState();
     initTabNavigation();
     startClock();
+    setupEventListeners(); // Register immediately so all buttons & filters work unconditionally
 
     const dateInputs = ['tasks-date-input', 'prayer-date-input'];
     dateInputs.forEach(id => {
@@ -340,7 +354,6 @@ const initApp = async () => {
         await restoreSessionContext();
         await loadRewardsRubric();
         setupRealtimeListeners();
-        setupEventListeners();
     });
 };
 
@@ -418,6 +431,10 @@ const setupRealtimeListeners = () => {
         if (dashSessionEl) {
             dashSessionEl.textContent = currentAcademicYear ? `Session ${currentAcademicYear}` : 'Active Session';
         }
+        if (currentAcademicYear) {
+            loadRewardsRubric();
+        }
+        reloadActiveTabRoster();
     });
 
     // 3. Classes
@@ -430,15 +447,14 @@ const setupRealtimeListeners = () => {
             allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
         }
         populateClassDropdowns();
+        reloadActiveTabRoster();
     });
 
     // 4. Students
     onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
         allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         populateStudentSelect();
-        if (document.getElementById('tab-dashboard') && !document.getElementById('tab-dashboard').classList.contains('hidden')) {
-            loadDashboardView();
-        }
+        reloadActiveTabRoster();
     });
 
     // 5. Staff Roster & Duty Classes Sync
@@ -480,6 +496,7 @@ const setupRealtimeListeners = () => {
             }
             populateClassDropdowns();
             populateStudentSelect();
+            reloadActiveTabRoster();
         }
     });
 
@@ -522,12 +539,16 @@ const setupRealtimeListeners = () => {
     });
 
     // 9. Rewards & Prayer Points Rubric Listener
-    onSnapshot(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), (snap) => {
-        if (snap.exists() && snap.data().points) {
-            currentRewardsRubric = { ...currentRewardsRubric, ...snap.data().points };
-        }
-        updatePrayerStatusLegendPoints();
-    });
+    if (currentAcademicYear) {
+        try {
+            onSnapshot(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), (snap) => {
+                if (snap.exists() && snap.data().points) {
+                    currentRewardsRubric = { ...currentRewardsRubric, ...snap.data().points };
+                }
+                updatePrayerStatusLegendPoints();
+            });
+        } catch (_) {}
+    }
 };
 
 const getAllowedClassesForTeacher = () => {
@@ -724,7 +745,7 @@ const loadDashboardView = async () => {
 
     if (tasksDetailTbody) {
         if (!taskDefsList.length) {
-            tasksDetailTbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No habits or tasks defined yet.</td></tr>`;
+            tasksDetailTbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No activities or tasks defined yet.</td></tr>`;
         } else if (!totalStudents) {
             tasksDetailTbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No active students in Class ${escapeHtml(selectedDashClass)}.</td></tr>`;
         } else {
@@ -882,7 +903,7 @@ const loadDashboardView = async () => {
                 backlogContainer.innerHTML = `
                     <div class="p-6 text-center text-emerald-700 font-bold text-xs bg-emerald-50 rounded-xl border border-emerald-200">
                         <i class="fas fa-check-circle mr-1.5 text-emerald-600"></i>
-                        All prayer and daily habit logs for the past 7 days are complete!
+                        All prayer and activity logs for the past 7 days are complete!
                     </div>`;
             } else {
                 backlogContainer.innerHTML = incompleteDays.map(item => {
@@ -905,10 +926,10 @@ const loadDashboardView = async () => {
                     let taskBadge = '';
                     let taskAction = '';
                     if (item.tasksMissing) {
-                        taskBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">Daily Habits Missing</span>`;
-                        taskAction = `<button type="button" class="btn-resolve-backlog px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] transition cursor-pointer shadow-2xs" data-target="tab-tasks" data-date="${item.date}"><i class="fas fa-list-check mr-1"></i>Log Habits</button>`;
+                        taskBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">Activity Log Missing</span>`;
+                        taskAction = `<button type="button" class="btn-resolve-backlog px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] transition cursor-pointer shadow-2xs" data-target="tab-tasks" data-date="${item.date}"><i class="fas fa-list-check mr-1"></i>Log Activity</button>`;
                     } else {
-                        taskBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">Habits Complete</span>`;
+                        taskBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">Activity Complete</span>`;
                     }
 
                     return `
@@ -1074,7 +1095,7 @@ const saveTaskDefinitionsToFirestore = async (tasks) => {
         taskDefsList = tasks;
         updateCadenceButtonLabels();
         loadTaskDefsTable();
-        showToast('Task configurations updated successfully!', 'success');
+        showToast('Activities updated successfully!', 'success');
     } catch (err) {
         alert('Failed to save task definitions: ' + err.message);
     }
@@ -1221,7 +1242,7 @@ const saveTasksCompletionsToFirestore = async () => {
         }
 
         setTasksUnsavedState(false);
-        showToast('Habits and tasks saved successfully!', 'success');
+        showToast('Activities log saved successfully!', 'success');
     } catch (err) {
         alert('Failed to save task completions: ' + err.message);
     }
@@ -1925,7 +1946,10 @@ const setupEventListeners = () => {
     });
 
     // 2. Dashboard Class Select Listener
-    document.getElementById('dashboard-class-select')?.addEventListener('change', loadDashboardView);
+    document.getElementById('dashboard-class-select')?.addEventListener('change', (e) => {
+        selectedDashClass = e.target.value;
+        loadDashboardView();
+    });
 
     // 3. Manage Tasks Tab Listeners
     const cadenceSelect = document.getElementById('task-def-cadence');
@@ -1994,6 +2018,8 @@ const setupEventListeners = () => {
         // Reset form
         document.getElementById('task-def-title').value = '';
         document.getElementById('task-def-points').value = '5';
+        if (document.getElementById('task-def-day-week')) document.getElementById('task-def-day-week').value = '';
+        if (document.getElementById('task-def-day-month')) document.getElementById('task-def-day-month').value = '';
     });
 
     // Save edited task form submit
@@ -2006,7 +2032,7 @@ const setupEventListeners = () => {
         const dayOfMonth = cadence === 'monthly' ? (document.getElementById('edit-task-day-month')?.value || '') : '';
         const points = Number(document.getElementById('edit-task-points')?.value || 5);
 
-        if (!taskId || !title) return alert('Task title cannot be empty.');
+        if (!taskId || !title) return alert('Activity title cannot be empty.');
 
         const updated = taskDefsList.map(t => {
             if (t.id === taskId) {
@@ -2017,7 +2043,7 @@ const setupEventListeners = () => {
 
         await saveTaskDefinitionsToFirestore(updated);
         closeModal('modal-edit-task-def');
-        showToast('Task updated successfully!', 'success');
+        showToast('Activity updated successfully!', 'success');
     });
 
     document.querySelectorAll('.task-def-filter-btn').forEach(btn => {
@@ -2049,8 +2075,8 @@ const setupEventListeners = () => {
             if (!task) return;
 
             showConfirmDialog({
-                title: 'Delete Routine Task',
-                message: `Are you sure you want to delete task "${task.title}"?`,
+                title: 'Delete Activity',
+                message: `Are you sure you want to delete activity "${task.title}"?`,
                 confirmText: 'Yes, Delete',
                 confirmBtnClass: 'bg-rose-600 hover:bg-rose-700',
                 onConfirm: async () => {
@@ -2061,17 +2087,23 @@ const setupEventListeners = () => {
         }
     });
 
-    // 4. Routine Tasks Checklist Listeners (Strict Explicit Save)
-    document.getElementById('tasks-class-select')?.addEventListener('change', loadTasksRoster);
-    document.getElementById('tasks-date-input')?.addEventListener('change', loadTasksRoster);
+    // 4. Activity Pointing Checklist Listeners (Strict Explicit Save)
+    document.getElementById('tasks-class-select')?.addEventListener('change', (e) => {
+        selectedTasksClass = e.target.value;
+        loadTasksRoster();
+    });
+    document.getElementById('tasks-date-input')?.addEventListener('change', (e) => {
+        selectedTasksDate = e.target.value;
+        loadTasksRoster();
+    });
     document.querySelectorAll('.tasks-freq-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.tasks-freq-btn').forEach(b => {
                 b.classList.remove('bg-amber-500', 'text-white', 'shadow-2xs');
-                b.classList.add('text-slate-600', 'hover:bg-slate-100');
+                b.classList.add('text-slate-600', 'hover:bg-slate-200');
             });
             btn.classList.add('bg-amber-500', 'text-white', 'shadow-2xs');
-            btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+            btn.classList.remove('text-slate-600', 'hover:bg-slate-200');
             currentTaskCadence = btn.dataset.freq;
             loadTasksRoster();
         });
@@ -2143,12 +2175,18 @@ const setupEventListeners = () => {
         setTasksUnsavedState(true);
     });
 
-    // Explicit Save Button for Routine Tasks
+    // Explicit Save Button for Activities
     document.getElementById('btn-save-tasks')?.addEventListener('click', saveTasksCompletionsToFirestore);
 
     // 5. Prayer Tracker Listeners (Strict Explicit Save)
-    document.getElementById('prayer-class-select')?.addEventListener('change', loadPrayerRoster);
-    document.getElementById('prayer-date-input')?.addEventListener('change', loadPrayerRoster);
+    document.getElementById('prayer-class-select')?.addEventListener('change', (e) => {
+        selectedPrayerClass = e.target.value;
+        loadPrayerRoster();
+    });
+    document.getElementById('prayer-date-input')?.addEventListener('change', (e) => {
+        selectedPrayerDate = e.target.value;
+        loadPrayerRoster();
+    });
     document.getElementById('btn-save-prayer')?.addEventListener('click', savePrayerRecords);
 
     // Individual prayer pill click (NO AUTO-SAVE, flags unsaved changes)
@@ -2287,7 +2325,10 @@ const setupEventListeners = () => {
     document.getElementById('btn-save-prayer-points-config')?.addEventListener('click', savePrayerPointsConfig);
 
     // 6. Rewards & Leaderboard Listeners
-    document.getElementById('rewards-class-select')?.addEventListener('change', loadRewardsLeaderboard);
+    document.getElementById('rewards-class-select')?.addEventListener('change', (e) => {
+        selectedRewardsClass = e.target.value;
+        loadRewardsLeaderboard();
+    });
     document.getElementById('btn-rewards-settings')?.addEventListener('click', openRewardsSettingsModal);
     document.getElementById('btn-save-rewards-settings')?.addEventListener('click', saveRewardsRubric);
     document.getElementById('btn-open-award-points')?.addEventListener('click', () => openModal('modal-award-points'));
