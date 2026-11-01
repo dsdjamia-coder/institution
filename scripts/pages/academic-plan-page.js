@@ -139,6 +139,8 @@ let selectedStSubject = 'all';
 let stSearchQuery = '';
 let stClassSubjects = [];
 let stCurrentGrid = {};
+let allClassesSyllabusData = {}; // classLabel -> { grid, subjects }
+let currentModalStClass = null;
 
 // --- Exam Timetable State ---
 let currentExamTitle = 'Half-Yearly';
@@ -150,6 +152,7 @@ let masterExamTimetables = {};
 let masterExamSessions = [
     { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' }
 ];
+let allClassesExamTimetables = {}; // classLabel -> { dates, sessions, matrix, subjects }
 
 const GREGORIAN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const HIJRI_MONTHS = [
@@ -618,6 +621,17 @@ const getAllowedClassesForTeacher = () => {
     return [];
 };
 
+const buildSelectOptionsWithAll = (allowedList, isSuperAdmin, featureLabel = 'All Classes') => {
+    let opts = '';
+    if (isSuperAdmin) {
+        opts += `<option value="all">${escapeHtml(featureLabel)} (Full Institution)</option>`;
+    } else if (allowedList.length > 0) {
+        opts += `<option value="all">All My Classes (${allowedList.length} Class${allowedList.length > 1 ? 'es' : ''})</option>`;
+    }
+    opts += allowedList.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+    return opts || `<option value="">No Classes Assigned</option>`;
+};
+
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
 
@@ -625,13 +639,8 @@ const populateClassDropdowns = () => {
     const subjClassSelect = document.getElementById('subj-class-select');
     if (subjClassSelect) {
         const prev = subjClassSelect.value;
-        let opts = '';
-        if (isSuperAdmin) {
-            opts += `<option value="all">All Classes</option>`;
-        }
-        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
-        subjClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        subjClassSelect.innerHTML = buildSelectOptionsWithAll(allowed, isSuperAdmin, 'All Classes');
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             subjClassSelect.value = prev;
         } else {
             subjClassSelect.value = isSuperAdmin ? 'all' : (allowed[0] || '1');
@@ -643,13 +652,8 @@ const populateClassDropdowns = () => {
     const ttClassSelect = document.getElementById('tt-class-select');
     if (ttClassSelect) {
         const prev = ttClassSelect.value;
-        let opts = '';
-        if (isSuperAdmin) {
-            opts += `<option value="all">All Classes (Full Routine)</option>`;
-        }
-        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
-        ttClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        ttClassSelect.innerHTML = buildSelectOptionsWithAll(allowed, isSuperAdmin, 'All Classes');
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             ttClassSelect.value = prev;
         } else if (allowed.length > 0) {
             ttClassSelect.value = allowed[0];
@@ -661,13 +665,8 @@ const populateClassDropdowns = () => {
     const ypClassSelect = document.getElementById('yp-class-select');
     if (ypClassSelect) {
         const prev = ypClassSelect.value;
-        let opts = '';
-        if (isSuperAdmin) {
-            opts += `<option value="all">All Classes (Full Syllabus)</option>`;
-        }
-        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
-        ypClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        ypClassSelect.innerHTML = buildSelectOptionsWithAll(allowed, isSuperAdmin, 'All Classes');
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             ypClassSelect.value = prev;
         } else if (allowed.length > 0) {
             ypClassSelect.value = isSuperAdmin ? 'all' : allowed[0];
@@ -679,13 +678,8 @@ const populateClassDropdowns = () => {
     const stClassSelect = document.getElementById('st-class-select');
     if (stClassSelect) {
         const prev = stClassSelect.value;
-        let opts = '';
-        if (isSuperAdmin) {
-            opts += `<option value="all">All Classes</option>`;
-        }
-        opts += allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
-        stClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && ((isSuperAdmin && prev === 'all') || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+        stClassSelect.innerHTML = buildSelectOptionsWithAll(allowed, isSuperAdmin, 'All Classes');
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             stClassSelect.value = prev;
         } else if (allowed.length > 0) {
             stClassSelect.value = allowed[0];
@@ -697,9 +691,8 @@ const populateClassDropdowns = () => {
     const examClassSelect = document.getElementById('exam-tt-class-select');
     if (examClassSelect) {
         const prev = examClassSelect.value;
-        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
-        examClassSelect.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
-        if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
+        examClassSelect.innerHTML = buildSelectOptionsWithAll(allowed, isSuperAdmin, 'All Classes');
+        if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             examClassSelect.value = prev;
         } else if (allowed.length > 0) {
             examClassSelect.value = allowed[0];
@@ -729,7 +722,8 @@ const populateClassDropdowns = () => {
     const modalExamClassDisplay = document.getElementById('modal-exam-class-display');
     const modalExamClassInput = document.getElementById('modal-exam-class-select');
     if (modalExamClassDisplay && modalExamClassInput) {
-        const cls = examClassSelect?.value || allowed[0] || '1';
+        const selVal = examClassSelect?.value;
+        const cls = (selVal && selVal !== 'all') ? selVal : (allowed[0] || '1');
         modalExamClassDisplay.textContent = `Class ${cls}`;
         modalExamClassInput.value = cls;
     }
@@ -1547,8 +1541,19 @@ const loadTimetable = async () => {
     const heading = document.getElementById('tt-view-heading');
 
     if (selectedTtClass === 'all') {
-        if (heading) heading.textContent = `All Classes Routine Timetables (${year})`;
         const allowed = getAllowedClassesForTeacher();
+        if (heading) {
+            heading.textContent = isSuperAdmin
+                ? `All Classes (Full Institution) Routine Timetables (${year})`
+                : `All My Classes (${allowed.length} Classes) Routine Timetables (${year})`;
+        }
+        const editToggle = document.getElementById('toggle-timetable-edit');
+        if (editToggle) {
+            editToggle.checked = false;
+            editToggle.disabled = true;
+        }
+        toggleTimetableEdit(false);
+
         const tasks = allowed.map(async (cls) => {
             const docId = getTimetableDocId(year, cls);
             const subjDocId = getClassSubjectsDocId(year, cls);
@@ -1577,6 +1582,11 @@ const loadTimetable = async () => {
         timetableConfig.offDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
         renderTimetableMatrixUI();
         return;
+    }
+
+    const editToggle = document.getElementById('toggle-timetable-edit');
+    if (editToggle) {
+        editToggle.disabled = false;
     }
 
     if (heading) heading.textContent = `Class ${selectedTtClass} Weekly Routine Timetable (${year})`;
@@ -2600,7 +2610,9 @@ const printExamRoutine = () => {
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
     const titleEl = document.getElementById('exam-print-doc-title');
     if (titleEl) {
-        titleEl.textContent = `${currentExamTitle} Examination Schedule - Class ${selectedClass} (${year})`;
+        titleEl.textContent = selectedClass === 'all'
+            ? `${currentExamTitle} Examination Schedule - All Classes (${year})`
+            : `${currentExamTitle} Examination Schedule - Class ${selectedClass} (${year})`;
     }
     updatePrintBrandingHeaders('Exam Schedule', 'exam-print-date');
     setPrintOrientation('landscape');
@@ -3084,14 +3096,67 @@ const loadSyllabusTracker = async () => {
     stSearchQuery = document.getElementById('st-search-input')?.value.trim().toLowerCase() || '';
 
     const viewHeading = document.getElementById('st-view-heading');
+
     if (selectedStClass === 'all') {
-        if (viewHeading) viewHeading.textContent = `All Classes Syllabus Progress & Checklist (${year})`;
         const allowed = getAllowedClassesForTeacher();
-        if (allowed.length > 0) {
-            selectedStClass = allowed[0];
-            const cSel = document.getElementById('st-class-select');
-            if (cSel) cSel.value = selectedStClass;
+        if (viewHeading) {
+            viewHeading.textContent = isSuperAdmin
+                ? `All Classes (Full Institution) Syllabus Progress & Daily Checklist (${year})`
+                : `All My Classes (${allowed.length} Classes) Syllabus Progress & Daily Checklist (${year})`;
         }
+
+        allClassesSyllabusData = {};
+        const allSubjsMap = new Map();
+
+        const tasks = allowed.map(async (cls) => {
+            const docId = getYearPlanDocId(year, cls);
+            const subjDocId = getClassSubjectsDocId(year, cls);
+            const [ypSnap, subjSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/yearPlans`, docId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
+            ]);
+
+            let subjects = [];
+            if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+                subjects = subjSnap.data().subjects;
+            }
+            subjects.forEach(s => {
+                if (s && s.id && s.name && !allSubjsMap.has(s.id)) {
+                    allSubjsMap.set(s.id, s.name);
+                }
+            });
+
+            let grid = {};
+            if (ypSnap && ypSnap.exists()) {
+                const data = ypSnap.data();
+                grid = data.grid || {};
+                if (data.calendarType) currentYpCalendarType = data.calendarType;
+            }
+
+            allClassesSyllabusData[cls] = { grid, subjects };
+        });
+
+        await Promise.all(tasks);
+
+        const stSubjSelect = document.getElementById('st-subject-select');
+        if (stSubjSelect) {
+            const prev = stSubjSelect.value;
+            let opts = `<option value="all">All Subjects (${allSubjsMap.size})</option>`;
+            Array.from(allSubjsMap.entries()).forEach(([id, name]) => {
+                opts += `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`;
+            });
+            stSubjSelect.innerHTML = opts;
+            if (prev && (prev === 'all' || allSubjsMap.has(prev))) {
+                stSubjSelect.value = prev;
+                selectedStSubject = prev;
+            } else {
+                stSubjSelect.value = 'all';
+                selectedStSubject = 'all';
+            }
+        }
+
+        renderSyllabusTrackerUI();
+        return;
     }
 
     if (viewHeading) viewHeading.textContent = `Class ${selectedStClass} Syllabus Progress & Daily Checklist (${year})`;
@@ -3139,6 +3204,115 @@ const loadSyllabusTracker = async () => {
     renderSyllabusTrackerUI();
 };
 
+const renderSyllabusChecklistTable = (rows, classLabel = null) => {
+    let html = `
+        <table class="w-full text-left border-collapse border-2 border-slate-900 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-900 border-b-2 border-slate-900 font-black text-xs uppercase tracking-wider">
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-12">#</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Month</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Session / Day</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[150px]">Subject</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[200px]">Lesson / Unit Title</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Portions</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-16">Periods</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-36">Status &amp; Check</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Progress</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[140px]">Teacher Remarks</th>
+                    <th class="py-2.5 px-3 text-center w-28 no-print">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
+
+    rows.forEach((r, idx) => {
+        const isCompleted = r.isCompleted;
+        const rowBg = isCompleted ? 'bg-emerald-50/40 hover:bg-emerald-50/70' : 'hover:bg-slate-50';
+        const classAttr = classLabel ? ` data-class-label="${escapeHtml(classLabel)}"` : '';
+
+        html += `
+            <tr class="${rowBg} transition border-b border-slate-300">
+                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-bold text-slate-500">
+                    ${idx + 1}
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
+                    <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300">
+                        ${escapeHtml(r.month)}
+                    </span>
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
+                    ${r.isDaily ? `
+                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                            <i class="fas fa-calendar-day text-[9px] mr-1"></i>${escapeHtml(r.dayLabel)}
+                        </span>
+                    ` : `
+                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
+                            Monthly Plan
+                        </span>
+                    `}
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800">
+                    <div class="font-black text-xs text-slate-950">${escapeHtml(r.subjectName)}</div>
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800">
+                    ${r.lessonNo && r.lessonNo !== '--' ? `
+                        <div class="font-extrabold text-xs text-slate-900">${escapeHtml(r.lessonNo)}</div>
+                    ` : ''}
+                    <div class="text-xs text-slate-700 font-semibold leading-relaxed">${escapeHtml(r.topic)}</div>
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center font-bold text-indigo-900 text-[11px]">
+                    ${escapeHtml(r.pages)}
+                </td>
+                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-black text-slate-800">
+                    ${r.periods || 1}
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800 text-center align-middle">
+                    <div class="flex items-center justify-center gap-2">
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                            <input type="checkbox" class="st-lesson-checkbox w-5 h-5 rounded cursor-pointer accent-indigo-600 focus:ring-indigo-500"${classAttr} data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}" ${isCompleted ? 'checked' : ''}>
+                        </label>
+                        ${isCompleted ? `
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <i class="fas fa-check text-[9px] text-emerald-600"></i> Done
+                            </span>
+                        ` : `
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Pending
+                            </span>
+                        `}
+                    </div>
+                </td>
+                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
+                    <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mb-1">
+                        <div class="${isCompleted ? 'bg-emerald-600' : 'bg-indigo-600'} h-1.5 rounded-full" style="width: ${r.progressPercent}%"></div>
+                    </div>
+                    <span class="text-[10px] font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-700'}">${r.progressPercent}%</span>
+                </td>
+                <td class="py-3 px-3 border-r-2 border-slate-800 text-slate-600 text-[11px] leading-relaxed">
+                    ${r.notes ? escapeHtml(r.notes) : '<span class="text-slate-300 italic">--</span>'}
+                </td>
+                <td class="py-3 px-2 text-center align-middle no-print">
+                    <div class="flex items-center justify-center gap-1">
+                        <button type="button" class="btn-edit-st-entry w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer" title="Edit Entry" data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}"${classAttr}>
+                            <i class="fas fa-pen text-[10px]"></i>
+                        </button>
+                        ${!r.isDaily ? `
+                            <button type="button" class="btn-add-st-subsession w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition cursor-pointer" title="Add Daily Execution Session" data-cell-key="${r.cellKey}"${classAttr}>
+                                <i class="fas fa-plus text-[10px]"></i>
+                            </button>
+                        ` : `
+                            <button type="button" class="btn-del-st-entry w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 flex items-center justify-center transition cursor-pointer" title="Delete Session" data-cell-key="${r.cellKey}" data-item-id="${r.itemId}"${classAttr}>
+                                <i class="fas fa-trash-can text-[10px]"></i>
+                            </button>
+                        `}
+                    </div>
+                </td>
+            </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    return html;
+};
+
 const renderSyllabusTrackerUI = () => {
     const gridEl = document.getElementById('st-schedule-grid');
     if (!gridEl) return;
@@ -3146,76 +3320,177 @@ const renderSyllabusTrackerUI = () => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
     const monthsList = currentYpCalendarType === 'hijri' ? HIJRI_MONTHS : GREGORIAN_MONTHS;
     const targetMonths = (selectedStMonth && selectedStMonth !== 'all') ? [selectedStMonth] : monthsList;
-    const targetSubjects = (selectedStSubject && selectedStSubject !== 'all')
-        ? stClassSubjects.filter(s => s.id === selectedStSubject)
-        : stClassSubjects;
 
-    // Collect all tracker rows
-    let rows = [];
-    targetMonths.forEach((month, mIdx) => {
-        targetSubjects.forEach(s => {
-            const key = `${month}__${s.id}`;
-            const idxKey = `idx_${mIdx}__${s.id}`;
-            const cell = stCurrentGrid[key] || stCurrentGrid[idxKey] || {};
-            const hasMonthlyTarget = Boolean(cell.topic || cell.lessonNo || cell.pages);
-            const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
+    const buildClassTrackerRows = (cls, cData) => {
+        const cGrid = cData.grid || {};
+        const cSubjs = cData.subjects || [];
+        const targetSubjs = (selectedStSubject && selectedStSubject !== 'all')
+            ? cSubjs.filter(s => s.id === selectedStSubject)
+            : cSubjs;
 
-            // Main monthly target row
-            if (hasMonthlyTarget || dailyItems.length === 0) {
-                rows.push({
-                    cellKey: key,
-                    itemId: null,
-                    isDaily: false,
-                    month,
-                    subjectId: s.id,
-                    subjectName: s.name,
-                    dayLabel: 'Monthly Plan',
-                    lessonNo: cell.lessonNo || '--',
-                    topic: cell.topic || (hasMonthlyTarget ? '' : 'Unplanned Month'),
-                    pages: cell.pages || '--',
-                    periods: Number(cell.allocatedPeriods || (s.weeklyPeriods || 5) * 4),
-                    isCompleted: Boolean(cell.isCompleted || (cell.progressPercent || 0) === 100),
-                    progressPercent: Number(cell.progressPercent || 0),
-                    notes: cell.notes || cell.breakdown || '',
-                    hasTarget: hasMonthlyTarget
-                });
-            }
+        let cRows = [];
+        targetMonths.forEach((month, mIdx) => {
+            targetSubjs.forEach(s => {
+                const key = `${month}__${s.id}`;
+                const idxKey = `idx_${mIdx}__${s.id}`;
+                const cell = cGrid[key] || cGrid[idxKey] || {};
+                const hasMonthlyTarget = Boolean(cell.topic || cell.lessonNo || cell.pages);
+                const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
 
-            // Sub-sessions / Daily entries
-            dailyItems.forEach((dItem, dIdx) => {
-                rows.push({
-                    cellKey: key,
-                    itemId: dItem.id || `item_${dIdx}`,
-                    isDaily: true,
-                    month,
-                    subjectId: s.id,
-                    subjectName: s.name,
-                    dayLabel: dItem.dayOrSession || `Session ${dIdx + 1}`,
-                    lessonNo: dItem.lessonNo || cell.lessonNo || '--',
-                    topic: dItem.topic || cell.topic || '--',
-                    pages: dItem.pages || cell.pages || '--',
-                    periods: Number(dItem.periods || 1),
-                    isCompleted: Boolean(dItem.isCompleted || (dItem.progressPercent || 0) === 100),
-                    progressPercent: Number(dItem.progressPercent || (dItem.isCompleted ? 100 : 0)),
-                    notes: dItem.notes || '',
-                    hasTarget: true
+                if (hasMonthlyTarget || dailyItems.length === 0) {
+                    cRows.push({
+                        classLabel: cls,
+                        cellKey: key,
+                        itemId: null,
+                        isDaily: false,
+                        month,
+                        subjectId: s.id,
+                        subjectName: s.name,
+                        dayLabel: 'Monthly Plan',
+                        lessonNo: cell.lessonNo || '--',
+                        topic: cell.topic || (hasMonthlyTarget ? '' : 'Unplanned Month'),
+                        pages: cell.pages || '--',
+                        periods: Number(cell.allocatedPeriods || (s.weeklyPeriods || 5) * 4),
+                        isCompleted: Boolean(cell.isCompleted || (cell.progressPercent || 0) === 100),
+                        progressPercent: Number(cell.progressPercent || 0),
+                        notes: cell.notes || cell.breakdown || '',
+                        hasTarget: hasMonthlyTarget
+                    });
+                }
+
+                dailyItems.forEach((dItem, dIdx) => {
+                    cRows.push({
+                        classLabel: cls,
+                        cellKey: key,
+                        itemId: dItem.id || `item_${dIdx}`,
+                        isDaily: true,
+                        month,
+                        subjectId: s.id,
+                        subjectName: s.name,
+                        dayLabel: dItem.dayOrSession || `Session ${dIdx + 1}`,
+                        lessonNo: dItem.lessonNo || cell.lessonNo || '--',
+                        topic: dItem.topic || cell.topic || '--',
+                        pages: dItem.pages || cell.pages || '--',
+                        periods: Number(dItem.periods || 1),
+                        isCompleted: Boolean(dItem.isCompleted || (dItem.progressPercent || 0) === 100),
+                        progressPercent: Number(dItem.progressPercent || (dItem.isCompleted ? 100 : 0)),
+                        notes: dItem.notes || '',
+                        hasTarget: true
+                    });
                 });
             });
         });
-    });
 
-    // Apply search filter if present
-    if (stSearchQuery) {
-        rows = rows.filter(r => {
+        if (stSearchQuery) {
             const q = stSearchQuery;
-            return (r.topic && r.topic.toLowerCase().includes(q))
+            cRows = cRows.filter(r => (
+                (r.topic && r.topic.toLowerCase().includes(q))
                 || (r.lessonNo && r.lessonNo.toLowerCase().includes(q))
                 || (r.subjectName && r.subjectName.toLowerCase().includes(q))
                 || (r.pages && r.pages.toLowerCase().includes(q))
                 || (r.month && r.month.toLowerCase().includes(q))
-                || (r.notes && r.notes.toLowerCase().includes(q));
+                || (r.notes && r.notes.toLowerCase().includes(q))
+            ));
+        }
+        return cRows;
+    };
+
+    if (selectedStClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        let allAggregatedRows = [];
+        const classRowsMap = {};
+
+        allowed.forEach(cls => {
+            const rows = buildClassTrackerRows(cls, allClassesSyllabusData[cls] || { grid: {}, subjects: [] });
+            classRowsMap[cls] = rows;
+            allAggregatedRows = allAggregatedRows.concat(rows);
         });
+
+        const totalCount = allAggregatedRows.filter(r => r.hasTarget).length;
+        const completedCount = allAggregatedRows.filter(r => r.hasTarget && r.isCompleted).length;
+        const completionPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+        const totalPeriods = allAggregatedRows.filter(r => r.hasTarget).reduce((sum, r) => sum + (Number(r.periods) || 0), 0);
+
+        const totalEl = document.getElementById('st-stat-total-lessons');
+        const compEl = document.getElementById('st-stat-completed-lessons');
+        const compPctEl = document.getElementById('st-stat-completion-pct');
+        const periodsEl = document.getElementById('st-stat-total-periods');
+        const barTextEl = document.getElementById('st-progress-bar-text');
+        const barFillEl = document.getElementById('st-progress-bar-fill');
+
+        if (totalEl) totalEl.textContent = totalCount;
+        if (compEl) compEl.textContent = completedCount;
+        if (compPctEl) compPctEl.textContent = `(${completionPct}%)`;
+        if (periodsEl) periodsEl.textContent = `${totalPeriods} Periods`;
+        if (barTextEl) barTextEl.textContent = `${completionPct}%`;
+        if (barFillEl) {
+            barFillEl.style.width = `${completionPct}%`;
+            barFillEl.className = completionPct === 100
+                ? 'bg-emerald-600 h-2.5 rounded-full transition-all duration-300'
+                : 'bg-indigo-600 h-2.5 rounded-full transition-all duration-300';
+        }
+
+        // Print header for all classes
+        const docTitle = document.getElementById('st-print-doc-title');
+        if (docTitle) {
+            docTitle.textContent = isSuperAdmin
+                ? `All Classes (Full Institution) Academic Syllabus Progress Record (${year})`
+                : `All My Classes (${allowed.length} Classes) Academic Syllabus Progress Record (${year})`;
+        }
+        const metaEl = document.getElementById('st-print-meta');
+        if (metaEl) {
+            metaEl.textContent = `Academic Year: ${year} • Scope: ${isSuperAdmin ? 'Full Institution' : 'Assigned Classes'} (${allowed.length} Classes) • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth} • Total Lessons: ${totalCount} (${completionPct}% Completed)`;
+        }
+
+        if (!allowed.length) {
+            gridEl.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">No classes available in your scope.</div>`;
+            return;
+        }
+
+        let html = '';
+        allowed.forEach(cls => {
+            const cRows = classRowsMap[cls] || [];
+            const cTotal = cRows.filter(r => r.hasTarget).length;
+            const cDone = cRows.filter(r => r.hasTarget && r.isCompleted).length;
+            const cPct = cTotal > 0 ? Math.round((cDone / cTotal) * 100) : 0;
+
+            html += `
+                <div class="mb-8 bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+                    <div class="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
+                            <div>
+                                <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Syllabus Progress &amp; Checklist</h4>
+                                <div class="text-[11px] font-bold text-slate-500">${cTotal} Planned Lessons • ${cDone} Completed (${cPct}%)</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-black px-2.5 py-1 rounded-xl ${cPct === 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">${cPct}% Done</span>
+                            <button type="button" class="btn-goto-class-st px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition shadow-2xs inline-flex items-center gap-1.5" data-class="${escapeHtml(cls)}">
+                                <i class="fas fa-pen-to-square"></i> Manage Class ${escapeHtml(cls)}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto p-4">
+            `;
+
+            if (!cRows.length) {
+                html += `<div class="p-6 text-center text-slate-400 font-bold text-xs italic">No syllabus targets or lessons found for Class ${escapeHtml(cls)}.</div>`;
+            } else {
+                html += renderSyllabusChecklistTable(cRows, cls);
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        gridEl.innerHTML = html;
+        return;
     }
+
+    // Single Class Tracker Rendering
+    const rows = buildClassTrackerRows(selectedStClass, { grid: stCurrentGrid, subjects: stClassSubjects });
 
     // Summary statistics
     const totalCount = rows.filter(r => r.hasTarget).length;
@@ -3268,119 +3543,23 @@ const renderSyllabusTrackerUI = () => {
         return;
     }
 
-    let html = `
-        <table class="w-full text-left border-collapse border-2 border-slate-900 text-xs">
-            <thead>
-                <tr class="bg-slate-100 text-slate-900 border-b-2 border-slate-900 font-black text-xs uppercase tracking-wider">
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-12">#</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Month</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Session / Day</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[150px]">Subject</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[200px]">Lesson / Unit Title</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Portions</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-16">Periods</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-36">Status &amp; Check</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Progress</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[140px]">Teacher Remarks</th>
-                    <th class="py-2.5 px-3 text-center w-28 no-print">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
-
-    rows.forEach((r, idx) => {
-        const isCompleted = r.isCompleted;
-        const rowBg = isCompleted ? 'bg-emerald-50/40 hover:bg-emerald-50/70' : 'hover:bg-slate-50';
-
-        html += `
-            <tr class="${rowBg} transition border-b border-slate-300">
-                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-bold text-slate-500">
-                    ${idx + 1}
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
-                    <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300">
-                        ${escapeHtml(r.month)}
-                    </span>
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
-                    ${r.isDaily ? `
-                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                            <i class="fas fa-calendar-day text-[9px] mr-1"></i>${escapeHtml(r.dayLabel)}
-                        </span>
-                    ` : `
-                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                            Monthly Plan
-                        </span>
-                    `}
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800">
-                    <div class="font-black text-xs text-slate-950">${escapeHtml(r.subjectName)}</div>
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800">
-                    ${r.lessonNo && r.lessonNo !== '--' ? `
-                        <div class="font-extrabold text-xs text-slate-900">${escapeHtml(r.lessonNo)}</div>
-                    ` : ''}
-                    <div class="text-xs text-slate-700 font-semibold leading-relaxed">${escapeHtml(r.topic)}</div>
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center font-bold text-indigo-900 text-[11px]">
-                    ${escapeHtml(r.pages)}
-                </td>
-                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-black text-slate-800">
-                    ${r.periods || 1}
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800 text-center align-middle">
-                    <div class="flex items-center justify-center gap-2">
-                        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                            <input type="checkbox" class="st-lesson-checkbox w-5 h-5 rounded cursor-pointer accent-indigo-600 focus:ring-indigo-500" data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}" ${isCompleted ? 'checked' : ''}>
-                        </label>
-                        ${isCompleted ? `
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                <i class="fas fa-check text-[9px] text-emerald-600"></i> Done
-                            </span>
-                        ` : `
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                Pending
-                            </span>
-                        `}
-                    </div>
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
-                    <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mb-1">
-                        <div class="${isCompleted ? 'bg-emerald-600' : 'bg-indigo-600'} h-1.5 rounded-full" style="width: ${r.progressPercent}%"></div>
-                    </div>
-                    <span class="text-[10px] font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-700'}">${r.progressPercent}%</span>
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800 text-slate-600 text-[11px] leading-relaxed">
-                    ${r.notes ? escapeHtml(r.notes) : '<span class="text-slate-300 italic">--</span>'}
-                </td>
-                <td class="py-3 px-2 text-center align-middle no-print">
-                    <div class="flex items-center justify-center gap-1">
-                        <button type="button" class="btn-edit-st-entry w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer" title="Edit Entry" data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}">
-                            <i class="fas fa-pen text-[10px]"></i>
-                        </button>
-                        ${!r.isDaily ? `
-                            <button type="button" class="btn-add-st-subsession w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition cursor-pointer" title="Add Daily Execution Session" data-cell-key="${r.cellKey}">
-                                <i class="fas fa-plus text-[10px]"></i>
-                            </button>
-                        ` : `
-                            <button type="button" class="btn-del-st-entry w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 flex items-center justify-center transition cursor-pointer" title="Delete Session" data-cell-key="${r.cellKey}" data-item-id="${r.itemId}">
-                                <i class="fas fa-trash-can text-[10px]"></i>
-                            </button>
-                        `}
-                    </div>
-                </td>
-            </tr>`;
-    });
-
-    html += `</tbody></table>`;
-    gridEl.innerHTML = html;
+    gridEl.innerHTML = renderSyllabusChecklistTable(rows, selectedStClass);
 };
 
-const handleToggleLessonCompletion = async (cellKey, itemId, isChecked) => {
+const handleToggleLessonCompletion = async (cellKey, itemId, isChecked, targetClass = null) => {
     if (!cellKey) return;
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const docId = getYearPlanDocId(year, selectedStClass);
+    const effectiveClass = targetClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    const docId = getYearPlanDocId(year, effectiveClass);
 
-    const cell = stCurrentGrid[cellKey] || {};
+    let cell = {};
+    if (selectedStClass === 'all') {
+        const cData = allClassesSyllabusData[effectiveClass] || { grid: {}, subjects: [] };
+        cData.grid = cData.grid || {};
+        cell = cData.grid[cellKey] || {};
+    } else {
+        cell = stCurrentGrid[cellKey] || {};
+    }
 
     if (itemId) {
         const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
@@ -3402,14 +3581,24 @@ const handleToggleLessonCompletion = async (cellKey, itemId, isChecked) => {
         cell.status = isChecked ? 'Completed' : 'In Progress';
     }
 
-    stCurrentGrid[cellKey] = cell;
-    if (selectedStClass === selectedYpClass) {
-        yearPlanGrid = { ...stCurrentGrid };
+    let updatedGrid = {};
+    if (selectedStClass === 'all') {
+        const cData = allClassesSyllabusData[effectiveClass];
+        if (cData) {
+            cData.grid[cellKey] = cell;
+            updatedGrid = cData.grid;
+        }
+    } else {
+        stCurrentGrid[cellKey] = cell;
+        updatedGrid = stCurrentGrid;
+        if (selectedStClass === selectedYpClass) {
+            yearPlanGrid = { ...stCurrentGrid };
+        }
     }
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
-            grid: stCurrentGrid,
+            grid: updatedGrid,
             updatedAt: Date.now()
         }, { merge: true });
 
@@ -3421,7 +3610,9 @@ const handleToggleLessonCompletion = async (cellKey, itemId, isChecked) => {
     }
 };
 
-const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSession = false) => {
+const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSession = false, entryClass = null) => {
+    currentModalStClass = entryClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    const effClass = currentModalStClass;
     const titleEl = document.getElementById('modal-st-title');
     const subtitleEl = document.getElementById('modal-st-subtitle');
     const cellKeyInput = document.getElementById('modal-st-cell-key');
@@ -3443,6 +3634,21 @@ const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSes
     if (cellKeyInput) cellKeyInput.value = cellKey || '';
     if (itemIdInput) itemIdInput.value = (isNewSubSession ? '' : (itemId || ''));
 
+    // Populate modal subjects from the effective class
+    if (subjSel) {
+        let subjs = [];
+        if (selectedStClass === 'all') {
+            subjs = allClassesSyllabusData[effClass]?.subjects || [];
+        } else {
+            subjs = stClassSubjects || [];
+        }
+        subjSel.innerHTML = subjs.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+    }
+
+    const grid = (selectedStClass === 'all')
+        ? (allClassesSyllabusData[effClass]?.grid || {})
+        : stCurrentGrid;
+
     if (cellKey) {
         const parts = cellKey.split('__');
         const m = parts[0];
@@ -3450,11 +3656,11 @@ const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSes
         if (monthSel) monthSel.value = m;
         if (subjSel) subjSel.value = sId;
 
-        const cell = stCurrentGrid[cellKey] || {};
+        const cell = grid[cellKey] || {};
         if (itemId && !isNewSubSession) {
             const dItem = (cell.dailyItems || []).find(i => i.id === itemId) || {};
             if (titleEl) titleEl.textContent = 'Edit Daily Session Entry';
-            if (subtitleEl) subtitleEl.textContent = `Class ${selectedStClass} • ${m}`;
+            if (subtitleEl) subtitleEl.textContent = `Class ${effClass} • ${m}`;
             if (dayLabelInput) dayLabelInput.value = dItem.dayOrSession || '';
             if (lessonNoInput) lessonNoInput.value = dItem.lessonNo || cell.lessonNo || '';
             if (topicInput) topicInput.value = dItem.topic || '';
@@ -3469,7 +3675,7 @@ const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSes
             if (notesInput) notesInput.value = dItem.notes || '';
         } else if (isNewSubSession) {
             if (titleEl) titleEl.textContent = 'Add Daily / Period Session';
-            if (subtitleEl) subtitleEl.textContent = `Add session under ${m}`;
+            if (subtitleEl) subtitleEl.textContent = `Class ${effClass} • Add session under ${m}`;
             if (dayLabelInput) dayLabelInput.value = `Session ${(cell.dailyItems?.length || 0) + 1}`;
             if (lessonNoInput) lessonNoInput.value = cell.lessonNo || '';
             if (topicInput) topicInput.value = cell.topic || '';
@@ -3482,7 +3688,7 @@ const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSes
             if (notesInput) notesInput.value = '';
         } else {
             if (titleEl) titleEl.textContent = 'Edit Monthly Syllabus Target';
-            if (subtitleEl) subtitleEl.textContent = `Class ${selectedStClass} • ${m}`;
+            if (subtitleEl) subtitleEl.textContent = `Class ${effClass} • ${m}`;
             if (dayLabelInput) dayLabelInput.value = 'Monthly Target';
             if (lessonNoInput) lessonNoInput.value = cell.lessonNo || '';
             if (topicInput) topicInput.value = cell.topic || '';
@@ -3498,7 +3704,7 @@ const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSes
         }
     } else {
         if (titleEl) titleEl.textContent = 'Add Lesson Tracker Entry';
-        if (subtitleEl) subtitleEl.textContent = `Class ${selectedStClass} Syllabus Checklist`;
+        if (subtitleEl) subtitleEl.textContent = `Class ${effClass} Syllabus Checklist`;
         if (dayLabelInput) dayLabelInput.value = 'Session 1';
         if (lessonNoInput) lessonNoInput.value = '';
         if (topicInput) topicInput.value = '';
@@ -3527,6 +3733,11 @@ const saveTrackerEntry = async () => {
         return;
     }
 
+    const effClass = currentModalStClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    const targetGrid = (selectedStClass === 'all')
+        ? (allClassesSyllabusData[effClass]?.grid || {})
+        : stCurrentGrid;
+
     const key = `${month}__${subjectId}`;
     const itemId = document.getElementById('modal-st-item-id')?.value;
     const dayLabel = document.getElementById('modal-st-day-label')?.value.trim() || 'Session';
@@ -3537,7 +3748,7 @@ const saveTrackerEntry = async () => {
     const progressPercent = Number(document.getElementById('modal-st-progress-slider')?.value || (isCompleted ? 100 : 0));
     const notes = document.getElementById('modal-st-notes')?.value.trim();
 
-    const cell = stCurrentGrid[key] || {};
+    const cell = targetGrid[key] || {};
     cell.dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
 
     if (itemId) {
@@ -3580,17 +3791,22 @@ const saveTrackerEntry = async () => {
         cell.status = isCompleted ? 'Completed' : (progressPercent > 0 ? 'In Progress' : 'Planned');
     }
 
-    stCurrentGrid[key] = cell;
-    if (selectedStClass === selectedYpClass) {
-        yearPlanGrid = { ...stCurrentGrid };
+    targetGrid[key] = cell;
+    if (selectedStClass !== 'all') {
+        stCurrentGrid = targetGrid;
+        if (selectedStClass === selectedYpClass) {
+            yearPlanGrid = { ...stCurrentGrid };
+        }
+    } else if (allClassesSyllabusData[effClass]) {
+        allClassesSyllabusData[effClass].grid = targetGrid;
     }
 
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const docId = getYearPlanDocId(year, selectedStClass);
+    const docId = getYearPlanDocId(year, effClass);
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
-            grid: stCurrentGrid,
+            grid: targetGrid,
             updatedAt: Date.now()
         }, { merge: true });
 
@@ -3603,22 +3819,33 @@ const saveTrackerEntry = async () => {
     }
 };
 
-const deleteTrackerDailyItem = async (cellKey, itemId) => {
+const deleteTrackerDailyItem = async (cellKey, itemId, entryClass = null) => {
     if (!cellKey || !itemId) return;
     if (!confirm('Are you sure you want to delete this session checklist item?')) return;
 
-    const cell = stCurrentGrid[cellKey];
+    const effClass = entryClass || currentModalStClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    const targetGrid = (selectedStClass === 'all')
+        ? (allClassesSyllabusData[effClass]?.grid || {})
+        : stCurrentGrid;
+
+    const cell = targetGrid[cellKey];
     if (!cell || !Array.isArray(cell.dailyItems)) return;
 
     cell.dailyItems = cell.dailyItems.filter(i => i.id !== itemId);
-    stCurrentGrid[cellKey] = cell;
+    targetGrid[cellKey] = cell;
+
+    if (selectedStClass !== 'all') {
+        stCurrentGrid = targetGrid;
+    } else if (allClassesSyllabusData[effClass]) {
+        allClassesSyllabusData[effClass].grid = targetGrid;
+    }
 
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const docId = getYearPlanDocId(year, selectedStClass);
+    const docId = getYearPlanDocId(year, effClass);
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
-            grid: stCurrentGrid,
+            grid: targetGrid,
             updatedAt: Date.now()
         }, { merge: true });
 
@@ -3634,11 +3861,16 @@ const printSyllabusTracker = () => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
     const docTitle = document.getElementById('st-print-doc-title');
     if (docTitle) {
-        docTitle.textContent = `Class ${selectedStClass} Academic Syllabus Progress Record (${year})`;
+        docTitle.textContent = selectedStClass === 'all'
+            ? `All Classes Academic Syllabus Progress Record (${year})`
+            : `Class ${selectedStClass} Academic Syllabus Progress Record (${year})`;
     }
     const metaEl = document.getElementById('st-print-meta');
     if (metaEl) {
-        metaEl.textContent = `Academic Year: ${year} • Class: ${selectedStClass} • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth}`;
+        const allowed = getAllowedClassesForTeacher();
+        metaEl.textContent = selectedStClass === 'all'
+            ? `Academic Year: ${year} • Scope: ${isSuperAdmin ? 'Full Institution' : 'Assigned Classes'} (${allowed.length} Classes) • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth}`
+            : `Academic Year: ${year} • Class: ${selectedStClass} • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth}`;
     }
     updatePrintBrandingHeaders('Syllabus Progress Tracker', 'st-print-date');
     setPrintOrientation('landscape');
@@ -3919,6 +4151,94 @@ const loadExamTimetable = async () => {
     const classBadge = document.getElementById('exam-tt-class-badge');
     const datesBadge = document.getElementById('exam-tt-dates-badge');
 
+    if (selectedClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        if (heading) {
+            heading.textContent = currentExamTitle
+                ? (isSuperAdmin ? `All Classes (Full Institution) - ${currentExamTitle} Routine (${year})` : `All My Classes (${allowed.length} Classes) - ${currentExamTitle} Routine (${year})`)
+                : 'Examination Routine';
+        }
+        if (classBadge) {
+            classBadge.textContent = isSuperAdmin ? 'All Institution Classes' : `All My Classes (${allowed.length})`;
+        }
+        if (datesBadge) {
+            datesBadge.textContent = 'All Classes Overview';
+        }
+
+        const editToggle = document.getElementById('toggle-exam-timetable-edit');
+        if (editToggle) {
+            editToggle.checked = false;
+            editToggle.disabled = true;
+        }
+        toggleExamTimetableEdit(false);
+
+        const addDateBtn = document.getElementById('btn-add-exam-date');
+        if (addDateBtn) addDateBtn.classList.add('hidden');
+        const saveBtn = document.getElementById('btn-save-exam-timetable');
+        if (saveBtn) saveBtn.classList.add('hidden');
+
+        allClassesExamTimetables = {};
+        const tasks = allowed.map(async (cls) => {
+            const docId = getExamTimetableDocId(year, cls, currentExamTitle);
+            const subjDocId = getClassSubjectsDocId(year, cls);
+            const [snap, sSnap] = await Promise.all([
+                getDoc(doc(db, `${BASE_PATH}/examTimetables`, docId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
+            ]);
+
+            let dates = [];
+            let sessions = [
+                { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' },
+                { id: 'session_2', label: 'Paper 2 (Second)', startTime: '08:30', endTime: '09:30' }
+            ];
+            let matrix = {};
+            let subjects = [];
+
+            if (snap && snap.exists()) {
+                const data = snap.data();
+                dates = Array.isArray(data.dates) ? data.dates : [];
+                sessions = (Array.isArray(data.sessions) && data.sessions.length) ? data.sessions : (
+                    (Array.isArray(data.sessionSlots) && data.sessionSlots.length) ? data.sessionSlots : sessions
+                );
+                matrix = data.matrix || {};
+
+                if ((!dates.length || Object.keys(matrix).length === 0) && Array.isArray(data.entries)) {
+                    data.entries.forEach(e => {
+                        if (e.date) {
+                            if (!dates.includes(e.date)) dates.push(e.date);
+                            const sKey = `${e.date}_session_1`;
+                            matrix[sKey] = {
+                                subjectId: e.subjectId || '',
+                                subjectName: e.subject || '',
+                                subjectCode: '',
+                                isNoExam: false,
+                                portions: e.portions || '',
+                                invigilator: e.invigilator || '',
+                                hall: e.hall || ''
+                            };
+                        }
+                    });
+                }
+            }
+            if (sSnap && sSnap.exists() && Array.isArray(sSnap.data().subjects)) {
+                subjects = sSnap.data().subjects;
+            }
+            dates.sort();
+            allClassesExamTimetables[cls] = { dates, sessions, matrix, subjects };
+        });
+
+        await Promise.all(tasks);
+        renderExamTimetableGridUI();
+        return;
+    }
+
+    const editToggle = document.getElementById('toggle-exam-timetable-edit');
+    if (editToggle) {
+        editToggle.disabled = false;
+    }
+    const addDateBtn = document.getElementById('btn-add-exam-date');
+    if (addDateBtn) addDateBtn.classList.remove('hidden');
+
     if (heading) heading.textContent = currentExamTitle ? `Class ${selectedClass} - ${currentExamTitle} Routine` : 'Examination Routine';
     if (classBadge) classBadge.textContent = `Class ${selectedClass}`;
 
@@ -3987,6 +4307,123 @@ const renderExamTimetableGridUI = () => {
 
     if (!currentExamTitle) {
         grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">Please select an examination to view schedule.</div>`;
+        return;
+    }
+
+    if (selectedClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        if (!allowed.length) {
+            grid.innerHTML = `<div class="p-8 text-center text-slate-400 font-bold">No classes available in your scope.</div>`;
+            return;
+        }
+
+        let html = '';
+        allowed.forEach(cls => {
+            const cData = allClassesExamTimetables[cls] || { dates: [], sessions: [], matrix: {}, subjects: [] };
+            const cDates = cData.dates || [];
+            const cSessions = (Array.isArray(cData.sessions) && cData.sessions.length) ? cData.sessions : [
+                { id: 'session_1', label: 'Paper 1 (Morning)', startTime: '06:30', endTime: '08:30' }
+            ];
+            const cMatrix = cData.matrix || {};
+
+            html += `
+                <div class="mb-8 bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+                    <div class="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
+                            <div>
+                                <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} - ${escapeHtml(currentExamTitle)} Routine</h4>
+                                <div class="text-[11px] font-bold text-slate-500">${cDates.length} Scheduled Days • ${cSessions.length} Papers/Sessions</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-black px-2.5 py-1 rounded-xl bg-indigo-100 text-indigo-800">${cDates.length} Days</span>
+                            <button type="button" class="btn-goto-class-exam px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition shadow-2xs inline-flex items-center gap-1.5" data-class="${escapeHtml(cls)}">
+                                <i class="fas fa-pen-to-square"></i> Manage Class ${escapeHtml(cls)}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto p-4">
+            `;
+
+            if (!cDates.length) {
+                html += `
+                    <div class="p-6 text-center text-slate-400 font-medium text-xs italic">
+                        <i class="fas fa-calendar-xmark text-2xl mb-1 text-slate-300 block"></i>
+                        No exam dates scheduled for Class ${escapeHtml(cls)} in ${escapeHtml(currentExamTitle)} yet.
+                    </div>
+                `;
+            } else {
+                html += `
+                    <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-700 uppercase font-extrabold border-b border-slate-200">
+                                <th class="py-2.5 px-3 border-r border-slate-200 w-48 bg-slate-200/80 font-black">Exam Date &amp; Day</th>
+                                ${cSessions.map(s => `
+                                    <th class="py-2 px-2.5 border-r border-slate-200 min-w-[180px]">
+                                        <div class="font-black text-[11px] text-slate-900">${escapeHtml(s.label)}</div>
+                                        <div class="text-[10px] font-semibold text-slate-500">${s.startTime || ''} - ${s.endTime || ''}</div>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 font-medium">
+                            ${cDates.map(dateStr => {
+                                const enDay = getEnglishDayName(dateStr);
+                                return `
+                                    <tr class="hover:bg-slate-50/60 transition">
+                                        <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/90 whitespace-nowrap align-top">
+                                            <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                                <i class="fas fa-calendar-day text-indigo-600"></i> ${dateStr}
+                                            </div>
+                                            <div class="text-[11px] font-bold text-slate-600 mt-0.5">${enDay}</div>
+                                        </td>
+                                        ${cSessions.map(session => {
+                                            const cellKey = `${dateStr}_${session.id}`;
+                                            const cellData = cMatrix[cellKey] || {};
+                                            if (cellData.isNoExam) {
+                                                return `
+                                                    <td class="p-2.5 border-r border-slate-200 align-top">
+                                                        <div class="p-2 rounded-xl bg-amber-50/80 border border-amber-200 text-center select-none">
+                                                            <div class="text-[10px] font-black text-amber-900"><i class="fas fa-mug-hot text-amber-600 mr-1"></i>No Exam / Study Leave</div>
+                                                        </div>
+                                                    </td>
+                                                `;
+                                            }
+                                            if (cellData.subjectName) {
+                                                return `
+                                                    <td class="p-2.5 border-r border-slate-200 align-top">
+                                                        <div class="p-2 rounded-xl bg-indigo-50/70 border border-indigo-200/80 shadow-2xs space-y-1">
+                                                            <div class="font-black text-xs text-indigo-950">${escapeHtml(cellData.subjectName)}</div>
+                                                            ${cellData.portions ? `<div class="text-[10px] font-semibold text-slate-600 leading-tight"><i class="fas fa-book-bookmark text-[9px] mr-1 text-indigo-500"></i>${escapeHtml(cellData.portions)}</div>` : ''}
+                                                            <div class="flex items-center gap-2 pt-0.5 text-[9px] font-bold text-slate-500">
+                                                                ${cellData.invigilator ? `<span><i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(cellData.invigilator)}</span>` : ''}
+                                                                ${cellData.hall ? `<span><i class="fas fa-location-dot text-[9px] mr-1 text-slate-400"></i>${escapeHtml(cellData.hall)}</span>` : ''}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                `;
+                                            }
+                                            return `
+                                                <td class="p-2 border-r border-slate-200 align-top text-center text-slate-400 italic text-[10px] py-2.5">
+                                                    -- Free / No Paper --
+                                                </td>
+                                            `;
+                                        }).join('')}
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        grid.innerHTML = html;
         return;
     }
 
@@ -4414,6 +4851,7 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
 const saveExamTimetableMatrix = async () => {
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
+    if (selectedClass === 'all') return;
     if (!currentExamTitle) return alert('Please select an examination first.');
 
     const updatedMatrix = {};
@@ -4976,29 +5414,44 @@ const setupEventListeners = () => {
         if (cb) {
             const cellKey = cb.dataset.cellKey;
             const itemId = cb.dataset.itemId;
-            handleToggleLessonCompletion(cellKey, itemId, cb.checked);
+            const targetClass = cb.dataset.classLabel || selectedStClass;
+            handleToggleLessonCompletion(cellKey, itemId, cb.checked, targetClass);
         }
     });
 
     document.getElementById('st-schedule-grid')?.addEventListener('click', (e) => {
+        const gotoStBtn = e.target.closest('.btn-goto-class-st');
+        if (gotoStBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cls = gotoStBtn.dataset.class;
+            const sel = document.getElementById('st-class-select');
+            if (sel) sel.value = cls;
+            selectedStClass = cls;
+            loadSyllabusTracker();
+            return;
+        }
         const editBtn = e.target.closest('.btn-edit-st-entry');
         if (editBtn) {
             const cellKey = editBtn.dataset.cellKey;
             const itemId = editBtn.dataset.itemId;
-            openAddEditTrackerEntryModal(cellKey, itemId);
+            const classLabel = editBtn.dataset.classLabel;
+            openAddEditTrackerEntryModal(cellKey, itemId, false, classLabel);
             return;
         }
         const addSubBtn = e.target.closest('.btn-add-st-subsession');
         if (addSubBtn) {
             const cellKey = addSubBtn.dataset.cellKey;
-            openAddEditTrackerEntryModal(cellKey, null, true);
+            const classLabel = addSubBtn.dataset.classLabel;
+            openAddEditTrackerEntryModal(cellKey, null, true, classLabel);
             return;
         }
         const delBtn = e.target.closest('.btn-del-st-entry');
         if (delBtn) {
             const cellKey = delBtn.dataset.cellKey;
             const itemId = delBtn.dataset.itemId;
-            deleteTrackerDailyItem(cellKey, itemId);
+            const classLabel = delBtn.dataset.classLabel;
+            deleteTrackerDailyItem(cellKey, itemId, classLabel);
             return;
         }
     });
@@ -5067,6 +5520,16 @@ const setupEventListeners = () => {
     document.getElementById('btn-print-master-timetable')?.addEventListener('click', printMasterTimetable);
 
     document.getElementById('exam-schedule-grid')?.addEventListener('click', (e) => {
+        const gotoExamBtn = e.target.closest('.btn-goto-class-exam');
+        if (gotoExamBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cls = gotoExamBtn.dataset.class;
+            const sel = document.getElementById('exam-tt-class-select');
+            if (sel) sel.value = cls;
+            loadExamTimetable();
+            return;
+        }
         const addSessionBtn = e.target.closest('#btn-add-exam-paper-header') || e.target.closest('.btn-add-exam-session');
         if (addSessionBtn) {
             e.preventDefault();
