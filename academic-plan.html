@@ -520,21 +520,6 @@
                 <label for="yp-class-select" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Class</label>
                 <select id="yp-class-select" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
               </div>
-              <div>
-                <label for="yp-calendar-type" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Calendar Type</label>
-                <select id="yp-calendar-type" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500">
-                  <option value="gregorian">Gregorian Calendar (English Months)</option>
-                  <option value="hijri">Hijri Calendar (Arabic Months)</option>
-                </select>
-              </div>
-              <div>
-                <label for="yp-start-month" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Start Month</label>
-                <select id="yp-start-month" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none"></select>
-              </div>
-              <div>
-                <label for="yp-end-month" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">End Month</label>
-                <select id="yp-end-month" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none"></select>
-              </div>
             </div>
 
             <!-- Edit Mode Toggle & Actions -->
@@ -559,6 +544,42 @@
                 <i class="fas fa-print"></i> Print Syllabus Plan
               </button>
             </div>
+          </div>
+
+          <!-- Dedicated Calendar Configuration Card (Right-Aligned Settings) -->
+          <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 shadow-2xs flex items-center justify-between flex-wrap gap-4" id="yp-calendar-config-panel">
+            <div class="flex items-center gap-3">
+              <span class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black shrink-0">
+                <i class="fas fa-calendar-alt"></i>
+              </span>
+              <div>
+                <h4 class="text-xs font-black text-indigo-950 uppercase tracking-wide">Academic Calendar Configuration</h4>
+                <p class="text-[11px] text-indigo-700/80 font-bold">Institution-wide syllabus calendar and session start/end months</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+              <div>
+                <label for="yp-calendar-type" class="block text-[10px] font-black uppercase text-slate-600 mb-1">Calendar Type</label>
+                <select id="yp-calendar-type" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500">
+                  <option value="gregorian">Gregorian Calendar (English Months)</option>
+                  <option value="hijri">Hijri Calendar (Arabic Months)</option>
+                </select>
+              </div>
+              <div>
+                <label for="yp-start-month" class="block text-[10px] font-black uppercase text-slate-600 mb-1">Start Month</label>
+                <select id="yp-start-month" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+              </div>
+              <div>
+                <label for="yp-end-month" class="block text-[10px] font-black uppercase text-slate-600 mb-1">End Month</label>
+                <select id="yp-end-month" class="p-2 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"></select>
+              </div>
+              <div class="self-end">
+                <button type="button" id="btn-save-yp-calendar-settings" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer">
+                  <i class="fas fa-floppy-disk"></i> Save Calendar Settings
+                </button>
+              </div>
+            </div>
+          </div>
           </div>
 
           <!-- Year Plan Matrix Container -->
@@ -648,8 +669,61 @@
                 <i class="fas fa-plus-circle"></i> Add Lesson Entry
               </button>
               <button type="button" id="btn-print-syllabus-tracker" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-print"></i> Print Tracker Sheet
+                <i class="fas fa-print"></i> Print Register
               </button>
+            </div>
+          </div>
+
+          <!-- Top Section: Daily Execution & Teaching Log Bar -->
+          <div class="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3" id="st-daily-execution-panel">
+            <div class="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-3 flex-wrap">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <i class="fas fa-calendar-check"></i>
+                  </span>
+                  <div>
+                    <h4 class="text-xs font-black text-slate-900 uppercase tracking-wide">Daily Teaching Execution Logger</h4>
+                    <p class="text-[11px] text-slate-500 font-bold">Timetable-driven period tracking &amp; portions covered</p>
+                  </div>
+                </div>
+
+                <!-- Date Navigator Group -->
+                <div class="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                  <button type="button" id="btn-st-prev-day" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition text-xs cursor-pointer font-bold" title="Previous Day">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <input type="date" id="st-daily-date-picker" class="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800 outline-none focus:border-indigo-500 cursor-pointer">
+                  <button type="button" id="btn-st-today" class="px-2.5 py-1 text-[11px] font-black uppercase text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition cursor-pointer">
+                    Today
+                  </button>
+                  <button type="button" id="btn-st-next-day" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition text-xs cursor-pointer font-bold" title="Next Day">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+
+                <!-- Day & Status Badges -->
+                <div class="flex items-center gap-2">
+                  <span id="st-daily-day-badge" class="px-2.5 py-1 rounded-xl text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">
+                    --
+                  </span>
+                  <span id="st-daily-status-badge" class="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Working Day
+                  </span>
+                </div>
+              </div>
+
+              <!-- Save Daily Log Button -->
+              <div class="flex items-center gap-2">
+                <button type="button" id="btn-save-daily-st-log" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer">
+                  <i class="fas fa-floppy-disk"></i> Save Daily Log
+                </button>
+              </div>
+            </div>
+
+            <!-- Periods Container: Dynamically populated from timetable for this day -->
+            <div id="st-daily-periods-container" class="space-y-2.5 pt-1">
+              <!-- Populated by renderDailyTeachingLogUI() -->
             </div>
           </div>
 
@@ -720,9 +794,9 @@
             <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <i class="fas fa-list-check text-indigo-600"></i>
-                <h3 id="st-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Syllabus Progress &amp; Daily Lesson Checklist</h3>
+                <h3 id="st-view-heading" class="font-black text-sm text-slate-900 uppercase tracking-wider">Monthly Syllabus Execution Register</h3>
               </div>
-              <span class="text-xs text-slate-500 font-semibold">Tick the checkbox when a lesson or session is completed to save progress instantly</span>
+              <span class="text-xs text-slate-500 font-semibold">Timetable-aligned daily teaching register with period-wise portions &amp; verification</span>
             </div>
 
             <!-- Table Grid -->

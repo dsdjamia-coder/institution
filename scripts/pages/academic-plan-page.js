@@ -141,6 +141,54 @@ let stClassSubjects = [];
 let stCurrentGrid = {};
 let allClassesSyllabusData = {}; // classLabel -> { grid, subjects }
 let currentModalStClass = null;
+let selectedStDailyDate = new Date().toISOString().split('T')[0];
+let stDailyLogData = null;
+let cachedSyllabusDailyLogs = {};
+let stMonthlyLogsMap = {};
+
+// Helper: Universal Edit Mode Notice and Animated Switch Pulse
+const promptEnableEditMode = (moduleType, actionDescription = 'make changes') => {
+    showToast(`🔒 Edit Mode is OFF. Please switch "Edit Mode: ON" at the top to ${actionDescription}.`, 'warning');
+
+    let toggleEl = null;
+    let wrapperEl = null;
+    if (moduleType === 'timetable') {
+        toggleEl = document.getElementById('toggle-timetable-edit');
+        wrapperEl = toggleEl?.closest('.p-1\\.5') || toggleEl?.parentElement;
+    } else if (moduleType === 'exam') {
+        toggleEl = document.getElementById('toggle-exam-timetable-edit');
+        wrapperEl = document.getElementById('exam-tt-edit-wrapper') || toggleEl?.parentElement;
+    } else if (moduleType === 'yearplan') {
+        toggleEl = document.getElementById('toggle-yearplan-edit');
+        wrapperEl = toggleEl?.closest('.p-1\\.5') || toggleEl?.parentElement;
+    }
+
+    const target = wrapperEl || toggleEl;
+    if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        target.classList.remove('ring-4', 'ring-amber-500', 'scale-105', 'animate-pulse');
+        void target.offsetWidth;
+        target.classList.add('ring-4', 'ring-amber-500', 'scale-105', 'transition-all', 'duration-300', 'animate-pulse');
+        setTimeout(() => {
+            target.classList.remove('ring-4', 'ring-amber-500', 'scale-105', 'transition-all', 'duration-300', 'animate-pulse');
+        }, 1600);
+    }
+};
+
+// Helper: Active Calendar Current Month Detector
+const getActiveCalendarCurrentMonth = (calendarType = 'gregorian') => {
+    const now = new Date();
+    if (calendarType === 'hijri') {
+        try {
+            const formatter = new Intl.DateTimeFormat('en-TN-u-ca-islamic-umalqura', { month: 'long' });
+            const mName = formatter.format(now);
+            const found = HIJRI_MONTHS.find(m => m.toLowerCase().includes(mName.toLowerCase()) || mName.toLowerCase().includes(m.toLowerCase().split(' ')[0]));
+            if (found) return found;
+        } catch (_) {}
+        return HIJRI_MONTHS[0];
+    }
+    return GREGORIAN_MONTHS[now.getMonth()];
+};
 
 // --- Exam Timetable State ---
 let currentExamTitle = 'Half-Yearly';
@@ -565,6 +613,29 @@ const setupRealtimeListeners = () => {
             populateTeacherDropdowns();
         }
     });
+
+    // 7. Academic Year Plan Calendar Configuration
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'yearPlanConfig'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            const calTypeEl = document.getElementById('yp-calendar-type');
+            const startMonthEl = document.getElementById('yp-start-month');
+            const endMonthEl = document.getElementById('yp-end-month');
+            if (calTypeEl && data.calendarType) {
+                calTypeEl.value = data.calendarType;
+                currentYpCalendarType = data.calendarType;
+            }
+            populateYearPlanMonthDropdowns();
+            if (startMonthEl && data.startMonth) {
+                startMonthEl.value = data.startMonth;
+                currentYpStartMonth = data.startMonth;
+            }
+            if (endMonthEl && data.endMonth) {
+                endMonthEl.value = data.endMonth;
+                currentYpEndMonth = data.endMonth;
+            }
+        }
+    });
 };
 
 const syncTimetableWorkingDaysWithAttendance = () => {
@@ -755,13 +826,17 @@ const populateYearPlanMonthDropdowns = () => {
     const stMonthSel = document.getElementById('st-month-select');
     if (stMonthSel) {
         const prev = stMonthSel.value;
+        const activeMonth = getActiveCalendarCurrentMonth(currentYpCalendarType);
         stMonthSel.innerHTML = `<option value="all">All Months</option>` +
             monthsList.map(m => `<option value="${m}">${m}</option>`).join('');
-        if (prev && (prev === 'all' || monthsList.includes(prev))) {
+        if (prev && monthsList.includes(prev)) {
             stMonthSel.value = prev;
+        } else if (monthsList.includes(activeMonth)) {
+            stMonthSel.value = activeMonth;
         } else {
-            stMonthSel.value = 'all';
+            stMonthSel.value = monthsList[0];
         }
+        selectedStMonth = stMonthSel.value;
     }
 
     const modalStMonthSel = document.getElementById('modal-st-month');
@@ -1549,10 +1624,13 @@ const loadTimetable = async () => {
         }
         const editToggle = document.getElementById('toggle-timetable-edit');
         if (editToggle) {
-            editToggle.checked = false;
-            editToggle.disabled = true;
+            editToggle.disabled = false;
+            editToggle.checked = isTimetableEditMode;
         }
-        toggleTimetableEdit(false);
+        const saveBtn = document.getElementById('btn-save-timetable');
+        if (saveBtn) {
+            saveBtn.disabled = !isTimetableEditMode;
+        }
 
         const tasks = allowed.map(async (cls) => {
             const docId = getTimetableDocId(year, cls);
@@ -1622,17 +1700,36 @@ const loadTimetable = async () => {
     renderTimetableMatrixUI();
 };
 
-const handleDayStatusChange = async (day, status) => {
-    currentClassDayStatuses[day] = status;
+const handleDayStatusChange = async (day, status, targetClass = null) => {
+    if (!isTimetableEditMode) {
+        promptEnableEditMode('timetable', 'change working or off day status');
+        renderTimetableMatrixUI();
+        return;
+    }
+    const cls = targetClass || selectedTtClass;
+    if (!cls) return;
+
+    if (cls === 'all') {
+        return;
+    }
+
+    if (allClassesTimetables[cls]) {
+        if (!allClassesTimetables[cls].dayStatuses) allClassesTimetables[cls].dayStatuses = {};
+        allClassesTimetables[cls].dayStatuses[day] = status;
+    }
+    if (cls === selectedTtClass) {
+        currentClassDayStatuses[day] = status;
+    }
+
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
-    if (!selectedTtClass || selectedTtClass === 'all') return;
-    const docId = getTimetableDocId(year, selectedTtClass);
+    const docId = getTimetableDocId(year, cls);
     try {
+        const statusesToSave = cls === selectedTtClass ? currentClassDayStatuses : (allClassesTimetables[cls].dayStatuses || {});
         await setDoc(doc(db, `${BASE_PATH}/timetables`, docId), {
-            dayStatuses: currentClassDayStatuses,
+            dayStatuses: statusesToSave,
             updatedAt: Date.now()
         }, { merge: true });
-        showToast(`${day} marked as ${status === 'off' ? 'Off Day (Holiday)' : 'Working Day'}.`, 'info');
+        showToast(`Class ${cls}: ${day} marked as ${status === 'off' ? 'Off Day (Holiday)' : 'Working Day'}.`, 'info');
     } catch (err) {
         console.error('Failed to save day status:', err);
     }
@@ -1714,7 +1811,7 @@ const renderTimetableMatrixUI = () => {
                         <table class="w-full text-left border-collapse border border-slate-200 text-xs">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-700 uppercase font-extrabold border-b border-slate-200">
-                                    <th class="py-2.5 px-3 border-r border-slate-200 w-32 bg-slate-100 font-black">Day / Period</th>
+                                    <th class="py-2.5 px-3 border-r border-slate-200 w-36 bg-slate-100 font-black">Day &amp; Status</th>
                                     ${cSlots.map(s => `
                                         <th class="py-2 px-2.5 border-r border-slate-200 min-w-[120px] text-center ${s.isBreak ? 'bg-amber-50 text-amber-900' : ''}">
                                             <div class="font-black text-[11px]">${escapeHtml(s.label)}</div>
@@ -1730,8 +1827,16 @@ const renderTimetableMatrixUI = () => {
                                         return `
                                             <tr class="hover:bg-rose-50/20 transition bg-slate-50/40">
                                                 <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-500 bg-slate-100/70 whitespace-nowrap">
-                                                    <i class="fas fa-calendar-day text-slate-400 mr-1.5 text-xs"></i>${day}
-                                                    <span class="ml-1 text-[10px] font-bold text-rose-500 uppercase">(Off)</span>
+                                                    <div class="flex items-center gap-1.5 mb-1">
+                                                        <i class="fas fa-calendar-day text-slate-400 text-xs"></i>
+                                                        <span>${day}</span>
+                                                    </div>
+                                                    <div class="tt-day-status-wrapper ${!isTimetableEditMode ? 'cursor-pointer' : ''}" data-day="${day}" data-class="${escapeHtml(cls)}">
+                                                        <select class="tt-day-status-select w-full p-1 border border-rose-200 bg-rose-50/60 text-rose-700 font-black rounded-lg text-[11px] outline-none transition shadow-2xs ${!isTimetableEditMode ? 'pointer-events-none opacity-80' : 'cursor-pointer'}" data-day="${day}" data-class="${escapeHtml(cls)}" ${!isTimetableEditMode ? 'tabindex="-1"' : ''}>
+                                                            <option value="working">Working Day</option>
+                                                            <option value="off" selected>Off Day (Holiday)</option>
+                                                        </select>
+                                                    </div>
                                                 </td>
                                                 <td colspan="${cSlots.length}" class="p-2.5 border-r border-slate-200 text-center bg-slate-50 text-slate-400 font-bold text-xs select-none">
                                                     <i class="fas fa-couch mr-1.5 text-slate-400"></i> Weekly Off Day / Holiday
@@ -1741,8 +1846,17 @@ const renderTimetableMatrixUI = () => {
                                     }
                                     return `
                                         <tr class="hover:bg-slate-50/60 transition">
-                                            <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/70 whitespace-nowrap">
-                                                <i class="fas fa-calendar-day text-indigo-600 mr-1.5 text-xs"></i>${day}
+                                            <td class="py-2.5 px-3 border-r border-slate-200 font-black text-slate-900 bg-slate-50/70 whitespace-nowrap align-middle">
+                                                <div class="flex items-center gap-1.5 mb-1">
+                                                    <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
+                                                    <span>${day}</span>
+                                                </div>
+                                                <div class="tt-day-status-wrapper ${!isTimetableEditMode ? 'cursor-pointer' : ''}" data-day="${day}" data-class="${escapeHtml(cls)}">
+                                                    <select class="tt-day-status-select w-full p-1 border border-slate-300 bg-white text-slate-800 font-bold rounded-lg text-[11px] outline-none transition shadow-2xs ${!isTimetableEditMode ? 'pointer-events-none opacity-80' : 'cursor-pointer'}" data-day="${day}" data-class="${escapeHtml(cls)}" ${!isTimetableEditMode ? 'tabindex="-1"' : ''}>
+                                                        <option value="working" selected>Working Day</option>
+                                                        <option value="off">Off Day (Holiday)</option>
+                                                    </select>
+                                                </div>
                                             </td>
                                             ${cSlots.map((s, pIdx) => {
                                                 const p = pIdx + 1;
@@ -1752,6 +1866,31 @@ const renderTimetableMatrixUI = () => {
                                                 const sData = matrix[slotKey] || matrix[legacyKey] || matrix[legacyNumKey] || {};
                                                 if (s.isBreak) {
                                                     return `<td class="p-2 border-r border-slate-200 text-center bg-amber-50/30 text-amber-700 font-black text-[10px] uppercase select-none"><i class="fas fa-mug-hot text-amber-500 mr-1"></i>${escapeHtml(s.label)}</td>`;
+                                                }
+                                                if (isTimetableEditMode) {
+                                                    return `
+                                                        <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
+                                                            <select class="tt-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-class="${escapeHtml(cls)}" data-day="${day}" data-slot="${s.slotId}" data-period="${p}">
+                                                                <option value="">-- Free / Recess --</option>
+                                                                ${cData.subjects.map(subj => `
+                                                                    <option value="${subj.id}" ${(sData.subjectId === subj.id || sData.subjectName === subj.name) ? 'selected' : ''}>
+                                                                        ${escapeHtml(subj.name)}
+                                                                    </option>
+                                                                `).join('')}
+                                                            </select>
+                                                            <select class="tt-cell-teacher w-full p-1 text-[11px] border border-slate-300 rounded-lg text-slate-800 outline-none mb-1 bg-white font-bold" data-class="${escapeHtml(cls)}" data-day="${day}" data-slot="${s.slotId}" data-period="${p}">
+                                                                <option value="">-- Select Teacher --</option>
+                                                                ${getActiveTeachers().map(t => `
+                                                                    <option value="${escapeHtml(t.name || t.id)}" ${(sData.teacher === t.name || sData.teacher === t.id) ? 'selected' : ''}>
+                                                                        ${escapeHtml(t.name || 'Staff')}
+                                                                    </option>
+                                                                `).join('')}
+                                                                ${sData.teacher && !getActiveTeachers().some(t => t.name === sData.teacher || t.id === sData.teacher) ? `
+                                                                    <option value="${escapeHtml(sData.teacher)}" selected>${escapeHtml(sData.teacher)}</option>
+                                                                ` : ''}
+                                                            </select>
+                                                            <input type="text" class="tt-cell-room w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Room / Hall" value="${escapeHtml(sData.room || '')}" data-class="${escapeHtml(cls)}" data-day="${day}" data-slot="${s.slotId}" data-period="${p}">
+                                                        </td>`;
                                                 }
                                                 return `
                                                     <td class="p-2 border-r border-slate-200 align-top">
@@ -1841,10 +1980,12 @@ const renderTimetableMatrixUI = () => {
                         <i class="fas fa-calendar-day ${isDayOff ? 'text-slate-400' : 'text-indigo-600'}"></i>
                         <span>${day}</span>
                     </div>
-                    <select class="tt-day-status-select mt-1.5 w-full p-1 border ${isDayOff ? 'border-rose-200 bg-rose-50/60 text-rose-700 font-black' : 'border-slate-300 bg-white text-slate-800 font-bold'} rounded-lg text-[11px] outline-none cursor-pointer transition shadow-2xs" data-day="${day}">
-                        <option value="working" ${!isDayOff ? 'selected' : ''}>Working Day</option>
-                        <option value="off" ${isDayOff ? 'selected' : ''}>Off Day (Holiday)</option>
-                    </select>
+                    <div class="tt-day-status-wrapper ${!isTimetableEditMode ? 'cursor-pointer' : ''}" data-day="${day}">
+                        <select class="tt-day-status-select mt-1.5 w-full p-1 border ${isDayOff ? 'border-rose-200 bg-rose-50/60 text-rose-700 font-black' : 'border-slate-300 bg-white text-slate-800 font-bold'} rounded-lg text-[11px] outline-none transition shadow-2xs ${!isTimetableEditMode ? 'pointer-events-none opacity-80' : 'cursor-pointer'}" data-day="${day}" ${!isTimetableEditMode ? 'tabindex="-1"' : ''}>
+                            <option value="working" ${!isDayOff ? 'selected' : ''}>Working Day</option>
+                            <option value="off" ${isDayOff ? 'selected' : ''}>Off Day (Holiday)</option>
+                        </select>
+                    </div>
                 </td>`;
 
         if (isDayOff) {
@@ -1942,12 +2083,73 @@ const toggleTimetableEdit = (enabled) => {
 
 const saveTimetableMatrix = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
-    const docId = getTimetableDocId(year, selectedTtClass);
 
+    if (selectedTtClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        const tasks = allowed.map(async (cls) => {
+            const cDocId = getTimetableDocId(year, cls);
+            const cSubjects = (allClassesTimetables[cls] && allClassesTimetables[cls].subjects) || [];
+            const classMatrix = {};
+            const subjectSelects = document.querySelectorAll(`.tt-cell-subject[data-class="${cls}"]`);
+            subjectSelects.forEach(sel => {
+                const day = sel.dataset.day;
+                const slotId = sel.dataset.slot;
+                const period = sel.dataset.period;
+                const subjectId = sel.value;
+                const primaryKey = `${day}_${slotId}`;
+                const legacyKey = `${day}_${period}`;
+                const teacherInput = document.querySelector(`.tt-cell-teacher[data-class="${cls}"][data-day="${day}"][data-slot="${slotId}"]`)
+                    || document.querySelector(`.tt-cell-teacher[data-class="${cls}"][data-day="${day}"][data-period="${period}"]`);
+                const roomInput = document.querySelector(`.tt-cell-room[data-class="${cls}"][data-day="${day}"][data-slot="${slotId}"]`)
+                    || document.querySelector(`.tt-cell-room[data-class="${cls}"][data-day="${day}"][data-period="${period}"]`);
+                if (subjectId) {
+                    const subjObj = cSubjects.find(s => s.id === subjectId);
+                    const entry = {
+                        subjectId,
+                        subjectName: subjObj ? subjObj.name : 'Subject',
+                        subjectCode: subjObj ? subjObj.code : '',
+                        teacher: teacherInput?.value.trim() || (subjObj ? subjObj.teacher : ''),
+                        room: roomInput?.value.trim() || ''
+                    };
+                    classMatrix[primaryKey] = entry;
+                    classMatrix[legacyKey] = entry;
+                }
+            });
+
+            const dayStatuses = (allClassesTimetables[cls] && allClassesTimetables[cls].dayStatuses) || {};
+            const daySelects = document.querySelectorAll(`.tt-day-status-select[data-class="${cls}"]`);
+            daySelects.forEach(ds => {
+                dayStatuses[ds.dataset.day] = ds.value;
+            });
+
+            await setDoc(doc(db, `${BASE_PATH}/timetables`, cDocId), {
+                matrix: classMatrix,
+                dayStatuses,
+                updatedAt: Date.now()
+            }, { merge: true });
+        });
+
+        try {
+            await Promise.all(tasks);
+            showToast('All classes timetables saved successfully!', 'success');
+            const toggle = document.getElementById('toggle-timetable-edit');
+            if (toggle) {
+                toggle.checked = false;
+                toggleTimetableEdit(false);
+            }
+            await loadTimetable();
+        } catch (err) {
+            alert('Failed to save all timetables: ' + err.message);
+        }
+        return;
+    }
+
+    const docId = getTimetableDocId(year, selectedTtClass);
     const updatedMatrix = {};
     const subjectSelects = document.querySelectorAll('.tt-cell-subject');
 
     subjectSelects.forEach(sel => {
+        if (sel.dataset.class && sel.dataset.class !== selectedTtClass) return;
         const day = sel.dataset.day;
         const slotId = sel.dataset.slot;
         const period = sel.dataset.period;
@@ -1997,6 +2199,10 @@ const saveTimetableMatrix = async () => {
 };
 
 const openAddEditTimetableSlotModal = (slotId = null) => {
+    if (!isTimetableEditMode) {
+        promptEnableEditMode('timetable', 'add or edit timetable periods');
+        return;
+    }
     editingTtSlotId = slotId;
     if (!selectedTtClass || selectedTtClass === 'all') {
         const sel = document.getElementById('tt-class-select');
@@ -2122,6 +2328,10 @@ const saveTimetableSlot = async () => {
 };
 
 const deleteTimetableSlot = async (slotId) => {
+    if (!isTimetableEditMode) {
+        promptEnableEditMode('timetable', 'delete timetable periods');
+        return;
+    }
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
     if (!selectedTtClass || selectedTtClass === 'all') return;
     const targetSlot = currentClassSlots.find(s => s.slotId === slotId);
@@ -2644,6 +2854,59 @@ const getYearPlanDocId = (year, classLabel) => {
 
 let allClassesYearPlans = {}; // classLabel -> { grid, subjects, calendarType, startMonth, endMonth }
 
+const loadYearPlanCalendarSettings = async () => {
+    try {
+        const docSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'yearPlanConfig'));
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.calendarType) currentYpCalendarType = data.calendarType;
+            if (data.startMonth) currentYpStartMonth = data.startMonth;
+            if (data.endMonth) currentYpEndMonth = data.endMonth;
+
+            const calTypeSel = document.getElementById('yp-calendar-type');
+            if (calTypeSel) calTypeSel.value = currentYpCalendarType;
+            populateYearPlanMonthDropdowns();
+            const startSel = document.getElementById('yp-start-month');
+            const endSel = document.getElementById('yp-end-month');
+            if (startSel) startSel.value = currentYpStartMonth;
+            if (endSel) endSel.value = currentYpEndMonth;
+        }
+    } catch (err) {
+        console.warn('Could not load persistent year plan calendar config:', err);
+    }
+};
+
+const saveYearPlanCalendarSettings = async () => {
+    const calTypeSel = document.getElementById('yp-calendar-type');
+    const startSel = document.getElementById('yp-start-month');
+    const endSel = document.getElementById('yp-end-month');
+
+    const calendarType = calTypeSel?.value || currentYpCalendarType;
+    const startMonth = startSel?.value || currentYpStartMonth;
+    const endMonth = endSel?.value || currentYpEndMonth;
+
+    currentYpCalendarType = calendarType;
+    currentYpStartMonth = startMonth;
+    currentYpEndMonth = endMonth;
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'yearPlanConfig'), {
+            calendarType,
+            startMonth,
+            endMonth,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast('Academic Calendar settings saved permanently!', 'success');
+        await loadYearPlan();
+        if (document.getElementById('tab-syllabus-tracker')?.classList.contains('active')) {
+            await loadSyllabusTracker();
+        }
+    } catch (err) {
+        alert('Failed to save calendar settings: ' + err.message);
+    }
+};
+
 const loadYearPlan = async () => {
     const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
     selectedYpClass = document.getElementById('yp-class-select')?.value || selectedSubjectsClass || '1';
@@ -2652,6 +2915,17 @@ const loadYearPlan = async () => {
     if (selectedYpClass === 'all') {
         if (heading) heading.textContent = `All Classes Academic Year Syllabus Plans (${year})`;
         const allowed = getAllowedClassesForTeacher();
+
+        const toggle = document.getElementById('toggle-yearplan-edit');
+        if (toggle) {
+            toggle.disabled = false;
+            toggle.checked = isYearPlanEditMode;
+        }
+        const saveBtn = document.getElementById('btn-save-yearplan');
+        if (saveBtn) {
+            saveBtn.disabled = !isYearPlanEditMode;
+        }
+
         const tasks = allowed.map(async (cls) => {
             const docId = getYearPlanDocId(year, cls);
             const subjDocId = getClassSubjectsDocId(year, cls);
@@ -2779,6 +3053,15 @@ const renderYearPlanUI = () => {
                                                 const key = `${month}__${s.id}`;
                                                 const idxKey = `idx_${mIdx}__${s.id}`;
                                                 const cell = cGrid[key] || cGrid[idxKey] || {};
+                                                if (isYearPlanEditMode) {
+                                                    return `
+                                                        <td class="p-2 border-r-2 border-slate-800 align-top bg-amber-50/20">
+                                                            <input type="text" class="yp-cell-lesson w-full p-1 text-xs border border-slate-300 rounded font-bold text-slate-800 outline-none mb-1 bg-white" placeholder="Lesson #" value="${escapeHtml(cell.lessonNo || '')}" data-class="${escapeHtml(cls)}" data-key="${key}">
+                                                            <textarea class="yp-cell-topic w-full p-1 text-[11px] border border-slate-300 rounded text-slate-800 outline-none mb-1 bg-white font-medium resize-none" rows="2" placeholder="Topic / Chapters" data-class="${escapeHtml(cls)}" data-key="${key}">${escapeHtml(cell.topic || '')}</textarea>
+                                                            <input type="text" class="yp-cell-pages w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages" value="${escapeHtml(cell.pages || '')}" data-class="${escapeHtml(cls)}" data-key="${key}">
+                                                        </td>
+                                                    `;
+                                                }
                                                 return `
                                                     <td class="p-2 border-r-2 border-slate-800 text-center align-middle text-xs">
                                                         ${cell.lessonNo ? `<span class="font-black text-slate-900">${escapeHtml(cell.lessonNo)}</span>` : ''}
@@ -2937,6 +3220,52 @@ const toggleYearPlanEdit = (enabled) => {
 
 const saveYearPlan = async () => {
     const year = document.getElementById('yp-academic-year')?.value || currentAcademicYear;
+
+    if (selectedYpClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        const tasks = allowed.map(async (cls) => {
+            const cDocId = getYearPlanDocId(year, cls);
+            const cData = allClassesYearPlans[cls] || { grid: {} };
+            const cGrid = { ...(cData.grid || {}) };
+            const lessonInputs = document.querySelectorAll(`.yp-cell-lesson[data-class="${cls}"]`);
+
+            lessonInputs.forEach(input => {
+                const key = input.dataset.key;
+                const topicInput = document.querySelector(`.yp-cell-topic[data-class="${cls}"][data-key="${key}"]`);
+                const pagesInput = document.querySelector(`.yp-cell-pages[data-class="${cls}"][data-key="${key}"]`);
+                const existing = cGrid[key] || {};
+                cGrid[key] = {
+                    ...existing,
+                    lessonNo: input.value.trim(),
+                    topic: topicInput?.value.trim() || '',
+                    pages: pagesInput?.value.trim() || ''
+                };
+            });
+
+            await setDoc(doc(db, `${BASE_PATH}/yearPlans`, cDocId), {
+                calendarType: currentYpCalendarType,
+                startMonth: document.getElementById('yp-start-month')?.value || currentYpStartMonth,
+                endMonth: document.getElementById('yp-end-month')?.value || currentYpEndMonth,
+                grid: cGrid,
+                updatedAt: Date.now()
+            }, { merge: true });
+        });
+
+        try {
+            await Promise.all(tasks);
+            showToast('All classes academic year plans saved successfully!', 'success');
+            const toggle = document.getElementById('toggle-yearplan-edit');
+            if (toggle) {
+                toggle.checked = false;
+                toggleYearPlanEdit(false);
+            }
+            await loadYearPlan();
+        } catch (err) {
+            alert('Failed to save year plans: ' + err.message);
+        }
+        return;
+    }
+
     const docId = getYearPlanDocId(year, selectedYpClass);
 
     const lessonInputs = document.querySelectorAll('.yp-input-lesson');
@@ -3088,21 +3417,601 @@ const jumpToSyllabusTracker = (classLabel, month, subjectId) => {
     }, 150);
 };
 
+const changeDailyLogDate = async (newDateStr) => {
+    if (!newDateStr) return;
+    selectedStDailyDate = newDateStr;
+    const picker = document.getElementById('st-daily-date-picker');
+    if (picker) picker.value = selectedStDailyDate;
+    await loadDailyTeachingLog(selectedStDailyDate);
+};
+
+const loadDailyTeachingLog = async (dateStr = null) => {
+    if (!dateStr) {
+        dateStr = selectedStDailyDate || new Date().toISOString().split('T')[0];
+    }
+    selectedStDailyDate = dateStr;
+
+    const datePicker = document.getElementById('st-daily-date-picker');
+    if (datePicker && datePicker.value !== dateStr) {
+        datePicker.value = dateStr;
+    }
+
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const cls = selectedStClass || '1';
+
+    let dayName = 'Monday';
+    try {
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        dayName = ALL_WEEKDAYS[dateObj.getDay()] || 'Monday';
+    } catch (_) {}
+
+    const dayBadge = document.getElementById('st-daily-day-badge');
+    const statusBadge = document.getElementById('st-daily-status-badge');
+    if (dayBadge) {
+        dayBadge.textContent = `${formatDisplayDate(dateStr)} • ${dayName}`;
+    }
+
+    let isDayOff = false;
+    const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+
+    if (cls !== 'all') {
+        const cStatuses = (allClassesTimetables[cls] && allClassesTimetables[cls].dayStatuses) || currentClassDayStatuses || {};
+        isDayOff = (cStatuses[dayName] === 'off') || (!cStatuses[dayName] && instOffDays.includes(dayName));
+    } else {
+        isDayOff = instOffDays.includes(dayName);
+    }
+
+    if (statusBadge) {
+        if (isDayOff) {
+            statusBadge.textContent = 'Weekly Off / Holiday';
+            statusBadge.className = 'px-2.5 py-1 rounded-xl text-xs font-black bg-rose-50 text-rose-700 border border-rose-200';
+        } else {
+            statusBadge.textContent = 'Working Day';
+            statusBadge.className = 'px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200';
+        }
+    }
+
+    const docId = `${year}__${cls}__${dateStr}`;
+    if (cls !== 'all') {
+        if (!cachedSyllabusDailyLogs[docId]) {
+            try {
+                const snap = await getDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId));
+                if (snap.exists()) {
+                    cachedSyllabusDailyLogs[docId] = snap.data();
+                } else {
+                    cachedSyllabusDailyLogs[docId] = null;
+                }
+            } catch (err) {
+                console.warn('Could not fetch daily teaching log:', err);
+            }
+        }
+    }
+
+    stDailyLogData = cachedSyllabusDailyLogs[docId] || null;
+    renderDailyTeachingLogUI(dayName, isDayOff);
+};
+
+const renderDailyTeachingLogUI = (dayName, isDayOff) => {
+    const container = document.getElementById('st-daily-periods-container');
+    if (!container) return;
+
+    const cls = selectedStClass;
+    if (cls === 'all') {
+        container.innerHTML = `
+            <div class="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-900 text-xs font-bold flex items-center justify-between flex-wrap gap-2">
+                <span><i class="fas fa-info-circle mr-1.5 text-indigo-600"></i> "All Classes" is currently selected. Select a specific class above to record daily period teaching, or click "Log Day" directly in any class register table below.</span>
+            </div>
+        `;
+        return;
+    }
+
+    if (isDayOff) {
+        container.innerHTML = `
+            <div class="p-4 text-center rounded-xl bg-rose-50/70 border border-rose-200 text-rose-700 text-xs font-black flex items-center justify-center gap-2">
+                <i class="fas fa-couch text-rose-500 text-sm"></i>
+                <span>${dayName} is designated as a Weekly Off / Holiday in Class ${escapeHtml(cls)} routine timetable.</span>
+            </div>
+        `;
+        return;
+    }
+
+    const cSlots = (Array.isArray(currentClassSlots) && currentClassSlots.length > 0)
+        ? currentClassSlots
+        : ((allClassesTimetables[cls] && Array.isArray(allClassesTimetables[cls].slots) && allClassesTimetables[cls].slots.length > 0)
+            ? allClassesTimetables[cls].slots
+            : normalizeTimetableSlots(timetableConfig));
+
+    const teachingSlots = cSlots.filter(s => !s.isBreak);
+    const matrix = (cls === selectedTtClass && timetableMatrix && Object.keys(timetableMatrix).length > 0)
+        ? timetableMatrix
+        : ((allClassesTimetables[cls] && allClassesTimetables[cls].matrix) || {});
+
+    const existingPeriods = (stDailyLogData && Array.isArray(stDailyLogData.periods)) ? stDailyLogData.periods : [];
+
+    if (!teachingSlots.length) {
+        container.innerHTML = `
+            <div class="p-4 text-center text-slate-400 font-bold text-xs bg-slate-50 rounded-xl border border-slate-200">
+                No teaching periods configured in Class ${escapeHtml(cls)} timetable. Please configure periods in the Class Routine tab.
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    teachingSlots.forEach((slot, idx) => {
+        const pNum = slot.slotNum || (idx + 1);
+        const slotKey = `${dayName}_${slot.slotId}`;
+        const legacyKey = `${dayName}_${pNum}`;
+        const ttCell = matrix[slotKey] || matrix[legacyKey] || {};
+
+        const existingPeriod = existingPeriods.find(p => p.slotId === slot.slotId || p.periodNum === pNum) || {};
+
+        const subjectName = existingPeriod.subjectName || ttCell.subjectName || '';
+        const subjectId = existingPeriod.subjectId || ttCell.subjectId || '';
+        const teacher = existingPeriod.teacher || ttCell.teacher || '';
+        const lessonNo = existingPeriod.lessonNo || '';
+        const topic = existingPeriod.topic || '';
+        const pages = existingPeriod.pages || '';
+        const isCompleted = Boolean(existingPeriod.isCompleted);
+        const remarks = existingPeriod.remarks || '';
+
+        html += `
+            <div class="p-3 rounded-2xl bg-slate-50/70 border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-center st-daily-period-row"
+                data-slot-id="${escapeHtml(slot.slotId)}"
+                data-period="${pNum}"
+                data-slot-label="${escapeHtml(slot.label)}"
+                data-slot-start="${slot.startTime}"
+                data-slot-end="${slot.endTime}"
+                data-subject-id="${escapeHtml(subjectId)}"
+                data-subject-name="${escapeHtml(subjectName)}"
+                data-teacher="${escapeHtml(teacher)}">
+                
+                <div class="md:col-span-3">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-900 font-black text-[11px] shrink-0">
+                            ${escapeHtml(slot.label)}
+                        </span>
+                        <span class="text-[10px] text-slate-500 font-bold">${slot.startTime} - ${slot.endTime}</span>
+                    </div>
+                    <div class="font-black text-xs text-slate-900 mt-1">
+                        ${subjectName ? escapeHtml(subjectName) : '<span class="text-slate-400 italic font-semibold">Free Period / Recess</span>'}
+                    </div>
+                    <div class="text-[11px] text-slate-500 font-semibold truncate">
+                        <i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(teacher || 'Ustad')}
+                    </div>
+                </div>
+
+                <div class="md:col-span-3">
+                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Lesson &amp; Topic</label>
+                    <div class="flex items-center gap-1.5">
+                        <input type="text" class="st-period-lesson w-20 px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="Lsn #" value="${escapeHtml(lessonNo)}">
+                        <input type="text" class="st-period-topic flex-1 px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800 outline-none focus:border-indigo-500" placeholder="Topic taught today..." value="${escapeHtml(topic)}">
+                    </div>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Portions / Pages</label>
+                    <input type="text" class="st-period-pages w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. Pgs 14-18" value="${escapeHtml(pages)}">
+                </div>
+
+                <div class="md:col-span-2 flex flex-col justify-center">
+                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Status</label>
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" class="st-period-completed w-4.5 h-4.5 rounded cursor-pointer accent-emerald-600 focus:ring-emerald-500" ${isCompleted ? 'checked' : ''}>
+                        <span class="text-xs font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-600'} st-completed-label">${isCompleted ? 'Taught Today' : 'Pending'}</span>
+                    </label>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Remarks / HW</label>
+                    <input type="text" class="st-period-remarks w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500" placeholder="Homework / notes" value="${escapeHtml(remarks)}">
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.st-period-completed').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            const labelSpan = e.target.closest('label')?.querySelector('.st-completed-label');
+            if (labelSpan) {
+                if (e.target.checked) {
+                    labelSpan.textContent = 'Taught Today';
+                    labelSpan.className = 'text-xs font-black text-emerald-700 st-completed-label';
+                } else {
+                    labelSpan.textContent = 'Pending';
+                    labelSpan.className = 'text-xs font-black text-slate-600 st-completed-label';
+                }
+            }
+        });
+    });
+};
+
+const saveDailyTeachingLog = async () => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const cls = selectedStClass;
+    if (!cls || cls === 'all') {
+        alert('Please select a specific class to record daily teaching execution.');
+        return;
+    }
+
+    const dateStr = selectedStDailyDate || new Date().toISOString().split('T')[0];
+    let dayName = 'Monday';
+    try {
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        dayName = ALL_WEEKDAYS[dateObj.getDay()] || 'Monday';
+    } catch (_) {}
+
+    const periodRows = document.querySelectorAll('.st-daily-period-row');
+    const periods = [];
+
+    periodRows.forEach(row => {
+        const slotId = row.dataset.slotId;
+        const periodNum = Number(row.dataset.period);
+        const label = row.dataset.slotLabel;
+        const startTime = row.dataset.slotStart;
+        const endTime = row.dataset.slotEnd;
+        const subjectId = row.dataset.subjectId;
+        const subjectName = row.dataset.subjectName;
+        const teacher = row.dataset.teacher;
+
+        const lessonNo = row.querySelector('.st-period-lesson')?.value.trim() || '';
+        const topic = row.querySelector('.st-period-topic')?.value.trim() || '';
+        const pages = row.querySelector('.st-period-pages')?.value.trim() || '';
+        const isCompleted = Boolean(row.querySelector('.st-period-completed')?.checked);
+        const remarks = row.querySelector('.st-period-remarks')?.value.trim() || '';
+
+        periods.push({
+            slotId,
+            periodNum,
+            label,
+            startTime,
+            endTime,
+            subjectId,
+            subjectName,
+            teacher,
+            lessonNo,
+            topic,
+            pages,
+            isCompleted,
+            remarks
+        });
+    });
+
+    const docId = `${year}__${cls}__${dateStr}`;
+    const logData = {
+        academicYear: String(year),
+        classLabel: String(cls),
+        date: dateStr,
+        dayOfWeek: dayName,
+        periods,
+        updatedAt: Date.now(),
+        updatedBy: auth.currentUser?.email || 'admin'
+    };
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true });
+        cachedSyllabusDailyLogs[docId] = logData;
+        stMonthlyLogsMap[dateStr] = logData;
+        showToast(`Daily teaching log for ${formatDisplayDate(dateStr)} saved successfully!`, 'success');
+        renderSyllabusTrackerUI();
+    } catch (err) {
+        alert('Failed to save daily log: ' + err.message);
+    }
+};
+
+const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId, isChecked) => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const docId = `${year}__${classLabel}__${dateStr}`;
+    let logData = cachedSyllabusDailyLogs[docId];
+
+    if (!logData || !Array.isArray(logData.periods)) {
+        let dayName = 'Monday';
+        try {
+            const dt = new Date(dateStr + 'T00:00:00');
+            dayName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
+        } catch (_) {}
+
+        const cData = allClassesTimetables[classLabel] || {};
+        const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0)
+            ? cData.slots
+            : ((classLabel === selectedTtClass && Array.isArray(currentClassSlots) && currentClassSlots.length > 0) ? currentClassSlots : normalizeTimetableSlots(timetableConfig));
+        const matrix = cData.matrix || (classLabel === selectedTtClass ? timetableMatrix : {});
+        const periods = cSlots.filter(s => !s.isBreak).map(s => {
+            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+            return {
+                slotId: s.slotId,
+                periodNum: s.slotNum,
+                label: s.label,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                subjectId: ttCell.subjectId || '',
+                subjectName: ttCell.subjectName || '',
+                teacher: ttCell.teacher || '',
+                lessonNo: '',
+                topic: '',
+                pages: '',
+                isCompleted: (s.slotId === slotId ? isChecked : false),
+                remarks: ''
+            };
+        });
+        logData = {
+            academicYear: String(year),
+            classLabel: String(classLabel),
+            date: dateStr,
+            dayOfWeek: dayName,
+            periods,
+            updatedAt: Date.now(),
+            updatedBy: auth.currentUser?.email || 'admin'
+        };
+    } else {
+        const targetPeriod = logData.periods.find(p => p.slotId === slotId);
+        if (targetPeriod) {
+            targetPeriod.isCompleted = isChecked;
+        } else if (logData.periods.length > 0) {
+            logData.periods[0].isCompleted = isChecked;
+        }
+    }
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true });
+        cachedSyllabusDailyLogs[docId] = logData;
+        stMonthlyLogsMap[dateStr] = logData;
+        showToast(isChecked ? 'Period marked as completed!' : 'Period marked as pending', 'success');
+        if (selectedStDailyDate === dateStr) {
+            await loadDailyTeachingLog(dateStr);
+        }
+        renderSyllabusTrackerUI();
+    } catch (err) {
+        showToast('Failed to save status: ' + err.message, 'error');
+    }
+};
+
+const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const isHijri = currentYpCalendarType === 'hijri';
+    const monthList = isHijri ? HIJRI_MONTHS : GREGORIAN_MONTHS;
+    const activeMonth = (targetMonth && targetMonth !== 'all') ? targetMonth : getActiveCalendarCurrentMonth(currentYpCalendarType);
+    const monthIdx = monthList.indexOf(activeMonth);
+    const mIndex = monthIdx !== -1 ? monthIdx : (isHijri ? 0 : new Date().getMonth());
+
+    const yearNum = parseInt(year) || new Date().getFullYear();
+    const daysInMonth = isHijri ? 30 : new Date(yearNum, mIndex + 1, 0).getDate();
+    const monthShort = activeMonth.slice(0, 3);
+
+    const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0)
+        ? cData.slots
+        : ((cls === selectedTtClass && Array.isArray(currentClassSlots) && currentClassSlots.length > 0)
+            ? currentClassSlots
+            : normalizeTimetableSlots(timetableConfig));
+    const teachingSlots = cSlots.filter(s => !s.isBreak);
+
+    const matrix = cData.matrix || (cls === selectedTtClass ? timetableMatrix : {});
+    const cDayStatuses = cData.dayStatuses || (cls === selectedTtClass ? currentClassDayStatuses : {});
+    const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+
+    let html = `
+        <table class="w-full text-left border-collapse border-2 border-slate-900 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-900 border-b-2 border-slate-900 font-black text-xs uppercase tracking-wider">
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-12 bg-slate-200/80">#</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 w-36 bg-slate-200/80">Date &amp; Weekday</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Day Status</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[220px]">Timetable Periods Scheduled</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[260px]">Taught Lessons &amp; Portions Log</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-36">Execution Status</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[160px]">Teacher Remarks / Notes</th>
+                    <th class="py-2.5 px-3 text-center w-28 no-print">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        let dateStr = '';
+        let dayName = '';
+        let isDayOff = false;
+
+        if (isHijri) {
+            dateStr = `${yearNum}-H${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            dayName = ALL_WEEKDAYS[(d - 1) % 7];
+        } else {
+            const mm = String(mIndex + 1).padStart(2, '0');
+            const dd = String(d).padStart(2, '0');
+            dateStr = `${yearNum}-${mm}-${dd}`;
+            try {
+                const dt = new Date(`${dateStr}T00:00:00`);
+                dayName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
+            } catch (_) {
+                dayName = 'Monday';
+            }
+        }
+
+        isDayOff = (cDayStatuses[dayName] === 'off') || (!cDayStatuses[dayName] && instOffDays.includes(dayName));
+        const logData = monthLogsMap[dateStr] || null;
+        const loggedPeriods = (logData && Array.isArray(logData.periods)) ? logData.periods : [];
+
+        if (stSearchQuery) {
+            const q = stSearchQuery;
+            const logText = loggedPeriods.map(p => `${p.subjectName || ''} ${p.topic || ''} ${p.lessonNo || ''} ${p.remarks || ''}`).join(' ').toLowerCase();
+            const dayText = `${d} ${activeMonth} ${dayName}`.toLowerCase();
+            if (!logText.includes(q) && !dayText.includes(q)) {
+                continue;
+            }
+        }
+
+        if (selectedStSubject && selectedStSubject !== 'all') {
+            const hasSubjScheduled = teachingSlots.some(s => {
+                const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+                return ttCell.subjectId === selectedStSubject;
+            });
+            const hasSubjLogged = loggedPeriods.some(p => p.subjectId === selectedStSubject);
+            if (!hasSubjScheduled && !hasSubjLogged && !isDayOff) {
+                continue;
+            }
+        }
+
+        if (isDayOff) {
+            html += `
+                <tr class="bg-rose-50/20 hover:bg-rose-50/30 transition border-b border-slate-300">
+                    <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-500 bg-slate-100/60">
+                        ${d}
+                    </td>
+                    <td class="py-2.5 px-3 border-r-2 border-slate-800 font-black text-slate-700 whitespace-nowrap">
+                        <div class="text-xs font-black text-slate-900">${String(d).padStart(2, '0')} ${monthShort}</div>
+                        <div class="text-[10px] font-bold text-slate-500">${dayName}</div>
+                    </td>
+                    <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                            Off Day
+                        </span>
+                    </td>
+                    <td colspan="4" class="py-2.5 px-3 border-r-2 border-slate-800 text-center bg-rose-50/10 text-rose-700/80 font-bold text-xs select-none">
+                        <i class="fas fa-couch mr-1.5 text-rose-400"></i> Weekly Off Day / Institutional Holiday
+                    </td>
+                    <td class="py-2.5 px-3 text-center align-middle no-print">
+                        <button type="button" class="btn-jump-log-day px-2.5 py-1 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-lg text-xs font-black transition cursor-pointer shadow-2xs inline-flex items-center gap-1" data-date="${dateStr}" data-class="${escapeHtml(cls)}" title="Log Extra Class / Special Session">
+                            <i class="fas fa-pen-to-square text-[10px]"></i> Log
+                        </button>
+                    </td>
+                </tr>
+            `;
+            continue;
+        }
+
+        const totalPeriodsCount = teachingSlots.length;
+        const completedPeriodsCount = loggedPeriods.filter(p => p.isCompleted).length;
+        const isFullyDone = (totalPeriodsCount > 0 && completedPeriodsCount >= totalPeriodsCount);
+        const hasAnyLog = loggedPeriods.some(p => p.topic || p.lessonNo || p.pages || p.isCompleted);
+
+        html += `
+            <tr class="hover:bg-slate-50 transition border-b border-slate-300 ${isFullyDone ? 'bg-emerald-50/20' : ''}">
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50">
+                    ${d}
+                </td>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap">
+                    <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
+                        <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
+                        <span>${String(d).padStart(2, '0')} ${monthShort}</span>
+                    </div>
+                    <div class="text-[11px] font-bold text-slate-600 mt-0.5">
+                        ${dayName}
+                    </div>
+                </td>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Working Day
+                    </span>
+                </td>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 align-top">
+                    <div class="flex flex-wrap gap-1">
+                        ${teachingSlots.map(s => {
+                            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+                            const sName = ttCell.subjectName || 'Free';
+                            return `
+                                <div class="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-800 flex items-center gap-1">
+                                    <span class="font-black text-indigo-700">${escapeHtml(s.label)}:</span>
+                                    <span>${escapeHtml(sName)}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </td>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 align-top">
+                    ${hasAnyLog ? `
+                        <div class="space-y-1">
+                            ${loggedPeriods.map(p => {
+                                if (!p.topic && !p.lessonNo && !p.pages && !p.isCompleted) return '';
+                                return `
+                                    <div class="p-1.5 rounded-lg ${p.isCompleted ? 'bg-emerald-50/80 border border-emerald-200' : 'bg-slate-50 border border-slate-200'} text-[11px] flex items-center justify-between gap-1.5">
+                                        <div>
+                                            <span class="font-black text-slate-900">${escapeHtml(p.subjectName || p.label || 'Period')}:</span>
+                                            ${p.lessonNo ? `<span class="font-bold text-indigo-900">${escapeHtml(p.lessonNo)} - </span>` : ''}
+                                            <span class="text-slate-700 font-semibold">${escapeHtml(p.topic || 'Portion completed')}</span>
+                                            ${p.pages ? `<span class="text-[10px] text-indigo-700 font-bold ml-1">(${escapeHtml(p.pages)})</span>` : ''}
+                                        </div>
+                                        <div class="shrink-0 flex items-center gap-1">
+                                            <input type="checkbox" class="st-register-period-check w-4 h-4 rounded cursor-pointer accent-emerald-600" data-date="${dateStr}" data-slot-id="${p.slotId || ''}" data-class="${escapeHtml(cls)}" ${p.isCompleted ? 'checked' : ''} title="Mark as taught">
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    ` : `
+                        <span class="text-slate-400 italic text-[11px] block py-1">No teaching log recorded yet for this day</span>
+                    `}
+                </td>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center align-middle">
+                    ${isFullyDone ? `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <i class="fas fa-circle-check text-emerald-600"></i> All Taught (${completedPeriodsCount}/${totalPeriodsCount})
+                        </span>
+                    ` : (completedPeriodsCount > 0 ? `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            Partial (${completedPeriodsCount}/${totalPeriodsCount})
+                        </span>
+                    ` : `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            Pending
+                        </span>
+                    `)}
+                </td>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-slate-600 text-[11px] align-middle">
+                    ${loggedPeriods.some(p => p.remarks)
+                        ? loggedPeriods.filter(p => p.remarks).map(p => `<div class="truncate"><strong class="text-slate-800">${escapeHtml(p.subjectName || '')}:</strong> ${escapeHtml(p.remarks)}</div>`).join('')
+                        : '<span class="text-slate-300 italic">--</span>'}
+                </td>
+                <td class="py-2.5 px-3 text-center align-middle no-print">
+                    <button type="button" class="btn-jump-log-day px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" data-date="${dateStr}" data-class="${escapeHtml(cls)}" title="Record period-wise portions taught on this day">
+                        <i class="fas fa-pen-to-square"></i> Log Day
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+
+    html += `</tbody></table>`;
+    return html;
+};
+
 const loadSyllabusTracker = async () => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
     selectedStClass = document.getElementById('st-class-select')?.value || selectedYpClass || '1';
-    selectedStMonth = document.getElementById('st-month-select')?.value || 'all';
+    
+    const activeMonth = getActiveCalendarCurrentMonth(currentYpCalendarType);
+    const mSel = document.getElementById('st-month-select');
+    if (!mSel?.value || mSel.value === 'all') {
+        if (mSel && activeMonth && Array.from(mSel.options).some(o => o.value === activeMonth)) {
+            mSel.value = activeMonth;
+        }
+    }
+    selectedStMonth = mSel?.value || activeMonth || 'all';
     selectedStSubject = document.getElementById('st-subject-select')?.value || 'all';
     stSearchQuery = document.getElementById('st-search-input')?.value.trim().toLowerCase() || '';
 
     const viewHeading = document.getElementById('st-view-heading');
 
+    // Query daily teaching logs for this year
+    try {
+        const qSnap = await getDocs(query(collection(db, `${BASE_PATH}/syllabusDailyLogs`), where('academicYear', '==', String(year))));
+        stMonthlyLogsMap = {};
+        qSnap.forEach(dSnap => {
+            const d = dSnap.data();
+            cachedSyllabusDailyLogs[dSnap.id] = d;
+            if (selectedStClass === 'all' || d.classLabel === selectedStClass) {
+                stMonthlyLogsMap[d.date] = d;
+            }
+        });
+    } catch (err) {
+        console.warn('Could not load monthly daily logs:', err);
+    }
+
     if (selectedStClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
         if (viewHeading) {
             viewHeading.textContent = isSuperAdmin
-                ? `All Classes (Full Institution) Syllabus Progress & Daily Checklist (${year})`
-                : `All My Classes (${allowed.length} Classes) Syllabus Progress & Daily Checklist (${year})`;
+                ? `All Classes (Full Institution) Monthly Syllabus Execution Register (${year})`
+                : `All My Classes (${allowed.length} Classes) Monthly Syllabus Execution Register (${year})`;
         }
 
         allClassesSyllabusData = {};
@@ -3111,9 +4020,11 @@ const loadSyllabusTracker = async () => {
         const tasks = allowed.map(async (cls) => {
             const docId = getYearPlanDocId(year, cls);
             const subjDocId = getClassSubjectsDocId(year, cls);
-            const [ypSnap, subjSnap] = await Promise.all([
+            const ttDocId = getTimetableDocId(year, cls);
+            const [ypSnap, subjSnap, ttSnap] = await Promise.all([
                 getDoc(doc(db, `${BASE_PATH}/yearPlans`, docId)).catch(() => null),
-                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null)
+                getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null),
+                getDoc(doc(db, `${BASE_PATH}/timetables`, ttDocId)).catch(() => null)
             ]);
 
             let subjects = [];
@@ -3133,6 +4044,17 @@ const loadSyllabusTracker = async () => {
                 if (data.calendarType) currentYpCalendarType = data.calendarType;
             }
 
+            let slots = getDefaultClassSlots();
+            let matrix = {};
+            let dayStatuses = {};
+            if (ttSnap && ttSnap.exists()) {
+                const td = ttSnap.data();
+                if (Array.isArray(td.slots) && td.slots.length) slots = td.slots;
+                matrix = td.matrix || {};
+                dayStatuses = td.dayStatuses || {};
+            }
+
+            allClassesTimetables[cls] = { classLabel: cls, slots, matrix, dayStatuses, subjects };
             allClassesSyllabusData[cls] = { grid, subjects };
         });
 
@@ -3155,16 +4077,27 @@ const loadSyllabusTracker = async () => {
             }
         }
 
+        await loadDailyTeachingLog(selectedStDailyDate);
         renderSyllabusTrackerUI();
         return;
     }
 
-    if (viewHeading) viewHeading.textContent = `Class ${selectedStClass} Syllabus Progress & Daily Checklist (${year})`;
+    if (viewHeading) viewHeading.textContent = `Class ${selectedStClass} Monthly Syllabus Execution Register (${year})`;
 
     await ensureClassSubjectsLoaded(year, selectedStClass);
     stClassSubjects = [...classSubjectsList];
 
-    // Populate subject filter dropdown
+    try {
+        const ttDocId = getTimetableDocId(year, selectedStClass);
+        const ttSnap = await getDoc(doc(db, `${BASE_PATH}/timetables`, ttDocId));
+        if (ttSnap.exists()) {
+            const td = ttSnap.data();
+            if (Array.isArray(td.slots) && td.slots.length) currentClassSlots = td.slots;
+            timetableMatrix = td.matrix || {};
+            currentClassDayStatuses = td.dayStatuses || {};
+        }
+    } catch (_) {}
+
     const stSubjSelect = document.getElementById('st-subject-select');
     if (stSubjSelect) {
         const prev = stSubjSelect.value;
@@ -3180,7 +4113,6 @@ const loadSyllabusTracker = async () => {
         }
     }
 
-    // Populate modal subject dropdown
     const modalStSubj = document.getElementById('modal-st-subject');
     if (modalStSubj) {
         modalStSubj.innerHTML = stClassSubjects.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
@@ -3201,116 +4133,8 @@ const loadSyllabusTracker = async () => {
         stCurrentGrid = {};
     }
 
+    await loadDailyTeachingLog(selectedStDailyDate);
     renderSyllabusTrackerUI();
-};
-
-const renderSyllabusChecklistTable = (rows, classLabel = null) => {
-    let html = `
-        <table class="w-full text-left border-collapse border-2 border-slate-900 text-xs">
-            <thead>
-                <tr class="bg-slate-100 text-slate-900 border-b-2 border-slate-900 font-black text-xs uppercase tracking-wider">
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-12">#</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Month</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Session / Day</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[150px]">Subject</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[200px]">Lesson / Unit Title</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Portions</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-16">Periods</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-36">Status &amp; Check</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-24">Progress</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[140px]">Teacher Remarks</th>
-                    <th class="py-2.5 px-3 text-center w-28 no-print">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
-
-    rows.forEach((r, idx) => {
-        const isCompleted = r.isCompleted;
-        const rowBg = isCompleted ? 'bg-emerald-50/40 hover:bg-emerald-50/70' : 'hover:bg-slate-50';
-        const classAttr = classLabel ? ` data-class-label="${escapeHtml(classLabel)}"` : '';
-
-        html += `
-            <tr class="${rowBg} transition border-b border-slate-300">
-                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-bold text-slate-500">
-                    ${idx + 1}
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
-                    <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300">
-                        ${escapeHtml(r.month)}
-                    </span>
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
-                    ${r.isDaily ? `
-                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                            <i class="fas fa-calendar-day text-[9px] mr-1"></i>${escapeHtml(r.dayLabel)}
-                        </span>
-                    ` : `
-                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                            Monthly Plan
-                        </span>
-                    `}
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800">
-                    <div class="font-black text-xs text-slate-950">${escapeHtml(r.subjectName)}</div>
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800">
-                    ${r.lessonNo && r.lessonNo !== '--' ? `
-                        <div class="font-extrabold text-xs text-slate-900">${escapeHtml(r.lessonNo)}</div>
-                    ` : ''}
-                    <div class="text-xs text-slate-700 font-semibold leading-relaxed">${escapeHtml(r.topic)}</div>
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center font-bold text-indigo-900 text-[11px]">
-                    ${escapeHtml(r.pages)}
-                </td>
-                <td class="py-3 px-2 border-r-2 border-slate-800 text-center font-black text-slate-800">
-                    ${r.periods || 1}
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800 text-center align-middle">
-                    <div class="flex items-center justify-center gap-2">
-                        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                            <input type="checkbox" class="st-lesson-checkbox w-5 h-5 rounded cursor-pointer accent-indigo-600 focus:ring-indigo-500"${classAttr} data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}" ${isCompleted ? 'checked' : ''}>
-                        </label>
-                        ${isCompleted ? `
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                <i class="fas fa-check text-[9px] text-emerald-600"></i> Done
-                            </span>
-                        ` : `
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                Pending
-                            </span>
-                        `}
-                    </div>
-                </td>
-                <td class="py-3 px-2.5 border-r-2 border-slate-800 text-center">
-                    <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mb-1">
-                        <div class="${isCompleted ? 'bg-emerald-600' : 'bg-indigo-600'} h-1.5 rounded-full" style="width: ${r.progressPercent}%"></div>
-                    </div>
-                    <span class="text-[10px] font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-700'}">${r.progressPercent}%</span>
-                </td>
-                <td class="py-3 px-3 border-r-2 border-slate-800 text-slate-600 text-[11px] leading-relaxed">
-                    ${r.notes ? escapeHtml(r.notes) : '<span class="text-slate-300 italic">--</span>'}
-                </td>
-                <td class="py-3 px-2 text-center align-middle no-print">
-                    <div class="flex items-center justify-center gap-1">
-                        <button type="button" class="btn-edit-st-entry w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer" title="Edit Entry" data-cell-key="${r.cellKey}" data-item-id="${r.itemId || ''}"${classAttr}>
-                            <i class="fas fa-pen text-[10px]"></i>
-                        </button>
-                        ${!r.isDaily ? `
-                            <button type="button" class="btn-add-st-subsession w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition cursor-pointer" title="Add Daily Execution Session" data-cell-key="${r.cellKey}"${classAttr}>
-                                <i class="fas fa-plus text-[10px]"></i>
-                            </button>
-                        ` : `
-                            <button type="button" class="btn-del-st-entry w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 flex items-center justify-center transition cursor-pointer" title="Delete Session" data-cell-key="${r.cellKey}" data-item-id="${r.itemId}"${classAttr}>
-                                <i class="fas fa-trash-can text-[10px]"></i>
-                            </button>
-                        `}
-                    </div>
-                </td>
-            </tr>`;
-    });
-
-    html += `</tbody></table>`;
-    return html;
 };
 
 const renderSyllabusTrackerUI = () => {
@@ -3318,98 +4142,56 @@ const renderSyllabusTrackerUI = () => {
     if (!gridEl) return;
 
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const monthsList = currentYpCalendarType === 'hijri' ? HIJRI_MONTHS : GREGORIAN_MONTHS;
-    const targetMonths = (selectedStMonth && selectedStMonth !== 'all') ? [selectedStMonth] : monthsList;
-
-    const buildClassTrackerRows = (cls, cData) => {
-        const cGrid = cData.grid || {};
-        const cSubjs = cData.subjects || [];
-        const targetSubjs = (selectedStSubject && selectedStSubject !== 'all')
-            ? cSubjs.filter(s => s.id === selectedStSubject)
-            : cSubjs;
-
-        let cRows = [];
-        targetMonths.forEach((month, mIdx) => {
-            targetSubjs.forEach(s => {
-                const key = `${month}__${s.id}`;
-                const idxKey = `idx_${mIdx}__${s.id}`;
-                const cell = cGrid[key] || cGrid[idxKey] || {};
-                const hasMonthlyTarget = Boolean(cell.topic || cell.lessonNo || cell.pages);
-                const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
-
-                if (hasMonthlyTarget || dailyItems.length === 0) {
-                    cRows.push({
-                        classLabel: cls,
-                        cellKey: key,
-                        itemId: null,
-                        isDaily: false,
-                        month,
-                        subjectId: s.id,
-                        subjectName: s.name,
-                        dayLabel: 'Monthly Plan',
-                        lessonNo: cell.lessonNo || '--',
-                        topic: cell.topic || (hasMonthlyTarget ? '' : 'Unplanned Month'),
-                        pages: cell.pages || '--',
-                        periods: Number(cell.allocatedPeriods || (s.weeklyPeriods || 5) * 4),
-                        isCompleted: Boolean(cell.isCompleted || (cell.progressPercent || 0) === 100),
-                        progressPercent: Number(cell.progressPercent || 0),
-                        notes: cell.notes || cell.breakdown || '',
-                        hasTarget: hasMonthlyTarget
-                    });
-                }
-
-                dailyItems.forEach((dItem, dIdx) => {
-                    cRows.push({
-                        classLabel: cls,
-                        cellKey: key,
-                        itemId: dItem.id || `item_${dIdx}`,
-                        isDaily: true,
-                        month,
-                        subjectId: s.id,
-                        subjectName: s.name,
-                        dayLabel: dItem.dayOrSession || `Session ${dIdx + 1}`,
-                        lessonNo: dItem.lessonNo || cell.lessonNo || '--',
-                        topic: dItem.topic || cell.topic || '--',
-                        pages: dItem.pages || cell.pages || '--',
-                        periods: Number(dItem.periods || 1),
-                        isCompleted: Boolean(dItem.isCompleted || (dItem.progressPercent || 0) === 100),
-                        progressPercent: Number(dItem.progressPercent || (dItem.isCompleted ? 100 : 0)),
-                        notes: dItem.notes || '',
-                        hasTarget: true
-                    });
-                });
-            });
-        });
-
-        if (stSearchQuery) {
-            const q = stSearchQuery;
-            cRows = cRows.filter(r => (
-                (r.topic && r.topic.toLowerCase().includes(q))
-                || (r.lessonNo && r.lessonNo.toLowerCase().includes(q))
-                || (r.subjectName && r.subjectName.toLowerCase().includes(q))
-                || (r.pages && r.pages.toLowerCase().includes(q))
-                || (r.month && r.month.toLowerCase().includes(q))
-                || (r.notes && r.notes.toLowerCase().includes(q))
-            ));
-        }
-        return cRows;
-    };
+    const isHijri = currentYpCalendarType === 'hijri';
+    const monthList = isHijri ? HIJRI_MONTHS : GREGORIAN_MONTHS;
+    const activeMonth = (selectedStMonth && selectedStMonth !== 'all') ? selectedStMonth : getActiveCalendarCurrentMonth(currentYpCalendarType);
+    const mIndex = monthList.indexOf(activeMonth) !== -1 ? monthList.indexOf(activeMonth) : 0;
+    const yearNum = parseInt(year) || new Date().getFullYear();
+    const daysInMonth = isHijri ? 30 : new Date(yearNum, mIndex + 1, 0).getDate();
+    const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
 
     if (selectedStClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
-        let allAggregatedRows = [];
-        const classRowsMap = {};
+        let allWorkingDays = 0;
+        let allDaysTaught = 0;
+        let allPeriodsScheduled = 0;
+        let allPeriodsTaught = 0;
 
         allowed.forEach(cls => {
-            const rows = buildClassTrackerRows(cls, allClassesSyllabusData[cls] || { grid: {}, subjects: [] });
-            classRowsMap[cls] = rows;
-            allAggregatedRows = allAggregatedRows.concat(rows);
+            const cTt = allClassesTimetables[cls] || {};
+            const cDayStatuses = cTt.dayStatuses || {};
+            const cSlots = (Array.isArray(cTt.slots) && cTt.slots.length > 0) ? cTt.slots : normalizeTimetableSlots(timetableConfig);
+            const teachingCount = cSlots.filter(s => !s.isBreak).length;
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                let dStr = '';
+                let dName = '';
+                if (isHijri) {
+                    dStr = `${yearNum}-H${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    dName = ALL_WEEKDAYS[(d - 1) % 7];
+                } else {
+                    dStr = `${yearNum}-${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    try {
+                        const dt = new Date(`${dStr}T00:00:00`);
+                        dName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
+                    } catch (_) { dName = 'Monday'; }
+                }
+
+                const isOff = (cDayStatuses[dName] === 'off') || (!cDayStatuses[dName] && instOffDays.includes(dName));
+                if (!isOff) {
+                    allWorkingDays++;
+                    allPeriodsScheduled += teachingCount;
+                    const cLog = cachedSyllabusDailyLogs[`${year}__${cls}__${dStr}`] || null;
+                    if (cLog && Array.isArray(cLog.periods)) {
+                        const doneCount = cLog.periods.filter(p => p.isCompleted).length;
+                        allPeriodsTaught += doneCount;
+                        if (doneCount > 0) allDaysTaught++;
+                    }
+                }
+            }
         });
 
-        const totalCount = allAggregatedRows.filter(r => r.hasTarget).length;
-        const completedCount = allAggregatedRows.filter(r => r.hasTarget && r.isCompleted).length;
-        const completionPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-        const totalPeriods = allAggregatedRows.filter(r => r.hasTarget).reduce((sum, r) => sum + (Number(r.periods) || 0), 0);
+        const overallPct = allPeriodsScheduled > 0 ? Math.round((allPeriodsTaught / allPeriodsScheduled) * 100) : 0;
 
         const totalEl = document.getElementById('st-stat-total-lessons');
         const compEl = document.getElementById('st-stat-completed-lessons');
@@ -3418,28 +4200,27 @@ const renderSyllabusTrackerUI = () => {
         const barTextEl = document.getElementById('st-progress-bar-text');
         const barFillEl = document.getElementById('st-progress-bar-fill');
 
-        if (totalEl) totalEl.textContent = totalCount;
-        if (compEl) compEl.textContent = completedCount;
-        if (compPctEl) compPctEl.textContent = `(${completionPct}%)`;
-        if (periodsEl) periodsEl.textContent = `${totalPeriods} Periods`;
-        if (barTextEl) barTextEl.textContent = `${completionPct}%`;
+        if (totalEl) totalEl.textContent = `${allWorkingDays} Days`;
+        if (compEl) compEl.textContent = `${allDaysTaught} Days`;
+        if (compPctEl) compPctEl.textContent = `(${overallPct}%)`;
+        if (periodsEl) periodsEl.textContent = `${allPeriodsTaught} / ${allPeriodsScheduled} Periods`;
+        if (barTextEl) barTextEl.textContent = `${overallPct}%`;
         if (barFillEl) {
-            barFillEl.style.width = `${completionPct}%`;
-            barFillEl.className = completionPct === 100
+            barFillEl.style.width = `${overallPct}%`;
+            barFillEl.className = overallPct === 100
                 ? 'bg-emerald-600 h-2.5 rounded-full transition-all duration-300'
                 : 'bg-indigo-600 h-2.5 rounded-full transition-all duration-300';
         }
 
-        // Print header for all classes
         const docTitle = document.getElementById('st-print-doc-title');
         if (docTitle) {
             docTitle.textContent = isSuperAdmin
-                ? `All Classes (Full Institution) Academic Syllabus Progress Record (${year})`
-                : `All My Classes (${allowed.length} Classes) Academic Syllabus Progress Record (${year})`;
+                ? `All Classes (Full Institution) Monthly Syllabus Execution Register (${year})`
+                : `All My Classes (${allowed.length} Classes) Monthly Syllabus Execution Register (${year})`;
         }
         const metaEl = document.getElementById('st-print-meta');
         if (metaEl) {
-            metaEl.textContent = `Academic Year: ${year} • Scope: ${isSuperAdmin ? 'Full Institution' : 'Assigned Classes'} (${allowed.length} Classes) • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth} • Total Lessons: ${totalCount} (${completionPct}% Completed)`;
+            metaEl.textContent = `Academic Year: ${year} • Scope: ${isSuperAdmin ? 'Full Institution' : 'Assigned Classes'} (${allowed.length} Classes) • Month: ${activeMonth} • Progress: ${overallPct}% Taught`;
         }
 
         if (!allowed.length) {
@@ -3449,10 +4230,15 @@ const renderSyllabusTrackerUI = () => {
 
         let html = '';
         allowed.forEach(cls => {
-            const cRows = classRowsMap[cls] || [];
-            const cTotal = cRows.filter(r => r.hasTarget).length;
-            const cDone = cRows.filter(r => r.hasTarget && r.isCompleted).length;
-            const cPct = cTotal > 0 ? Math.round((cDone / cTotal) * 100) : 0;
+            const cTt = allClassesTimetables[cls] || { slots: [], matrix: {}, dayStatuses: {}, subjects: [] };
+            const classLogs = {};
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dStr = isHijri
+                    ? `${yearNum}-H${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+                    : `${yearNum}-${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const l = cachedSyllabusDailyLogs[`${year}__${cls}__${dStr}`];
+                if (l) classLogs[dStr] = l;
+            }
 
             html += `
                 <div class="mb-8 bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -3460,27 +4246,18 @@ const renderSyllabusTrackerUI = () => {
                         <div class="flex items-center gap-2.5">
                             <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">${escapeHtml(cls)}</span>
                             <div>
-                                <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} Syllabus Progress &amp; Checklist</h4>
-                                <div class="text-[11px] font-bold text-slate-500">${cTotal} Planned Lessons • ${cDone} Completed (${cPct}%)</div>
+                                <h4 class="font-black text-sm text-slate-900">Class ${escapeHtml(cls)} - ${escapeHtml(activeMonth)} Syllabus Register</h4>
+                                <div class="text-[11px] font-bold text-slate-500">${daysInMonth} Days • Timetable-Aligned Daily Progress</div>
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="text-xs font-black px-2.5 py-1 rounded-xl ${cPct === 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">${cPct}% Done</span>
                             <button type="button" class="btn-goto-class-st px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition shadow-2xs inline-flex items-center gap-1.5" data-class="${escapeHtml(cls)}">
-                                <i class="fas fa-pen-to-square"></i> Manage Class ${escapeHtml(cls)}
+                                <i class="fas fa-pen-to-square"></i> Focus Class ${escapeHtml(cls)}
                             </button>
                         </div>
                     </div>
                     <div class="overflow-x-auto p-4">
-            `;
-
-            if (!cRows.length) {
-                html += `<div class="p-6 text-center text-slate-400 font-bold text-xs italic">No syllabus targets or lessons found for Class ${escapeHtml(cls)}.</div>`;
-            } else {
-                html += renderSyllabusChecklistTable(cRows, cls);
-            }
-
-            html += `
+                        ${renderMonthlyRegisterTable(cls, activeMonth, classLogs, cTt)}
                     </div>
                 </div>
             `;
@@ -3489,14 +4266,44 @@ const renderSyllabusTrackerUI = () => {
         return;
     }
 
-    // Single Class Tracker Rendering
-    const rows = buildClassTrackerRows(selectedStClass, { grid: stCurrentGrid, subjects: stClassSubjects });
+    // Single Class Register Calculation & Render
+    let totalWorkingDays = 0;
+    let daysTaught = 0;
+    const cSlots = (Array.isArray(currentClassSlots) && currentClassSlots.length > 0)
+        ? currentClassSlots
+        : normalizeTimetableSlots(timetableConfig);
+    const teachingSlotsCount = cSlots.filter(s => !s.isBreak).length;
+    let totalPeriodsScheduled = 0;
+    let totalPeriodsTaught = 0;
 
-    // Summary statistics
-    const totalCount = rows.filter(r => r.hasTarget).length;
-    const completedCount = rows.filter(r => r.hasTarget && r.isCompleted).length;
-    const completionPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-    const totalPeriods = rows.filter(r => r.hasTarget).reduce((sum, r) => sum + (Number(r.periods) || 0), 0);
+    for (let d = 1; d <= daysInMonth; d++) {
+        let dStr = '';
+        let dName = '';
+        if (isHijri) {
+            dStr = `${yearNum}-H${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            dName = ALL_WEEKDAYS[(d - 1) % 7];
+        } else {
+            dStr = `${yearNum}-${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            try {
+                const dt = new Date(`${dStr}T00:00:00`);
+                dName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
+            } catch (_) { dName = 'Monday'; }
+        }
+
+        const isOff = (currentClassDayStatuses[dName] === 'off') || (!currentClassDayStatuses[dName] && instOffDays.includes(dName));
+        if (!isOff) {
+            totalWorkingDays++;
+            totalPeriodsScheduled += teachingSlotsCount;
+            const log = stMonthlyLogsMap[dStr];
+            if (log && Array.isArray(log.periods)) {
+                const done = log.periods.filter(p => p.isCompleted).length;
+                totalPeriodsTaught += done;
+                if (done > 0) daysTaught++;
+            }
+        }
+    }
+
+    const completionPct = totalPeriodsScheduled > 0 ? Math.round((totalPeriodsTaught / totalPeriodsScheduled) * 100) : 0;
 
     const totalEl = document.getElementById('st-stat-total-lessons');
     const compEl = document.getElementById('st-stat-completed-lessons');
@@ -3505,10 +4312,10 @@ const renderSyllabusTrackerUI = () => {
     const barTextEl = document.getElementById('st-progress-bar-text');
     const barFillEl = document.getElementById('st-progress-bar-fill');
 
-    if (totalEl) totalEl.textContent = totalCount;
-    if (compEl) compEl.textContent = completedCount;
+    if (totalEl) totalEl.textContent = `${totalWorkingDays} Days`;
+    if (compEl) compEl.textContent = `${daysTaught} Days`;
     if (compPctEl) compPctEl.textContent = `(${completionPct}%)`;
-    if (periodsEl) periodsEl.textContent = `${totalPeriods} Periods`;
+    if (periodsEl) periodsEl.textContent = `${totalPeriodsTaught} / ${totalPeriodsScheduled} Periods`;
     if (barTextEl) barTextEl.textContent = `${completionPct}%`;
     if (barFillEl) {
         barFillEl.style.width = `${completionPct}%`;
@@ -3517,97 +4324,21 @@ const renderSyllabusTrackerUI = () => {
             : 'bg-indigo-600 h-2.5 rounded-full transition-all duration-300';
     }
 
-    // Update print headers
     const docTitle = document.getElementById('st-print-doc-title');
     if (docTitle) {
-        docTitle.textContent = `Class ${selectedStClass} Academic Syllabus Progress Record (${year})`;
+        docTitle.textContent = `Class ${selectedStClass} Monthly Syllabus Execution Register (${year})`;
     }
     const metaEl = document.getElementById('st-print-meta');
     if (metaEl) {
-        metaEl.textContent = `Academic Year: ${year} • Class: ${selectedStClass} • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth} • Total Lessons: ${totalCount} (${completionPct}% Completed)`;
+        metaEl.textContent = `Academic Year: ${year} • Class: ${selectedStClass} • Month: ${activeMonth} • Teaching Days: ${totalWorkingDays} • Execution Progress: ${completionPct}%`;
     }
 
-    if (!rows.length) {
-        gridEl.innerHTML = `
-            <div class="p-10 text-center text-slate-400">
-                <i class="fas fa-list-check text-4xl mb-3 text-slate-300 block"></i>
-                <div class="text-sm font-bold text-slate-700 mb-1">No Syllabus Tracker Entries Found</div>
-                <p class="text-xs text-slate-500 max-w-md mx-auto mb-4">
-                    There are no planned lessons matching the selected filters. You can configure syllabus targets in the Academic Year Plan tab or add custom lesson entries directly.
-                </p>
-                <button type="button" id="btn-st-empty-add" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs">
-                    <i class="fas fa-plus-circle mr-1"></i> Add First Lesson Entry
-                </button>
-            </div>`;
-        document.getElementById('btn-st-empty-add')?.addEventListener('click', () => openAddEditTrackerEntryModal());
-        return;
-    }
-
-    gridEl.innerHTML = renderSyllabusChecklistTable(rows, selectedStClass);
-};
-
-const handleToggleLessonCompletion = async (cellKey, itemId, isChecked, targetClass = null) => {
-    if (!cellKey) return;
-    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const effectiveClass = targetClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
-    const docId = getYearPlanDocId(year, effectiveClass);
-
-    let cell = {};
-    if (selectedStClass === 'all') {
-        const cData = allClassesSyllabusData[effectiveClass] || { grid: {}, subjects: [] };
-        cData.grid = cData.grid || {};
-        cell = cData.grid[cellKey] || {};
-    } else {
-        cell = stCurrentGrid[cellKey] || {};
-    }
-
-    if (itemId) {
-        const dailyItems = Array.isArray(cell.dailyItems) ? cell.dailyItems : [];
-        const targetItem = dailyItems.find(i => i.id === itemId);
-        if (targetItem) {
-            targetItem.isCompleted = isChecked;
-            targetItem.progressPercent = isChecked ? 100 : 0;
-        }
-        if (dailyItems.length > 0) {
-            const allDone = dailyItems.every(i => i.isCompleted);
-            const doneRatio = Math.round((dailyItems.filter(i => i.isCompleted).length / dailyItems.length) * 100);
-            cell.isCompleted = allDone;
-            cell.progressPercent = doneRatio;
-            cell.status = allDone ? 'Completed' : 'In Progress';
-        }
-    } else {
-        cell.isCompleted = isChecked;
-        cell.progressPercent = isChecked ? 100 : 0;
-        cell.status = isChecked ? 'Completed' : 'In Progress';
-    }
-
-    let updatedGrid = {};
-    if (selectedStClass === 'all') {
-        const cData = allClassesSyllabusData[effectiveClass];
-        if (cData) {
-            cData.grid[cellKey] = cell;
-            updatedGrid = cData.grid;
-        }
-    } else {
-        stCurrentGrid[cellKey] = cell;
-        updatedGrid = stCurrentGrid;
-        if (selectedStClass === selectedYpClass) {
-            yearPlanGrid = { ...stCurrentGrid };
-        }
-    }
-
-    try {
-        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
-            grid: updatedGrid,
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        showToast(isChecked ? 'Marked as completed!' : 'Marked as pending', 'success');
-        renderSyllabusTrackerUI();
-    } catch (err) {
-        console.error('Failed to update lesson status:', err);
-        showToast('Failed to save completion status: ' + err.message, 'error');
-    }
+    gridEl.innerHTML = renderMonthlyRegisterTable(selectedStClass, activeMonth, stMonthlyLogsMap, {
+        slots: currentClassSlots,
+        matrix: timetableMatrix,
+        dayStatuses: currentClassDayStatuses,
+        subjects: stClassSubjects
+    });
 };
 
 const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSession = false, entryClass = null) => {
@@ -3634,7 +4365,6 @@ const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSes
     if (cellKeyInput) cellKeyInput.value = cellKey || '';
     if (itemIdInput) itemIdInput.value = (isNewSubSession ? '' : (itemId || ''));
 
-    // Populate modal subjects from the effective class
     if (subjSel) {
         let subjs = [];
         if (selectedStClass === 'all') {
@@ -3767,7 +4497,6 @@ const saveTrackerEntry = async () => {
             };
         }
     } else if (dayLabel && dayLabel.toLowerCase() !== 'monthly target' && dayLabel.toLowerCase() !== 'monthly plan') {
-        // Add new daily/session item
         cell.dailyItems.push({
             id: 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
             dayOrSession: dayLabel,
@@ -3780,7 +4509,6 @@ const saveTrackerEntry = async () => {
             notes
         });
     } else {
-        // Update main monthly target
         cell.lessonNo = lessonNo;
         cell.topic = topic;
         cell.pages = pages;
@@ -3859,20 +4587,23 @@ const deleteTrackerDailyItem = async (cellKey, itemId, entryClass = null) => {
 
 const printSyllabusTracker = () => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const isHijri = currentYpCalendarType === 'hijri';
+    const activeMonth = (selectedStMonth && selectedStMonth !== 'all') ? selectedStMonth : getActiveCalendarCurrentMonth(currentYpCalendarType);
+
     const docTitle = document.getElementById('st-print-doc-title');
     if (docTitle) {
         docTitle.textContent = selectedStClass === 'all'
-            ? `All Classes Academic Syllabus Progress Record (${year})`
-            : `Class ${selectedStClass} Academic Syllabus Progress Record (${year})`;
+            ? `All Classes Monthly Syllabus Execution Register (${year})`
+            : `Class ${selectedStClass} Monthly Syllabus Execution Register (${year})`;
     }
     const metaEl = document.getElementById('st-print-meta');
     if (metaEl) {
         const allowed = getAllowedClassesForTeacher();
         metaEl.textContent = selectedStClass === 'all'
-            ? `Academic Year: ${year} • Scope: ${isSuperAdmin ? 'Full Institution' : 'Assigned Classes'} (${allowed.length} Classes) • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth}`
-            : `Academic Year: ${year} • Class: ${selectedStClass} • Month Scope: ${selectedStMonth === 'all' ? 'All Months' : selectedStMonth}`;
+            ? `Academic Year: ${year} • Scope: ${isSuperAdmin ? 'Full Institution' : 'Assigned Classes'} (${allowed.length} Classes) • Month: ${activeMonth}`
+            : `Academic Year: ${year} • Class: ${selectedStClass} • Month: ${activeMonth}`;
     }
-    updatePrintBrandingHeaders('Syllabus Progress Tracker', 'st-print-date');
+    updatePrintBrandingHeaders('Syllabus Execution Register', 'st-print-date');
     setPrintOrientation('landscape');
     document.body.setAttribute('data-print-target', 'syllabus-tracker');
     window.print();
@@ -3951,7 +4682,11 @@ const loadAvailableExams = async (year, classLabel) => {
         || 'Half-Yearly';
 };
 
-const openAddExamNameModal = () => {
+const openAddExamNameModal = (fromCard = false) => {
+    if (!fromCard && !isExamTimetableEditMode && !isMasterExamEditMode) {
+        promptEnableEditMode('exam', 'create new examinations');
+        return;
+    }
     const input = document.getElementById('modal-new-exam-title');
     if (input) input.value = '';
 
@@ -4126,12 +4861,22 @@ const toggleExamTimetableEdit = (isEditing) => {
         renderMasterExamGridUI();
     } else {
         const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
-        if (!isSuperAdmin && !isClassInDutyScope(selectedClass, teacherAssignedClasses)) {
+        if (selectedClass !== 'all' && !isSuperAdmin && !isClassInDutyScope(selectedClass, teacherAssignedClasses)) {
             const toggle = document.getElementById('toggle-exam-timetable-edit');
             if (toggle) toggle.checked = false;
             updateExamEditToggleUI(false);
             showToast(`You can only edit schedule for your assigned duty class (${teacherAssignedClasses.join(', ')}).`, 'warning');
             return;
+        }
+        if (selectedClass === 'all') {
+            const allowed = getAllowedClassesForTeacher();
+            if (!allowed.length) {
+                const toggle = document.getElementById('toggle-exam-timetable-edit');
+                if (toggle) toggle.checked = false;
+                updateExamEditToggleUI(false);
+                showToast('No classes assigned to you to edit.', 'warning');
+                return;
+            }
         }
         isExamTimetableEditMode = isEditing;
         updateExamEditToggleUI(isEditing);
@@ -4167,15 +4912,15 @@ const loadExamTimetable = async () => {
 
         const editToggle = document.getElementById('toggle-exam-timetable-edit');
         if (editToggle) {
-            editToggle.checked = false;
-            editToggle.disabled = true;
+            editToggle.disabled = false;
+            editToggle.checked = isExamTimetableEditMode;
         }
-        toggleExamTimetableEdit(false);
+        updateExamEditToggleUI(isExamTimetableEditMode);
 
         const addDateBtn = document.getElementById('btn-add-exam-date');
         if (addDateBtn) addDateBtn.classList.add('hidden');
         const saveBtn = document.getElementById('btn-save-exam-timetable');
-        if (saveBtn) saveBtn.classList.add('hidden');
+        if (saveBtn) saveBtn.classList.toggle('hidden', !isExamTimetableEditMode);
 
         allClassesExamTimetables = {};
         const tasks = allowed.map(async (cls) => {
@@ -4381,6 +5126,35 @@ const renderExamTimetableGridUI = () => {
                                         ${cSessions.map(session => {
                                             const cellKey = `${dateStr}_${session.id}`;
                                             const cellData = cMatrix[cellKey] || {};
+
+                                            if (isExamTimetableEditMode) {
+                                                return `
+                                                    <td class="p-2 border-r border-slate-200 align-top bg-amber-50/20">
+                                                        <select class="exam-cell-subject w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" data-class="${escapeHtml(cls)}" data-date="${dateStr}" data-session="${session.id}">
+                                                            <option value="">-- Unassigned --</option>
+                                                            <option value="__NO_EXAM__" ${cellData.isNoExam ? 'selected' : ''} class="font-bold text-amber-700 bg-amber-50">☕ -- No Exam / Study Leave --</option>
+                                                            ${(cData.subjects || []).map(s => `
+                                                                <option value="${s.id}" ${(cellData.subjectId === s.id || cellData.subjectName === s.name) && !cellData.isNoExam ? 'selected' : ''}>
+                                                                    ${escapeHtml(s.name)}
+                                                                </option>
+                                                            `).join('')}
+                                                        </select>
+                                                        <input type="text" class="exam-cell-portions w-full p-1 text-[11px] border border-slate-200 rounded text-slate-700 outline-none mb-1 bg-white" placeholder="Portions / Syllabus to study" value="${escapeHtml(cellData.portions || '')}" data-class="${escapeHtml(cls)}" data-date="${dateStr}" data-session="${session.id}">
+                                                        <div class="grid grid-cols-2 gap-1">
+                                                            <select class="exam-cell-invigilator w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white font-bold" data-class="${escapeHtml(cls)}" data-date="${dateStr}" data-session="${session.id}">
+                                                                <option value="">-- Invigilator --</option>
+                                                                ${getActiveTeachers().map(t => `
+                                                                    <option value="${escapeHtml(t.name || t.id)}" ${cellData.invigilator === t.name ? 'selected' : ''}>
+                                                                        ${escapeHtml(t.name || 'Staff')}
+                                                                    </option>
+                                                                `).join('')}
+                                                            </select>
+                                                            <input type="text" class="exam-cell-hall w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Hall / Room" value="${escapeHtml(cellData.hall || '')}" data-class="${escapeHtml(cls)}" data-date="${dateStr}" data-session="${session.id}">
+                                                        </div>
+                                                    </td>
+                                                `;
+                                            }
+
                                             if (cellData.isNoExam) {
                                                 return `
                                                     <td class="p-2.5 border-r border-slate-200 align-top">
@@ -4438,20 +5212,25 @@ const renderExamTimetableGridUI = () => {
                         <th class="py-2.5 px-3 border-r border-slate-200 min-w-[200px] relative group">
                             <div class="flex items-center justify-between gap-1 mb-1">
                                 <div class="text-[11px] font-black text-slate-900 tracking-wider">${escapeHtml(session.label)}</div>
-                                <div class="flex items-center gap-0.5">
-                                    <button type="button" class="btn-edit-exam-session p-1 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer" data-session-id="${session.id}" title="Edit Paper">
-                                        <i class="fas fa-pen-to-square text-[11px]"></i>
-                                    </button>
-                                    <button type="button" class="btn-delete-exam-session p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer" data-session-id="${session.id}" title="Delete Paper">
-                                        <i class="fas fa-trash-can text-[11px]"></i>
-                                    </button>
-                                </div>
+                                ${isExamTimetableEditMode ? `
+                                    <div class="flex items-center gap-0.5">
+                                        <button type="button" class="btn-edit-exam-session p-1 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer" data-session-id="${session.id}" title="Edit Paper">
+                                            <i class="fas fa-pen-to-square text-[11px]"></i>
+                                        </button>
+                                        <button type="button" class="btn-delete-exam-session p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer" data-session-id="${session.id}" title="Delete Paper">
+                                            <i class="fas fa-trash-can text-[11px]"></i>
+                                        </button>
+                                    </div>
+                                ` : ''}
                             </div>
                             <div class="text-[10px] font-semibold text-slate-500">${session.startTime || ''} - ${session.endTime || ''}</div>
                         </th>
                     `).join('')}
                     <th class="py-2.5 px-3 border-r border-slate-200 min-w-[85px] text-center bg-indigo-50/40">
-                        <button type="button" id="btn-add-exam-paper-header" class="btn-add-exam-session inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="Add Exam Paper">
+                        <button type="button" id="btn-add-exam-paper-header" class="btn-add-exam-session inline-flex items-center justify-center gap-1 px-3 py-1.5 ${isExamTimetableEditMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-200 text-slate-400 opacity-60'} rounded-xl text-xs font-black cursor-pointer shadow-2xs transition" title="${isExamTimetableEditMode ? 'Add Exam Paper' : 'Edit Mode is OFF - click to enable'}">
+                            <i class="fas fa-plus"></i> Add Paper
+                        </button>
+                    </th>
                             <i class="fas fa-plus"></i> Add Paper
                         </button>
                     </th>
@@ -4568,7 +5347,7 @@ const renderExamTimetableGridUI = () => {
         html += `
             <tr class="bg-indigo-50/30 border-t-2 border-indigo-100 no-print">
                 <td colspan="${examSessions.length + 2}" class="p-2.5 text-center">
-                    <button type="button" class="btn-trigger-add-exam-date px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer">
+                    <button type="button" class="btn-trigger-add-exam-date px-4 py-2 rounded-xl ${isExamTimetableEditMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-200 text-slate-400 opacity-60'} font-black text-xs transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" title="${isExamTimetableEditMode ? 'Add Next Exam Date' : 'Edit Mode is OFF - click to enable'}">
                         <i class="fas fa-calendar-plus"></i> Add Next Exam Date
                     </button>
                 </td>
@@ -4851,11 +5630,83 @@ const renderMasterExamGridUI = (targetClasses = null, classSubjsMap = null) => {
 const saveExamTimetableMatrix = async () => {
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
-    if (selectedClass === 'all') return;
     if (!currentExamTitle) return alert('Please select an examination first.');
 
+    if (selectedClass === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        if (!allowed.length) return;
+
+        const batchTasks = allowed.map(async (cls) => {
+            const cData = allClassesExamTimetables[cls] || { dates: [], sessions: [], matrix: {}, subjects: [] };
+            const updatedMatrix = { ...cData.matrix };
+            const selects = document.querySelectorAll(`.exam-cell-subject[data-class="${cls}"]`);
+
+            selects.forEach(sel => {
+                const date = sel.dataset.date;
+                const session = sel.dataset.session;
+                const val = sel.value;
+                const cellKey = `${date}_${session}`;
+
+                const portionsInput = document.querySelector(`.exam-cell-portions[data-class="${cls}"][data-date="${date}"][data-session="${session}"]`);
+                const invigilatorInput = document.querySelector(`.exam-cell-invigilator[data-class="${cls}"][data-date="${date}"][data-session="${session}"]`);
+                const hallInput = document.querySelector(`.exam-cell-hall[data-class="${cls}"][data-date="${date}"][data-session="${session}"]`);
+
+                if (val === '__NO_EXAM__') {
+                    updatedMatrix[cellKey] = {
+                        subjectId: '',
+                        subjectName: 'No Exam / Study Leave',
+                        subjectCode: '',
+                        isNoExam: true,
+                        portions: portionsInput?.value.trim() || '',
+                        invigilator: '',
+                        hall: ''
+                    };
+                } else if (val) {
+                    const subjObj = (cData.subjects || []).find(s => s.id === val);
+                    updatedMatrix[cellKey] = {
+                        subjectId: val,
+                        subjectName: subjObj ? subjObj.name : 'Subject',
+                        subjectCode: subjObj ? subjObj.code : '',
+                        isNoExam: false,
+                        portions: portionsInput?.value.trim() || '',
+                        invigilator: invigilatorInput?.value.trim() || '',
+                        hall: hallInput?.value.trim() || ''
+                    };
+                } else {
+                    delete updatedMatrix[cellKey];
+                }
+            });
+
+            cData.matrix = updatedMatrix;
+            allClassesExamTimetables[cls] = cData;
+
+            const docId = getExamTimetableDocId(year, cls, currentExamTitle);
+            return setDoc(doc(db, `${BASE_PATH}/examTimetables`, docId), {
+                academicYear: year,
+                classLabel: cls,
+                examTitle: currentExamTitle,
+                dates: cData.dates,
+                sessions: cData.sessions,
+                sessionSlots: cData.sessions,
+                matrix: updatedMatrix,
+                updatedAt: Date.now()
+            }, { merge: true });
+        });
+
+        try {
+            await Promise.all(batchTasks);
+            showToast(`Exam routines for all classes saved successfully!`, 'success');
+            const toggle = document.getElementById('toggle-exam-timetable-edit');
+            if (toggle) toggle.checked = false;
+            toggleExamTimetableEdit(false);
+        } catch (err) {
+            alert('Failed to save exam schedules: ' + err.message);
+        }
+        return;
+    }
+
     const updatedMatrix = {};
-    const selects = document.querySelectorAll('.exam-cell-subject');
+    const selects = document.querySelectorAll('.exam-cell-subject:not([data-class])');
 
     selects.forEach(sel => {
         const date = sel.dataset.date;
@@ -4916,6 +5767,10 @@ const saveExamTimetableMatrix = async () => {
 };
 
 const openAddEditExamSessionModal = (sessionId = null) => {
+    if (!isExamTimetableEditMode && !isMasterExamEditMode) {
+        promptEnableEditMode('exam', sessionId ? 'edit exam papers' : 'add exam papers');
+        return;
+    }
     editingExamSessionId = sessionId;
     const titleEl = document.getElementById('modal-exam-session-title');
     const idInput = document.getElementById('modal-exam-session-id');
@@ -5003,6 +5858,10 @@ const saveExamSession = async () => {
 };
 
 const deleteExamSession = async (sessionId) => {
+    if (!isExamTimetableEditMode && !isMasterExamEditMode) {
+        promptEnableEditMode('exam', 'delete exam papers');
+        return;
+    }
     const year = document.getElementById('exam-tt-academic-year')?.value || currentAcademicYear;
     const selectedClass = document.getElementById('exam-tt-class-select')?.value || '1';
     const session = examSessions.find(s => s.id === sessionId);
@@ -5040,6 +5899,10 @@ const deleteExamSession = async (sessionId) => {
 };
 
 const openAddExamDateModal = () => {
+    if (!isExamTimetableEditMode && !isMasterExamEditMode) {
+        promptEnableEditMode('exam', 'add exam dates');
+        return;
+    }
     if (!currentExamTitle) return alert('Please select or create an examination first.');
     const dateInput = document.getElementById('modal-exam-picker-date');
     if (dateInput) {
@@ -5069,6 +5932,10 @@ const confirmAddExamDate = () => {
 };
 
 const removeExamDate = (dateStr) => {
+    if (!isExamTimetableEditMode && !isMasterExamEditMode) {
+        promptEnableEditMode('exam', 'remove exam dates');
+        return;
+    }
     if (!confirm(`Are you sure you want to remove ${formatDisplayDate(dateStr)} from the exam schedule?`)) return;
     examDates = examDates.filter(d => d !== dateStr);
     Object.keys(examMatrix).forEach(k => {
@@ -5166,7 +6033,7 @@ const setupEventListeners = () => {
 
         const manageExamsBtn = e.target.closest('.btn-card-manage-exams');
         if (manageExamsBtn) {
-            openAddExamNameModal();
+            openAddExamNameModal(true);
             const scopeSel = document.getElementById('modal-new-exam-class-scope');
             if (scopeSel) scopeSel.value = 'specific';
             const specWrap = document.getElementById('modal-new-exam-specific-class-wrapper');
@@ -5215,6 +6082,13 @@ const setupEventListeners = () => {
     // Dynamic Class Timetable Slots
     document.getElementById('btn-save-tt-slot')?.addEventListener('click', saveTimetableSlot);
     document.getElementById('tt-schedule-grid')?.addEventListener('click', (e) => {
+        const wrapper = e.target.closest('.tt-day-status-wrapper');
+        if (wrapper && !isTimetableEditMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            promptEnableEditMode('timetable', 'change working or off day status');
+            return;
+        }
         const addSlotBtn = e.target.closest('#btn-add-tt-slot-header') || e.target.closest('.btn-add-tt-slot');
         if (addSlotBtn) {
             e.preventDefault();
@@ -5344,6 +6218,7 @@ const setupEventListeners = () => {
     });
     document.getElementById('yp-start-month')?.addEventListener('change', renderYearPlanUI);
     document.getElementById('yp-end-month')?.addEventListener('change', renderYearPlanUI);
+    document.getElementById('btn-save-yp-calendar-settings')?.addEventListener('click', saveYearPlanCalendarSettings);
     document.getElementById('toggle-yearplan-edit')?.addEventListener('change', (e) => {
         toggleYearPlanEdit(e.target.checked);
     });
@@ -5387,6 +6262,25 @@ const setupEventListeners = () => {
     document.getElementById('btn-st-add-entry')?.addEventListener('click', () => openAddEditTrackerEntryModal());
     document.getElementById('btn-print-syllabus-tracker')?.addEventListener('click', printSyllabusTracker);
 
+    // Daily Teaching Logger Date & Save Controls
+    document.getElementById('st-daily-date-picker')?.addEventListener('change', (e) => {
+        changeDailyLogDate(e.target.value);
+    });
+    document.getElementById('btn-st-prev-day')?.addEventListener('click', () => {
+        const cur = selectedStDailyDate ? new Date(selectedStDailyDate) : new Date();
+        cur.setDate(cur.getDate() - 1);
+        changeDailyLogDate(cur.toISOString().split('T')[0]);
+    });
+    document.getElementById('btn-st-today')?.addEventListener('click', () => {
+        changeDailyLogDate(new Date().toISOString().split('T')[0]);
+    });
+    document.getElementById('btn-st-next-day')?.addEventListener('click', () => {
+        const cur = selectedStDailyDate ? new Date(selectedStDailyDate) : new Date();
+        cur.setDate(cur.getDate() + 1);
+        changeDailyLogDate(cur.toISOString().split('T')[0]);
+    });
+    document.getElementById('btn-save-daily-st-log')?.addEventListener('click', saveDailyTeachingLog);
+
     document.getElementById('modal-st-completed')?.addEventListener('change', (e) => {
         const slider = document.getElementById('modal-st-progress-slider');
         const valText = document.getElementById('modal-st-slider-val');
@@ -5410,6 +6304,14 @@ const setupEventListeners = () => {
     document.getElementById('btn-save-st-entry')?.addEventListener('click', saveTrackerEntry);
 
     document.getElementById('st-schedule-grid')?.addEventListener('change', (e) => {
+        const periodCheck = e.target.closest('.st-register-period-check');
+        if (periodCheck) {
+            const dStr = periodCheck.dataset.date;
+            const sId = periodCheck.dataset.slotId;
+            const cls = periodCheck.dataset.class;
+            handleToggleRegisterPeriodCompletion(dStr, sId, periodCheck.checked, cls);
+            return;
+        }
         const cb = e.target.closest('.st-lesson-checkbox');
         if (cb) {
             const cellKey = cb.dataset.cellKey;
@@ -5419,7 +6321,22 @@ const setupEventListeners = () => {
         }
     });
 
-    document.getElementById('st-schedule-grid')?.addEventListener('click', (e) => {
+    document.getElementById('st-schedule-grid')?.addEventListener('click', async (e) => {
+        const jumpBtn = e.target.closest('.btn-jump-log-day');
+        if (jumpBtn) {
+            e.preventDefault();
+            const dStr = jumpBtn.dataset.date;
+            const cls = jumpBtn.dataset.class;
+            if (cls && cls !== selectedStClass) {
+                selectedStClass = cls;
+                const sel = document.getElementById('st-class-select');
+                if (sel) sel.value = cls;
+                await loadSyllabusTracker();
+            }
+            await changeDailyLogDate(dStr);
+            document.getElementById('st-daily-execution-panel')?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
         const gotoStBtn = e.target.closest('.btn-goto-class-st');
         if (gotoStBtn) {
             e.preventDefault();
