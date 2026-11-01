@@ -474,6 +474,7 @@ const initApp = async () => {
             }
         }
         await restoreSessionContext();
+        await loadYearPlanCalendarSettings();
         setupRealtimeListeners();
     });
 };
@@ -2870,9 +2871,12 @@ const loadYearPlanCalendarSettings = async () => {
             const endSel = document.getElementById('yp-end-month');
             if (startSel) startSel.value = currentYpStartMonth;
             if (endSel) endSel.value = currentYpEndMonth;
+        } else {
+            populateYearPlanMonthDropdowns();
         }
     } catch (err) {
         console.warn('Could not load persistent year plan calendar config:', err);
+        populateYearPlanMonthDropdowns();
     }
 };
 
@@ -2955,17 +2959,9 @@ const loadYearPlan = async () => {
         const docSnap = await getDoc(doc(db, `${BASE_PATH}/yearPlans`, docId));
         if (docSnap.exists()) {
             const data = docSnap.data();
-            currentYpCalendarType = data.calendarType || 'gregorian';
-            currentYpStartMonth = data.startMonth || (currentYpCalendarType === 'hijri' ? 'Shawwal' : 'June');
-            currentYpEndMonth = data.endMonth || (currentYpCalendarType === 'hijri' ? 'Sha\'ban' : 'March');
             yearPlanGrid = data.grid || {};
-
-            const calTypeSel = document.getElementById('yp-calendar-type');
-            if (calTypeSel) calTypeSel.value = currentYpCalendarType;
-            populateYearPlanMonthDropdowns();
         } else {
             yearPlanGrid = {};
-            populateYearPlanMonthDropdowns();
         }
     } catch (err) {
         console.error('Failed to load year plan:', err);
@@ -3031,19 +3027,6 @@ const renderYearPlanUI = () => {
                             </thead>
                             <tbody class="divide-y-2 divide-slate-800 font-medium">
                                 ${months.map((month, mIdx) => {
-                                    const isRevisionMonth = (month === 'Sha\'ban' || month === 'March');
-                                    if (isRevisionMonth) {
-                                        return `
-                                            <tr class="bg-slate-100/90 border-b-2 border-slate-800">
-                                                <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center text-sm">
-                                                    ${month}
-                                                </td>
-                                                <td colspan="${subjs.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 bg-slate-100 border-r-2 border-slate-800 tracking-wider">
-                                                    Revision &amp; Annual Examinations
-                                                </td>
-                                            </tr>`;
-                                    }
-
                                     return `
                                         <tr class="hover:bg-slate-50 transition border-b border-slate-300">
                                             <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center text-sm">
@@ -3128,21 +3111,6 @@ const renderYearPlanUI = () => {
             <tbody class="divide-y-2 divide-slate-800 font-medium">`;
 
     months.forEach((month, mIdx) => {
-        const isRevisionMonth = (month === 'Sha\'ban' || month === 'March');
-
-        if (isRevisionMonth && !isYearPlanEditMode) {
-            html += `
-                <tr class="bg-slate-100/90 border-b-2 border-slate-800">
-                    <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-200/60 text-center text-sm">
-                        ${month}
-                    </td>
-                    <td colspan="${classSubjectsList.length}" class="py-3.5 px-4 text-center font-black text-sm text-slate-900 bg-slate-100 border-r-2 border-slate-800 tracking-wider">
-                        Revision &amp; Annual Examinations
-                    </td>
-                </tr>`;
-            return;
-        }
-
         html += `
             <tr class="hover:bg-slate-50 transition border-b border-slate-300">
                 <td class="py-3 px-3 border-r-2 border-slate-800 font-black text-slate-900 bg-slate-50 text-center text-sm">
@@ -3165,9 +3133,9 @@ const renderYearPlanUI = () => {
                 const hasTarget = Boolean(cell.topic || cell.lessonNo);
 
                 html += `
-                    <td class="p-2.5 border-r-2 border-slate-800 text-center align-middle cursor-pointer hover:bg-indigo-50/40 transition yp-cell-clickable" data-month="${month}" data-subject-id="${s.id}" data-subject-name="${escapeHtml(s.name)}">
+                    <td class="p-2.5 border-r-2 border-slate-800 text-center align-middle">
                         ${hasTarget ? `
-                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 transition text-center space-y-1">
+                            <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs text-center space-y-1">
                                 <div class="font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo || '')}</div>
                                 ${cell.topic ? `<div class="font-semibold text-xs text-slate-700">${escapeHtml(cell.topic)}</div>` : ''}
                                 ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold">${escapeHtml(cell.pages)}</div>` : ''}
@@ -3188,8 +3156,8 @@ const renderYearPlanUI = () => {
                                 </div>
                             </div>
                         ` : `
-                            <div class="p-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 text-center text-slate-400 text-xs py-3">
-                                + Plan
+                            <div class="p-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 text-center text-slate-400 text-xs py-3 select-none">
+                                --
                             </div>
                         `}
                     </td>`;
@@ -6212,9 +6180,10 @@ const setupEventListeners = () => {
     // 4. Academic Year Plan Listeners
     document.getElementById('yp-academic-year')?.addEventListener('change', loadYearPlan);
     document.getElementById('yp-class-select')?.addEventListener('change', loadYearPlan);
-    document.getElementById('yp-calendar-type')?.addEventListener('change', () => {
+    document.getElementById('yp-calendar-type')?.addEventListener('change', (e) => {
+        currentYpCalendarType = e.target.value;
         populateYearPlanMonthDropdowns();
-        loadYearPlan();
+        renderYearPlanUI();
     });
     document.getElementById('yp-start-month')?.addEventListener('change', renderYearPlanUI);
     document.getElementById('yp-end-month')?.addEventListener('change', renderYearPlanUI);
@@ -6224,19 +6193,6 @@ const setupEventListeners = () => {
     });
     document.getElementById('btn-save-yearplan')?.addEventListener('click', saveYearPlan);
     document.getElementById('btn-print-yearplan')?.addEventListener('click', printYearPlan);
-
-    document.getElementById('yp-schedule-grid')?.addEventListener('click', (e) => {
-        if (isYearPlanEditMode) return;
-        const cell = e.target.closest('.yp-cell-clickable');
-        if (cell) {
-            const month = cell.dataset.month;
-            const subjectId = cell.dataset.subjectId;
-            const subjectName = cell.dataset.subjectName;
-            if (month && subjectId) {
-                jumpToSyllabusTracker(selectedYpClass, month, subjectId);
-            }
-        }
-    });
 
     document.getElementById('btn-save-yp-execution')?.addEventListener('click', saveYearPlanExecution);
     document.getElementById('modal-yp-progress-slider')?.addEventListener('input', (e) => {
