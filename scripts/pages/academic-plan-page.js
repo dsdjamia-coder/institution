@@ -4,6 +4,7 @@ import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
+import { InteractiveCropper } from '../shared/image-cropper.js';
 
 // --- State Variables ---
 let isSuperAdmin = false;
@@ -145,6 +146,11 @@ let selectedStDailyDate = new Date().toISOString().split('T')[0];
 let stDailyLogData = null;
 let cachedSyllabusDailyLogs = {};
 let stMonthlyLogsMap = {};
+let stCropper = null;
+let pendingCropSlotId = null;
+let pendingCropField = null;
+let stActiveCropRatio = 'free';
+let stActiveCropTarget = null;
 
 // Helper: Universal Edit Mode Notice and Animated Switch Pulse
 const promptEnableEditMode = (moduleType, actionDescription = 'make changes') => {
@@ -3441,6 +3447,12 @@ const loadDailyTeachingLog = async (dateStr = null) => {
 
     const docId = `${year}__${cls}__${dateStr}`;
     if (cls !== 'all') {
+        if (!stClassSubjects || !stClassSubjects.length) {
+            try {
+                await ensureClassSubjectsLoaded(year, cls);
+                stClassSubjects = [...classSubjectsList];
+            } catch (_) {}
+        }
         if (!cachedSyllabusDailyLogs[docId]) {
             try {
                 const snap = await getDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId));
@@ -3459,6 +3471,133 @@ const loadDailyTeachingLog = async (dateStr = null) => {
     renderDailyTeachingLogUI(dayName, isDayOff);
 };
 
+// Cropper & Lightbox Bridge Helpers
+const openStCropModalForFile = (file, slotId, field) => {
+    if (!file) return;
+    stActiveCropTarget = { slotId, field };
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const dataUrl = e.target.result;
+        const modal = document.getElementById('st-crop-modal');
+        const canvas = document.getElementById('st-crop-canvas');
+        if (!modal || !canvas) return;
+
+        modal.classList.remove('hidden');
+
+        if (!stCropper) {
+            stCropper = new InteractiveCropper({
+                canvas,
+                targetSize: 400,
+                maxKb: 50,
+                aspectRatio: stActiveCropRatio || 'free'
+            });
+        } else {
+            stCropper.setAspectRatio(stActiveCropRatio || 'free');
+        }
+
+        try {
+            await stCropper.loadImage(dataUrl);
+        } catch (err) {
+            console.error('Failed to load image into cropper:', err);
+            showToast('Failed to load image: ' + err.message, 'error');
+            closeStCropModal();
+        }
+    };
+    reader.readAsDataURL(file);
+};
+
+const closeStCropModal = () => {
+    const modal = document.getElementById('st-crop-modal');
+    if (modal) modal.classList.add('hidden');
+    stActiveCropTarget = null;
+    const fileInput = document.getElementById('st-photo-input-file');
+    const cameraInput = document.getElementById('st-photo-input-camera');
+    if (fileInput) fileInput.value = '';
+    if (cameraInput) cameraInput.value = '';
+};
+
+const applyStCropAndAttach = () => {
+    if (!stCropper || !stActiveCropTarget) {
+        closeStCropModal();
+        return;
+    }
+    const { slotId, field } = stActiveCropTarget;
+    // Export strictly under 50 KB compressed JPEG base64
+    const base64 = stCropper.getCroppedBase64(50);
+
+    const row = document.querySelector(`.st-daily-period-row[data-slot-id="${slotId}"]`);
+    if (row) {
+        if (field === 'description') {
+            const thumbWrap = row.querySelector('.st-desc-thumb-wrap');
+            const thumbImg = row.querySelector('.st-desc-thumb');
+            if (thumbImg) {
+                thumbImg.src = base64;
+                thumbImg.dataset.fullImg = base64;
+            }
+            if (thumbWrap) thumbWrap.classList.remove('hidden');
+            row.dataset.descImg = base64;
+        } else if (field === 'remarks') {
+            const thumbWrap = row.querySelector('.st-remarks-thumb-wrap');
+            const thumbImg = row.querySelector('.st-remarks-thumb');
+            if (thumbImg) {
+                thumbImg.src = base64;
+                thumbImg.dataset.fullImg = base64;
+            }
+            if (thumbWrap) thumbWrap.classList.remove('hidden');
+            row.dataset.remarksImg = base64;
+        }
+    }
+
+    closeStCropModal();
+    showToast('Photo optimized and attached (under 50 KB)!', 'success');
+};
+
+const removeDescPhoto = (slotId) => {
+    const row = document.querySelector(`.st-daily-period-row[data-slot-id="${slotId}"]`);
+    if (row) {
+        const thumbWrap = row.querySelector('.st-desc-thumb-wrap');
+        const thumbImg = row.querySelector('.st-desc-thumb');
+        if (thumbImg) {
+            thumbImg.src = '';
+            thumbImg.dataset.fullImg = '';
+        }
+        if (thumbWrap) thumbWrap.classList.add('hidden');
+        row.dataset.descImg = '';
+    }
+};
+
+const removeRemarksPhoto = (slotId) => {
+    const row = document.querySelector(`.st-daily-period-row[data-slot-id="${slotId}"]`);
+    if (row) {
+        const thumbWrap = row.querySelector('.st-remarks-thumb-wrap');
+        const thumbImg = row.querySelector('.st-remarks-thumb');
+        if (thumbImg) {
+            thumbImg.src = '';
+            thumbImg.dataset.fullImg = '';
+        }
+        if (thumbWrap) thumbWrap.classList.add('hidden');
+        row.dataset.remarksImg = '';
+    }
+};
+
+const openStImageLightbox = (src, caption = 'Attached Teaching Photo') => {
+    if (!src) return;
+    const modal = document.getElementById('st-image-preview-modal');
+    const img = document.getElementById('st-preview-modal-img');
+    const cap = document.getElementById('st-preview-modal-caption');
+    if (!modal || !img) return;
+    img.src = src;
+    if (cap) cap.textContent = caption;
+    modal.classList.remove('hidden');
+};
+
+const closeStImageLightbox = () => {
+    const modal = document.getElementById('st-image-preview-modal');
+    const img = document.getElementById('st-preview-modal-img');
+    if (img) img.src = '';
+    if (modal) modal.classList.add('hidden');
+};
+
 const renderDailyTeachingLogUI = (dayName, isDayOff) => {
     const container = document.getElementById('st-daily-periods-container');
     if (!container) return;
@@ -3467,7 +3606,7 @@ const renderDailyTeachingLogUI = (dayName, isDayOff) => {
     if (cls === 'all') {
         container.innerHTML = `
             <div class="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-900 text-xs font-bold flex items-center justify-between flex-wrap gap-2">
-                <span><i class="fas fa-info-circle mr-1.5 text-indigo-600"></i> "All Classes" is currently selected. Select a specific class above to record daily period teaching, or click "Log Day" directly in any class register table below.</span>
+                <span><i class="fas fa-info-circle mr-1.5 text-indigo-600"></i> "All Classes" is currently selected. Select a specific class above to record daily period teaching, or click on any row in the register table below.</span>
             </div>
         `;
         return;
@@ -3514,65 +3653,116 @@ const renderDailyTeachingLogUI = (dayName, isDayOff) => {
 
         const existingPeriod = existingPeriods.find(p => p.slotId === slot.slotId || p.periodNum === pNum) || {};
 
-        const subjectName = existingPeriod.subjectName || ttCell.subjectName || '';
-        const subjectId = existingPeriod.subjectId || ttCell.subjectId || '';
-        const teacher = existingPeriod.teacher || ttCell.teacher || '';
-        const lessonNo = existingPeriod.lessonNo || '';
-        const topic = existingPeriod.topic || '';
-        const pages = existingPeriod.pages || '';
+        const defaultSubjId = ttCell.subjectId || '';
+        const defaultSubjName = ttCell.subjectName || '';
+        const currentSubjId = existingPeriod.subjectId || defaultSubjId;
+        const currentSubjName = existingPeriod.subjectName || defaultSubjName;
+
         const isCompleted = Boolean(existingPeriod.isCompleted);
+        const description = existingPeriod.description || existingPeriod.topic || '';
+        const descriptionImage = existingPeriod.descriptionImage || '';
         const remarks = existingPeriod.remarks || '';
+        const remarksImage = existingPeriod.remarksImage || '';
+
+        // Build subject select options: includes timetable default and all available subjects
+        let subjOptions = `<option value="">-- Free / Other --</option>`;
+        if (defaultSubjId) {
+            subjOptions += `<option value="${escapeHtml(defaultSubjId)}" ${currentSubjId === defaultSubjId ? 'selected' : ''}>${escapeHtml(defaultSubjName)} (Scheduled)</option>`;
+        }
+        stClassSubjects.forEach(s => {
+            if (s.id !== defaultSubjId) {
+                subjOptions += `<option value="${escapeHtml(s.id)}" ${currentSubjId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`;
+            }
+        });
 
         html += `
-            <div class="p-3 rounded-2xl bg-slate-50/70 border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-center st-daily-period-row"
+            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 st-daily-period-row"
                 data-slot-id="${escapeHtml(slot.slotId)}"
                 data-period="${pNum}"
                 data-slot-label="${escapeHtml(slot.label)}"
                 data-slot-start="${slot.startTime}"
                 data-slot-end="${slot.endTime}"
-                data-subject-id="${escapeHtml(subjectId)}"
-                data-subject-name="${escapeHtml(subjectName)}"
-                data-teacher="${escapeHtml(teacher)}">
+                data-subject-id="${escapeHtml(currentSubjId)}"
+                data-subject-name="${escapeHtml(currentSubjName)}"
+                data-desc-img="${escapeHtml(descriptionImage)}"
+                data-remarks-img="${escapeHtml(remarksImage)}">
                 
-                <div class="md:col-span-3">
-                    <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-900 font-black text-[11px] shrink-0">
+                <div class="flex items-center justify-between flex-wrap gap-2.5 pb-2.5 border-b border-slate-100">
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <span class="px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-950 font-black text-xs shrink-0">
                             ${escapeHtml(slot.label)}
                         </span>
-                        <span class="text-[10px] text-slate-500 font-bold">${slot.startTime} - ${slot.endTime}</span>
+                        <span class="text-[11px] font-bold text-slate-500">${slot.startTime} - ${slot.endTime}</span>
+                        <label class="inline-flex items-center gap-2 cursor-pointer select-none ml-2">
+                            <input type="checkbox" class="st-period-completed w-4.5 h-4.5 rounded cursor-pointer accent-emerald-600 focus:ring-emerald-500" ${isCompleted ? 'checked' : ''}>
+                            <span class="text-xs font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-600'} st-completed-label">
+                                ${isCompleted ? 'Taught Today' : 'Pending'}
+                            </span>
+                        </label>
                     </div>
-                    <div class="font-black text-xs text-slate-900 mt-1">
-                        ${subjectName ? escapeHtml(subjectName) : '<span class="text-slate-400 italic font-semibold">Free Period / Recess</span>'}
-                    </div>
-                    <div class="text-[11px] text-slate-500 font-semibold truncate">
-                        <i class="fas fa-user-tie text-[9px] mr-1 opacity-70"></i>${escapeHtml(teacher || 'Ustad')}
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-[11px] font-black uppercase tracking-wider text-slate-500">Subject:</label>
+                        <select class="st-period-subject-select px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-xs font-black text-slate-800 outline-none focus:border-indigo-500 min-w-[160px]">
+                            ${subjOptions}
+                        </select>
                     </div>
                 </div>
 
-                <div class="md:col-span-3">
-                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Lesson &amp; Topic</label>
-                    <div class="flex items-center gap-1.5">
-                        <input type="text" class="st-period-lesson w-20 px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="Lsn #" value="${escapeHtml(lessonNo)}">
-                        <input type="text" class="st-period-topic flex-1 px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800 outline-none focus:border-indigo-500" placeholder="Topic taught today..." value="${escapeHtml(topic)}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <!-- Taught Lessons & Portions -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <label class="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                                <i class="fas fa-book-open text-indigo-600 mr-1"></i> Taught Lessons &amp; Portions
+                            </label>
+                            <div class="flex items-center gap-1">
+                                <button type="button" class="btn-attach-desc-camera px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Take photo with camera">
+                                    <i class="fas fa-camera text-[10px]"></i> Camera
+                                </button>
+                                <button type="button" class="btn-attach-desc-file px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Upload image file">
+                                    <i class="fas fa-image text-[10px]"></i> Photo
+                                </button>
+                            </div>
+                        </div>
+                        <textarea class="st-period-desc w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 outline-none focus:border-indigo-500 resize-none h-18" placeholder="Lessons, topics, and pages covered...">${escapeHtml(description)}</textarea>
+                        
+                        <div class="st-desc-thumb-wrap ${descriptionImage ? '' : 'hidden'} flex items-center gap-2 pt-1">
+                            <img src="${descriptionImage || ''}" alt="Portion Photo" class="st-desc-thumb w-14 h-14 object-cover rounded-xl border border-slate-300 cursor-pointer shadow-2xs hover:opacity-90 st-thumb-preview" data-full-img="${escapeHtml(descriptionImage)}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(slot.label)} • Portions Photo">
+                            <div class="text-[11px] font-bold text-slate-600">
+                                <button type="button" class="btn-remove-desc-thumb text-rose-600 hover:text-rose-800 font-black cursor-pointer inline-flex items-center gap-1" data-slot-id="${escapeHtml(slot.slotId)}">
+                                    <i class="fas fa-trash-can text-[10px]"></i> Remove Photo
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <div class="md:col-span-2">
-                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Portions / Pages</label>
-                    <input type="text" class="st-period-pages w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. Pgs 14-18" value="${escapeHtml(pages)}">
-                </div>
-
-                <div class="md:col-span-2 flex flex-col justify-center">
-                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Status</label>
-                    <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-                        <input type="checkbox" class="st-period-completed w-4.5 h-4.5 rounded cursor-pointer accent-emerald-600 focus:ring-emerald-500" ${isCompleted ? 'checked' : ''}>
-                        <span class="text-xs font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-600'} st-completed-label">${isCompleted ? 'Taught Today' : 'Pending'}</span>
-                    </label>
-                </div>
-
-                <div class="md:col-span-2">
-                    <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Remarks / HW</label>
-                    <input type="text" class="st-period-remarks w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500" placeholder="Homework / notes" value="${escapeHtml(remarks)}">
+                    <!-- Teacher Remarks / Notes -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <label class="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                                <i class="fas fa-comment-dots text-purple-600 mr-1"></i> Teacher Remarks / Homework
+                            </label>
+                            <div class="flex items-center gap-1">
+                                <button type="button" class="btn-attach-remarks-camera px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Take photo with camera">
+                                    <i class="fas fa-camera text-[10px]"></i> Camera
+                                </button>
+                                <button type="button" class="btn-attach-remarks-file px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Upload image file">
+                                    <i class="fas fa-image text-[10px]"></i> Photo
+                                </button>
+                            </div>
+                        </div>
+                        <textarea class="st-period-remarks w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 outline-none focus:border-indigo-500 resize-none h-18" placeholder="Teacher observations, homework, student notes...">${escapeHtml(remarks)}</textarea>
+                        
+                        <div class="st-remarks-thumb-wrap ${remarksImage ? '' : 'hidden'} flex items-center gap-2 pt-1">
+                            <img src="${remarksImage || ''}" alt="Remarks Photo" class="st-remarks-thumb w-14 h-14 object-cover rounded-xl border border-slate-300 cursor-pointer shadow-2xs hover:opacity-90 st-thumb-preview" data-full-img="${escapeHtml(remarksImage)}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(slot.label)} • Remarks Photo">
+                            <div class="text-[11px] font-bold text-slate-600">
+                                <button type="button" class="btn-remove-remarks-thumb text-rose-600 hover:text-rose-800 font-black cursor-pointer inline-flex items-center gap-1" data-slot-id="${escapeHtml(slot.slotId)}">
+                                    <i class="fas fa-trash-can text-[10px]"></i> Remove Photo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -3620,15 +3810,17 @@ const saveDailyTeachingLog = async () => {
         const label = row.dataset.slotLabel;
         const startTime = row.dataset.slotStart;
         const endTime = row.dataset.slotEnd;
-        const subjectId = row.dataset.subjectId;
-        const subjectName = row.dataset.subjectName;
-        const teacher = row.dataset.teacher;
 
-        const lessonNo = row.querySelector('.st-period-lesson')?.value.trim() || '';
-        const topic = row.querySelector('.st-period-topic')?.value.trim() || '';
-        const pages = row.querySelector('.st-period-pages')?.value.trim() || '';
+        const subjSelect = row.querySelector('.st-period-subject-select');
+        const subjectId = subjSelect ? subjSelect.value : (row.dataset.subjectId || '');
+        const selectedOpt = subjSelect?.selectedOptions?.[0];
+        const subjectName = selectedOpt ? selectedOpt.textContent.replace(/\s*\(Scheduled\)$/i, '').trim() : (row.dataset.subjectName || '');
+
         const isCompleted = Boolean(row.querySelector('.st-period-completed')?.checked);
+        const description = row.querySelector('.st-period-desc')?.value.trim() || '';
+        const descriptionImage = row.dataset.descImg || row.querySelector('.st-desc-thumb')?.getAttribute('src') || '';
         const remarks = row.querySelector('.st-period-remarks')?.value.trim() || '';
+        const remarksImage = row.dataset.remarksImg || row.querySelector('.st-remarks-thumb')?.getAttribute('src') || '';
 
         periods.push({
             slotId,
@@ -3638,12 +3830,11 @@ const saveDailyTeachingLog = async () => {
             endTime,
             subjectId,
             subjectName,
-            teacher,
-            lessonNo,
-            topic,
-            pages,
             isCompleted,
-            remarks
+            description,
+            descriptionImage: descriptionImage && descriptionImage.startsWith('data:') ? descriptionImage : (descriptionImage || ''),
+            remarks,
+            remarksImage: remarksImage && remarksImage.startsWith('data:') ? remarksImage : (remarksImage || '')
         });
     });
 
@@ -3701,7 +3892,10 @@ const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId,
                 topic: '',
                 pages: '',
                 isCompleted: (s.slotId === slotId ? isChecked : false),
-                remarks: ''
+                description: '',
+                descriptionImage: '',
+                remarks: '',
+                remarksImage: ''
             };
         });
         logData = {
@@ -3736,6 +3930,254 @@ const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId,
     }
 };
 
+const renderMonthlySubjectsCompletionUI = async (classLabel, activeMonth) => {
+    const container = document.getElementById('st-monthly-subjects-summary');
+    if (!container) return;
+
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+
+    if (!classLabel || classLabel === 'all') {
+        const allowed = getAllowedClassesForTeacher();
+        let classesHtml = '';
+        allowed.forEach(cls => {
+            const clsYp = allClassesSyllabusData[cls] || {};
+            const grid = clsYp.grid || {};
+            const subjects = clsYp.subjects || [];
+            let totalSubjs = subjects.length;
+            let completedSubjs = 0;
+            let sumPct = 0;
+
+            subjects.forEach(s => {
+                const cell = grid[`${activeMonth}__${s.id}`] || {};
+                const pct = typeof cell.progressPercent === 'number' ? cell.progressPercent : (cell.isCompleted ? 100 : 0);
+                if (pct >= 100 || cell.isCompleted) completedSubjs++;
+                sumPct += pct;
+            });
+
+            const avgPct = totalSubjs > 0 ? Math.round(sumPct / totalSubjs) : 0;
+
+            classesHtml += `
+                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0">${escapeHtml(cls)}</span>
+                        <div>
+                            <div class="font-black text-xs text-slate-900">Class ${escapeHtml(cls)} Completion</div>
+                            <div class="text-[11px] text-slate-500 font-bold">${completedSubjs} of ${totalSubjs} Subjects Completed (${avgPct}%)</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-24 bg-slate-200 rounded-full h-2 overflow-hidden hidden sm:block">
+                            <div class="bg-indigo-600 h-2 rounded-full" style="width: ${avgPct}%"></div>
+                        </div>
+                        <button type="button" class="btn-focus-class-from-summary px-3 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs cursor-pointer shadow-2xs" data-class="${escapeHtml(cls)}">
+                            Focus Class ${escapeHtml(cls)}
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                            <i class="fas fa-list-check"></i>
+                        </span>
+                        <div>
+                            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wide">Monthly Syllabus Completion Overview (${escapeHtml(activeMonth)})</h4>
+                            <p class="text-[11px] text-slate-500 font-semibold">Select a class from the Class filter to record end-of-month portion completion.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    ${classesHtml || '<div class="text-slate-400 text-xs italic p-3">No classes available</div>'}
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // Specific Class is Selected
+    const subjects = (Array.isArray(stClassSubjects) && stClassSubjects.length > 0)
+        ? stClassSubjects
+        : (allClassesSyllabusData[classLabel]?.subjects || []);
+
+    const grid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
+        ? yearPlanGrid
+        : (stCurrentGrid || allClassesSyllabusData[classLabel]?.grid || {});
+
+    let totalSubjs = subjects.length;
+    let completedCount = 0;
+    let sumPct = 0;
+
+    subjects.forEach(s => {
+        const cell = grid[`${activeMonth}__${s.id}`] || {};
+        const pct = typeof cell.progressPercent === 'number' ? cell.progressPercent : (cell.isCompleted ? 100 : 0);
+        if (pct >= 100 || cell.isCompleted) completedCount++;
+        sumPct += pct;
+    });
+
+    const overallPct = totalSubjs > 0 ? Math.round(sumPct / totalSubjs) : 0;
+
+    let cardsHtml = '';
+    if (!subjects.length) {
+        cardsHtml = `
+            <div class="col-span-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-slate-400 font-bold text-xs">
+                No subjects found for Class ${escapeHtml(classLabel)}. Please add subjects in the Class Subjects tab.
+            </div>
+        `;
+    } else {
+        subjects.forEach(s => {
+            const cellKey = `${activeMonth}__${s.id}`;
+            const cell = grid[cellKey] || {};
+            const isCompleted = Boolean(cell.isCompleted);
+            const progressPercent = typeof cell.progressPercent === 'number' ? cell.progressPercent : (isCompleted ? 100 : 0);
+
+            const topic = cell.topic || cell.lessonNo || '';
+            const pages = cell.pages || '';
+            const breakdown = cell.breakdown || cell.notes || '';
+            const allocatedPeriods = cell.allocatedPeriods || '';
+
+            const hasPlan = Boolean(topic || pages || breakdown || allocatedPeriods);
+
+            cardsHtml += `
+                <div class="p-3.5 rounded-2xl ${isCompleted || progressPercent === 100 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-white border-slate-200'} border shadow-2xs space-y-3 flex flex-col justify-between st-month-subject-card transition"
+                    data-subject-id="${escapeHtml(s.id)}"
+                    data-subject-name="${escapeHtml(s.name)}"
+                    data-class="${escapeHtml(classLabel)}"
+                    data-month="${escapeHtml(activeMonth)}">
+                    
+                    <div class="space-y-2">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <h5 class="text-xs font-black text-slate-900 leading-snug flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full ${isCompleted || progressPercent === 100 ? 'bg-emerald-500' : (progressPercent > 0 ? 'bg-indigo-500' : 'bg-slate-300')}"></span>
+                                    <span>${escapeHtml(s.name)}</span>
+                                </h5>
+                                <div class="text-[10px] text-slate-500 font-bold mt-0.5">
+                                    ${escapeHtml(s.teacher || 'Assigned Teacher')}
+                                </div>
+                            </div>
+                            <span class="st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${isCompleted || progressPercent === 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : (progressPercent > 0 ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-slate-100 text-slate-600 border border-slate-200')}">
+                                ${isCompleted || progressPercent === 100 ? 'Completed (100%)' : (progressPercent > 0 ? `${progressPercent}% In Progress` : 'Pending (0%)')}
+                            </span>
+                        </div>
+
+                        <div class="p-2.5 rounded-xl bg-slate-50/90 border border-slate-100 text-[11px] space-y-1">
+                            <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Planned Target (${escapeHtml(activeMonth)})</div>
+                            ${hasPlan ? `
+                                <div class="font-bold text-slate-800 leading-tight">
+                                    ${topic ? `<span class="text-indigo-900 font-black">${escapeHtml(topic)}</span>` : ''}
+                                    ${pages ? `<span class="text-slate-600 font-semibold ml-1">(Pages: ${escapeHtml(pages)})</span>` : ''}
+                                </div>
+                                ${breakdown ? `<div class="text-[10px] text-slate-500 italic truncate">${escapeHtml(breakdown)}</div>` : ''}
+                                ${allocatedPeriods ? `<div class="text-[10px] text-indigo-700 font-extrabold"><i class="fas fa-clock text-[9px] mr-1"></i>Allocated: ${escapeHtml(allocatedPeriods)} periods</div>` : ''}
+                            ` : `
+                                <div class="text-slate-400 italic text-[11px]">No syllabus target planned in Academic Year Plan for this month.</div>
+                            `}
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                                <input type="checkbox" class="st-month-subj-cb w-4 h-4 rounded cursor-pointer accent-emerald-600" ${isCompleted || progressPercent === 100 ? 'checked' : ''}>
+                                <span class="text-xs font-black ${isCompleted || progressPercent === 100 ? 'text-emerald-700' : 'text-slate-700'}">
+                                    Mark 100% Completed
+                                </span>
+                            </label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" min="0" max="100" class="st-month-subj-input w-12 px-1.5 py-0.5 text-right font-black text-xs border border-slate-300 rounded-lg text-slate-800 outline-none focus:border-indigo-500" value="${progressPercent}">
+                                <span class="text-[11px] font-bold text-slate-500">%</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <input type="range" min="0" max="100" step="5" class="st-month-subj-slider w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" value="${progressPercent}">
+                        </div>
+
+                        <div class="flex items-center justify-between gap-1 pt-0.5">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Quick:</span>
+                            <div class="flex items-center gap-1">
+                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition cursor-pointer" data-pct="25">25%</button>
+                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition cursor-pointer" data-pct="50">50%</button>
+                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition cursor-pointer" data-pct="75">75%</button>
+                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-black rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer" data-pct="100">100%</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    container.innerHTML = `
+        <div class="space-y-3">
+            <div class="flex items-center justify-between pb-2.5 border-b border-slate-100 flex-wrap gap-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0">
+                        <i class="fas fa-clipboard-check"></i>
+                    </span>
+                    <div>
+                        <h4 class="text-xs font-black text-slate-900 uppercase tracking-wide">
+                            Class ${escapeHtml(classLabel)} Monthly Syllabus Subject Completion (${escapeHtml(activeMonth)})
+                        </h4>
+                        <p class="text-[11px] text-slate-500 font-bold">Planned targets from Academic Year Plan • Confirm portions completed by month-end</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-3 py-1 rounded-xl text-xs font-black ${overallPct === 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}">
+                        ${completedCount} / ${totalSubjs} Completed (${overallPct}%)
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                ${cardsHtml}
+            </div>
+        </div>
+    `;
+};
+
+const saveSubjectMonthlyCompletion = async (classLabel, month, subjectId, progressPercent, isCompleted) => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const docId = getYearPlanDocId(year, classLabel);
+
+    const targetGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
+        ? yearPlanGrid
+        : (stCurrentGrid || (allClassesSyllabusData[classLabel]?.grid) || {});
+
+    const key = `${month}__${subjectId}`;
+    const cell = targetGrid[key] || {};
+
+    const pct = Math.max(0, Math.min(100, Math.round(Number(progressPercent) || 0)));
+    const done = Boolean(isCompleted || pct === 100);
+
+    cell.isCompleted = done;
+    cell.progressPercent = pct;
+    cell.status = pct === 100 ? 'Completed' : (pct > 0 ? 'In Progress' : 'Planned');
+    cell.updatedAt = Date.now();
+    cell.updatedBy = auth.currentUser?.email || 'admin';
+
+    targetGrid[key] = cell;
+    if (classLabel === selectedStClass) stCurrentGrid[key] = cell;
+    if (classLabel === selectedYpClass) yearPlanGrid[key] = cell;
+    if (allClassesSyllabusData[classLabel]) allClassesSyllabusData[classLabel].grid[key] = cell;
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
+            grid: targetGrid,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        showToast(`Saved: ${pct}% completion recorded for subject!`, 'success');
+    } catch (err) {
+        console.error('Error saving subject monthly completion:', err);
+        showToast('Failed to save completion: ' + err.message, 'error');
+    }
+};
+
 const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
     const isHijri = currentYpCalendarType === 'hijri';
@@ -3765,12 +4207,9 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
                 <tr class="bg-slate-100 text-slate-900 border-b-2 border-slate-900 font-black text-xs uppercase tracking-wider">
                     <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-12 bg-slate-200/80">#</th>
                     <th class="py-2.5 px-3 border-r-2 border-slate-900 w-36 bg-slate-200/80">Date &amp; Weekday</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-28">Day Status</th>
                     <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[220px]">Timetable Periods Scheduled</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[260px]">Taught Lessons &amp; Portions Log</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 text-center w-36">Execution Status</th>
-                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[160px]">Teacher Remarks / Notes</th>
-                    <th class="py-2.5 px-3 text-center w-28 no-print">Action</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[320px]">Taught Lessons &amp; Portions Log</th>
+                    <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[220px]">Teacher Remarks / Notes</th>
                 </tr>
             </thead>
             <tbody class="divide-y-2 divide-slate-800 font-medium">`;
@@ -3801,7 +4240,7 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
         if (stSearchQuery) {
             const q = stSearchQuery;
-            const logText = loggedPeriods.map(p => `${p.subjectName || ''} ${p.topic || ''} ${p.lessonNo || ''} ${p.remarks || ''}`).join(' ').toLowerCase();
+            const logText = loggedPeriods.map(p => `${p.subjectName || ''} ${p.description || p.topic || ''} ${p.remarks || ''}`).join(' ').toLowerCase();
             const dayText = `${d} ${activeMonth} ${dayName}`.toLowerCase();
             if (!logText.includes(q) && !dayText.includes(q)) {
                 continue;
@@ -3821,26 +4260,14 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
         if (isDayOff) {
             html += `
-                <tr class="bg-rose-50/20 hover:bg-rose-50/30 transition border-b border-slate-300">
-                    <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-500 bg-slate-100/60">
-                        ${d}
-                    </td>
-                    <td class="py-2.5 px-3 border-r-2 border-slate-800 font-black text-slate-700 whitespace-nowrap">
+                <tr class="bg-rose-50/25 hover:bg-rose-50/35 transition border-b border-slate-300">
+                    <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-500 bg-slate-100/60">${d}</td>
+                    <td class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap">
                         <div class="text-xs font-black text-slate-900">${String(d).padStart(2, '0')} ${monthShort}</div>
                         <div class="text-[10px] font-bold text-slate-500">${dayName}</div>
                     </td>
-                    <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
-                            Off Day
-                        </span>
-                    </td>
-                    <td colspan="4" class="py-2.5 px-3 border-r-2 border-slate-800 text-center bg-rose-50/10 text-rose-700/80 font-bold text-xs select-none">
+                    <td colspan="3" class="py-3 px-4 border-r-2 border-slate-800 text-center bg-rose-50/15 text-rose-700 font-bold text-xs select-none">
                         <i class="fas fa-couch mr-1.5 text-rose-400"></i> Weekly Off Day / Institutional Holiday
-                    </td>
-                    <td class="py-2.5 px-3 text-center align-middle no-print">
-                        <button type="button" class="btn-jump-log-day px-2.5 py-1 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-lg text-xs font-black transition cursor-pointer shadow-2xs inline-flex items-center gap-1" data-date="${dateStr}" data-class="${escapeHtml(cls)}" title="Log Extra Class / Special Session">
-                            <i class="fas fa-pen-to-square text-[10px]"></i> Log
-                        </button>
                     </td>
                 </tr>
             `;
@@ -3850,26 +4277,20 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
         const totalPeriodsCount = teachingSlots.length;
         const completedPeriodsCount = loggedPeriods.filter(p => p.isCompleted).length;
         const isFullyDone = (totalPeriodsCount > 0 && completedPeriodsCount >= totalPeriodsCount);
-        const hasAnyLog = loggedPeriods.some(p => p.topic || p.lessonNo || p.pages || p.isCompleted);
 
         html += `
-            <tr class="hover:bg-slate-50 transition border-b border-slate-300 ${isFullyDone ? 'bg-emerald-50/20' : ''}">
+            <tr class="hover:bg-slate-50/70 transition border-b border-slate-300 ${isFullyDone ? 'bg-emerald-50/20' : ''}">
                 <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50">
                     ${d}
                 </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap">
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap cursor-pointer hover:bg-indigo-50/50 transition btn-jump-log-date" data-date="${dateStr}" data-class="${escapeHtml(cls)}" title="Click to open this day in Teaching Logger">
                     <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
                         <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
                         <span>${String(d).padStart(2, '0')} ${monthShort}</span>
                     </div>
-                    <div class="text-[11px] font-bold text-slate-600 mt-0.5">
+                    <div class="text-[10px] font-bold text-slate-500 mt-0.5">
                         ${dayName}
                     </div>
-                </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        Working Day
-                    </span>
                 </td>
                 <td class="py-2.5 px-3 border-r-2 border-slate-800 align-top">
                     <div class="flex flex-wrap gap-1">
@@ -3886,53 +4307,66 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
                     </div>
                 </td>
                 <td class="py-2.5 px-3 border-r-2 border-slate-800 align-top">
-                    ${hasAnyLog ? `
-                        <div class="space-y-1">
-                            ${loggedPeriods.map(p => {
-                                if (!p.topic && !p.lessonNo && !p.pages && !p.isCompleted) return '';
+                    <div class="space-y-1.5">
+                        ${teachingSlots.map(s => {
+                            const p = loggedPeriods.find(lp => lp.slotId === s.slotId || lp.periodNum === s.slotNum) || {};
+                            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+                            const sName = p.subjectName || ttCell.subjectName || 'Free';
+                            const isTaught = Boolean(p.isCompleted);
+                            const desc = p.description || p.topic || '';
+                            const descImg = p.descriptionImage || '';
+                            if (!isTaught && !desc && !descImg) {
                                 return `
-                                    <div class="p-1.5 rounded-lg ${p.isCompleted ? 'bg-emerald-50/80 border border-emerald-200' : 'bg-slate-50 border border-slate-200'} text-[11px] flex items-center justify-between gap-1.5">
-                                        <div>
-                                            <span class="font-black text-slate-900">${escapeHtml(p.subjectName || p.label || 'Period')}:</span>
-                                            ${p.lessonNo ? `<span class="font-bold text-indigo-900">${escapeHtml(p.lessonNo)} - </span>` : ''}
-                                            <span class="text-slate-700 font-semibold">${escapeHtml(p.topic || 'Portion completed')}</span>
-                                            ${p.pages ? `<span class="text-[10px] text-indigo-700 font-bold ml-1">(${escapeHtml(p.pages)})</span>` : ''}
-                                        </div>
-                                        <div class="shrink-0 flex items-center gap-1">
-                                            <input type="checkbox" class="st-register-period-check w-4 h-4 rounded cursor-pointer accent-emerald-600" data-date="${dateStr}" data-slot-id="${p.slotId || ''}" data-class="${escapeHtml(cls)}" ${p.isCompleted ? 'checked' : ''} title="Mark as taught">
-                                        </div>
+                                    <div class="p-1 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-400 flex items-center justify-between">
+                                        <span><strong>${escapeHtml(s.label)}:</strong> ${escapeHtml(sName)}</span>
+                                        <span class="italic text-[9px]">Pending</span>
                                     </div>
                                 `;
-                            }).join('')}
-                        </div>
-                    ` : `
-                        <span class="text-slate-400 italic text-[11px] block py-1">No teaching log recorded yet for this day</span>
-                    `}
+                            }
+                            return `
+                                <div class="p-2 rounded-xl ${isTaught ? 'bg-emerald-50/70 border border-emerald-200' : 'bg-slate-50 border border-slate-200'} text-[11px] space-y-1">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <div class="font-black ${isTaught ? 'text-emerald-950' : 'text-slate-800'} flex items-center gap-1.5">
+                                            <i class="fas ${isTaught ? 'fa-circle-check text-emerald-600' : 'fa-clock text-slate-400'} text-xs"></i>
+                                            <span>${escapeHtml(s.label)}: ${escapeHtml(sName)}</span>
+                                        </div>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${isTaught ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">
+                                            ${isTaught ? 'Taught' : 'Pending'}
+                                        </span>
+                                    </div>
+                                    ${desc ? `<div class="text-slate-700 font-medium whitespace-pre-wrap">${escapeHtml(desc)}</div>` : ''}
+                                    ${descImg ? `
+                                        <div class="pt-0.5 flex items-center gap-1.5">
+                                            <img src="${descImg}" alt="Portion Photo" class="w-10 h-10 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-2xs hover:opacity-80 transition st-thumb-preview" data-full-img="${descImg}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(s.label)} (${escapeHtml(sName)}) • Portion Photo">
+                                            <span class="text-[10px] text-slate-500 font-bold">Photo attached (click to view)</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
                 </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center align-middle">
-                    ${isFullyDone ? `
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                            <i class="fas fa-circle-check text-emerald-600"></i> All Taught (${completedPeriodsCount}/${totalPeriodsCount})
-                        </span>
-                    ` : (completedPeriodsCount > 0 ? `
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                            Partial (${completedPeriodsCount}/${totalPeriodsCount})
-                        </span>
-                    ` : `
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            Pending
-                        </span>
-                    `)}
-                </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-slate-600 text-[11px] align-middle">
-                    ${loggedPeriods.some(p => p.remarks)
-                        ? loggedPeriods.filter(p => p.remarks).map(p => `<div class="truncate"><strong class="text-slate-800">${escapeHtml(p.subjectName || '')}:</strong> ${escapeHtml(p.remarks)}</div>`).join('')
-                        : '<span class="text-slate-300 italic">--</span>'}
-                </td>
-                <td class="py-2.5 px-3 text-center align-middle no-print">
-                    <button type="button" class="btn-jump-log-day px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer" data-date="${dateStr}" data-class="${escapeHtml(cls)}" title="Record period-wise portions taught on this day">
-                        <i class="fas fa-pen-to-square"></i> Log Day
-                    </button>
+                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-slate-700 text-[11px] align-top">
+                    <div class="space-y-1.5">
+                        ${teachingSlots.map(s => {
+                            const p = loggedPeriods.find(lp => lp.slotId === s.slotId || lp.periodNum === s.slotNum) || {};
+                            const remarks = p.remarks || '';
+                            const remarksImg = p.remarksImage || '';
+                            if (!remarks && !remarksImg) return '';
+                            return `
+                                <div class="p-1.5 rounded-lg bg-purple-50/50 border border-purple-100 space-y-1">
+                                    <div class="text-[10px] font-black text-purple-900">${escapeHtml(s.label)}:</div>
+                                    ${remarks ? `<div class="font-medium whitespace-pre-wrap">${escapeHtml(remarks)}</div>` : ''}
+                                    ${remarksImg ? `
+                                        <div class="pt-0.5 flex items-center gap-1.5">
+                                            <img src="${remarksImg}" alt="Remarks Photo" class="w-10 h-10 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-2xs hover:opacity-80 transition st-thumb-preview" data-full-img="${remarksImg}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(s.label)} • Remarks Photo">
+                                            <span class="text-[10px] text-slate-500 font-bold">Photo attached</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('') || '<span class="text-slate-300 italic">--</span>'}
+                    </div>
                 </td>
             </tr>
         `;
@@ -4117,6 +4551,9 @@ const renderSyllabusTrackerUI = () => {
     const yearNum = parseInt(year) || new Date().getFullYear();
     const daysInMonth = isHijri ? 30 : new Date(yearNum, mIndex + 1, 0).getDate();
     const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+
+    // Render the Class Monthly Subject Completion Panel (Year Plan Targets & End-of-Month Completion)
+    renderMonthlySubjectsCompletionUI(selectedStClass, activeMonth);
 
     if (selectedStClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
@@ -6218,6 +6655,124 @@ const setupEventListeners = () => {
     document.getElementById('btn-st-add-entry')?.addEventListener('click', () => openAddEditTrackerEntryModal());
     document.getElementById('btn-print-syllabus-tracker')?.addEventListener('click', printSyllabusTracker);
 
+    // Monthly Subject Completion Panel Listeners
+    const updateSubjectCardBadge = (card, val, isDone) => {
+        if (!card) return;
+        const badge = card.querySelector('.st-subj-status-badge');
+        const dot = card.querySelector('.rounded-full');
+        const isCompleted = isDone || val === 100;
+
+        if (badge) {
+            if (isCompleted) {
+                badge.textContent = 'Completed (100%)';
+                badge.className = 'st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-300';
+            } else if (val > 0) {
+                badge.textContent = `${val}% In Progress`;
+                badge.className = 'st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 bg-indigo-100 text-indigo-800 border border-indigo-200';
+            } else {
+                badge.textContent = 'Pending (0%)';
+                badge.className = 'st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 bg-slate-100 text-slate-600 border border-slate-200';
+            }
+        }
+        if (dot) {
+            dot.className = `w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-500' : (val > 0 ? 'bg-indigo-500' : 'bg-slate-300')}`;
+        }
+        if (isCompleted) {
+            card.classList.remove('bg-white', 'border-slate-200');
+            card.classList.add('bg-emerald-50/40', 'border-emerald-200');
+        } else {
+            card.classList.remove('bg-emerald-50/40', 'border-emerald-200');
+            card.classList.add('bg-white', 'border-slate-200');
+        }
+    };
+
+    const monthlySummaryEl = document.getElementById('st-monthly-subjects-summary');
+    monthlySummaryEl?.addEventListener('change', async (e) => {
+        const cb = e.target.closest('.st-month-subj-cb');
+        if (cb) {
+            const card = cb.closest('.st-month-subject-card');
+            if (!card) return;
+            const cls = card.dataset.class;
+            const m = card.dataset.month;
+            const sId = card.dataset.subjectId;
+            const isDone = cb.checked;
+            const val = isDone ? 100 : 0;
+            const slider = card.querySelector('.st-month-subj-slider');
+            const input = card.querySelector('.st-month-subj-input');
+            if (slider) slider.value = val;
+            if (input) input.value = val;
+            updateSubjectCardBadge(card, val, isDone);
+            await saveSubjectMonthlyCompletion(cls, m, sId, val, isDone);
+            return;
+        }
+
+        const input = e.target.closest('.st-month-subj-input');
+        if (input) {
+            const card = input.closest('.st-month-subject-card');
+            if (!card) return;
+            const cls = card.dataset.class;
+            const m = card.dataset.month;
+            const sId = card.dataset.subjectId;
+            const val = Math.max(0, Math.min(100, Number(input.value) || 0));
+            const slider = card.querySelector('.st-month-subj-slider');
+            const cb = card.querySelector('.st-month-subj-cb');
+            if (slider) slider.value = val;
+            if (cb) cb.checked = (val === 100);
+            updateSubjectCardBadge(card, val, val === 100);
+            await saveSubjectMonthlyCompletion(cls, m, sId, val, val === 100);
+            return;
+        }
+    });
+
+    monthlySummaryEl?.addEventListener('input', async (e) => {
+        const slider = e.target.closest('.st-month-subj-slider');
+        if (slider) {
+            const card = slider.closest('.st-month-subject-card');
+            if (!card) return;
+            const cls = card.dataset.class;
+            const m = card.dataset.month;
+            const sId = card.dataset.subjectId;
+            const val = Number(slider.value);
+            const input = card.querySelector('.st-month-subj-input');
+            const cb = card.querySelector('.st-month-subj-cb');
+            if (input) input.value = val;
+            if (cb) cb.checked = (val === 100);
+            updateSubjectCardBadge(card, val, val === 100);
+            await saveSubjectMonthlyCompletion(cls, m, sId, val, val === 100);
+        }
+    });
+
+    monthlySummaryEl?.addEventListener('click', async (e) => {
+        const quickBtn = e.target.closest('.btn-quick-subj-pct');
+        if (quickBtn) {
+            const pct = Number(quickBtn.dataset.pct);
+            const card = quickBtn.closest('.st-month-subject-card');
+            if (!card) return;
+            const cls = card.dataset.class;
+            const m = card.dataset.month;
+            const sId = card.dataset.subjectId;
+            const slider = card.querySelector('.st-month-subj-slider');
+            const input = card.querySelector('.st-month-subj-input');
+            const cb = card.querySelector('.st-month-subj-cb');
+            if (slider) slider.value = pct;
+            if (input) input.value = pct;
+            if (cb) cb.checked = (pct === 100);
+            updateSubjectCardBadge(card, pct, pct === 100);
+            await saveSubjectMonthlyCompletion(cls, m, sId, pct, pct === 100);
+            return;
+        }
+
+        const focusBtn = e.target.closest('.btn-focus-class-from-summary');
+        if (focusBtn) {
+            const cls = focusBtn.dataset.class;
+            const sel = document.getElementById('st-class-select');
+            if (sel) sel.value = cls;
+            selectedStClass = cls;
+            await loadSyllabusTracker();
+            return;
+        }
+    });
+
     // Daily Teaching Logger Date & Save Controls
     document.getElementById('st-daily-date-picker')?.addEventListener('change', (e) => {
         changeDailyLogDate(e.target.value);
@@ -6236,6 +6791,113 @@ const setupEventListeners = () => {
         changeDailyLogDate(cur.toISOString().split('T')[0]);
     });
     document.getElementById('btn-save-daily-st-log')?.addEventListener('click', saveDailyTeachingLog);
+
+    // Photo Capture & Upload Hooks
+    const triggerPhotoAttach = (slotId, field, useCamera) => {
+        pendingCropSlotId = slotId;
+        pendingCropField = field;
+        const input = document.getElementById(useCamera ? 'st-photo-input-camera' : 'st-photo-input-file');
+        if (input) {
+            input.value = '';
+            input.click();
+        }
+    };
+
+    document.getElementById('st-photo-input-file')?.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file && pendingCropSlotId && pendingCropField) {
+            openStCropModalForFile(file, pendingCropSlotId, pendingCropField);
+        }
+    });
+
+    document.getElementById('st-photo-input-camera')?.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file && pendingCropSlotId && pendingCropField) {
+            openStCropModalForFile(file, pendingCropSlotId, pendingCropField);
+        }
+    });
+
+    // Period Row Interactions (Camera, File, Remove, Lightbox)
+    document.getElementById('st-daily-periods-container')?.addEventListener('click', (e) => {
+        const descCamBtn = e.target.closest('.btn-attach-desc-camera');
+        if (descCamBtn) {
+            triggerPhotoAttach(descCamBtn.dataset.slotId, 'description', true);
+            return;
+        }
+        const descFileBtn = e.target.closest('.btn-attach-desc-file');
+        if (descFileBtn) {
+            triggerPhotoAttach(descFileBtn.dataset.slotId, 'description', false);
+            return;
+        }
+        const descRemoveBtn = e.target.closest('.btn-remove-desc-thumb');
+        if (descRemoveBtn) {
+            removeDescPhoto(descRemoveBtn.dataset.slotId);
+            return;
+        }
+
+        const remarksCamBtn = e.target.closest('.btn-attach-remarks-camera');
+        if (remarksCamBtn) {
+            triggerPhotoAttach(remarksCamBtn.dataset.slotId, 'remarks', true);
+            return;
+        }
+        const remarksFileBtn = e.target.closest('.btn-attach-remarks-file');
+        if (remarksFileBtn) {
+            triggerPhotoAttach(remarksFileBtn.dataset.slotId, 'remarks', false);
+            return;
+        }
+        const remarksRemoveBtn = e.target.closest('.btn-remove-remarks-thumb');
+        if (remarksRemoveBtn) {
+            removeRemarksPhoto(remarksRemoveBtn.dataset.slotId);
+            return;
+        }
+
+        const previewImg = e.target.closest('.st-thumb-preview');
+        if (previewImg) {
+            const src = previewImg.dataset.fullImg || previewImg.src;
+            const caption = previewImg.dataset.caption || 'Attached Teaching Photo';
+            openStImageLightbox(src, caption);
+            return;
+        }
+    });
+
+    // Crop Modal Listeners
+    document.querySelectorAll('.st-crop-ratio-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const ratio = btn.dataset.ratio;
+            stActiveCropRatio = ratio;
+            document.querySelectorAll('.st-crop-ratio-btn').forEach(b => {
+                b.className = 'st-crop-ratio-btn px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300';
+            });
+            btn.className = 'st-crop-ratio-btn px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-indigo-600 text-white';
+            if (stCropper) {
+                stCropper.setAspectRatio(ratio);
+            }
+        });
+    });
+
+    document.getElementById('btn-st-crop-rotate')?.addEventListener('click', () => {
+        stCropper?.rotateClockwise();
+    });
+    document.getElementById('btn-st-crop-zoom-in')?.addEventListener('click', () => {
+        stCropper?.zoomCropBox(1.1);
+    });
+    document.getElementById('btn-st-crop-zoom-out')?.addEventListener('click', () => {
+        stCropper?.zoomCropBox(0.9);
+    });
+    document.getElementById('btn-st-crop-reset')?.addEventListener('click', () => {
+        stCropper?.reset();
+    });
+    document.getElementById('btn-st-crop-apply')?.addEventListener('click', applyStCropAndAttach);
+    document.getElementById('btn-st-crop-cancel')?.addEventListener('click', closeStCropModal);
+    document.getElementById('btn-st-crop-cancel-x')?.addEventListener('click', closeStCropModal);
+
+    // Lightbox Modal Listeners
+    document.getElementById('btn-close-st-preview-modal')?.addEventListener('click', closeStImageLightbox);
+    document.getElementById('st-image-preview-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'st-image-preview-modal') {
+            closeStImageLightbox();
+        }
+    });
 
     document.getElementById('modal-st-completed')?.addEventListener('change', (e) => {
         const slider = document.getElementById('modal-st-progress-slider');
@@ -6278,7 +6940,17 @@ const setupEventListeners = () => {
     });
 
     document.getElementById('st-schedule-grid')?.addEventListener('click', async (e) => {
-        const jumpBtn = e.target.closest('.btn-jump-log-day');
+        const previewThumb = e.target.closest('.st-thumb-preview');
+        if (previewThumb) {
+            e.preventDefault();
+            e.stopPropagation();
+            const src = previewThumb.dataset.fullImg || previewThumb.src;
+            const caption = previewThumb.dataset.caption || 'Attached Teaching Photo';
+            openStImageLightbox(src, caption);
+            return;
+        }
+
+        const jumpBtn = e.target.closest('.btn-jump-log-day, .btn-jump-log-date');
         if (jumpBtn) {
             e.preventDefault();
             const dStr = jumpBtn.dataset.date;

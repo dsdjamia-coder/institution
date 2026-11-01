@@ -726,47 +726,9 @@
             </div>
           </div>
 
-          <!-- Summary Metrics Cards -->
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="st-metrics-summary">
-            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-base shrink-0">
-                <i class="fas fa-book-bookmark"></i>
-              </div>
-              <div>
-                <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Total Lessons</div>
-                <div id="st-stat-total-lessons" class="text-base sm:text-lg font-black text-slate-900 leading-tight">0</div>
-              </div>
-            </div>
-            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-base shrink-0">
-                <i class="fas fa-circle-check"></i>
-              </div>
-              <div>
-                <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Completed</div>
-                <div class="flex items-center gap-1.5">
-                  <span id="st-stat-completed-lessons" class="text-base sm:text-lg font-black text-emerald-700 leading-tight">0</span>
-                  <span id="st-stat-completion-pct" class="text-xs font-bold text-slate-500">(0%)</span>
-                </div>
-              </div>
-            </div>
-            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-base shrink-0">
-                <i class="fas fa-stopwatch"></i>
-              </div>
-              <div>
-                <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Periods Tracked</div>
-                <div id="st-stat-total-periods" class="text-base sm:text-lg font-black text-purple-800 leading-tight">0</div>
-              </div>
-            </div>
-            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-center">
-              <div class="flex items-center justify-between text-[10px] uppercase font-black tracking-wider text-slate-400 mb-1">
-                <span>Overall Progress</span>
-                <span id="st-progress-bar-text" class="text-indigo-700 font-extrabold">0%</span>
-              </div>
-              <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                <div id="st-progress-bar-fill" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-              </div>
-            </div>
+          <!-- Monthly Subject Completion Panel (Targets & Completion) -->
+          <div id="st-monthly-subjects-summary" class="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <!-- Populated dynamically by renderMonthlySubjectsCompletionUI() -->
           </div>
 
           <!-- Table Matrix Card Container -->
@@ -1856,6 +1818,102 @@
             <i class="fas fa-check"></i> Import Selected Subjects
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Inputs for Syllabus Tracker Camera & Photo Upload -->
+  <input type="file" id="st-photo-input-file" accept="image/*" class="hidden">
+  <input type="file" id="st-photo-input-camera" accept="image/*" capture="environment" class="hidden">
+
+  <!-- Syllabus Tracker Image Crop Modal -->
+  <div id="st-crop-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 hidden">
+    <div class="bg-slate-900 text-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-700 flex flex-col max-h-[92vh]">
+      <!-- Header -->
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
+            <i class="fas fa-crop-simple"></i>
+          </span>
+          <div>
+            <h3 class="font-black text-sm text-white">Crop &amp; Optimize Photo</h3>
+            <p class="text-[11px] text-slate-400 font-medium">Select aspect ratio, adjust crop box and save under 50 KB</p>
+          </div>
+        </div>
+        <button type="button" id="btn-st-crop-cancel-x" class="text-slate-400 hover:text-white p-1 text-sm cursor-pointer">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Aspect Ratio Preset Selector -->
+      <div class="px-4 py-2.5 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Aspect Ratio:</span>
+        <div class="flex items-center gap-1.5 flex-wrap" id="st-crop-ratio-group">
+          <button type="button" class="st-crop-ratio-btn px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-indigo-600 text-white" data-ratio="free">
+            Freeform
+          </button>
+          <button type="button" class="st-crop-ratio-btn px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300" data-ratio="1:1">
+            Square (1:1)
+          </button>
+          <button type="button" class="st-crop-ratio-btn px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300" data-ratio="4:3">
+            Landscape (4:3)
+          </button>
+          <button type="button" class="st-crop-ratio-btn px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300" data-ratio="3:4">
+            Portrait (3:4)
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas Viewport -->
+      <div class="p-3 bg-black flex items-center justify-center overflow-hidden flex-1 min-h-[260px] max-h-[420px]">
+        <canvas id="st-crop-canvas" class="w-full max-w-full h-auto object-contain cursor-crosshair rounded-lg"></canvas>
+      </div>
+
+      <!-- Cropper Toolbar (Rotate, Zoom, Reset) -->
+      <div class="px-4 py-2 bg-slate-950/70 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div class="flex items-center gap-1.5">
+          <button type="button" id="btn-st-crop-rotate" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition flex items-center gap-1 cursor-pointer" title="Rotate 90 degrees">
+            <i class="fas fa-rotate-right"></i> Rotate
+          </button>
+          <button type="button" id="btn-st-crop-zoom-in" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition cursor-pointer" title="Zoom in crop box">
+            <i class="fas fa-magnifying-glass-plus"></i>
+          </button>
+          <button type="button" id="btn-st-crop-zoom-out" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition cursor-pointer" title="Zoom out crop box">
+            <i class="fas fa-magnifying-glass-minus"></i>
+          </button>
+          <button type="button" id="btn-st-crop-reset" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition cursor-pointer" title="Reset crop box">
+            <i class="fas fa-arrows-rotate"></i> Reset
+          </button>
+        </div>
+        <span class="text-[11px] font-bold text-slate-400">Target size: &lt; 50 KB</span>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="p-4 border-t border-slate-800 flex items-center justify-end gap-2 bg-slate-900">
+        <button type="button" id="btn-st-crop-cancel" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs transition cursor-pointer">
+          Cancel
+        </button>
+        <button type="button" id="btn-st-crop-apply" class="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+          <i class="fas fa-check"></i> Apply &amp; Attach
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Syllabus Tracker Image Lightbox Modal -->
+  <div id="st-image-preview-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="relative max-w-2xl w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
+      <div class="p-3.5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-image text-indigo-400 text-sm"></i>
+          <span id="st-preview-modal-caption" class="font-black text-xs text-slate-200">Attached Teaching Photo</span>
+        </div>
+        <button type="button" id="btn-close-st-preview-modal" class="text-slate-400 hover:text-white p-1 text-sm cursor-pointer">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="p-4 flex items-center justify-center bg-black/60 overflow-auto flex-1 min-h-[300px]">
+        <img id="st-preview-modal-img" src="" alt="Attached photo" class="max-w-full max-h-[75vh] object-contain rounded-xl shadow-lg border border-slate-800">
       </div>
     </div>
   </div>

@@ -4,9 +4,9 @@
  * Supports:
  * - Natural aspect ratio display (no stretching)
  * - Touch & mouse drag to move crop box
- * - 4 Corner handles for resizing (locked to 1:1 aspect ratio)
+ * - 4 Corner handles for resizing (Freeform, 1:1 Square, 4:3 Landscape, 3:4 Portrait, 16:9)
  * - 90-degree rotation
- * - Reset and zoom controls
+ * - Reset, zoom, and aspect ratio controls
  * - High-resolution crisp export with automatic <50KB compression
  */
 
@@ -14,8 +14,9 @@ export class InteractiveCropper {
     /**
      * @param {Object} options
      * @param {HTMLCanvasElement} options.canvas - The canvas element to render on
-     * @param {number} [options.targetSize=400] - Output square resolution in px
+     * @param {number} [options.targetSize=400] - Base target output dimension in px
      * @param {number} [options.maxKb=50] - Maximum base64 file size in KB
+     * @param {string} [options.aspectRatio='1:1'] - 'free', '1:1', '4:3', '3:4', '16:9'
      */
     constructor(options = {}) {
         this.canvas = options.canvas;
@@ -23,15 +24,16 @@ export class InteractiveCropper {
         this.ctx = this.canvas.getContext('2d');
         this.targetSize = options.targetSize || 400;
         this.maxKb = options.maxKb || 50;
+        this.aspectRatio = options.aspectRatio || '1:1';
 
         this.image = null;
         this.rotation = 0; // 0, 90, 180, 270
         this.imgDisplayRect = { x: 0, y: 0, width: 0, height: 0 };
-        this.cropRect = { x: 0, y: 0, size: 100 };
+        this._cropRect = { x: 0, y: 0, width: 100, height: 100 };
 
         this.dragMode = null; // 'move', 'tl', 'tr', 'bl', 'br'
         this.dragStart = { x: 0, y: 0 };
-        this.initialCropRect = { x: 0, y: 0, size: 100 };
+        this.initialCropRect = { x: 0, y: 0, width: 100, height: 100 };
         this.handleRadius = 14; // Visible touch handle radius
         this.handleHitRadius = 26; // Generous touch hit radius for mobile fingers
 
@@ -41,6 +43,18 @@ export class InteractiveCropper {
         this._boundPointerCancel = this._onPointerUp.bind(this);
 
         this._setupEvents();
+    }
+
+    get cropRect() {
+        return this._cropRect;
+    }
+
+    set cropRect(r) {
+        if (!r) return;
+        this._cropRect.x = r.x || 0;
+        this._cropRect.y = r.y || 0;
+        this._cropRect.width = r.width || r.size || 100;
+        this._cropRect.height = r.height || r.size || 100;
     }
 
     _setupEvents() {
@@ -87,6 +101,16 @@ export class InteractiveCropper {
     }
 
     /**
+     * Set crop aspect ratio preset
+     * @param {string} ratio - 'free', '1:1', '4:3', '3:4', '16:9'
+     */
+    setAspectRatio(ratio = '1:1') {
+        this.aspectRatio = ratio;
+        this._fitImageAndResetCrop();
+        this.render();
+    }
+
+    /**
      * Automatically adjusts canvas internal width/height to its CSS bounding rect
      */
     resizeCanvasToContainer() {
@@ -105,7 +129,7 @@ export class InteractiveCropper {
     }
 
     /**
-     * Calculates image containment and initial centered 1:1 crop box
+     * Calculates image containment and initial centered crop box based on aspectRatio
      */
     _fitImageAndResetCrop() {
         if (!this.image || !this.viewWidth || !this.viewHeight) return;
@@ -127,12 +151,29 @@ export class InteractiveCropper {
 
         this.imgDisplayRect = { x: dispX, y: dispY, width: dispW, height: dispH };
 
-        // Center a square crop box that takes around 85% of the shortest dimension
-        const cropSize = Math.max(40, Math.min(dispW, dispH) * 0.85);
-        this.cropRect = {
-            x: dispX + (dispW - cropSize) / 2,
-            y: dispY + (dispH - cropSize) / 2,
-            size: cropSize
+        let ratioVal = 1;
+        if (this.aspectRatio === '4:3') ratioVal = 4 / 3;
+        else if (this.aspectRatio === '3:4') ratioVal = 3 / 4;
+        else if (this.aspectRatio === '16:9') ratioVal = 16 / 9;
+        else if (this.aspectRatio === 'free') ratioVal = dispW / dispH;
+
+        let cropW = Math.min(dispW * 0.85, dispH * 0.85 * ratioVal);
+        let cropH = cropW / ratioVal;
+
+        if (cropH > dispH * 0.88) {
+            cropH = dispH * 0.88;
+            cropW = cropH * ratioVal;
+        }
+
+        cropW = Math.max(40, Math.min(cropW, dispW));
+        cropH = Math.max(40, Math.min(cropH, dispH));
+
+        this._cropRect = {
+            x: dispX + (dispW - cropW) / 2,
+            y: dispY + (dispH - cropH) / 2,
+            width: cropW,
+            height: cropH,
+            size: Math.min(cropW, cropH)
         };
     }
 
@@ -162,22 +203,40 @@ export class InteractiveCropper {
      */
     zoomCropBox(factor) {
         if (!this.imgDisplayRect.width) return;
-        const oldSize = this.cropRect.size;
-        const maxSize = Math.min(this.imgDisplayRect.width, this.imgDisplayRect.height);
-        const minSize = Math.min(50, maxSize);
-        const newSize = Math.min(maxSize, Math.max(minSize, oldSize * factor));
+        const oldW = this._cropRect.width;
+        const oldH = this._cropRect.height;
+        const maxW = this.imgDisplayRect.width;
+        const maxH = this.imgDisplayRect.height;
 
-        // Adjust coordinates from center
-        const cx = this.cropRect.x + oldSize / 2;
-        const cy = this.cropRect.y + oldSize / 2;
+        let newW = Math.min(maxW, Math.max(40, oldW * factor));
+        let newH = Math.min(maxH, Math.max(40, oldH * factor));
 
-        let newX = cx - newSize / 2;
-        let newY = cy - newSize / 2;
+        if (this.aspectRatio !== 'free') {
+            const ratio = oldW / oldH;
+            if (newW / ratio > maxH) {
+                newH = maxH;
+                newW = newH * ratio;
+            } else {
+                newH = newW / ratio;
+            }
+        }
 
-        newX = Math.max(this.imgDisplayRect.x, Math.min(newX, this.imgDisplayRect.x + this.imgDisplayRect.width - newSize));
-        newY = Math.max(this.imgDisplayRect.y, Math.min(newY, this.imgDisplayRect.y + this.imgDisplayRect.height - newSize));
+        const cx = this._cropRect.x + oldW / 2;
+        const cy = this._cropRect.y + oldH / 2;
 
-        this.cropRect = { x: newX, y: newY, size: newSize };
+        let newX = cx - newW / 2;
+        let newY = cy - newH / 2;
+
+        newX = Math.max(this.imgDisplayRect.x, Math.min(newX, this.imgDisplayRect.x + this.imgDisplayRect.width - newW));
+        newY = Math.max(this.imgDisplayRect.y, Math.min(newY, this.imgDisplayRect.y + this.imgDisplayRect.height - newH));
+
+        this._cropRect = {
+            x: newX,
+            y: newY,
+            width: newW,
+            height: newH,
+            size: Math.min(newW, newH)
+        };
         this.render();
     }
 
@@ -210,13 +269,13 @@ export class InteractiveCropper {
 
         // 2. Draw dark semi-transparent mask outside crop area
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.62)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         this.ctx.beginPath();
         // Outer rect (viewport)
         this.ctx.rect(0, 0, w, h);
         // Inner cutout (crop box, reverse path)
-        const { x: cx, y: cy, size: cs } = this.cropRect;
-        this.ctx.rect(cx + cs, cy, -cs, cs);
+        const { x: cx, y: cy, width: cw, height: ch } = this._cropRect;
+        this.ctx.rect(cx + cw, cy, -cw, ch);
         this.ctx.fill();
         this.ctx.restore();
 
@@ -226,7 +285,7 @@ export class InteractiveCropper {
         this.ctx.lineWidth = 2;
         this.ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         this.ctx.shadowBlur = 6;
-        this.ctx.strokeRect(cx, cy, cs, cs);
+        this.ctx.strokeRect(cx, cy, cw, ch);
         this.ctx.restore();
 
         // 4. Draw rule-of-thirds grid lines
@@ -235,30 +294,30 @@ export class InteractiveCropper {
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
         // Verticals
-        this.ctx.moveTo(cx + cs / 3, cy);
-        this.ctx.lineTo(cx + cs / 3, cy + cs);
-        this.ctx.moveTo(cx + (2 * cs) / 3, cy);
-        this.ctx.lineTo(cx + (2 * cs) / 3, cy + cs);
+        this.ctx.moveTo(cx + cw / 3, cy);
+        this.ctx.lineTo(cx + cw / 3, cy + ch);
+        this.ctx.moveTo(cx + (2 * cw) / 3, cy);
+        this.ctx.lineTo(cx + (2 * cw) / 3, cy + ch);
         // Horizontals
-        this.ctx.moveTo(cx, cy + cs / 3);
-        this.ctx.lineTo(cx + cs, cy + cs / 3);
-        this.ctx.moveTo(cx, cy + (2 * cs) / 3);
-        this.ctx.lineTo(cx + cs, cy + (2 * cs) / 3);
+        this.ctx.moveTo(cx, cy + ch / 3);
+        this.ctx.lineTo(cx + cw, cy + ch / 3);
+        this.ctx.moveTo(cx, cy + (2 * ch) / 3);
+        this.ctx.lineTo(cx + cw, cy + (2 * ch) / 3);
         this.ctx.stroke();
         this.ctx.restore();
 
         // 5. Draw 4 Corner Handles
         this._drawHandle(cx, cy); // tl
-        this._drawHandle(cx + cs, cy); // tr
-        this._drawHandle(cx, cy + cs); // bl
-        this._drawHandle(cx + cs, cy + cs); // br
+        this._drawHandle(cx + cw, cy); // tr
+        this._drawHandle(cx, cy + ch); // bl
+        this._drawHandle(cx + cw, cy + ch); // br
     }
 
     _drawHandle(x, y) {
         this.ctx.save();
         this.ctx.beginPath();
         this.ctx.arc(x, y, this.handleRadius, 0, Math.PI * 2);
-        this.ctx.fillStyle = '#2563eb'; // blue-600
+        this.ctx.fillStyle = '#4f46e5'; // indigo-600
         this.ctx.fill();
         this.ctx.lineWidth = 3;
         this.ctx.strokeStyle = '#ffffff';
@@ -283,17 +342,17 @@ export class InteractiveCropper {
     }
 
     _getHitMode(x, y) {
-        const { x: cx, y: cy, size: cs } = this.cropRect;
+        const { x: cx, y: cy, width: cw, height: ch } = this._cropRect;
         const hr = this.handleHitRadius;
 
         const dist = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
 
         if (dist(x, y, cx, cy) <= hr) return 'tl';
-        if (dist(x, y, cx + cs, cy) <= hr) return 'tr';
-        if (dist(x, y, cx, cy + cs) <= hr) return 'bl';
-        if (dist(x, y, cx + cs, cy + cs) <= hr) return 'br';
+        if (dist(x, y, cx + cw, cy) <= hr) return 'tr';
+        if (dist(x, y, cx, cy + ch) <= hr) return 'bl';
+        if (dist(x, y, cx + cw, cy + ch) <= hr) return 'br';
 
-        if (x >= cx && x <= cx + cs && y >= cy && y <= cy + cs) {
+        if (x >= cx && x <= cx + cw && y >= cy && y <= cy + ch) {
             return 'move';
         }
 
@@ -308,7 +367,7 @@ export class InteractiveCropper {
 
         this.dragMode = mode;
         this.dragStart = { x, y };
-        this.initialCropRect = { ...this.cropRect };
+        this.initialCropRect = { ...this._cropRect };
 
         try {
             this.canvas.setPointerCapture(e.pointerId);
@@ -320,7 +379,6 @@ export class InteractiveCropper {
         const { x, y } = this._getCanvasCoords(e);
 
         if (!this.dragMode) {
-            // Update cursor based on hover
             const hoverMode = this._getHitMode(x, y);
             if (hoverMode === 'tl' || hoverMode === 'br') {
                 this.canvas.style.cursor = 'nwse-resize';
@@ -336,7 +394,7 @@ export class InteractiveCropper {
 
         const dx = x - this.dragStart.x;
         const dy = y - this.dragStart.y;
-        const { x: ix, y: iy, size: is } = this.initialCropRect;
+        const { x: ix, y: iy, width: iw, height: ih } = this.initialCropRect;
         const { x: minX, y: minY, width: maxW, height: maxH } = this.imgDisplayRect;
         const maxX = minX + maxW;
         const maxY = minY + maxH;
@@ -345,49 +403,120 @@ export class InteractiveCropper {
             let nextX = ix + dx;
             let nextY = iy + dy;
 
-            nextX = Math.max(minX, Math.min(nextX, maxX - is));
-            nextY = Math.max(minY, Math.min(nextY, maxY - is));
+            nextX = Math.max(minX, Math.min(nextX, maxX - iw));
+            nextY = Math.max(minY, Math.min(nextY, maxY - ih));
 
-            this.cropRect.x = nextX;
-            this.cropRect.y = nextY;
+            this._cropRect.x = nextX;
+            this._cropRect.y = nextY;
         } else if (this.dragMode === 'br') {
-            // Bottom Right corner resize
-            const delta = Math.max(dx, dy);
-            let nextSize = is + delta;
-            const maxSize = Math.min(maxX - ix, maxY - iy);
-            nextSize = Math.max(40, Math.min(nextSize, maxSize));
-
-            this.cropRect.size = nextSize;
+            if (this.aspectRatio === 'free') {
+                let nextW = Math.max(40, Math.min(iw + dx, maxX - ix));
+                let nextH = Math.max(40, Math.min(ih + dy, maxY - iy));
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            } else {
+                const ratio = iw / ih;
+                const delta = Math.max(dx, dy * ratio);
+                let nextW = iw + delta;
+                let nextH = nextW / ratio;
+                if (ix + nextW > maxX) {
+                    nextW = maxX - ix;
+                    nextH = nextW / ratio;
+                }
+                if (iy + nextH > maxY) {
+                    nextH = maxY - iy;
+                    nextW = nextH * ratio;
+                }
+                nextW = Math.max(40, nextW);
+                nextH = Math.max(40, nextH);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            }
         } else if (this.dragMode === 'tl') {
-            // Top Left corner resize
-            const delta = Math.min(dx, dy);
-            let nextSize = is - delta;
-            const maxSize = Math.min(ix + is - minX, iy + is - minY);
-            nextSize = Math.max(40, Math.min(nextSize, maxSize));
-
-            this.cropRect.x = ix + (is - nextSize);
-            this.cropRect.y = iy + (is - nextSize);
-            this.cropRect.size = nextSize;
+            if (this.aspectRatio === 'free') {
+                let nextW = Math.max(40, Math.min(iw - dx, ix + iw - minX));
+                let nextH = Math.max(40, Math.min(ih - dy, iy + ih - minY));
+                this._cropRect.x = ix + (iw - nextW);
+                this._cropRect.y = iy + (ih - nextH);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            } else {
+                const ratio = iw / ih;
+                const delta = Math.min(dx, dy * ratio);
+                let nextW = iw - delta;
+                let nextH = nextW / ratio;
+                const maxAllowedW = ix + iw - minX;
+                const maxAllowedH = iy + ih - minY;
+                if (nextW > maxAllowedW) {
+                    nextW = maxAllowedW;
+                    nextH = nextW / ratio;
+                }
+                if (nextH > maxAllowedH) {
+                    nextH = maxAllowedH;
+                    nextW = nextH * ratio;
+                }
+                nextW = Math.max(40, nextW);
+                nextH = Math.max(40, nextH);
+                this._cropRect.x = ix + (iw - nextW);
+                this._cropRect.y = iy + (ih - nextH);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            }
         } else if (this.dragMode === 'tr') {
-            // Top Right corner resize
-            const delta = Math.max(dx, -dy);
-            let nextSize = is + delta;
-            const maxSize = Math.min(maxX - ix, iy + is - minY);
-            nextSize = Math.max(40, Math.min(nextSize, maxSize));
-
-            this.cropRect.y = iy + (is - nextSize);
-            this.cropRect.size = nextSize;
+            if (this.aspectRatio === 'free') {
+                let nextW = Math.max(40, Math.min(iw + dx, maxX - ix));
+                let nextH = Math.max(40, Math.min(ih - dy, iy + ih - minY));
+                this._cropRect.y = iy + (ih - nextH);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            } else {
+                const ratio = iw / ih;
+                const delta = Math.max(dx, -dy * ratio);
+                let nextW = iw + delta;
+                let nextH = nextW / ratio;
+                if (ix + nextW > maxX) {
+                    nextW = maxX - ix;
+                    nextH = nextW / ratio;
+                }
+                if (iy + (ih - nextH) < minY) {
+                    nextH = iy + ih - minY;
+                    nextW = nextH * ratio;
+                }
+                nextW = Math.max(40, nextW);
+                nextH = Math.max(40, nextH);
+                this._cropRect.y = iy + (ih - nextH);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            }
         } else if (this.dragMode === 'bl') {
-            // Bottom Left corner resize
-            const delta = Math.max(-dx, dy);
-            let nextSize = is + delta;
-            const maxSize = Math.min(ix + is - minX, maxY - iy);
-            nextSize = Math.max(40, Math.min(nextSize, maxSize));
-
-            this.cropRect.x = ix + (is - nextSize);
-            this.cropRect.size = nextSize;
+            if (this.aspectRatio === 'free') {
+                let nextW = Math.max(40, Math.min(iw - dx, ix + iw - minX));
+                let nextH = Math.max(40, Math.min(ih + dy, maxY - iy));
+                this._cropRect.x = ix + (iw - nextW);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            } else {
+                const ratio = iw / ih;
+                const delta = Math.max(-dx, dy * ratio);
+                let nextW = iw + delta;
+                let nextH = nextW / ratio;
+                if (ix + (iw - nextW) < minX) {
+                    nextW = ix + iw - minX;
+                    nextH = nextW / ratio;
+                }
+                if (iy + nextH > maxY) {
+                    nextH = maxY - iy;
+                    nextW = nextH * ratio;
+                }
+                nextW = Math.max(40, nextW);
+                nextH = Math.max(40, nextH);
+                this._cropRect.x = ix + (iw - nextW);
+                this._cropRect.width = nextW;
+                this._cropRect.height = nextH;
+            }
         }
 
+        this._cropRect.size = Math.min(this._cropRect.width, this._cropRect.height);
         this.render();
     }
 
@@ -406,13 +535,12 @@ export class InteractiveCropper {
     /**
      * Extracts cropped region with high resolution and compresses to under target maxKb
      * @param {number} [maxKb=50]
-     * @param {number} [outputSize=400]
+     * @param {number} [maxDim=500]
      * @returns {string} base64 data URL (image/jpeg)
      */
-    getCroppedBase64(maxKb = this.maxKb, outputSize = this.targetSize) {
+    getCroppedBase64(maxKb = this.maxKb, maxDim = 500) {
         if (!this.image) throw new Error('No image loaded in cropper');
 
-        // First render full rotated source onto an offscreen canvas at true natural resolution
         const isRotated90or270 = this.rotation === 90 || this.rotation === 270;
         const natW = isRotated90or270 ? this.image.height : this.image.width;
         const natH = isRotated90or270 ? this.image.width : this.image.height;
@@ -428,18 +556,30 @@ export class InteractiveCropper {
         const rawH = isRotated90or270 ? natW : natH;
         rCtx.drawImage(this.image, -rawW / 2, -rawH / 2, rawW, rawH);
 
-        // Map cropRect relative to imgDisplayRect back to natural pixels
         const { x: imgX, y: imgY, width: dispW } = this.imgDisplayRect;
         const scale = natW / dispW;
 
-        const cropNormX = (this.cropRect.x - imgX) * scale;
-        const cropNormY = (this.cropRect.y - imgY) * scale;
-        const cropNormSize = this.cropRect.size * scale;
+        const cropNormX = (this._cropRect.x - imgX) * scale;
+        const cropNormY = (this._cropRect.y - imgY) * scale;
+        const cropNormW = this._cropRect.width * scale;
+        const cropNormH = this._cropRect.height * scale;
 
-        // Create destination export canvas
+        // Calculate output dimensions keeping aspect ratio
+        let outW = cropNormW;
+        let outH = cropNormH;
+        const maxOut = Math.max(outW, outH);
+        if (maxOut > maxDim) {
+            const s = maxDim / maxOut;
+            outW = Math.round(outW * s);
+            outH = Math.round(outH * s);
+        } else {
+            outW = Math.round(outW);
+            outH = Math.round(outH);
+        }
+
         const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = outputSize;
-        exportCanvas.height = outputSize;
+        exportCanvas.width = Math.max(50, outW);
+        exportCanvas.height = Math.max(50, outH);
         const eCtx = exportCanvas.getContext('2d');
         eCtx.imageSmoothingEnabled = true;
         eCtx.imageSmoothingQuality = 'high';
@@ -448,41 +588,42 @@ export class InteractiveCropper {
             rotatedCanvas,
             cropNormX,
             cropNormY,
-            cropNormSize,
-            cropNormSize,
+            cropNormW,
+            cropNormH,
             0,
             0,
-            outputSize,
-            outputSize
+            exportCanvas.width,
+            exportCanvas.height
         );
 
-        // Smart iterative compression under maxKb
-        let quality = 0.88;
+        // Smart iterative compression strictly under maxKb
+        let quality = 0.85;
         let base64 = exportCanvas.toDataURL('image/jpeg', quality);
         const maxBytes = maxKb * 1024;
 
         while (base64.length * 0.75 > maxBytes && quality > 0.15) {
-            quality -= 0.1;
+            quality -= 0.08;
             base64 = exportCanvas.toDataURL('image/jpeg', quality);
         }
 
-        // If still over budget, step down resolution
-        let currentRes = outputSize;
-        while (base64.length * 0.75 > maxBytes && currentRes > 160) {
-            currentRes -= 40;
+        // If still over budget, step down dimensions
+        let currentScale = 0.9;
+        while (base64.length * 0.75 > maxBytes && currentScale > 0.3) {
+            const sw = Math.round(exportCanvas.width * currentScale);
+            const sh = Math.round(exportCanvas.height * currentScale);
             const scaleCanvas = document.createElement('canvas');
-            scaleCanvas.width = currentRes;
-            scaleCanvas.height = currentRes;
+            scaleCanvas.width = Math.max(40, sw);
+            scaleCanvas.height = Math.max(40, sh);
             const sCtx = scaleCanvas.getContext('2d');
-            sCtx.drawImage(exportCanvas, 0, 0, currentRes, currentRes);
-            base64 = scaleCanvas.toDataURL('image/jpeg', 0.72);
+            sCtx.drawImage(exportCanvas, 0, 0, scaleCanvas.width, scaleCanvas.height);
+            base64 = scaleCanvas.toDataURL('image/jpeg', 0.65);
+            currentScale -= 0.1;
         }
 
         return base64;
     }
 }
 
-// Make accessible on window object as well for universal access
 if (typeof window !== 'undefined') {
     window.InteractiveCropper = InteractiveCropper;
 }
