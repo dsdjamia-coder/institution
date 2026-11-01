@@ -664,71 +664,10 @@
 
             <!-- Tracker Actions -->
             <div class="flex items-center gap-2 flex-wrap">
-              <button type="button" id="btn-st-add-entry" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow-2xs flex items-center gap-1.5 cursor-pointer" title="Add a custom lesson or daily execution session">
-                <i class="fas fa-plus-circle"></i> Add Lesson Entry
-              </button>
               <button type="button" id="btn-print-syllabus-tracker" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <i class="fas fa-print"></i> Print Register
               </button>
             </div>
-          </div>
-
-          <!-- Top Section: Daily Execution & Teaching Log Bar -->
-          <div class="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3" id="st-daily-execution-panel">
-            <div class="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-100">
-              <div class="flex items-center gap-3 flex-wrap">
-                <div class="flex items-center gap-2.5">
-                  <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    <i class="fas fa-calendar-check"></i>
-                  </span>
-                  <div>
-                    <h4 class="text-xs font-black text-slate-900 uppercase tracking-wide">Daily Teaching Execution Logger</h4>
-                    <p class="text-[11px] text-slate-500 font-bold">Timetable-driven period tracking &amp; portions covered</p>
-                  </div>
-                </div>
-
-                <!-- Date Navigator Group -->
-                <div class="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                  <button type="button" id="btn-st-prev-day" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition text-xs cursor-pointer font-bold" title="Previous Day">
-                    <i class="fas fa-chevron-left"></i>
-                  </button>
-                  <input type="date" id="st-daily-date-picker" class="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800 outline-none focus:border-indigo-500 cursor-pointer">
-                  <button type="button" id="btn-st-today" class="px-2.5 py-1 text-[11px] font-black uppercase text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition cursor-pointer">
-                    Today
-                  </button>
-                  <button type="button" id="btn-st-next-day" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition text-xs cursor-pointer font-bold" title="Next Day">
-                    <i class="fas fa-chevron-right"></i>
-                  </button>
-                </div>
-
-                <!-- Day & Status Badges -->
-                <div class="flex items-center gap-2">
-                  <span id="st-daily-day-badge" class="px-2.5 py-1 rounded-xl text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">
-                    --
-                  </span>
-                  <span id="st-daily-status-badge" class="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Working Day
-                  </span>
-                </div>
-              </div>
-
-              <!-- Save Daily Log Button -->
-              <div class="flex items-center gap-2">
-                <button type="button" id="btn-save-daily-st-log" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer">
-                  <i class="fas fa-floppy-disk"></i> Save Daily Log
-                </button>
-              </div>
-            </div>
-
-            <!-- Periods Container: Dynamically populated from timetable for this day -->
-            <div id="st-daily-periods-container" class="space-y-2.5 pt-1">
-              <!-- Populated by renderDailyTeachingLogUI() -->
-            </div>
-          </div>
-
-          <!-- Monthly Subject Completion Panel (Targets & Completion) -->
-          <div id="st-monthly-subjects-summary" class="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
-            <!-- Populated dynamically by renderMonthlySubjectsCompletionUI() -->
           </div>
 
           <!-- Table Matrix Card Container -->
@@ -1816,6 +1755,238 @@
           </button>
           <button type="button" id="btn-sync-wizard-finish" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
             <i class="fas fa-check"></i> Import Selected Subjects
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Subject Monthly Syllabus Progress -->
+  <div id="modal-st-subject-progress" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fas fa-chart-line"></i>
+          </span>
+          <div>
+            <h3 id="modal-st-prog-subject-name" class="font-black text-sm text-slate-900">Subject Progress</h3>
+            <p id="modal-st-prog-meta" class="text-[11px] text-slate-500 font-bold">Class • Month • Date</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-st-subject-progress">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <!-- Hidden Context Inputs -->
+        <input type="hidden" id="modal-st-prog-class">
+        <input type="hidden" id="modal-st-prog-month">
+        <input type="hidden" id="modal-st-prog-date">
+        <input type="hidden" id="modal-st-prog-slot-id">
+        <input type="hidden" id="modal-st-prog-subject-id">
+        <input type="hidden" id="modal-st-prog-prev-pct" value="0">
+
+        <!-- Target Box from Year Plan -->
+        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5" id="modal-st-prog-target-box">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] uppercase font-black tracking-wider text-slate-400">Monthly Target (Year Plan)</span>
+            <span id="modal-st-prog-allocated-periods" class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">--</span>
+          </div>
+          <div id="modal-st-prog-topic" class="font-black text-xs text-slate-900">--</div>
+          <div id="modal-st-prog-pages" class="text-[11px] font-semibold text-slate-600">--</div>
+          <div id="modal-st-prog-breakdown" class="text-[10px] text-slate-500 italic">--</div>
+        </div>
+
+        <!-- Previous Recorded Progress Badge -->
+        <div class="flex items-center justify-between p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100">
+          <span class="text-[11px] font-bold text-indigo-900">Previous Recorded Progress:</span>
+          <span id="modal-st-prog-prev-badge" class="px-2.5 py-0.5 rounded-lg text-xs font-black bg-indigo-600 text-white">0%</span>
+        </div>
+
+        <!-- Cumulative Progress Input Controls -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="modal-st-prog-input" class="text-[11px] font-black uppercase tracking-wider text-slate-600">Updated Progress:</label>
+            <div class="flex items-center gap-1">
+              <input type="number" id="modal-st-prog-input" min="0" max="100" class="w-16 p-1.5 border border-slate-300 rounded-xl font-black text-center text-sm text-slate-800 outline-none focus:border-indigo-500">
+              <span class="text-xs font-bold text-slate-500">%</span>
+            </div>
+          </div>
+
+          <input type="range" id="modal-st-prog-slider" min="0" max="100" step="5" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+
+          <div class="flex items-center justify-between text-[10px] text-slate-400 font-bold">
+            <span id="modal-st-prog-slider-min">Min: 0%</span>
+            <span>Max: 100%</span>
+          </div>
+        </div>
+
+        <!-- Quick Increments -->
+        <div class="flex items-center justify-between gap-1.5 pt-1">
+          <span class="text-[10px] font-black uppercase text-slate-400">Quick:</span>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button type="button" class="btn-st-quick-add px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg font-bold text-[11px] transition cursor-pointer" data-add="5">+5%</button>
+            <button type="button" class="btn-st-quick-add px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg font-bold text-[11px] transition cursor-pointer" data-add="10">+10%</button>
+            <button type="button" class="btn-st-quick-add px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg font-bold text-[11px] transition cursor-pointer" data-add="20">+20%</button>
+            <button type="button" class="btn-st-quick-add px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-black text-[11px] transition cursor-pointer" data-set="100">100% Done</button>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100">
+          <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="modal-st-prog-completed-cb" class="w-4 h-4 rounded cursor-pointer accent-emerald-600">
+            <span class="text-xs font-black text-slate-700">Mark 100% Completed</span>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" class="btn-close-modal px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-st-subject-progress">
+            Cancel
+          </button>
+          <button type="button" id="btn-save-st-subject-progress" class="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+            <i class="fas fa-check"></i> Save Progress
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Log Taught Lessons & Portions -->
+  <div id="modal-st-taught-portion" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fas fa-book-open"></i>
+          </span>
+          <div>
+            <h3 id="modal-st-portion-title" class="font-black text-sm text-slate-900">Record Taught Portion</h3>
+            <p id="modal-st-portion-subtitle" class="text-[11px] text-slate-500 font-bold">Period • Time • Date</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-st-taught-portion">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="modal-st-portion-class">
+        <input type="hidden" id="modal-st-portion-date">
+        <input type="hidden" id="modal-st-portion-slot-id">
+        <input type="hidden" id="modal-st-portion-image" value="">
+
+        <!-- Subject Select (Supports Override / Substitution) -->
+        <div>
+          <label for="modal-st-portion-subject" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Subject (Substitution / Extra Class):</label>
+          <select id="modal-st-portion-subject" class="w-full p-2.5 border border-slate-300 rounded-xl bg-white text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"></select>
+        </div>
+
+        <!-- Taught Today Checkbox -->
+        <div>
+          <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="modal-st-portion-completed" class="w-4 h-4 rounded cursor-pointer accent-emerald-600" checked>
+            <span class="text-xs font-black text-emerald-700">Taught Today</span>
+          </label>
+        </div>
+
+        <!-- Portion Textarea -->
+        <div>
+          <label for="modal-st-portion-desc" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Lessons, Topics &amp; Pages Covered:</label>
+          <textarea id="modal-st-portion-desc" class="w-full p-3 border border-slate-300 rounded-xl bg-white text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 h-24 resize-none" placeholder="Enter lessons, topics, ayat/surah, pages, or activities covered in this period..."></textarea>
+        </div>
+
+        <!-- Photo Attachment -->
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Attach Photo (Board work, worksheet, or notes):</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" id="btn-st-portion-camera" class="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-xl font-bold text-xs transition border border-slate-200 flex items-center gap-1.5 cursor-pointer">
+              <i class="fas fa-camera text-indigo-600"></i> Camera
+            </button>
+            <button type="button" id="btn-st-portion-file" class="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-xl font-bold text-xs transition border border-slate-200 flex items-center gap-1.5 cursor-pointer">
+              <i class="fas fa-image text-indigo-600"></i> Upload Photo
+            </button>
+            <span class="text-[10px] text-slate-400 font-medium">Automatic crop &amp; compress &lt; 50 KB</span>
+          </div>
+
+          <div id="modal-st-portion-thumb-wrap" class="mt-2.5 flex items-center gap-2.5 hidden">
+            <img id="modal-st-portion-thumb-img" src="" alt="Thumbnail" class="w-16 h-16 object-cover rounded-xl border border-slate-300 shadow-2xs cursor-pointer">
+            <button type="button" id="btn-st-portion-remove-img" class="px-2.5 py-1 text-rose-600 hover:text-rose-800 font-black text-xs cursor-pointer inline-flex items-center gap-1">
+              <i class="fas fa-trash-can text-[10px]"></i> Remove Photo
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" class="btn-close-modal px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-st-taught-portion">
+            Cancel
+          </button>
+          <button type="button" id="btn-save-st-taught-portion" class="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+            <i class="fas fa-check"></i> Save Portion
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Teacher Remarks & Homework -->
+  <div id="modal-st-period-remarks" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fas fa-comment-dots"></i>
+          </span>
+          <div>
+            <h3 id="modal-st-remarks-title" class="font-black text-sm text-slate-900">Teacher Remarks &amp; Notes</h3>
+            <p id="modal-st-remarks-subtitle" class="text-[11px] text-slate-500 font-bold">Period • Time • Date</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1" data-modal="modal-st-period-remarks">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="modal-st-remarks-class">
+        <input type="hidden" id="modal-st-remarks-date">
+        <input type="hidden" id="modal-st-remarks-slot-id">
+        <input type="hidden" id="modal-st-remarks-image" value="">
+
+        <!-- Remarks Textarea -->
+        <div>
+          <label for="modal-st-remarks-desc" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Observations, Homework &amp; Notes:</label>
+          <textarea id="modal-st-remarks-desc" class="w-full p-3 border border-slate-300 rounded-xl bg-white text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 h-24 resize-none" placeholder="Enter teacher observations, homework assigned, test notes, or student performance remarks..."></textarea>
+        </div>
+
+        <!-- Photo Attachment -->
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Attach Photo (Optional homework/notes image):</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" id="btn-st-remarks-camera" class="px-3 py-1.5 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-xl font-bold text-xs transition border border-slate-200 flex items-center gap-1.5 cursor-pointer">
+              <i class="fas fa-camera text-purple-600"></i> Camera
+            </button>
+            <button type="button" id="btn-st-remarks-file" class="px-3 py-1.5 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-xl font-bold text-xs transition border border-slate-200 flex items-center gap-1.5 cursor-pointer">
+              <i class="fas fa-image text-purple-600"></i> Upload Photo
+            </button>
+            <span class="text-[10px] text-slate-400 font-medium">Automatic crop &amp; compress &lt; 50 KB</span>
+          </div>
+
+          <div id="modal-st-remarks-thumb-wrap" class="mt-2.5 flex items-center gap-2.5 hidden">
+            <img id="modal-st-remarks-thumb-img" src="" alt="Thumbnail" class="w-16 h-16 object-cover rounded-xl border border-slate-300 shadow-2xs cursor-pointer">
+            <button type="button" id="btn-st-remarks-remove-img" class="px-2.5 py-1 text-rose-600 hover:text-rose-800 font-black text-xs cursor-pointer inline-flex items-center gap-1">
+              <i class="fas fa-trash-can text-[10px]"></i> Remove Photo
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" class="btn-close-modal px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-st-period-remarks">
+            Cancel
+          </button>
+          <button type="button" id="btn-save-st-period-remarks" class="px-4.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+            <i class="fas fa-check"></i> Save Remarks
           </button>
         </div>
       </div>

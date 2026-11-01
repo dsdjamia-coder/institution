@@ -151,6 +151,7 @@ let pendingCropSlotId = null;
 let pendingCropField = null;
 let stActiveCropRatio = 'free';
 let stActiveCropTarget = null;
+let stCropTargetModal = 'portion';
 
 // Helper: Universal Edit Mode Notice and Animated Switch Pulse
 const promptEnableEditMode = (moduleType, actionDescription = 'make changes') => {
@@ -3468,13 +3469,11 @@ const loadDailyTeachingLog = async (dateStr = null) => {
     }
 
     stDailyLogData = cachedSyllabusDailyLogs[docId] || null;
-    renderDailyTeachingLogUI(dayName, isDayOff);
 };
 
 // Cropper & Lightbox Bridge Helpers
-const openStCropModalForFile = (file, slotId, field) => {
+const openStCropModalForFile = (file) => {
     if (!file) return;
-    stActiveCropTarget = { slotId, field };
     const reader = new FileReader();
     reader.onload = async (e) => {
         const dataUrl = e.target.result;
@@ -3509,7 +3508,6 @@ const openStCropModalForFile = (file, slotId, field) => {
 const closeStCropModal = () => {
     const modal = document.getElementById('st-crop-modal');
     if (modal) modal.classList.add('hidden');
-    stActiveCropTarget = null;
     const fileInput = document.getElementById('st-photo-input-file');
     const cameraInput = document.getElementById('st-photo-input-camera');
     if (fileInput) fileInput.value = '';
@@ -3517,67 +3515,37 @@ const closeStCropModal = () => {
 };
 
 const applyStCropAndAttach = () => {
-    if (!stCropper || !stActiveCropTarget) {
+    if (!stCropper) {
         closeStCropModal();
         return;
     }
-    const { slotId, field } = stActiveCropTarget;
     // Export strictly under 50 KB compressed JPEG base64
     const base64 = stCropper.getCroppedBase64(50);
 
-    const row = document.querySelector(`.st-daily-period-row[data-slot-id="${slotId}"]`);
-    if (row) {
-        if (field === 'description') {
-            const thumbWrap = row.querySelector('.st-desc-thumb-wrap');
-            const thumbImg = row.querySelector('.st-desc-thumb');
-            if (thumbImg) {
-                thumbImg.src = base64;
-                thumbImg.dataset.fullImg = base64;
-            }
-            if (thumbWrap) thumbWrap.classList.remove('hidden');
-            row.dataset.descImg = base64;
-        } else if (field === 'remarks') {
-            const thumbWrap = row.querySelector('.st-remarks-thumb-wrap');
-            const thumbImg = row.querySelector('.st-remarks-thumb');
-            if (thumbImg) {
-                thumbImg.src = base64;
-                thumbImg.dataset.fullImg = base64;
-            }
-            if (thumbWrap) thumbWrap.classList.remove('hidden');
-            row.dataset.remarksImg = base64;
+    if (stCropTargetModal === 'portion') {
+        const input = document.getElementById('modal-st-portion-image');
+        const img = document.getElementById('modal-st-portion-thumb-img');
+        const wrap = document.getElementById('modal-st-portion-thumb-wrap');
+        if (input) input.value = base64;
+        if (img) {
+            img.src = base64;
+            img.dataset.fullImg = base64;
         }
+        if (wrap) wrap.classList.remove('hidden');
+    } else if (stCropTargetModal === 'remarks') {
+        const input = document.getElementById('modal-st-remarks-image');
+        const img = document.getElementById('modal-st-remarks-thumb-img');
+        const wrap = document.getElementById('modal-st-remarks-thumb-wrap');
+        if (input) input.value = base64;
+        if (img) {
+            img.src = base64;
+            img.dataset.fullImg = base64;
+        }
+        if (wrap) wrap.classList.remove('hidden');
     }
 
     closeStCropModal();
-    showToast('Photo optimized and attached (under 50 KB)!', 'success');
-};
-
-const removeDescPhoto = (slotId) => {
-    const row = document.querySelector(`.st-daily-period-row[data-slot-id="${slotId}"]`);
-    if (row) {
-        const thumbWrap = row.querySelector('.st-desc-thumb-wrap');
-        const thumbImg = row.querySelector('.st-desc-thumb');
-        if (thumbImg) {
-            thumbImg.src = '';
-            thumbImg.dataset.fullImg = '';
-        }
-        if (thumbWrap) thumbWrap.classList.add('hidden');
-        row.dataset.descImg = '';
-    }
-};
-
-const removeRemarksPhoto = (slotId) => {
-    const row = document.querySelector(`.st-daily-period-row[data-slot-id="${slotId}"]`);
-    if (row) {
-        const thumbWrap = row.querySelector('.st-remarks-thumb-wrap');
-        const thumbImg = row.querySelector('.st-remarks-thumb');
-        if (thumbImg) {
-            thumbImg.src = '';
-            thumbImg.dataset.fullImg = '';
-        }
-        if (thumbWrap) thumbWrap.classList.add('hidden');
-        row.dataset.remarksImg = '';
-    }
+    showToast('Photo cropped and attached (<50 KB)!', 'success');
 };
 
 const openStImageLightbox = (src, caption = 'Attached Teaching Photo') => {
@@ -3598,270 +3566,172 @@ const closeStImageLightbox = () => {
     if (modal) modal.classList.add('hidden');
 };
 
-const renderDailyTeachingLogUI = (dayName, isDayOff) => {
-    const container = document.getElementById('st-daily-periods-container');
-    if (!container) return;
+// Compute chronologically monotonic cumulative progress across the month
+const computeMonthlyCumulativeSubjectProgress = (classLabel, activeMonth, daysInMonth, isHijri, yearNum, mIndex, classLogsMap) => {
+    const dailyCumProgress = {};
+    const runningProgressMap = {};
 
-    const cls = selectedStClass;
-    if (cls === 'all') {
-        container.innerHTML = `
-            <div class="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-900 text-xs font-bold flex items-center justify-between flex-wrap gap-2">
-                <span><i class="fas fa-info-circle mr-1.5 text-indigo-600"></i> "All Classes" is currently selected. Select a specific class above to record daily period teaching, or click on any row in the register table below.</span>
-            </div>
-        `;
-        return;
-    }
+    const clsGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
+        ? yearPlanGrid
+        : (classLabel === selectedStClass && stCurrentGrid && Object.keys(stCurrentGrid).length > 0)
+            ? stCurrentGrid
+            : (allClassesSyllabusData[classLabel]?.grid || {});
 
-    if (isDayOff) {
-        container.innerHTML = `
-            <div class="p-4 text-center rounded-xl bg-rose-50/70 border border-rose-200 text-rose-700 text-xs font-black flex items-center justify-center gap-2">
-                <i class="fas fa-couch text-rose-500 text-sm"></i>
-                <span>${dayName} is designated as a Weekly Off / Holiday in Class ${escapeHtml(cls)} routine timetable.</span>
-            </div>
-        `;
-        return;
-    }
-
-    const cSlots = (Array.isArray(currentClassSlots) && currentClassSlots.length > 0)
-        ? currentClassSlots
-        : ((allClassesTimetables[cls] && Array.isArray(allClassesTimetables[cls].slots) && allClassesTimetables[cls].slots.length > 0)
-            ? allClassesTimetables[cls].slots
-            : normalizeTimetableSlots(timetableConfig));
-
-    const teachingSlots = cSlots.filter(s => !s.isBreak);
-    const matrix = (cls === selectedTtClass && timetableMatrix && Object.keys(timetableMatrix).length > 0)
-        ? timetableMatrix
-        : ((allClassesTimetables[cls] && allClassesTimetables[cls].matrix) || {});
-
-    const existingPeriods = (stDailyLogData && Array.isArray(stDailyLogData.periods)) ? stDailyLogData.periods : [];
-
-    if (!teachingSlots.length) {
-        container.innerHTML = `
-            <div class="p-4 text-center text-slate-400 font-bold text-xs bg-slate-50 rounded-xl border border-slate-200">
-                No teaching periods configured in Class ${escapeHtml(cls)} timetable. Please configure periods in the Class Routine tab.
-            </div>
-        `;
-        return;
-    }
-
-    let html = '';
-    teachingSlots.forEach((slot, idx) => {
-        const pNum = slot.slotNum || (idx + 1);
-        const slotKey = `${dayName}_${slot.slotId}`;
-        const legacyKey = `${dayName}_${pNum}`;
-        const ttCell = matrix[slotKey] || matrix[legacyKey] || {};
-
-        const existingPeriod = existingPeriods.find(p => p.slotId === slot.slotId || p.periodNum === pNum) || {};
-
-        const defaultSubjId = ttCell.subjectId || '';
-        const defaultSubjName = ttCell.subjectName || '';
-        const currentSubjId = existingPeriod.subjectId || defaultSubjId;
-        const currentSubjName = existingPeriod.subjectName || defaultSubjName;
-
-        const isCompleted = Boolean(existingPeriod.isCompleted);
-        const description = existingPeriod.description || existingPeriod.topic || '';
-        const descriptionImage = existingPeriod.descriptionImage || '';
-        const remarks = existingPeriod.remarks || '';
-        const remarksImage = existingPeriod.remarksImage || '';
-
-        // Build subject select options: includes timetable default and all available subjects
-        let subjOptions = `<option value="">-- Free / Other --</option>`;
-        if (defaultSubjId) {
-            subjOptions += `<option value="${escapeHtml(defaultSubjId)}" ${currentSubjId === defaultSubjId ? 'selected' : ''}>${escapeHtml(defaultSubjName)} (Scheduled)</option>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+        let dateStr = '';
+        if (isHijri) {
+            dateStr = `${yearNum}-H${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        } else {
+            const mm = String(mIndex + 1).padStart(2, '0');
+            const dd = String(d).padStart(2, '0');
+            dateStr = `${yearNum}-${mm}-${dd}`;
         }
-        stClassSubjects.forEach(s => {
-            if (s.id !== defaultSubjId) {
-                subjOptions += `<option value="${escapeHtml(s.id)}" ${currentSubjId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`;
-            }
-        });
 
-        html += `
-            <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 st-daily-period-row"
-                data-slot-id="${escapeHtml(slot.slotId)}"
-                data-period="${pNum}"
-                data-slot-label="${escapeHtml(slot.label)}"
-                data-slot-start="${slot.startTime}"
-                data-slot-end="${slot.endTime}"
-                data-subject-id="${escapeHtml(currentSubjId)}"
-                data-subject-name="${escapeHtml(currentSubjName)}"
-                data-desc-img="${escapeHtml(descriptionImage)}"
-                data-remarks-img="${escapeHtml(remarksImage)}">
-                
-                <div class="flex items-center justify-between flex-wrap gap-2.5 pb-2.5 border-b border-slate-100">
-                    <div class="flex items-center gap-2.5 flex-wrap">
-                        <span class="px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-950 font-black text-xs shrink-0">
-                            ${escapeHtml(slot.label)}
-                        </span>
-                        <span class="text-[11px] font-bold text-slate-500">${slot.startTime} - ${slot.endTime}</span>
-                        <label class="inline-flex items-center gap-2 cursor-pointer select-none ml-2">
-                            <input type="checkbox" class="st-period-completed w-4.5 h-4.5 rounded cursor-pointer accent-emerald-600 focus:ring-emerald-500" ${isCompleted ? 'checked' : ''}>
-                            <span class="text-xs font-black ${isCompleted ? 'text-emerald-700' : 'text-slate-600'} st-completed-label">
-                                ${isCompleted ? 'Taught Today' : 'Pending'}
-                            </span>
-                        </label>
-                    </div>
+        const log = classLogsMap[dateStr] || cachedSyllabusDailyLogs[`${yearNum}__${classLabel}__${dateStr}`] || null;
+        if (log && Array.isArray(log.periods)) {
+            log.periods.forEach(p => {
+                if (p && p.subjectId) {
+                    if (typeof p.progressPercent === 'number' && !isNaN(p.progressPercent)) {
+                        runningProgressMap[p.subjectId] = Math.max(runningProgressMap[p.subjectId] || 0, p.progressPercent);
+                    }
+                }
+            });
+        }
 
-                    <div class="flex items-center gap-2">
-                        <label class="text-[11px] font-black uppercase tracking-wider text-slate-500">Subject:</label>
-                        <select class="st-period-subject-select px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-xs font-black text-slate-800 outline-none focus:border-indigo-500 min-w-[160px]">
-                            ${subjOptions}
-                        </select>
-                    </div>
-                </div>
+        dailyCumProgress[dateStr] = { ...runningProgressMap };
+    }
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    <!-- Taught Lessons & Portions -->
-                    <div class="space-y-1.5">
-                        <div class="flex items-center justify-between">
-                            <label class="text-[11px] font-black uppercase tracking-wider text-slate-600">
-                                <i class="fas fa-book-open text-indigo-600 mr-1"></i> Taught Lessons &amp; Portions
-                            </label>
-                            <div class="flex items-center gap-1">
-                                <button type="button" class="btn-attach-desc-camera px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Take photo with camera">
-                                    <i class="fas fa-camera text-[10px]"></i> Camera
-                                </button>
-                                <button type="button" class="btn-attach-desc-file px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Upload image file">
-                                    <i class="fas fa-image text-[10px]"></i> Photo
-                                </button>
-                            </div>
-                        </div>
-                        <textarea class="st-period-desc w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 outline-none focus:border-indigo-500 resize-none h-18" placeholder="Lessons, topics, and pages covered...">${escapeHtml(description)}</textarea>
-                        
-                        <div class="st-desc-thumb-wrap ${descriptionImage ? '' : 'hidden'} flex items-center gap-2 pt-1">
-                            <img src="${descriptionImage || ''}" alt="Portion Photo" class="st-desc-thumb w-14 h-14 object-cover rounded-xl border border-slate-300 cursor-pointer shadow-2xs hover:opacity-90 st-thumb-preview" data-full-img="${escapeHtml(descriptionImage)}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(slot.label)} • Portions Photo">
-                            <div class="text-[11px] font-bold text-slate-600">
-                                <button type="button" class="btn-remove-desc-thumb text-rose-600 hover:text-rose-800 font-black cursor-pointer inline-flex items-center gap-1" data-slot-id="${escapeHtml(slot.slotId)}">
-                                    <i class="fas fa-trash-can text-[10px]"></i> Remove Photo
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Teacher Remarks / Notes -->
-                    <div class="space-y-1.5">
-                        <div class="flex items-center justify-between">
-                            <label class="text-[11px] font-black uppercase tracking-wider text-slate-600">
-                                <i class="fas fa-comment-dots text-purple-600 mr-1"></i> Teacher Remarks / Homework
-                            </label>
-                            <div class="flex items-center gap-1">
-                                <button type="button" class="btn-attach-remarks-camera px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Take photo with camera">
-                                    <i class="fas fa-camera text-[10px]"></i> Camera
-                                </button>
-                                <button type="button" class="btn-attach-remarks-file px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-lg transition border border-slate-200 inline-flex items-center gap-1 cursor-pointer" data-slot-id="${escapeHtml(slot.slotId)}" title="Upload image file">
-                                    <i class="fas fa-image text-[10px]"></i> Photo
-                                </button>
-                            </div>
-                        </div>
-                        <textarea class="st-period-remarks w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 outline-none focus:border-indigo-500 resize-none h-18" placeholder="Teacher observations, homework, student notes...">${escapeHtml(remarks)}</textarea>
-                        
-                        <div class="st-remarks-thumb-wrap ${remarksImage ? '' : 'hidden'} flex items-center gap-2 pt-1">
-                            <img src="${remarksImage || ''}" alt="Remarks Photo" class="st-remarks-thumb w-14 h-14 object-cover rounded-xl border border-slate-300 cursor-pointer shadow-2xs hover:opacity-90 st-thumb-preview" data-full-img="${escapeHtml(remarksImage)}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(slot.label)} • Remarks Photo">
-                            <div class="text-[11px] font-bold text-slate-600">
-                                <button type="button" class="btn-remove-remarks-thumb text-rose-600 hover:text-rose-800 font-black cursor-pointer inline-flex items-center gap-1" data-slot-id="${escapeHtml(slot.slotId)}">
-                                    <i class="fas fa-trash-can text-[10px]"></i> Remove Photo
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-
-    container.querySelectorAll('.st-period-completed').forEach(cb => {
-        cb.addEventListener('change', (e) => {
-            const labelSpan = e.target.closest('label')?.querySelector('.st-completed-label');
-            if (labelSpan) {
-                if (e.target.checked) {
-                    labelSpan.textContent = 'Taught Today';
-                    labelSpan.className = 'text-xs font-black text-emerald-700 st-completed-label';
-                } else {
-                    labelSpan.textContent = 'Pending';
-                    labelSpan.className = 'text-xs font-black text-slate-600 st-completed-label';
+    // Baseline backfill if Year Plan already recorded monthly progress
+    Object.keys(clsGrid).forEach(key => {
+        if (key.startsWith(`${activeMonth}__`)) {
+            const sId = key.replace(`${activeMonth}__`, '');
+            const ypPct = clsGrid[key]?.progressPercent;
+            if (typeof ypPct === 'number' && ypPct > 0) {
+                for (let d = 1; d <= daysInMonth; d++) {
+                    let dateStr = '';
+                    if (isHijri) {
+                        dateStr = `${yearNum}-H${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    } else {
+                        const mm = String(mIndex + 1).padStart(2, '0');
+                        const dd = String(d).padStart(2, '0');
+                        dateStr = `${yearNum}-${mm}-${dd}`;
+                    }
+                    if (!dailyCumProgress[dateStr][sId] || dailyCumProgress[dateStr][sId] < ypPct) {
+                        dailyCumProgress[dateStr][sId] = Math.max(dailyCumProgress[dateStr][sId] || 0, ypPct);
+                    }
                 }
             }
-        });
+        }
     });
+
+    return dailyCumProgress;
 };
 
-const saveDailyTeachingLog = async () => {
+// Calculate maximum prior progress recorded strictly before targetDateStr
+const getPriorSubjectProgress = (classLabel, subjectId, targetDateStr) => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const cls = selectedStClass;
-    if (!cls || cls === 'all') {
-        alert('Please select a specific class to record daily teaching execution.');
+    let maxPrior = 0;
+
+    Object.keys(cachedSyllabusDailyLogs).forEach(docKey => {
+        if (docKey.startsWith(`${year}__${classLabel}__`)) {
+            const dateStr = docKey.split('__')[2];
+            if (dateStr && dateStr < targetDateStr) {
+                const log = cachedSyllabusDailyLogs[docKey];
+                if (log && Array.isArray(log.periods)) {
+                    log.periods.forEach(p => {
+                        if (p.subjectId === subjectId && typeof p.progressPercent === 'number') {
+                            maxPrior = Math.max(maxPrior, p.progressPercent);
+                        }
+                    });
+                }
+            }
+        }
+    });
+
+    return maxPrior;
+};
+
+// Open Subject Progress Modal
+const openSubjectProgressModal = (classLabel, dateStr, slotId, subjectId, subjectName, currentCumPct) => {
+    const activeMonth = (selectedStMonth && selectedStMonth !== 'all') ? selectedStMonth : getActiveCalendarCurrentMonth(currentYpCalendarType);
+    const modal = document.getElementById('modal-st-subject-progress');
+    if (!modal) return;
+
+    document.getElementById('modal-st-prog-class').value = classLabel;
+    document.getElementById('modal-st-prog-month').value = activeMonth;
+    document.getElementById('modal-st-prog-date').value = dateStr;
+    document.getElementById('modal-st-prog-slot-id').value = slotId;
+    document.getElementById('modal-st-prog-subject-id').value = subjectId;
+
+    document.getElementById('modal-st-prog-subject-name').textContent = subjectName || 'Subject Progress';
+    document.getElementById('modal-st-prog-meta').textContent = `Class ${classLabel} • ${formatDisplayDate(dateStr)} • ${activeMonth}`;
+
+    const targetGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
+        ? yearPlanGrid
+        : (classLabel === selectedStClass && stCurrentGrid && Object.keys(stCurrentGrid).length > 0)
+            ? stCurrentGrid
+            : (allClassesSyllabusData[classLabel]?.grid || {});
+
+    const cellKey = `${activeMonth}__${subjectId}`;
+    const cell = targetGrid[cellKey] || {};
+
+    const topic = cell.topic || cell.lessonNo || 'No specific topic planned in Year Plan';
+    const pages = cell.pages ? `Pages: ${cell.pages}` : 'Pages: Not specified';
+    const breakdown = cell.breakdown || cell.notes || '';
+    const alloc = cell.allocatedPeriods ? `${cell.allocatedPeriods} periods` : 'Periods: --';
+
+    document.getElementById('modal-st-prog-topic').textContent = topic;
+    document.getElementById('modal-st-prog-pages').textContent = pages;
+    document.getElementById('modal-st-prog-breakdown').textContent = breakdown ? `Notes: ${breakdown}` : '';
+    document.getElementById('modal-st-prog-allocated-periods').textContent = alloc;
+
+    const priorPct = getPriorSubjectProgress(classLabel, subjectId, dateStr);
+    document.getElementById('modal-st-prog-prev-pct').value = priorPct;
+    document.getElementById('modal-st-prog-prev-badge').textContent = `${priorPct}%`;
+
+    const initPct = Math.max(priorPct, Math.min(100, Math.round(Number(currentCumPct) || 0)));
+
+    const input = document.getElementById('modal-st-prog-input');
+    const slider = document.getElementById('modal-st-prog-slider');
+    const completeCb = document.getElementById('modal-st-prog-complete-cb');
+
+    if (input) {
+        input.min = priorPct;
+        input.max = 100;
+        input.value = initPct;
+    }
+    if (slider) {
+        slider.min = priorPct;
+        slider.max = 100;
+        slider.value = initPct;
+    }
+    if (completeCb) {
+        completeCb.checked = (initPct === 100);
+    }
+
+    modal.classList.remove('hidden');
+};
+
+// Save Subject Progress Modal
+const saveSubjectProgressModal = async () => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const classLabel = document.getElementById('modal-st-prog-class')?.value;
+    const activeMonth = document.getElementById('modal-st-prog-month')?.value;
+    const dateStr = document.getElementById('modal-st-prog-date')?.value;
+    const slotId = document.getElementById('modal-st-prog-slot-id')?.value;
+    const subjectId = document.getElementById('modal-st-prog-subject-id')?.value;
+    const priorPct = Number(document.getElementById('modal-st-prog-prev-pct')?.value) || 0;
+    const rawVal = Number(document.getElementById('modal-st-prog-input')?.value);
+    const isCompleted = document.getElementById('modal-st-prog-complete-cb')?.checked || rawVal >= 100;
+
+    if (!classLabel || !dateStr || !subjectId) {
+        showToast('Missing required subject or date context.', 'error');
         return;
     }
 
-    const dateStr = selectedStDailyDate || new Date().toISOString().split('T')[0];
-    let dayName = 'Monday';
-    try {
-        const dateObj = new Date(dateStr + 'T00:00:00');
-        dayName = ALL_WEEKDAYS[dateObj.getDay()] || 'Monday';
-    } catch (_) {}
+    const newPct = Math.max(priorPct, Math.min(100, isNaN(rawVal) ? priorPct : Math.round(rawVal)));
 
-    const periodRows = document.querySelectorAll('.st-daily-period-row');
-    const periods = [];
-
-    periodRows.forEach(row => {
-        const slotId = row.dataset.slotId;
-        const periodNum = Number(row.dataset.period);
-        const label = row.dataset.slotLabel;
-        const startTime = row.dataset.slotStart;
-        const endTime = row.dataset.slotEnd;
-
-        const subjSelect = row.querySelector('.st-period-subject-select');
-        const subjectId = subjSelect ? subjSelect.value : (row.dataset.subjectId || '');
-        const selectedOpt = subjSelect?.selectedOptions?.[0];
-        const subjectName = selectedOpt ? selectedOpt.textContent.replace(/\s*\(Scheduled\)$/i, '').trim() : (row.dataset.subjectName || '');
-
-        const isCompleted = Boolean(row.querySelector('.st-period-completed')?.checked);
-        const description = row.querySelector('.st-period-desc')?.value.trim() || '';
-        const descriptionImage = row.dataset.descImg || row.querySelector('.st-desc-thumb')?.getAttribute('src') || '';
-        const remarks = row.querySelector('.st-period-remarks')?.value.trim() || '';
-        const remarksImage = row.dataset.remarksImg || row.querySelector('.st-remarks-thumb')?.getAttribute('src') || '';
-
-        periods.push({
-            slotId,
-            periodNum,
-            label,
-            startTime,
-            endTime,
-            subjectId,
-            subjectName,
-            isCompleted,
-            description,
-            descriptionImage: descriptionImage && descriptionImage.startsWith('data:') ? descriptionImage : (descriptionImage || ''),
-            remarks,
-            remarksImage: remarksImage && remarksImage.startsWith('data:') ? remarksImage : (remarksImage || '')
-        });
-    });
-
-    const docId = `${year}__${cls}__${dateStr}`;
-    const logData = {
-        academicYear: String(year),
-        classLabel: String(cls),
-        date: dateStr,
-        dayOfWeek: dayName,
-        periods,
-        updatedAt: Date.now(),
-        updatedBy: auth.currentUser?.email || 'admin'
-    };
-
-    try {
-        await setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true });
-        cachedSyllabusDailyLogs[docId] = logData;
-        stMonthlyLogsMap[dateStr] = logData;
-        showToast(`Daily teaching log for ${formatDisplayDate(dateStr)} saved successfully!`, 'success');
-        renderSyllabusTrackerUI();
-    } catch (err) {
-        alert('Failed to save daily log: ' + err.message);
-    }
-};
-
-const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId, isChecked) => {
-    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    // 1. Update Daily Log for this date
     const docId = `${year}__${classLabel}__${dateStr}`;
     let logData = cachedSyllabusDailyLogs[docId];
 
@@ -3879,6 +3749,7 @@ const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId,
         const matrix = cData.matrix || (classLabel === selectedTtClass ? timetableMatrix : {});
         const periods = cSlots.filter(s => !s.isBreak).map(s => {
             const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+            const isMatch = s.slotId === slotId || ttCell.subjectId === subjectId;
             return {
                 slotId: s.slotId,
                 periodNum: s.slotNum,
@@ -3887,11 +3758,8 @@ const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId,
                 endTime: s.endTime,
                 subjectId: ttCell.subjectId || '',
                 subjectName: ttCell.subjectName || '',
-                teacher: ttCell.teacher || '',
-                lessonNo: '',
-                topic: '',
-                pages: '',
-                isCompleted: (s.slotId === slotId ? isChecked : false),
+                isCompleted: isMatch ? (newPct === 100) : false,
+                progressPercent: isMatch ? newPct : 0,
                 description: '',
                 descriptionImage: '',
                 remarks: '',
@@ -3908,273 +3776,371 @@ const handleToggleRegisterPeriodCompletion = async (classLabel, dateStr, slotId,
             updatedBy: auth.currentUser?.email || 'admin'
         };
     } else {
-        const targetPeriod = logData.periods.find(p => p.slotId === slotId);
-        if (targetPeriod) {
-            targetPeriod.isCompleted = isChecked;
-        } else if (logData.periods.length > 0) {
-            logData.periods[0].isCompleted = isChecked;
+        let targetPeriod = logData.periods.find(p => p.slotId === slotId);
+        if (!targetPeriod) {
+            targetPeriod = logData.periods.find(p => p.subjectId === subjectId);
         }
+        if (targetPeriod) {
+            targetPeriod.progressPercent = newPct;
+            if (newPct === 100) targetPeriod.isCompleted = true;
+        } else if (logData.periods.length > 0) {
+            logData.periods[0].progressPercent = newPct;
+            if (newPct === 100) logData.periods[0].isCompleted = true;
+        }
+        logData.updatedAt = Date.now();
+        logData.updatedBy = auth.currentUser?.email || 'admin';
+    }
+
+    // 2. Update Year Plan Grid for this Month & Subject
+    const ypDocId = getYearPlanDocId(year, classLabel);
+    const targetGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
+        ? yearPlanGrid
+        : (stCurrentGrid || (allClassesSyllabusData[classLabel]?.grid) || {});
+
+    const cellKey = `${activeMonth}__${subjectId}`;
+    const cell = targetGrid[cellKey] || {};
+    cell.progressPercent = newPct;
+    cell.isCompleted = Boolean(isCompleted || newPct === 100);
+    cell.status = (newPct === 100) ? 'Completed' : (newPct > 0 ? 'In Progress' : 'Planned');
+    cell.updatedAt = Date.now();
+    cell.updatedBy = auth.currentUser?.email || 'admin';
+    targetGrid[cellKey] = cell;
+
+    if (classLabel === selectedStClass) stCurrentGrid[cellKey] = cell;
+    if (classLabel === selectedYpClass) yearPlanGrid[cellKey] = cell;
+    if (allClassesSyllabusData[classLabel]) {
+        if (!allClassesSyllabusData[classLabel].grid) allClassesSyllabusData[classLabel].grid = {};
+        allClassesSyllabusData[classLabel].grid[cellKey] = cell;
+    }
+
+    try {
+        await Promise.all([
+            setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true }),
+            setDoc(doc(db, `${BASE_PATH}/yearPlans`, ypDocId), { grid: targetGrid, updatedAt: Date.now() }, { merge: true })
+        ]);
+
+        cachedSyllabusDailyLogs[docId] = logData;
+        stMonthlyLogsMap[dateStr] = logData;
+
+        const modal = document.getElementById('modal-st-subject-progress');
+        if (modal) modal.classList.add('hidden');
+
+        showToast(`Cumulative progress updated to ${newPct}%!`, 'success');
+        renderSyllabusTrackerUI();
+    } catch (err) {
+        console.error('Failed to save subject progress:', err);
+        showToast('Failed to save progress: ' + err.message, 'error');
+    }
+};
+
+// Open Taught Portion Modal
+const openTaughtPortionModal = (classLabel, dateStr, slotId, subjectId, subjectName, slotLabel, slotTime) => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const modal = document.getElementById('modal-st-taught-portion');
+    if (!modal) return;
+
+    document.getElementById('modal-st-portion-class').value = classLabel;
+    document.getElementById('modal-st-portion-date').value = dateStr;
+    document.getElementById('modal-st-portion-slot-id').value = slotId;
+
+    document.getElementById('modal-st-portion-title').textContent = `Record Taught Portion • ${slotLabel || 'Period'}`;
+    document.getElementById('modal-st-portion-subtitle').textContent = `Class ${classLabel} • ${slotLabel || ''} (${slotTime || ''}) • ${formatDisplayDate(dateStr)}`;
+
+    const subjs = (classLabel === selectedStClass && stClassSubjects.length > 0)
+        ? stClassSubjects
+        : (allClassesTimetables[classLabel]?.subjects || allClassesSyllabusData[classLabel]?.subjects || classSubjectsList || []);
+
+    const subjSelect = document.getElementById('modal-st-portion-subject');
+    if (subjSelect) {
+        let opts = `<option value="">-- Free / Other Session --</option>`;
+        subjs.forEach(s => {
+            opts += `<option value="${escapeHtml(s.id)}" ${s.id === subjectId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`;
+        });
+        subjSelect.innerHTML = opts;
+        if (subjectId && !subjs.some(s => s.id === subjectId)) {
+            subjSelect.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(subjectId)}" selected>${escapeHtml(subjectName || 'Current Subject')}</option>`);
+        }
+    }
+
+    const docId = `${year}__${classLabel}__${dateStr}`;
+    const log = cachedSyllabusDailyLogs[docId];
+    const p = log?.periods?.find(lp => lp.slotId === slotId) || null;
+
+    const isCompleted = p ? Boolean(p.isCompleted) : true;
+    const desc = p?.description || p?.topic || '';
+    const img = p?.descriptionImage || '';
+
+    document.getElementById('modal-st-portion-completed').checked = isCompleted;
+    document.getElementById('modal-st-portion-desc').value = desc;
+    document.getElementById('modal-st-portion-image').value = img;
+
+    const thumbWrap = document.getElementById('modal-st-portion-thumb-wrap');
+    const thumbImg = document.getElementById('modal-st-portion-thumb-img');
+    if (img) {
+        if (thumbImg) {
+            thumbImg.src = img;
+            thumbImg.dataset.fullImg = img;
+            thumbImg.dataset.caption = `Class ${classLabel} • ${slotLabel} • Portion Photo`;
+        }
+        if (thumbWrap) thumbWrap.classList.remove('hidden');
+    } else {
+        if (thumbImg) {
+            thumbImg.src = '';
+            thumbImg.dataset.fullImg = '';
+        }
+        if (thumbWrap) thumbWrap.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+};
+
+// Save Taught Portion Modal
+const saveTaughtPortionModal = async () => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const classLabel = document.getElementById('modal-st-portion-class')?.value;
+    const dateStr = document.getElementById('modal-st-portion-date')?.value;
+    const slotId = document.getElementById('modal-st-portion-slot-id')?.value;
+    const image = document.getElementById('modal-st-portion-image')?.value || '';
+    const subjSelect = document.getElementById('modal-st-portion-subject');
+    const subjectId = subjSelect ? subjSelect.value : '';
+    const subjectName = subjSelect?.selectedOptions?.[0] ? subjSelect.selectedOptions[0].textContent.trim() : '';
+    const isCompleted = Boolean(document.getElementById('modal-st-portion-completed')?.checked);
+    const description = document.getElementById('modal-st-portion-desc')?.value.trim() || '';
+
+    if (!classLabel || !dateStr || !slotId) {
+        showToast('Missing required period context.', 'error');
+        return;
+    }
+
+    const docId = `${year}__${classLabel}__${dateStr}`;
+    let logData = cachedSyllabusDailyLogs[docId];
+
+    if (!logData || !Array.isArray(logData.periods)) {
+        let dayName = 'Monday';
+        try {
+            const dt = new Date(dateStr + 'T00:00:00');
+            dayName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
+        } catch (_) {}
+
+        const cData = allClassesTimetables[classLabel] || {};
+        const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0)
+            ? cData.slots
+            : ((classLabel === selectedTtClass && Array.isArray(currentClassSlots) && currentClassSlots.length > 0) ? currentClassSlots : normalizeTimetableSlots(timetableConfig));
+        const matrix = cData.matrix || (classLabel === selectedTtClass ? timetableMatrix : {});
+        const periods = cSlots.filter(s => !s.isBreak).map(s => {
+            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+            const isMatch = s.slotId === slotId;
+            return {
+                slotId: s.slotId,
+                periodNum: s.slotNum,
+                label: s.label,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                subjectId: isMatch ? subjectId : (ttCell.subjectId || ''),
+                subjectName: isMatch ? subjectName : (ttCell.subjectName || ''),
+                isCompleted: isMatch ? isCompleted : false,
+                progressPercent: 0,
+                description: isMatch ? description : '',
+                descriptionImage: isMatch ? image : '',
+                remarks: '',
+                remarksImage: ''
+            };
+        });
+        logData = {
+            academicYear: String(year),
+            classLabel: String(classLabel),
+            date: dateStr,
+            dayOfWeek: dayName,
+            periods,
+            updatedAt: Date.now(),
+            updatedBy: auth.currentUser?.email || 'admin'
+        };
+    } else {
+        let targetPeriod = logData.periods.find(p => p.slotId === slotId);
+        if (!targetPeriod) {
+            targetPeriod = {
+                slotId,
+                periodNum: 1,
+                label: 'Period',
+                startTime: '',
+                endTime: '',
+                subjectId,
+                subjectName,
+                isCompleted,
+                description,
+                descriptionImage: image,
+                remarks: '',
+                remarksImage: ''
+            };
+            logData.periods.push(targetPeriod);
+        } else {
+            if (subjectId) {
+                targetPeriod.subjectId = subjectId;
+                targetPeriod.subjectName = subjectName;
+            }
+            targetPeriod.isCompleted = isCompleted;
+            targetPeriod.description = description;
+            targetPeriod.descriptionImage = image;
+        }
+        logData.updatedAt = Date.now();
+        logData.updatedBy = auth.currentUser?.email || 'admin';
     }
 
     try {
         await setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true });
         cachedSyllabusDailyLogs[docId] = logData;
         stMonthlyLogsMap[dateStr] = logData;
-        showToast(isChecked ? 'Period marked as completed!' : 'Period marked as pending', 'success');
-        if (selectedStDailyDate === dateStr) {
-            await loadDailyTeachingLog(dateStr);
-        }
+
+        const modal = document.getElementById('modal-st-taught-portion');
+        if (modal) modal.classList.add('hidden');
+
+        showToast('Taught portion saved successfully!', 'success');
         renderSyllabusTrackerUI();
     } catch (err) {
-        showToast('Failed to save status: ' + err.message, 'error');
+        console.error('Failed to save taught portion:', err);
+        showToast('Failed to save portion: ' + err.message, 'error');
     }
 };
 
-const renderMonthlySubjectsCompletionUI = async (classLabel, activeMonth) => {
-    const container = document.getElementById('st-monthly-subjects-summary');
-    if (!container) return;
-
+// Open Teacher Remarks Modal
+const openTeacherRemarksModal = (classLabel, dateStr, slotId, subjectId, subjectName, slotLabel, slotTime) => {
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const modal = document.getElementById('modal-st-period-remarks');
+    if (!modal) return;
 
-    if (!classLabel || classLabel === 'all') {
-        const allowed = getAllowedClassesForTeacher();
-        let classesHtml = '';
-        allowed.forEach(cls => {
-            const clsYp = allClassesSyllabusData[cls] || {};
-            const grid = clsYp.grid || {};
-            const subjects = clsYp.subjects || [];
-            let totalSubjs = subjects.length;
-            let completedSubjs = 0;
-            let sumPct = 0;
+    document.getElementById('modal-st-remarks-class').value = classLabel;
+    document.getElementById('modal-st-remarks-date').value = dateStr;
+    document.getElementById('modal-st-remarks-slot-id').value = slotId;
 
-            subjects.forEach(s => {
-                const cell = grid[`${activeMonth}__${s.id}`] || {};
-                const pct = typeof cell.progressPercent === 'number' ? cell.progressPercent : (cell.isCompleted ? 100 : 0);
-                if (pct >= 100 || cell.isCompleted) completedSubjs++;
-                sumPct += pct;
-            });
+    document.getElementById('modal-st-remarks-title').textContent = `Teacher Remarks & Notes • ${slotLabel || 'Period'}`;
+    document.getElementById('modal-st-remarks-subtitle').textContent = `Class ${classLabel} • ${slotLabel || ''} (${slotTime || ''}) • ${formatDisplayDate(dateStr)}`;
 
-            const avgPct = totalSubjs > 0 ? Math.round(sumPct / totalSubjs) : 0;
+    const docId = `${year}__${classLabel}__${dateStr}`;
+    const log = cachedSyllabusDailyLogs[docId];
+    const p = log?.periods?.find(lp => lp.slotId === slotId) || null;
 
-            classesHtml += `
-                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between flex-wrap gap-2">
-                    <div class="flex items-center gap-3">
-                        <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0">${escapeHtml(cls)}</span>
-                        <div>
-                            <div class="font-black text-xs text-slate-900">Class ${escapeHtml(cls)} Completion</div>
-                            <div class="text-[11px] text-slate-500 font-bold">${completedSubjs} of ${totalSubjs} Subjects Completed (${avgPct}%)</div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-24 bg-slate-200 rounded-full h-2 overflow-hidden hidden sm:block">
-                            <div class="bg-indigo-600 h-2 rounded-full" style="width: ${avgPct}%"></div>
-                        </div>
-                        <button type="button" class="btn-focus-class-from-summary px-3 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs cursor-pointer shadow-2xs" data-class="${escapeHtml(cls)}">
-                            Focus Class ${escapeHtml(cls)}
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
+    const remarks = p?.remarks || '';
+    const img = p?.remarksImage || '';
 
-        container.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
-                            <i class="fas fa-list-check"></i>
-                        </span>
-                        <div>
-                            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wide">Monthly Syllabus Completion Overview (${escapeHtml(activeMonth)})</h4>
-                            <p class="text-[11px] text-slate-500 font-semibold">Select a class from the Class filter to record end-of-month portion completion.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                    ${classesHtml || '<div class="text-slate-400 text-xs italic p-3">No classes available</div>'}
-                </div>
-            </div>
-        `;
+    document.getElementById('modal-st-remarks-desc').value = remarks;
+    document.getElementById('modal-st-remarks-image').value = img;
+
+    const thumbWrap = document.getElementById('modal-st-remarks-thumb-wrap');
+    const thumbImg = document.getElementById('modal-st-remarks-thumb-img');
+    if (img) {
+        if (thumbImg) {
+            thumbImg.src = img;
+            thumbImg.dataset.fullImg = img;
+            thumbImg.dataset.caption = `Class ${classLabel} • ${slotLabel} • Remarks Photo`;
+        }
+        if (thumbWrap) thumbWrap.classList.remove('hidden');
+    } else {
+        if (thumbImg) {
+            thumbImg.src = '';
+            thumbImg.dataset.fullImg = '';
+        }
+        if (thumbWrap) thumbWrap.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+};
+
+// Save Teacher Remarks Modal
+const saveTeacherRemarksModal = async () => {
+    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
+    const classLabel = document.getElementById('modal-st-remarks-class')?.value;
+    const dateStr = document.getElementById('modal-st-remarks-date')?.value;
+    const slotId = document.getElementById('modal-st-remarks-slot-id')?.value;
+    const image = document.getElementById('modal-st-remarks-image')?.value || '';
+    const remarks = document.getElementById('modal-st-remarks-desc')?.value.trim() || '';
+
+    if (!classLabel || !dateStr || !slotId) {
+        showToast('Missing required period context.', 'error');
         return;
     }
 
-    // Specific Class is Selected
-    const subjects = (Array.isArray(stClassSubjects) && stClassSubjects.length > 0)
-        ? stClassSubjects
-        : (allClassesSyllabusData[classLabel]?.subjects || []);
+    const docId = `${year}__${classLabel}__${dateStr}`;
+    let logData = cachedSyllabusDailyLogs[docId];
 
-    const grid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
-        ? yearPlanGrid
-        : (stCurrentGrid || allClassesSyllabusData[classLabel]?.grid || {});
+    if (!logData || !Array.isArray(logData.periods)) {
+        let dayName = 'Monday';
+        try {
+            const dt = new Date(dateStr + 'T00:00:00');
+            dayName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
+        } catch (_) {}
 
-    let totalSubjs = subjects.length;
-    let completedCount = 0;
-    let sumPct = 0;
-
-    subjects.forEach(s => {
-        const cell = grid[`${activeMonth}__${s.id}`] || {};
-        const pct = typeof cell.progressPercent === 'number' ? cell.progressPercent : (cell.isCompleted ? 100 : 0);
-        if (pct >= 100 || cell.isCompleted) completedCount++;
-        sumPct += pct;
-    });
-
-    const overallPct = totalSubjs > 0 ? Math.round(sumPct / totalSubjs) : 0;
-
-    let cardsHtml = '';
-    if (!subjects.length) {
-        cardsHtml = `
-            <div class="col-span-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-slate-400 font-bold text-xs">
-                No subjects found for Class ${escapeHtml(classLabel)}. Please add subjects in the Class Subjects tab.
-            </div>
-        `;
-    } else {
-        subjects.forEach(s => {
-            const cellKey = `${activeMonth}__${s.id}`;
-            const cell = grid[cellKey] || {};
-            const isCompleted = Boolean(cell.isCompleted);
-            const progressPercent = typeof cell.progressPercent === 'number' ? cell.progressPercent : (isCompleted ? 100 : 0);
-
-            const topic = cell.topic || cell.lessonNo || '';
-            const pages = cell.pages || '';
-            const breakdown = cell.breakdown || cell.notes || '';
-            const allocatedPeriods = cell.allocatedPeriods || '';
-
-            const hasPlan = Boolean(topic || pages || breakdown || allocatedPeriods);
-
-            cardsHtml += `
-                <div class="p-3.5 rounded-2xl ${isCompleted || progressPercent === 100 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-white border-slate-200'} border shadow-2xs space-y-3 flex flex-col justify-between st-month-subject-card transition"
-                    data-subject-id="${escapeHtml(s.id)}"
-                    data-subject-name="${escapeHtml(s.name)}"
-                    data-class="${escapeHtml(classLabel)}"
-                    data-month="${escapeHtml(activeMonth)}">
-                    
-                    <div class="space-y-2">
-                        <div class="flex items-start justify-between gap-2">
-                            <div>
-                                <h5 class="text-xs font-black text-slate-900 leading-snug flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full ${isCompleted || progressPercent === 100 ? 'bg-emerald-500' : (progressPercent > 0 ? 'bg-indigo-500' : 'bg-slate-300')}"></span>
-                                    <span>${escapeHtml(s.name)}</span>
-                                </h5>
-                                <div class="text-[10px] text-slate-500 font-bold mt-0.5">
-                                    ${escapeHtml(s.teacher || 'Assigned Teacher')}
-                                </div>
-                            </div>
-                            <span class="st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${isCompleted || progressPercent === 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : (progressPercent > 0 ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-slate-100 text-slate-600 border border-slate-200')}">
-                                ${isCompleted || progressPercent === 100 ? 'Completed (100%)' : (progressPercent > 0 ? `${progressPercent}% In Progress` : 'Pending (0%)')}
-                            </span>
-                        </div>
-
-                        <div class="p-2.5 rounded-xl bg-slate-50/90 border border-slate-100 text-[11px] space-y-1">
-                            <div class="text-[10px] uppercase font-black tracking-wider text-slate-400">Planned Target (${escapeHtml(activeMonth)})</div>
-                            ${hasPlan ? `
-                                <div class="font-bold text-slate-800 leading-tight">
-                                    ${topic ? `<span class="text-indigo-900 font-black">${escapeHtml(topic)}</span>` : ''}
-                                    ${pages ? `<span class="text-slate-600 font-semibold ml-1">(Pages: ${escapeHtml(pages)})</span>` : ''}
-                                </div>
-                                ${breakdown ? `<div class="text-[10px] text-slate-500 italic truncate">${escapeHtml(breakdown)}</div>` : ''}
-                                ${allocatedPeriods ? `<div class="text-[10px] text-indigo-700 font-extrabold"><i class="fas fa-clock text-[9px] mr-1"></i>Allocated: ${escapeHtml(allocatedPeriods)} periods</div>` : ''}
-                            ` : `
-                                <div class="text-slate-400 italic text-[11px]">No syllabus target planned in Academic Year Plan for this month.</div>
-                            `}
-                        </div>
-                    </div>
-
-                    <div class="pt-2 border-t border-slate-100 space-y-2">
-                        <div class="flex items-center justify-between">
-                            <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                                <input type="checkbox" class="st-month-subj-cb w-4 h-4 rounded cursor-pointer accent-emerald-600" ${isCompleted || progressPercent === 100 ? 'checked' : ''}>
-                                <span class="text-xs font-black ${isCompleted || progressPercent === 100 ? 'text-emerald-700' : 'text-slate-700'}">
-                                    Mark 100% Completed
-                                </span>
-                            </label>
-                            <div class="flex items-center gap-1">
-                                <input type="number" min="0" max="100" class="st-month-subj-input w-12 px-1.5 py-0.5 text-right font-black text-xs border border-slate-300 rounded-lg text-slate-800 outline-none focus:border-indigo-500" value="${progressPercent}">
-                                <span class="text-[11px] font-bold text-slate-500">%</span>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-2">
-                            <input type="range" min="0" max="100" step="5" class="st-month-subj-slider w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" value="${progressPercent}">
-                        </div>
-
-                        <div class="flex items-center justify-between gap-1 pt-0.5">
-                            <span class="text-[10px] font-bold text-slate-400 uppercase">Quick:</span>
-                            <div class="flex items-center gap-1">
-                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition cursor-pointer" data-pct="25">25%</button>
-                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition cursor-pointer" data-pct="50">50%</button>
-                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition cursor-pointer" data-pct="75">75%</button>
-                                <button type="button" class="btn-quick-subj-pct px-2 py-0.5 text-[10px] font-black rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer" data-pct="100">100%</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+        const cData = allClassesTimetables[classLabel] || {};
+        const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0)
+            ? cData.slots
+            : ((classLabel === selectedTtClass && Array.isArray(currentClassSlots) && currentClassSlots.length > 0) ? currentClassSlots : normalizeTimetableSlots(timetableConfig));
+        const matrix = cData.matrix || (classLabel === selectedTtClass ? timetableMatrix : {});
+        const periods = cSlots.filter(s => !s.isBreak).map(s => {
+            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
+            const isMatch = s.slotId === slotId;
+            return {
+                slotId: s.slotId,
+                periodNum: s.slotNum,
+                label: s.label,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                subjectId: ttCell.subjectId || '',
+                subjectName: ttCell.subjectName || '',
+                isCompleted: false,
+                progressPercent: 0,
+                description: '',
+                descriptionImage: '',
+                remarks: isMatch ? remarks : '',
+                remarksImage: isMatch ? image : ''
+            };
         });
+        logData = {
+            academicYear: String(year),
+            classLabel: String(classLabel),
+            date: dateStr,
+            dayOfWeek: dayName,
+            periods,
+            updatedAt: Date.now(),
+            updatedBy: auth.currentUser?.email || 'admin'
+        };
+    } else {
+        let targetPeriod = logData.periods.find(p => p.slotId === slotId);
+        if (!targetPeriod) {
+            targetPeriod = {
+                slotId,
+                periodNum: 1,
+                label: 'Period',
+                startTime: '',
+                endTime: '',
+                subjectId: '',
+                subjectName: '',
+                isCompleted: false,
+                description: '',
+                descriptionImage: '',
+                remarks,
+                remarksImage: image
+            };
+            logData.periods.push(targetPeriod);
+        } else {
+            targetPeriod.remarks = remarks;
+            targetPeriod.remarksImage = image;
+        }
+        logData.updatedAt = Date.now();
+        logData.updatedBy = auth.currentUser?.email || 'admin';
     }
 
-    container.innerHTML = `
-        <div class="space-y-3">
-            <div class="flex items-center justify-between pb-2.5 border-b border-slate-100 flex-wrap gap-2">
-                <div class="flex items-center gap-2.5">
-                    <span class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0">
-                        <i class="fas fa-clipboard-check"></i>
-                    </span>
-                    <div>
-                        <h4 class="text-xs font-black text-slate-900 uppercase tracking-wide">
-                            Class ${escapeHtml(classLabel)} Monthly Syllabus Subject Completion (${escapeHtml(activeMonth)})
-                        </h4>
-                        <p class="text-[11px] text-slate-500 font-bold">Planned targets from Academic Year Plan • Confirm portions completed by month-end</p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="px-3 py-1 rounded-xl text-xs font-black ${overallPct === 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}">
-                        ${completedCount} / ${totalSubjs} Completed (${overallPct}%)
-                    </span>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                ${cardsHtml}
-            </div>
-        </div>
-    `;
-};
-
-const saveSubjectMonthlyCompletion = async (classLabel, month, subjectId, progressPercent, isCompleted) => {
-    const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
-    const docId = getYearPlanDocId(year, classLabel);
-
-    const targetGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
-        ? yearPlanGrid
-        : (stCurrentGrid || (allClassesSyllabusData[classLabel]?.grid) || {});
-
-    const key = `${month}__${subjectId}`;
-    const cell = targetGrid[key] || {};
-
-    const pct = Math.max(0, Math.min(100, Math.round(Number(progressPercent) || 0)));
-    const done = Boolean(isCompleted || pct === 100);
-
-    cell.isCompleted = done;
-    cell.progressPercent = pct;
-    cell.status = pct === 100 ? 'Completed' : (pct > 0 ? 'In Progress' : 'Planned');
-    cell.updatedAt = Date.now();
-    cell.updatedBy = auth.currentUser?.email || 'admin';
-
-    targetGrid[key] = cell;
-    if (classLabel === selectedStClass) stCurrentGrid[key] = cell;
-    if (classLabel === selectedYpClass) yearPlanGrid[key] = cell;
-    if (allClassesSyllabusData[classLabel]) allClassesSyllabusData[classLabel].grid[key] = cell;
-
     try {
-        await setDoc(doc(db, `${BASE_PATH}/yearPlans`, docId), {
-            grid: targetGrid,
-            updatedAt: Date.now()
-        }, { merge: true });
+        await setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true });
+        cachedSyllabusDailyLogs[docId] = logData;
+        stMonthlyLogsMap[dateStr] = logData;
 
-        showToast(`Saved: ${pct}% completion recorded for subject!`, 'success');
+        const modal = document.getElementById('modal-st-period-remarks');
+        if (modal) modal.classList.add('hidden');
+
+        showToast('Teacher remarks saved successfully!', 'success');
+        renderSyllabusTrackerUI();
     } catch (err) {
-        console.error('Error saving subject monthly completion:', err);
-        showToast('Failed to save completion: ' + err.message, 'error');
+        console.error('Failed to save teacher remarks:', err);
+        showToast('Failed to save remarks: ' + err.message, 'error');
     }
 };
 
@@ -4201,6 +4167,8 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
     const cDayStatuses = cData.dayStatuses || (cls === selectedTtClass ? currentClassDayStatuses : {});
     const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
 
+    const cumProgressByDate = computeMonthlyCumulativeSubjectProgress(cls, activeMonth, daysInMonth, isHijri, yearNum, mIndex, monthLogsMap);
+
     let html = `
         <table class="w-full text-left border-collapse border-2 border-slate-900 text-xs">
             <thead>
@@ -4212,7 +4180,7 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
                     <th class="py-2.5 px-3 border-r-2 border-slate-900 min-w-[220px]">Teacher Remarks / Notes</th>
                 </tr>
             </thead>
-            <tbody class="divide-y-2 divide-slate-800 font-medium">`;
+            <tbody class="divide-y-0 font-medium">`;
 
     for (let d = 1; d <= daysInMonth; d++) {
         let dateStr = '';
@@ -4260,9 +4228,9 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
         if (isDayOff) {
             html += `
-                <tr class="bg-rose-50/25 hover:bg-rose-50/35 transition border-b border-slate-300">
-                    <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-500 bg-slate-100/60">${d}</td>
-                    <td class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap">
+                <tr class="bg-rose-50/25 hover:bg-rose-50/35 transition border-b-2 border-slate-900">
+                    <td class="py-3 px-3 border-r-2 border-slate-800 text-center font-black text-slate-500 bg-slate-100/60">${d}</td>
+                    <td class="py-3 px-3 border-r-2 border-slate-800 whitespace-nowrap bg-slate-50/40">
                         <div class="text-xs font-black text-slate-900">${String(d).padStart(2, '0')} ${monthShort}</div>
                         <div class="text-[10px] font-bold text-slate-500">${dayName}</div>
                     </td>
@@ -4274,102 +4242,164 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
             continue;
         }
 
-        const totalPeriodsCount = teachingSlots.length;
-        const completedPeriodsCount = loggedPeriods.filter(p => p.isCompleted).length;
-        const isFullyDone = (totalPeriodsCount > 0 && completedPeriodsCount >= totalPeriodsCount);
+        if (!teachingSlots.length) {
+            html += `
+                <tr class="hover:bg-slate-50/70 transition border-b-2 border-slate-900">
+                    <td class="py-3 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50">${d}</td>
+                    <td class="py-3 px-3 border-r-2 border-slate-800 whitespace-nowrap bg-slate-50/50">
+                        <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
+                            <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
+                            <span>${String(d).padStart(2, '0')} ${monthShort}</span>
+                        </div>
+                        <div class="text-[10px] font-bold text-slate-500 mt-0.5">${dayName}</div>
+                    </td>
+                    <td colspan="3" class="py-3 px-4 border-r-2 border-slate-800 text-center text-slate-400 font-bold text-xs italic">
+                        No teaching periods configured in Class ${escapeHtml(cls)} timetable.
+                    </td>
+                </tr>
+            `;
+            continue;
+        }
 
-        html += `
-            <tr class="hover:bg-slate-50/70 transition border-b border-slate-300 ${isFullyDone ? 'bg-emerald-50/20' : ''}">
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50">
-                    ${d}
-                </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap cursor-pointer hover:bg-indigo-50/50 transition btn-jump-log-date" data-date="${dateStr}" data-class="${escapeHtml(cls)}" title="Click to open this day in Teaching Logger">
-                    <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
-                        <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
-                        <span>${String(d).padStart(2, '0')} ${monthShort}</span>
+        const N = teachingSlots.length;
+        teachingSlots.forEach((slot, idx) => {
+            const isFirstSubRow = (idx === 0);
+            const isLastSubRow = (idx === N - 1);
+            const borderClass = isLastSubRow ? 'border-b-2 border-slate-900' : 'border-b border-slate-200';
+
+            const pNum = slot.slotNum || (idx + 1);
+            const slotKey = `${dayName}_${slot.slotId}`;
+            const legacyKey = `${dayName}_${pNum}`;
+            const ttCell = matrix[slotKey] || matrix[legacyKey] || {};
+
+            const p = loggedPeriods.find(lp => lp.slotId === slot.slotId || lp.periodNum === pNum) || null;
+
+            const defaultSubjId = ttCell.subjectId || '';
+            const defaultSubjName = ttCell.subjectName || '';
+            const effectiveSubjId = p?.subjectId || defaultSubjId;
+            const effectiveSubjName = p?.subjectName || defaultSubjName || (defaultSubjId ? 'Subject' : 'Free');
+
+            const cumPct = (effectiveSubjId && cumProgressByDate[dateStr] && typeof cumProgressByDate[dateStr][effectiveSubjId] === 'number')
+                ? cumProgressByDate[dateStr][effectiveSubjId]
+                : 0;
+
+            const isTaught = Boolean(p?.isCompleted);
+            const descText = p?.description || p?.topic || '';
+            const descImg = p?.descriptionImage || '';
+            const remarksText = p?.remarks || '';
+            const remarksImg = p?.remarksImage || '';
+
+            html += `
+                <tr class="hover:bg-slate-50/60 transition ${borderClass}">`;
+
+            if (isFirstSubRow) {
+                html += `
+                    <td rowspan="${N}" class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50 align-top">
+                        ${d}
+                    </td>
+                    <td rowspan="${N}" class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap align-top bg-slate-50/50">
+                        <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
+                            <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
+                            <span>${String(d).padStart(2, '0')} ${monthShort}</span>
+                        </div>
+                        <div class="text-[10px] font-bold text-slate-500 mt-0.5">
+                            ${dayName}
+                        </div>
+                    </td>`;
+            }
+
+            // Column 3: Scheduled Periods & Subject with Cumulative % Progress
+            html += `
+                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <span class="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 font-black text-[11px] shrink-0">
+                                ${escapeHtml(slot.label)}
+                            </span>
+                            <span class="text-[10px] font-bold text-slate-400 hidden xl:inline">${slot.startTime} - ${slot.endTime}</span>
+                        </div>
+                        ${effectiveSubjId ? `
+                            <button type="button" class="btn-st-trigger-subject-progress px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 font-black text-xs text-slate-800 transition cursor-pointer flex items-center gap-1.5 text-left"
+                                data-class="${escapeHtml(cls)}"
+                                data-date="${dateStr}"
+                                data-slot-id="${escapeHtml(slot.slotId)}"
+                                data-subject-id="${escapeHtml(effectiveSubjId)}"
+                                data-subject-name="${escapeHtml(effectiveSubjName)}"
+                                data-cum-pct="${cumPct}"
+                                title="Click to view &amp; update monthly progress for ${escapeHtml(effectiveSubjName)}">
+                                <span>${escapeHtml(effectiveSubjName)}</span>
+                                <span class="px-1.5 py-0.2 rounded text-[10px] font-black ${cumPct === 100 ? 'bg-emerald-100 text-emerald-800' : (cumPct > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600')}">(${cumPct}%)</span>
+                            </button>
+                        ` : `
+                            <span class="text-[11px] text-slate-400 italic font-medium">Free</span>
+                        `}
                     </div>
-                    <div class="text-[10px] font-bold text-slate-500 mt-0.5">
-                        ${dayName}
-                    </div>
-                </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 align-top">
-                    <div class="flex flex-wrap gap-1">
-                        ${teachingSlots.map(s => {
-                            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
-                            const sName = ttCell.subjectName || 'Free';
-                            return `
-                                <div class="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-800 flex items-center gap-1">
-                                    <span class="font-black text-indigo-700">${escapeHtml(s.label)}:</span>
-                                    <span>${escapeHtml(sName)}</span>
+                </td>`;
+
+            // Column 4: Taught Lessons & Portions Log
+            html += `
+                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle hover:bg-indigo-50/30 transition cursor-pointer btn-st-trigger-portion"
+                    data-class="${escapeHtml(cls)}"
+                    data-date="${dateStr}"
+                    data-slot-id="${escapeHtml(slot.slotId)}"
+                    data-subject-id="${escapeHtml(effectiveSubjId)}"
+                    data-subject-name="${escapeHtml(effectiveSubjName)}"
+                    data-slot-label="${escapeHtml(slot.label)}"
+                    data-slot-time="${slot.startTime} - ${slot.endTime}"
+                    title="Click to record or edit taught portions &amp; attach photo">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex-1 min-w-0">
+                            ${descText ? `
+                                <div class="text-xs font-semibold text-slate-900 leading-snug line-clamp-2">
+                                    ${isTaught ? '<i class="fas fa-circle-check text-emerald-600 mr-1 text-[11px]"></i>' : ''}${escapeHtml(descText)}
                                 </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 align-top">
-                    <div class="space-y-1.5">
-                        ${teachingSlots.map(s => {
-                            const p = loggedPeriods.find(lp => lp.slotId === s.slotId || lp.periodNum === s.slotNum) || {};
-                            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
-                            const sName = p.subjectName || ttCell.subjectName || 'Free';
-                            const isTaught = Boolean(p.isCompleted);
-                            const desc = p.description || p.topic || '';
-                            const descImg = p.descriptionImage || '';
-                            if (!isTaught && !desc && !descImg) {
-                                return `
-                                    <div class="p-1 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-400 flex items-center justify-between">
-                                        <span><strong>${escapeHtml(s.label)}:</strong> ${escapeHtml(sName)}</span>
-                                        <span class="italic text-[9px]">Pending</span>
-                                    </div>
-                                `;
-                            }
-                            return `
-                                <div class="p-2 rounded-xl ${isTaught ? 'bg-emerald-50/70 border border-emerald-200' : 'bg-slate-50 border border-slate-200'} text-[11px] space-y-1">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <div class="font-black ${isTaught ? 'text-emerald-950' : 'text-slate-800'} flex items-center gap-1.5">
-                                            <i class="fas ${isTaught ? 'fa-circle-check text-emerald-600' : 'fa-clock text-slate-400'} text-xs"></i>
-                                            <span>${escapeHtml(s.label)}: ${escapeHtml(sName)}</span>
-                                        </div>
-                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${isTaught ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">
-                                            ${isTaught ? 'Taught' : 'Pending'}
-                                        </span>
-                                    </div>
-                                    ${desc ? `<div class="text-slate-700 font-medium whitespace-pre-wrap">${escapeHtml(desc)}</div>` : ''}
-                                    ${descImg ? `
-                                        <div class="pt-0.5 flex items-center gap-1.5">
-                                            <img src="${descImg}" alt="Portion Photo" class="w-10 h-10 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-2xs hover:opacity-80 transition st-thumb-preview" data-full-img="${descImg}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(s.label)} (${escapeHtml(sName)}) • Portion Photo">
-                                            <span class="text-[10px] text-slate-500 font-bold">Photo attached (click to view)</span>
-                                        </div>
-                                    ` : ''}
+                            ` : `
+                                <div class="text-[11px] font-bold text-slate-400 italic flex items-center gap-1">
+                                    <i class="fas fa-plus text-[9px]"></i> Record portion...
                                 </div>
-                            `;
-                        }).join('')}
+                            `}
+                        </div>
+                        ${descImg ? `
+                            <div class="shrink-0">
+                                <img src="${descImg}" alt="Portion Photo" class="w-9 h-9 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-2xs hover:opacity-85 transition st-thumb-preview" data-full-img="${descImg}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(slot.label)} • Portions Photo">
+                            </div>
+                        ` : ''}
                     </div>
-                </td>
-                <td class="py-2.5 px-3 border-r-2 border-slate-800 text-slate-700 text-[11px] align-top">
-                    <div class="space-y-1.5">
-                        ${teachingSlots.map(s => {
-                            const p = loggedPeriods.find(lp => lp.slotId === s.slotId || lp.periodNum === s.slotNum) || {};
-                            const remarks = p.remarks || '';
-                            const remarksImg = p.remarksImage || '';
-                            if (!remarks && !remarksImg) return '';
-                            return `
-                                <div class="p-1.5 rounded-lg bg-purple-50/50 border border-purple-100 space-y-1">
-                                    <div class="text-[10px] font-black text-purple-900">${escapeHtml(s.label)}:</div>
-                                    ${remarks ? `<div class="font-medium whitespace-pre-wrap">${escapeHtml(remarks)}</div>` : ''}
-                                    ${remarksImg ? `
-                                        <div class="pt-0.5 flex items-center gap-1.5">
-                                            <img src="${remarksImg}" alt="Remarks Photo" class="w-10 h-10 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-2xs hover:opacity-80 transition st-thumb-preview" data-full-img="${remarksImg}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(s.label)} • Remarks Photo">
-                                            <span class="text-[10px] text-slate-500 font-bold">Photo attached</span>
-                                        </div>
-                                    ` : ''}
+                </td>`;
+
+            // Column 5: Teacher Remarks / Notes
+            html += `
+                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle hover:bg-purple-50/30 transition cursor-pointer btn-st-trigger-remarks"
+                    data-class="${escapeHtml(cls)}"
+                    data-date="${dateStr}"
+                    data-slot-id="${escapeHtml(slot.slotId)}"
+                    data-subject-id="${escapeHtml(effectiveSubjId)}"
+                    data-subject-name="${escapeHtml(effectiveSubjName)}"
+                    data-slot-label="${escapeHtml(slot.label)}"
+                    data-slot-time="${slot.startTime} - ${slot.endTime}"
+                    title="Click to add or edit teacher remarks, homework &amp; attach photo">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex-1 min-w-0">
+                            ${remarksText ? `
+                                <div class="text-xs font-semibold text-purple-950 leading-snug line-clamp-2">
+                                    ${escapeHtml(remarksText)}
                                 </div>
-                            `;
-                        }).join('') || '<span class="text-slate-300 italic">--</span>'}
+                            ` : `
+                                <div class="text-[11px] font-bold text-slate-300 italic flex items-center gap-1">
+                                    <i class="fas fa-plus text-[9px]"></i> Add remarks...
+                                </div>
+                            `}
+                        </div>
+                        ${remarksImg ? `
+                            <div class="shrink-0">
+                                <img src="${remarksImg}" alt="Remarks Photo" class="w-9 h-9 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-2xs hover:opacity-85 transition st-thumb-preview" data-full-img="${remarksImg}" data-caption="Class ${escapeHtml(cls)} • ${escapeHtml(slot.label)} • Remarks Photo">
+                            </div>
+                        ` : ''}
                     </div>
-                </td>
-            </tr>
-        `;
+                </td>`;
+
+            html += `</tr>`;
+        });
     }
 
     html += `</tbody></table>`;
@@ -4551,9 +4581,6 @@ const renderSyllabusTrackerUI = () => {
     const yearNum = parseInt(year) || new Date().getFullYear();
     const daysInMonth = isHijri ? 30 : new Date(yearNum, mIndex + 1, 0).getDate();
     const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
-
-    // Render the Class Monthly Subject Completion Panel (Year Plan Targets & End-of-Month Completion)
-    renderMonthlySubjectsCompletionUI(selectedStClass, activeMonth);
 
     if (selectedStClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
@@ -6655,210 +6682,105 @@ const setupEventListeners = () => {
     document.getElementById('btn-st-add-entry')?.addEventListener('click', () => openAddEditTrackerEntryModal());
     document.getElementById('btn-print-syllabus-tracker')?.addEventListener('click', printSyllabusTracker);
 
-    // Monthly Subject Completion Panel Listeners
-    const updateSubjectCardBadge = (card, val, isDone) => {
-        if (!card) return;
-        const badge = card.querySelector('.st-subj-status-badge');
-        const dot = card.querySelector('.rounded-full');
-        const isCompleted = isDone || val === 100;
+    // Subject Progress Modal Listeners
+    const syncStProgressControls = (newVal) => {
+        const prevPct = Number(document.getElementById('modal-st-prog-prev-pct')?.value) || 0;
+        const clampedVal = Math.max(prevPct, Math.min(100, isNaN(newVal) ? prevPct : Math.round(newVal)));
+        const input = document.getElementById('modal-st-prog-input');
+        const slider = document.getElementById('modal-st-prog-slider');
+        const completeCb = document.getElementById('modal-st-prog-complete-cb');
 
-        if (badge) {
-            if (isCompleted) {
-                badge.textContent = 'Completed (100%)';
-                badge.className = 'st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-300';
-            } else if (val > 0) {
-                badge.textContent = `${val}% In Progress`;
-                badge.className = 'st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 bg-indigo-100 text-indigo-800 border border-indigo-200';
-            } else {
-                badge.textContent = 'Pending (0%)';
-                badge.className = 'st-subj-status-badge px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 bg-slate-100 text-slate-600 border border-slate-200';
-            }
-        }
-        if (dot) {
-            dot.className = `w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-500' : (val > 0 ? 'bg-indigo-500' : 'bg-slate-300')}`;
-        }
-        if (isCompleted) {
-            card.classList.remove('bg-white', 'border-slate-200');
-            card.classList.add('bg-emerald-50/40', 'border-emerald-200');
-        } else {
-            card.classList.remove('bg-emerald-50/40', 'border-emerald-200');
-            card.classList.add('bg-white', 'border-slate-200');
-        }
+        if (input && Number(input.value) !== clampedVal) input.value = clampedVal;
+        if (slider && Number(slider.value) !== clampedVal) slider.value = clampedVal;
+        if (completeCb) completeCb.checked = (clampedVal === 100);
     };
 
-    const monthlySummaryEl = document.getElementById('st-monthly-subjects-summary');
-    monthlySummaryEl?.addEventListener('change', async (e) => {
-        const cb = e.target.closest('.st-month-subj-cb');
-        if (cb) {
-            const card = cb.closest('.st-month-subject-card');
-            if (!card) return;
-            const cls = card.dataset.class;
-            const m = card.dataset.month;
-            const sId = card.dataset.subjectId;
-            const isDone = cb.checked;
-            const val = isDone ? 100 : 0;
-            const slider = card.querySelector('.st-month-subj-slider');
-            const input = card.querySelector('.st-month-subj-input');
-            if (slider) slider.value = val;
-            if (input) input.value = val;
-            updateSubjectCardBadge(card, val, isDone);
-            await saveSubjectMonthlyCompletion(cls, m, sId, val, isDone);
-            return;
-        }
-
-        const input = e.target.closest('.st-month-subj-input');
-        if (input) {
-            const card = input.closest('.st-month-subject-card');
-            if (!card) return;
-            const cls = card.dataset.class;
-            const m = card.dataset.month;
-            const sId = card.dataset.subjectId;
-            const val = Math.max(0, Math.min(100, Number(input.value) || 0));
-            const slider = card.querySelector('.st-month-subj-slider');
-            const cb = card.querySelector('.st-month-subj-cb');
-            if (slider) slider.value = val;
-            if (cb) cb.checked = (val === 100);
-            updateSubjectCardBadge(card, val, val === 100);
-            await saveSubjectMonthlyCompletion(cls, m, sId, val, val === 100);
-            return;
-        }
+    document.getElementById('modal-st-prog-input')?.addEventListener('input', (e) => {
+        syncStProgressControls(Number(e.target.value));
+    });
+    document.getElementById('modal-st-prog-slider')?.addEventListener('input', (e) => {
+        syncStProgressControls(Number(e.target.value));
+    });
+    document.getElementById('modal-st-prog-complete-cb')?.addEventListener('change', (e) => {
+        const prevPct = Number(document.getElementById('modal-st-prog-prev-pct')?.value) || 0;
+        syncStProgressControls(e.target.checked ? 100 : prevPct);
     });
 
-    monthlySummaryEl?.addEventListener('input', async (e) => {
-        const slider = e.target.closest('.st-month-subj-slider');
-        if (slider) {
-            const card = slider.closest('.st-month-subject-card');
-            if (!card) return;
-            const cls = card.dataset.class;
-            const m = card.dataset.month;
-            const sId = card.dataset.subjectId;
-            const val = Number(slider.value);
-            const input = card.querySelector('.st-month-subj-input');
-            const cb = card.querySelector('.st-month-subj-cb');
-            if (input) input.value = val;
-            if (cb) cb.checked = (val === 100);
-            updateSubjectCardBadge(card, val, val === 100);
-            await saveSubjectMonthlyCompletion(cls, m, sId, val, val === 100);
-        }
+    document.querySelectorAll('.btn-quick-prog-add').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const addAmt = btn.dataset.add ? Number(btn.dataset.add) : null;
+            const setAmt = btn.dataset.set ? Number(btn.dataset.set) : null;
+            const curVal = Number(document.getElementById('modal-st-prog-input')?.value) || 0;
+            if (setAmt !== null) {
+                syncStProgressControls(setAmt);
+            } else if (addAmt !== null) {
+                syncStProgressControls(curVal + addAmt);
+            }
+        });
     });
 
-    monthlySummaryEl?.addEventListener('click', async (e) => {
-        const quickBtn = e.target.closest('.btn-quick-subj-pct');
-        if (quickBtn) {
-            const pct = Number(quickBtn.dataset.pct);
-            const card = quickBtn.closest('.st-month-subject-card');
-            if (!card) return;
-            const cls = card.dataset.class;
-            const m = card.dataset.month;
-            const sId = card.dataset.subjectId;
-            const slider = card.querySelector('.st-month-subj-slider');
-            const input = card.querySelector('.st-month-subj-input');
-            const cb = card.querySelector('.st-month-subj-cb');
-            if (slider) slider.value = pct;
-            if (input) input.value = pct;
-            if (cb) cb.checked = (pct === 100);
-            updateSubjectCardBadge(card, pct, pct === 100);
-            await saveSubjectMonthlyCompletion(cls, m, sId, pct, pct === 100);
-            return;
-        }
+    document.getElementById('btn-save-st-subject-progress')?.addEventListener('click', saveSubjectProgressModal);
 
-        const focusBtn = e.target.closest('.btn-focus-class-from-summary');
-        if (focusBtn) {
-            const cls = focusBtn.dataset.class;
-            const sel = document.getElementById('st-class-select');
-            if (sel) sel.value = cls;
-            selectedStClass = cls;
-            await loadSyllabusTracker();
-            return;
-        }
+    // Taught Portion Modal Listeners
+    document.getElementById('btn-st-portion-camera')?.addEventListener('click', () => {
+        stCropTargetModal = 'portion';
+        const input = document.getElementById('st-photo-input-camera');
+        if (input) { input.value = ''; input.click(); }
     });
+    document.getElementById('btn-st-portion-file')?.addEventListener('click', () => {
+        stCropTargetModal = 'portion';
+        const input = document.getElementById('st-photo-input-file');
+        if (input) { input.value = ''; input.click(); }
+    });
+    document.getElementById('btn-st-portion-remove-img')?.addEventListener('click', () => {
+        const input = document.getElementById('modal-st-portion-image');
+        const img = document.getElementById('modal-st-portion-thumb-img');
+        const wrap = document.getElementById('modal-st-portion-thumb-wrap');
+        if (input) input.value = '';
+        if (img) img.src = '';
+        if (wrap) wrap.classList.add('hidden');
+    });
+    document.getElementById('modal-st-portion-thumb-img')?.addEventListener('click', (e) => {
+        const src = e.target.getAttribute('src');
+        if (src) openStImageLightbox(src, 'Portion Photo Preview');
+    });
+    document.getElementById('btn-save-st-taught-portion')?.addEventListener('click', saveTaughtPortionModal);
 
-    // Daily Teaching Logger Date & Save Controls
-    document.getElementById('st-daily-date-picker')?.addEventListener('change', (e) => {
-        changeDailyLogDate(e.target.value);
+    // Teacher Remarks Modal Listeners
+    document.getElementById('btn-st-remarks-camera')?.addEventListener('click', () => {
+        stCropTargetModal = 'remarks';
+        const input = document.getElementById('st-photo-input-camera');
+        if (input) { input.value = ''; input.click(); }
     });
-    document.getElementById('btn-st-prev-day')?.addEventListener('click', () => {
-        const cur = selectedStDailyDate ? new Date(selectedStDailyDate) : new Date();
-        cur.setDate(cur.getDate() - 1);
-        changeDailyLogDate(cur.toISOString().split('T')[0]);
+    document.getElementById('btn-st-remarks-file')?.addEventListener('click', () => {
+        stCropTargetModal = 'remarks';
+        const input = document.getElementById('st-photo-input-file');
+        if (input) { input.value = ''; input.click(); }
     });
-    document.getElementById('btn-st-today')?.addEventListener('click', () => {
-        changeDailyLogDate(new Date().toISOString().split('T')[0]);
+    document.getElementById('btn-st-remarks-remove-img')?.addEventListener('click', () => {
+        const input = document.getElementById('modal-st-remarks-image');
+        const img = document.getElementById('modal-st-remarks-thumb-img');
+        const wrap = document.getElementById('modal-st-remarks-thumb-wrap');
+        if (input) input.value = '';
+        if (img) img.src = '';
+        if (wrap) wrap.classList.add('hidden');
     });
-    document.getElementById('btn-st-next-day')?.addEventListener('click', () => {
-        const cur = selectedStDailyDate ? new Date(selectedStDailyDate) : new Date();
-        cur.setDate(cur.getDate() + 1);
-        changeDailyLogDate(cur.toISOString().split('T')[0]);
+    document.getElementById('modal-st-remarks-thumb-img')?.addEventListener('click', (e) => {
+        const src = e.target.getAttribute('src');
+        if (src) openStImageLightbox(src, 'Teacher Remarks Photo Preview');
     });
-    document.getElementById('btn-save-daily-st-log')?.addEventListener('click', saveDailyTeachingLog);
+    document.getElementById('btn-save-st-period-remarks')?.addEventListener('click', saveTeacherRemarksModal);
 
     // Photo Capture & Upload Hooks
-    const triggerPhotoAttach = (slotId, field, useCamera) => {
-        pendingCropSlotId = slotId;
-        pendingCropField = field;
-        const input = document.getElementById(useCamera ? 'st-photo-input-camera' : 'st-photo-input-file');
-        if (input) {
-            input.value = '';
-            input.click();
+    const handleStPhotoFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            openStCropModalForFile(file);
         }
     };
 
-    document.getElementById('st-photo-input-file')?.addEventListener('change', (e) => {
-        const file = e.target.files?.[0];
-        if (file && pendingCropSlotId && pendingCropField) {
-            openStCropModalForFile(file, pendingCropSlotId, pendingCropField);
-        }
-    });
-
-    document.getElementById('st-photo-input-camera')?.addEventListener('change', (e) => {
-        const file = e.target.files?.[0];
-        if (file && pendingCropSlotId && pendingCropField) {
-            openStCropModalForFile(file, pendingCropSlotId, pendingCropField);
-        }
-    });
-
-    // Period Row Interactions (Camera, File, Remove, Lightbox)
-    document.getElementById('st-daily-periods-container')?.addEventListener('click', (e) => {
-        const descCamBtn = e.target.closest('.btn-attach-desc-camera');
-        if (descCamBtn) {
-            triggerPhotoAttach(descCamBtn.dataset.slotId, 'description', true);
-            return;
-        }
-        const descFileBtn = e.target.closest('.btn-attach-desc-file');
-        if (descFileBtn) {
-            triggerPhotoAttach(descFileBtn.dataset.slotId, 'description', false);
-            return;
-        }
-        const descRemoveBtn = e.target.closest('.btn-remove-desc-thumb');
-        if (descRemoveBtn) {
-            removeDescPhoto(descRemoveBtn.dataset.slotId);
-            return;
-        }
-
-        const remarksCamBtn = e.target.closest('.btn-attach-remarks-camera');
-        if (remarksCamBtn) {
-            triggerPhotoAttach(remarksCamBtn.dataset.slotId, 'remarks', true);
-            return;
-        }
-        const remarksFileBtn = e.target.closest('.btn-attach-remarks-file');
-        if (remarksFileBtn) {
-            triggerPhotoAttach(remarksFileBtn.dataset.slotId, 'remarks', false);
-            return;
-        }
-        const remarksRemoveBtn = e.target.closest('.btn-remove-remarks-thumb');
-        if (remarksRemoveBtn) {
-            removeRemarksPhoto(remarksRemoveBtn.dataset.slotId);
-            return;
-        }
-
-        const previewImg = e.target.closest('.st-thumb-preview');
-        if (previewImg) {
-            const src = previewImg.dataset.fullImg || previewImg.src;
-            const caption = previewImg.dataset.caption || 'Attached Teaching Photo';
-            openStImageLightbox(src, caption);
-            return;
-        }
-    });
+    document.getElementById('st-photo-input-file')?.addEventListener('change', handleStPhotoFileChange);
+    document.getElementById('st-photo-input-camera')?.addEventListener('change', handleStPhotoFileChange);
 
     // Crop Modal Listeners
     document.querySelectorAll('.st-crop-ratio-btn').forEach(btn => {
@@ -6921,24 +6843,6 @@ const setupEventListeners = () => {
 
     document.getElementById('btn-save-st-entry')?.addEventListener('click', saveTrackerEntry);
 
-    document.getElementById('st-schedule-grid')?.addEventListener('change', (e) => {
-        const periodCheck = e.target.closest('.st-register-period-check');
-        if (periodCheck) {
-            const dStr = periodCheck.dataset.date;
-            const sId = periodCheck.dataset.slotId;
-            const cls = periodCheck.dataset.class;
-            handleToggleRegisterPeriodCompletion(dStr, sId, periodCheck.checked, cls);
-            return;
-        }
-        const cb = e.target.closest('.st-lesson-checkbox');
-        if (cb) {
-            const cellKey = cb.dataset.cellKey;
-            const itemId = cb.dataset.itemId;
-            const targetClass = cb.dataset.classLabel || selectedStClass;
-            handleToggleLessonCompletion(cellKey, itemId, cb.checked, targetClass);
-        }
-    });
-
     document.getElementById('st-schedule-grid')?.addEventListener('click', async (e) => {
         const previewThumb = e.target.closest('.st-thumb-preview');
         if (previewThumb) {
@@ -6950,21 +6854,48 @@ const setupEventListeners = () => {
             return;
         }
 
-        const jumpBtn = e.target.closest('.btn-jump-log-day, .btn-jump-log-date');
-        if (jumpBtn) {
+        const progBtn = e.target.closest('.btn-st-trigger-subject-progress');
+        if (progBtn) {
             e.preventDefault();
-            const dStr = jumpBtn.dataset.date;
-            const cls = jumpBtn.dataset.class;
-            if (cls && cls !== selectedStClass) {
-                selectedStClass = cls;
-                const sel = document.getElementById('st-class-select');
-                if (sel) sel.value = cls;
-                await loadSyllabusTracker();
-            }
-            await changeDailyLogDate(dStr);
-            document.getElementById('st-daily-execution-panel')?.scrollIntoView({ behavior: 'smooth' });
+            e.stopPropagation();
+            const cls = progBtn.dataset.class;
+            const dateStr = progBtn.dataset.date;
+            const slotId = progBtn.dataset.slotId;
+            const sId = progBtn.dataset.subjectId;
+            const sName = progBtn.dataset.subjectName;
+            const cumPct = Number(progBtn.dataset.cumPct) || 0;
+            openSubjectProgressModal(cls, dateStr, slotId, sId, sName, cumPct);
             return;
         }
+
+        const portionCell = e.target.closest('.btn-st-trigger-portion');
+        if (portionCell) {
+            e.preventDefault();
+            const cls = portionCell.dataset.class;
+            const dateStr = portionCell.dataset.date;
+            const slotId = portionCell.dataset.slotId;
+            const sId = portionCell.dataset.subjectId;
+            const sName = portionCell.dataset.subjectName;
+            const sLabel = portionCell.dataset.slotLabel;
+            const sTime = portionCell.dataset.slotTime;
+            openTaughtPortionModal(cls, dateStr, slotId, sId, sName, sLabel, sTime);
+            return;
+        }
+
+        const remarksCell = e.target.closest('.btn-st-trigger-remarks');
+        if (remarksCell) {
+            e.preventDefault();
+            const cls = remarksCell.dataset.class;
+            const dateStr = remarksCell.dataset.date;
+            const slotId = remarksCell.dataset.slotId;
+            const sId = remarksCell.dataset.subjectId;
+            const sName = remarksCell.dataset.subjectName;
+            const sLabel = remarksCell.dataset.slotLabel;
+            const sTime = remarksCell.dataset.slotTime;
+            openTeacherRemarksModal(cls, dateStr, slotId, sId, sName, sLabel, sTime);
+            return;
+        }
+
         const gotoStBtn = e.target.closest('.btn-goto-class-st');
         if (gotoStBtn) {
             e.preventDefault();
