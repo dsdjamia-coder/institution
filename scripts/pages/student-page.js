@@ -4461,40 +4461,52 @@ const studentPwa = registerPortalForPwa('student', {
             const moreSheetItems = document.getElementById('student-more-sheet-items');
 
             if (bottomContainer) {
-                const maxDirectTabs = 4;
-                const useMoreSheet = activeTabs.length > maxDirectTabs;
-                const directTabs = useMoreSheet ? activeTabs.slice(0, maxDirectTabs) : activeTabs;
-                const overflowTabs = useMoreSheet ? activeTabs.slice(maxDirectTabs) : [];
+                const totalActive = activeTabs.length;
+                let directTabs = [];
+                let overflowTabs = [];
+                let useMoreSheet = false;
+
+                if (totalActive <= 5) {
+                    // Up to 5 tabs are shown directly on bottom nav bar
+                    directTabs = activeTabs;
+                    overflowTabs = [];
+                    useMoreSheet = false;
+                } else {
+                    // 6 or more tabs: show first 3 + More button
+                    directTabs = activeTabs.slice(0, 3);
+                    overflowTabs = activeTabs.slice(3);
+                    useMoreSheet = true;
+                }
 
                 window.currentOverflowTabIds = overflowTabs.map((t) => t.id);
 
                 let directHtml = directTabs.map((tab) => `
-                    <button type="button" class="py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-target="${tab.id}">
-                        <i class="${tab.icon} block text-base mb-1"></i>
-                        <span class="text-[11px] leading-tight font-extrabold">${tab.label}</span>
+                    <button type="button" class="py-2 sm:py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-target="${tab.id}">
+                        <i class="${tab.icon} block text-base sm:text-lg mb-0.5 sm:mb-1"></i>
+                        <span class="text-[10px] sm:text-[11px] leading-tight font-extrabold truncate max-w-[65px] sm:max-w-none">${tab.label}</span>
                     </button>
                 `).join('');
 
                 if (useMoreSheet) {
                     directHtml += `
-                        <button type="button" id="btn-student-bottom-more" class="py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-action="open-more">
-                            <i class="fas fa-grid block text-base mb-1"></i>
-                            <span class="text-[11px] leading-tight font-extrabold">More</span>
+                        <button type="button" id="btn-student-bottom-more" class="py-2 sm:py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-action="open-more">
+                            <i class="fas fa-ellipsis block text-base sm:text-lg mb-0.5 sm:mb-1"></i>
+                            <span class="text-[10px] sm:text-[11px] leading-tight font-extrabold">More</span>
                         </button>
                     `;
                 }
 
-                bottomContainer.className = `grid grid-cols-${useMoreSheet ? directTabs.length + 1 : Math.max(2, directTabs.length)} text-xs font-bold text-gray-600`;
+                bottomContainer.className = `grid grid-cols-${useMoreSheet ? 4 : Math.max(1, directTabs.length)} text-xs font-bold text-gray-600`;
                 bottomContainer.innerHTML = directHtml;
 
                 // Populate More Sheet Items
                 if (moreSheetItems) {
                     moreSheetItems.innerHTML = overflowTabs.map((tab) => `
-                        <button type="button" class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-2 group cursor-pointer student-more-tile" data-target="${tab.id}">
-                            <div class="w-10 h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-lg group-hover:scale-110 transition">
+                        <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer student-more-tile" data-target="${tab.id}">
+                            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
                                 <i class="${tab.icon}"></i>
                             </div>
-                            <span class="font-extrabold text-xs text-slate-800">${tab.label}</span>
+                            <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">${tab.label}</span>
                         </button>
                     `).join('');
                 }
@@ -4740,12 +4752,12 @@ const studentPwa = registerPortalForPwa('student', {
 
                 if (!dayDoc) {
                     html += `
-                        <div class="p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col justify-between min-h-[64px] text-slate-400">
-                            <div class="flex items-center justify-between text-[11px] font-black">
+                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col justify-between min-h-[50px] sm:min-h-[64px] text-slate-400">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black">
                                 <span>${day}</span>
-                                <span class="text-[9px] uppercase font-bold">${dayName}</span>
+                                <span class="text-[8px] sm:text-[9px] uppercase font-bold">${dayName}</span>
                             </div>
-                            <div class="text-[10px] font-semibold text-slate-400 mt-1">--</div>
+                            <div class="text-[9px] sm:text-[10px] font-semibold text-slate-400 mt-0.5">--</div>
                         </div>
                     `;
                     continue;
@@ -4754,13 +4766,13 @@ const studentPwa = registerPortalForPwa('student', {
                 if (dayDoc.isHoliday) {
                     const reason = dayDoc.holidayReason || 'Holiday';
                     html += `
-                        <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-100 flex flex-col justify-between min-h-[64px]" title="${escapeHtml(reason)}">
-                            <div class="flex items-center justify-between text-[11px] font-black text-slate-700">
+                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-100 flex flex-col justify-between min-h-[50px] sm:min-h-[64px]" title="${escapeHtml(reason)}">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black text-slate-700">
                                 <span>${day}</span>
-                                <span class="text-[9px] uppercase font-bold text-slate-500">${dayName}</span>
+                                <span class="text-[8px] sm:text-[9px] uppercase font-bold text-slate-500">${dayName}</span>
                             </div>
-                            <div class="flex items-center gap-1 text-[10px] font-extrabold text-slate-600 mt-1 truncate">
-                                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                            <div class="flex items-center gap-1 text-[9px] sm:text-[10px] font-extrabold text-slate-600 mt-0.5 truncate">
+                                <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-slate-400"></span>
                                 <span class="truncate">Holiday</span>
                             </div>
                         </div>
@@ -4775,185 +4787,57 @@ const studentPwa = registerPortalForPwa('student', {
 
                 if (status === 'P') {
                     html += `
-                        <div class="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 flex flex-col justify-between min-h-[64px]">
-                            <div class="flex items-center justify-between text-[11px] font-black text-emerald-950">
+                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-emerald-200 bg-emerald-50/70 flex flex-col justify-between min-h-[50px] sm:min-h-[64px]">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black text-emerald-950">
                                 <span>${day}</span>
-                                <span class="text-[9px] uppercase font-bold text-emerald-700">${dayName}</span>
+                                <span class="text-[8px] sm:text-[9px] uppercase font-bold text-emerald-700">${dayName}</span>
                             </div>
-                            <div class="flex items-center gap-1 text-[10px] font-black text-emerald-700 mt-1">
-                                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <div class="flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-emerald-700 mt-0.5">
+                                <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500"></span>
                                 <span>Present</span>
                             </div>
                         </div>
                     `;
                 } else if (status === 'A') {
                     html += `
-                        <div class="p-2.5 rounded-xl border border-rose-200 bg-rose-50/70 flex flex-col justify-between min-h-[64px]" title="${escapeHtml(reason ? 'Reason: ' + reason : 'Absent')}">
-                            <div class="flex items-center justify-between text-[11px] font-black text-rose-950">
+                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-rose-200 bg-rose-50/70 flex flex-col justify-between min-h-[50px] sm:min-h-[64px]" title="${escapeHtml(reason ? 'Reason: ' + reason : 'Absent')}">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black text-rose-950">
                                 <span>${day}</span>
-                                <span class="text-[9px] uppercase font-bold text-rose-700">${dayName}</span>
+                                <span class="text-[8px] sm:text-[9px] uppercase font-bold text-rose-700">${dayName}</span>
                             </div>
-                            <div class="flex items-center gap-1 text-[10px] font-black text-rose-700 mt-1 truncate">
-                                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                            <div class="flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-rose-700 mt-0.5 truncate">
+                                <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500"></span>
                                 <span class="truncate">${escapeHtml(reason || 'Absent')}</span>
                             </div>
                         </div>
                     `;
                 } else if (status === 'L') {
                     html += `
-                        <div class="p-2.5 rounded-xl border border-amber-200 bg-amber-50/70 flex flex-col justify-between min-h-[64px]" title="${escapeHtml(reason ? 'Leave Reason: ' + reason : 'Excused Leave')}">
-                            <div class="flex items-center justify-between text-[11px] font-black text-amber-950">
+                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-amber-200 bg-amber-50/70 flex flex-col justify-between min-h-[50px] sm:min-h-[64px]" title="${escapeHtml(reason ? 'Leave Reason: ' + reason : 'Excused Leave')}">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black text-amber-950">
                                 <span>${day}</span>
-                                <span class="text-[9px] uppercase font-bold text-amber-700">${dayName}</span>
+                                <span class="text-[8px] sm:text-[9px] uppercase font-bold text-amber-700">${dayName}</span>
                             </div>
-                            <div class="flex items-center gap-1 text-[10px] font-black text-amber-700 mt-1 truncate">
-                                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                            <div class="flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-amber-700 mt-0.5 truncate">
+                                <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500"></span>
                                 <span class="truncate">${escapeHtml(reason || 'Leave')}</span>
                             </div>
                         </div>
                     `;
                 } else {
                     html += `
-                        <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex flex-col justify-between min-h-[64px]">
-                            <div class="flex items-center justify-between text-[11px] font-black text-slate-600">
+                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 bg-white flex flex-col justify-between min-h-[50px] sm:min-h-[64px]">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black text-slate-600">
                                 <span>${day}</span>
-                                <span class="text-[9px] uppercase font-bold text-slate-400">${dayName}</span>
+                                <span class="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400">${dayName}</span>
                             </div>
-                            <div class="text-[10px] font-bold text-slate-400 mt-1">Unmarked</div>
+                            <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 mt-0.5">Unmarked</div>
                         </div>
                     `;
                 }
             }
 
             grid.innerHTML = html;
-        };
-
-        const printStudentAttendanceSlip = () => {
-            if (!studentProfile) return;
-            const printWin = window.open('', '_blank', 'width=800,height=900');
-            if (!printWin) {
-                alert('Please allow popups to print the attendance slip.');
-                return;
-            }
-
-            const monthsMap = {};
-            cachedAttendanceDocs.forEach((d) => {
-                if (d.isHoliday) return;
-                const mKey = String(d.date || '').slice(0, 7);
-                if (!monthsMap[mKey]) monthsMap[mKey] = { work: 0, pres: 0, abs: 0, leave: 0 };
-                monthsMap[mKey].work++;
-
-                const rec = d.records?.[studentProfile.id];
-                const rawStatus = typeof rec === 'object' ? rec?.status : rec;
-                const st = rawStatus === 'E' ? 'L' : rawStatus;
-                if (st === 'P') monthsMap[mKey].pres++;
-                else if (st === 'A') monthsMap[mKey].abs++;
-                else if (st === 'L') monthsMap[mKey].leave++;
-            });
-
-            const rowsHtml = Object.keys(monthsMap).sort().map((mKey) => {
-                const item = monthsMap[mKey];
-                const [y, m] = mKey.split('-');
-                const monthName = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-                const mRate = item.work > 0 ? Math.round((item.pres / item.work) * 100) : 0;
-                return `
-                    <tr>
-                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold;">${monthName}</td>
-                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center;">${item.work}</td>
-                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; color: #047857; font-weight: bold;">${item.pres}</td>
-                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; color: #b91c1c;">${item.abs}</td>
-                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; color: #b45309;">${item.leave}</td>
-                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800;">${mRate}%</td>
-                    </tr>
-                `;
-            }).join('');
-
-            const slipHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Student Attendance Slip - ${escapeHtml(studentProfile.name || 'Student')}</title>
-                    <style>
-                        body { font-family: system-ui, -apple-system, sans-serif; color: #0f172a; margin: 30px; font-size: 13px; line-height: 1.5; }
-                        .slip-card { border: 2px solid #0f172a; border-radius: 12px; padding: 24px; max-width: 720px; margin: 0 auto; }
-                        .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
-                        .header h1 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
-                        .header p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
-                        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; font-size: 13px; }
-                        .info-item { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 8px; }
-                        .info-label { font-size: 11px; text-transform: uppercase; font-weight: bold; color: #64748b; }
-                        .info-val { font-size: 14px; font-weight: bold; color: #0f172a; }
-                        .stats-banner { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px; text-align: center; }
-                        .stat-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
-                        .stat-num { font-size: 20px; font-weight: 900; margin-top: 4px; }
-                        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-                        th { background: #f1f5f9; padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 11px; text-transform: uppercase; }
-                        .footer { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 20px; }
-                        .sig-line { width: 180px; border-top: 1px solid #0f172a; text-align: center; padding-top: 4px; font-size: 12px; font-weight: bold; }
-                        @media print { body { margin: 0; } .slip-card { border: none; padding: 0; } }
-                    </style>
-                </head>
-                <body>
-                    <div class="slip-card">
-                        <div class="header">
-                            <h1>OFFICIAL STUDENT ATTENDANCE SLIP</h1>
-                            <p>Academic Session: ${escapeHtml(selectedAttendanceAcademicYear || currentAcademicYear || '--')}</p>
-                        </div>
-                        <div class="info-grid">
-                            <div class="info-item"><div class="info-label">Student Name</div><div class="info-val">${escapeHtml(studentProfile.name || '--')}</div></div>
-                            <div class="info-item"><div class="info-label">Admission Number</div><div class="info-val">${escapeHtml(studentProfile.adm || studentProfile.admissionNo || '--')}</div></div>
-                            <div class="info-item"><div class="info-label">Class / Division</div><div class="info-val">${escapeHtml(studentProfile.class || '--')}</div></div>
-                            <div class="info-item"><div class="info-label">Date Generated</div><div class="info-val">${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
-                        </div>
-
-                        <div class="stats-banner">
-                            <div class="stat-box" style="background: #f0fdf4; border-color: #bbf7d0;">
-                                <div class="info-label" style="color: #166534;">Attendance Rate</div>
-                                <div class="stat-num" style="color: #166534;">${studentAttendanceStats.rate}%</div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="info-label">Working Days</div>
-                                <div class="stat-num">${studentAttendanceStats.workingDays}</div>
-                            </div>
-                            <div class="stat-box" style="background: #f0fdf4;">
-                                <div class="info-label" style="color: #15803d;">Days Present</div>
-                                <div class="stat-num" style="color: #15803d;">${studentAttendanceStats.presentDays}</div>
-                            </div>
-                            <div class="stat-box" style="background: #fef2f2;">
-                                <div class="info-label" style="color: #b91c1c;">Days Absent / Leave</div>
-                                <div class="stat-num" style="color: #b91c1c;">${studentAttendanceStats.absentDays + studentAttendanceStats.leaveDays}</div>
-                            </div>
-                        </div>
-
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Month</th>
-                                    <th>Working Days</th>
-                                    <th>Present</th>
-                                    <th>Absent</th>
-                                    <th>Leave</th>
-                                    <th>Attendance %</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rowsHtml || '<tr><td colspan="6" style="text-align: center; padding: 12px; color: #94a3b8;">No monthly attendance records found.</td></tr>'}
-                            </tbody>
-                        </table>
-
-                        <div class="footer">
-                            <div class="sig-line">Class Teacher Signature</div>
-                            <div class="sig-line">Principal / Office Seal</div>
-                        </div>
-                    </div>
-                    <script>
-                        window.onload = function() { window.print(); };
-                    </script>
-                </body>
-                </html>
-            `;
-            printWin.document.write(slipHtml);
-            printWin.document.close();
         };
 
         // ----------------------------------------------------
@@ -5129,21 +5013,21 @@ const studentPwa = registerPortalForPwa('student', {
                 const roomStr = entry.room ? `Room ${entry.room}` : '';
 
                 return `
-                    <div class="p-3.5 rounded-2xl border ${hasSubject ? 'border-slate-200 bg-white hover:border-indigo-300' : 'border-slate-100 bg-slate-50/70'} flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition shadow-2xs">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl ${hasSubject ? 'bg-indigo-50 border border-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-500'} flex items-center justify-center font-black text-sm shrink-0">
+                    <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border ${hasSubject ? 'border-slate-200 bg-white hover:border-indigo-300' : 'border-slate-100 bg-slate-50/70'} flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 transition shadow-2xs">
+                        <div class="flex items-center gap-2.5 sm:gap-3">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl ${hasSubject ? 'bg-indigo-50 border border-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-500'} flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
                                 P${slotNum}
                             </div>
                             <div>
-                                <div class="font-extrabold text-sm ${hasSubject ? 'text-slate-900' : 'text-slate-500'}">${escapeHtml(subjName)}</div>
-                                <div class="flex items-center gap-2 text-xs text-slate-500 font-semibold mt-0.5 flex-wrap">
-                                    <span class="flex items-center gap-1"><i class="fas fa-chalkboard-user text-indigo-600 text-[10px]"></i> ${escapeHtml(teacherName)}</span>
-                                    ${roomStr ? `<span class="bg-slate-100 px-2 py-0.2 rounded-md text-[10px] font-bold text-slate-600">${escapeHtml(roomStr)}</span>` : ''}
+                                <div class="font-extrabold text-xs sm:text-sm ${hasSubject ? 'text-slate-900' : 'text-slate-500'}">${escapeHtml(subjName)}</div>
+                                <div class="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 font-semibold mt-0.5 flex-wrap">
+                                    <span class="flex items-center gap-1"><i class="fas fa-chalkboard-user text-indigo-600 text-[9px] sm:text-[10px]"></i> ${escapeHtml(teacherName)}</span>
+                                    ${roomStr ? `<span class="bg-slate-100 px-1.5 py-0.2 rounded-md text-[9px] sm:text-[10px] font-bold text-slate-600">${escapeHtml(roomStr)}</span>` : ''}
                                 </div>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl self-start sm:self-auto shrink-0">
-                            <i class="fas fa-clock text-slate-400 text-xs"></i>
+                        <div class="flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl self-start sm:self-auto shrink-0">
+                            <i class="fas fa-clock text-slate-400 text-[10px] sm:text-xs"></i>
                             <span class="font-mono">${escapeHtml(timeStr)}</span>
                         </div>
                     </div>
@@ -5212,36 +5096,36 @@ const studentPwa = registerPortalForPwa('student', {
                 const isDone = cell.isCompleted || progress === 100;
 
                 return `
-                    <div class="p-4 rounded-2xl border ${hasTarget ? 'border-slate-200 bg-white hover:border-indigo-300' : 'border-slate-100 bg-slate-50/60'} shadow-2xs space-y-3 transition">
+                    <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${hasTarget ? 'border-slate-200 bg-white hover:border-indigo-300' : 'border-slate-100 bg-slate-50/60'} shadow-2xs space-y-2 sm:space-y-3 transition">
                         <div class="flex items-center justify-between gap-2">
-                            <span class="font-extrabold text-xs uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">${escapeHtml(subj.name || 'Subject')}</span>
+                            <span class="font-extrabold text-[11px] sm:text-xs uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">${escapeHtml(subj.name || 'Subject')}</span>
                             ${isDone ? `
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                                     <i class="fas fa-circle-check text-emerald-600"></i> Completed
                                 </span>
                             ` : (progress > 0 ? `
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                                <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
                                     <i class="fas fa-spinner fa-spin text-indigo-600"></i> In Progress (${progress}%)
                                 </span>
                             ` : `
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                                     Planned
                                 </span>
                             `)}
                         </div>
 
                         <div>
-                            <div class="font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo ? `Lesson / Unit: ${cell.lessonNo}` : 'Lesson target')}</div>
-                            <div class="text-xs text-slate-600 font-semibold mt-0.5">${escapeHtml(cell.topic || 'No topic designated for this month')}</div>
+                            <div class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(cell.lessonNo ? `Lesson / Unit: ${cell.lessonNo}` : 'Lesson target')}</div>
+                            <div class="text-[11px] sm:text-xs text-slate-600 font-semibold mt-0.5">${escapeHtml(cell.topic || 'No topic designated for this month')}</div>
                         </div>
 
                         <div class="space-y-1">
-                            <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-slate-500">
                                 <span>Progress</span>
                                 <span class="font-mono font-extrabold text-slate-800">${progress}%</span>
                             </div>
-                            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
-                                <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+                            <div class="w-full bg-slate-100 rounded-full h-1.5 sm:h-2 overflow-hidden border border-slate-200/60">
+                                <div class="bg-indigo-600 h-1.5 sm:h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
                             </div>
                         </div>
                     </div>
@@ -5360,13 +5244,13 @@ const studentPwa = registerPortalForPwa('student', {
                     };
 
                     badgeGrid.innerHTML = earnedBadges.map((b) => `
-                        <div class="p-3.5 rounded-2xl border ${colorMap[b.color] || colorMap.amber} shadow-2xs flex flex-col items-center text-center gap-2 transition hover:scale-102">
-                            <div class="w-12 h-12 rounded-2xl bg-white shadow-2xs border border-current flex items-center justify-center text-xl">
+                        <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border ${colorMap[b.color] || colorMap.amber} shadow-2xs flex flex-col items-center text-center gap-1.5 sm:gap-2 transition hover:scale-102">
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white shadow-2xs border border-current flex items-center justify-center text-base sm:text-xl">
                                 <i class="${b.icon}"></i>
                             </div>
                             <div>
-                                <div class="font-black text-xs text-slate-900">${escapeHtml(b.title)}</div>
-                                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${escapeHtml(b.note)}</div>
+                                <div class="font-black text-[11px] sm:text-xs text-slate-900">${escapeHtml(b.title)}</div>
+                                <div class="text-[9px] sm:text-[10px] font-semibold text-slate-500 mt-0.5">${escapeHtml(b.note)}</div>
                             </div>
                         </div>
                     `).join('');
@@ -5404,12 +5288,12 @@ const studentPwa = registerPortalForPwa('student', {
                         }
 
                         return `
-                            <div class="p-3 rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[90px] shadow-2xs">
+                            <div class="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[72px] sm:min-h-[90px] shadow-2xs">
                                 <div>
-                                    <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">${p.label}</div>
-                                    <div class="font-black text-sm text-slate-800 mt-0.5">${p.name}</div>
+                                    <div class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">${p.label}</div>
+                                    <div class="font-black text-xs sm:text-sm text-slate-800 mt-0.5">${p.name}</div>
                                 </div>
-                                <div class="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-xl text-[10px] font-extrabold border ${pillClass} self-start">
+                                <div class="mt-1.5 sm:mt-2 flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-extrabold border ${pillClass} self-start">
                                     <i class="${iconClass}"></i>
                                     <span>${statusText}</span>
                                 </div>
@@ -5424,7 +5308,6 @@ const studentPwa = registerPortalForPwa('student', {
         };
 
         // Wire Event Listeners for Module Actions
-        document.getElementById('btn-print-stu-attendance')?.addEventListener('click', printStudentAttendanceSlip);
         document.getElementById('stu-att-year-select')?.addEventListener('change', (e) => {
             renderStudentAttendanceModule(studentProfile, e.target.value);
         });
