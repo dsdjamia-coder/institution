@@ -1426,7 +1426,8 @@ const loadAnalytics = async () => {
             const cleanFather = String(fatherPhone).replace(/\D/g, '');
             const cleanMother = String(motherPhone).replace(/\D/g, '');
 
-            const msgText = encodeURIComponent(`Dear Parent, Attendance notification from Noorul Islam Madrasa for ${stu.name || 'Student'}: Current attendance is ${item.percentage}% (${item.presentDays}/${item.totalDays} days). Please ensure regular attendance.`);
+            const senderInst = document.getElementById('header-title')?.textContent?.trim() || 'Our Institution';
+            const msgText = encodeURIComponent(`Dear Parent, Attendance notification from ${senderInst} for ${stu.name || 'Student'}: Current attendance is ${item.percentage}% (${item.presentDays}/${item.totalDays} days). Please ensure regular attendance.`);
             const fatherWaLink = cleanFather ? `https://wa.me/91${cleanFather}?text=${msgText}` : '';
             const motherWaLink = cleanMother ? `https://wa.me/91${cleanMother}?text=${msgText}` : '';
 

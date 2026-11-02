@@ -943,7 +943,7 @@ const exportLedgerPdf = () => {
 
     const docPdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     const conf = window.institutionConfig || {};
-    const instName = conf.appName || document.getElementById('header-title')?.textContent || 'Noorul Islam Madrasa';
+    const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
     const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
     const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
 

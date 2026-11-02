@@ -189,7 +189,7 @@
             const [academicYear, setAcademicYear] = useState(() => urlParams.get('academicYear') || '');
             const [settings, setSettings] = useState({
                 globalBaseFee: 200,
-                institutionName: 'Madrasa Fee Manager',
+                institutionName: 'Fee Manager',
                 institutionPlace: '',
                 registerNumber: '',
                 logo: '',
@@ -214,7 +214,7 @@
                         setSettings(prev => ({
                             ...prev,
                             globalBaseFee: Number(data.defaultFee || prev.globalBaseFee || 200),
-                            institutionName: data.appName || prev.institutionName || 'Madrasa Fee Manager',
+                            institutionName: data.appName || prev.institutionName || 'Fee Manager',
                             institutionPlace: data.appSubtitle || prev.institutionPlace || '',
                             logo: data.logoUrl || prev.logo || '',
                             receiptRequired: data.defaultReceiptMandatory !== false
@@ -360,7 +360,7 @@
                 return (
                     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-500 gap-3">
                         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-sm font-bold tracking-wide">Loading Madrasa Fee System...</span>
+                        <span className="text-sm font-bold tracking-wide">Loading Fee System...</span>
                     </div>
                 );
             }
@@ -622,7 +622,7 @@
             const exportPdf = () => {
                 if (!window.jspdf?.jsPDF) return showAlert('PDF generation library is loading, please try again.', 'PDF Notice');
                 const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-                const title = `${settings.institutionName || 'Madrasa Fee System'} - Student Fee Ledger`;
+                const title = `${settings.institutionName || 'Fee System'} - Student Fee Ledger`;
                 const subtitle = `Academic Year: ${academicYear || 'All'} | Total Students: ${filteredStudents.length}`;
 
                 const columns = ['#', 'Adm', 'Class', 'Student Name', 'Guardian', 'Mobile', 'Fee Type', 'Fee/Mo', ...dynamicMonths, 'Paid', 'Due'];

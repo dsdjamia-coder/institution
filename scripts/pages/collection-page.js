@@ -3610,7 +3610,7 @@ export const printPaymentReceiptSlip = (paymentId) => {
     }
     const student = getStudentById(payment.studentId) || { name: payment.studentName || 'Student', class: payment.studentClass || payment.classLabel || '-', adm: payment.studentAdm || '-' };
     const collectorName = getStaffName(payment.collectedBy, payment.collectedByName);
-    const instName = document.getElementById('header-title')?.textContent?.trim() || 'Noorul Islam Madrasa';
+    const instName = document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
     const place = document.getElementById('header-place')?.textContent?.trim() || '';
     const regNo = document.getElementById('header-regno')?.textContent?.trim() || '';
 

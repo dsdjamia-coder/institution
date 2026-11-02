@@ -2774,9 +2774,9 @@ const setPrintOrientation = (orientation = 'landscape') => {
 };
 
 const updatePrintBrandingHeaders = (docTitle, dateElId) => {
-    const instName = institutionConfig.name || 'Noorul Islam Madrasa';
+    const instName = institutionConfig.name || 'Institution Name';
     const instTagline = institutionConfig.tagline || 'Academic Affairs & Examination Division';
-    const instAddress = `${institutionConfig.address || 'Central Campus'} • Ph: ${institutionConfig.phone || '+91 0000000000'}`;
+    const instAddress = `${institutionConfig.address || 'Central Campus'}${institutionConfig.phone ? ' • Ph: ' + institutionConfig.phone : ''}`;
     const instPlace = institutionConfig.place || institutionConfig.city || 'Campus';
     const todayStr = new Date().toLocaleDateString('en-GB');
 
@@ -5980,9 +5980,9 @@ const loadMasterExamTimetable = async () => {
         || document.getElementById('exam-tt-title-select')?.value
         || 'Half-Yearly';
 
-    const instName = institutionConfig.name || 'Noorul Islam Madrasa';
+    const instName = institutionConfig.name || 'Institution Name';
     const instTagline = institutionConfig.tagline || 'Academic Affairs & Examination Division';
-    const instAddress = `${institutionConfig.address || 'Central Campus'} • Ph: ${institutionConfig.phone || '+91 0000000000'}`;
+    const instAddress = `${institutionConfig.address || 'Central Campus'}${institutionConfig.phone ? ' • Ph: ' + institutionConfig.phone : ''}`;
     const instPlace = institutionConfig.place || institutionConfig.city || 'Campus';
 
     const nameEl = document.getElementById('master-inst-name');

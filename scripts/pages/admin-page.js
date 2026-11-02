@@ -56,6 +56,7 @@ const PAGE_PERMISSIONS = {
     dashboard: 'dashboard.view',
     'fee-manager': 'fees.manage',
     'academic-years': 'academic-years.manage',
+    'workflow-modules': 'academic-years.manage',
     'add-staff': 'staff.manage',
     'staff-management': 'staff.manage',
     'manage-staff': 'staff.manage',
@@ -1287,6 +1288,111 @@ const renderDashboard = () => {
     renderSessionMonitor();
 };
 
+// --- INSTITUTIONAL WORKFLOW & MODULES MANAGEMENT ---
+const DEFAULT_ENABLED_MODULES = {
+    collection: true,
+    student: true,
+    attendance: true,
+    academicPlan: true,
+    result: true,
+    worksheet: true,
+    studentActivity: true
+};
+
+const getEnabledModulesConfig = () => {
+    try {
+        const raw = localStorage.getItem('app_enabled_modules');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+                return { ...DEFAULT_ENABLED_MODULES, ...parsed };
+            }
+        }
+    } catch (_e) {}
+    return { ...DEFAULT_ENABLED_MODULES };
+};
+
+const updateWorkflowModuleBadgeUI = (moduleKey, isEnabled) => {
+    const badge = document.getElementById(`module-badge-${moduleKey}`);
+    if (!badge) return;
+    if (isEnabled) {
+        badge.textContent = 'Active';
+        badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300';
+    } else {
+        badge.textContent = 'Disabled';
+        badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-300';
+    }
+};
+
+const renderWorkflowModules = async () => {
+    let currentConfig = getEnabledModulesConfig();
+    try {
+        const snap = await getDoc(getConfigRef());
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data?.enabledModules && typeof data.enabledModules === 'object') {
+                currentConfig = { ...DEFAULT_ENABLED_MODULES, ...data.enabledModules };
+                localStorage.setItem('app_enabled_modules', JSON.stringify(currentConfig));
+            }
+        }
+    } catch (err) {
+        console.warn('Could not fetch remote module settings, using local:', err);
+    }
+
+    Object.keys(DEFAULT_ENABLED_MODULES).forEach((key) => {
+        const toggle = document.getElementById(`module-toggle-${key}`);
+        const isEnabled = currentConfig[key] !== false;
+        if (toggle) {
+            toggle.checked = isEnabled;
+        }
+        updateWorkflowModuleBadgeUI(key, isEnabled);
+    });
+};
+
+const saveWorkflowModules = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const saveBtn = document.getElementById('btn-save-workflow-modules');
+    const originalHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+    }
+
+    try {
+        const enabledModules = {};
+        Object.keys(DEFAULT_ENABLED_MODULES).forEach((key) => {
+            const toggle = document.getElementById(`module-toggle-${key}`);
+            enabledModules[key] = toggle ? Boolean(toggle.checked) : true;
+        });
+
+        // 1. Persist directly to Firestore config document (with merge: true so no other settings are touched)
+        await setDoc(getConfigRef(), { enabledModules }, { merge: true });
+
+        // 2. Cache in localStorage for immediate synchronous guards on page loads
+        localStorage.setItem('app_enabled_modules', JSON.stringify(enabledModules));
+
+        // 3. Log audit event
+        await logAuditEvent({
+            category: 'settings',
+            action: 'workflow_modules.update',
+            entityType: 'config',
+            entityId: 'enabledModules',
+            message: `Institutional workflow modules updated: ${Object.entries(enabledModules).map(([k, v]) => `${k}:${v ? 'ON' : 'OFF'}`).join(', ')}`
+        });
+
+        alert('Workflow & Module settings saved successfully!\n\nDisabled modules will be hidden from staff navigation and restricted from direct access.');
+    } catch (error) {
+        console.error('Failed to save workflow modules:', error);
+        alert('Failed to save module settings: ' + (error.message || error));
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalHtml;
+        }
+    }
+};
+
 const renderAcademicYears = () => {
     const listEl = document.getElementById('academic-years-list');
     if (academicYears.length === 0) {
@@ -1624,7 +1730,7 @@ const activateAdminPage = (targetId, options = {}) => {
     if (targetId === 'web-directory' || targetId === 'web-directory-entries') targetId = 'add-staff';
     if (targetId === 'manage-staff') targetId = 'staff-management';
     const setupReady = enforceSetupGate();
-    if (!setupReady && !['dashboard', 'academic-years', 'manage-classes'].includes(targetId)) {
+    if (!setupReady && !['dashboard', 'academic-years', 'workflow-modules', 'manage-classes'].includes(targetId)) {
         if (!suppressDeniedAlert) alert('Complete Academic Year and Class setup first.');
         targetId = 'academic-years';
     }
@@ -1645,6 +1751,7 @@ const activateAdminPage = (targetId, options = {}) => {
 
     if(targetId === 'dashboard') renderDashboard();
     if(targetId === 'academic-years') renderAcademicYears();
+    if(targetId === 'workflow-modules') renderWorkflowModules();
     if(targetId === 'manage-students') { populateManageAcademicYearDropdown(); populateClassDropdowns(); renderStudentList(); }
     if(targetId === 'promote-students') { window.location.href = 'result.html'; return; }
     if(targetId === 'student-continuity') renderContinuityPage();
@@ -11861,6 +11968,17 @@ document.getElementById('purge-progress-done-btn')?.addEventListener('click', ()
     alert('Institutional data purge complete. Selected modules have been reset.');
 });
 
+// Workflow & Modules UI Event Handlers
+document.querySelectorAll('.workflow-module-toggle').forEach((toggle) => {
+    toggle.addEventListener('change', (e) => {
+        const key = e.target.dataset.moduleKey;
+        if (key) {
+            updateWorkflowModuleBadgeUI(key, e.target.checked);
+        }
+    });
+});
+document.getElementById('btn-save-workflow-modules')?.addEventListener('click', saveWorkflowModules);
+
 document.getElementById('add-academic-year-btn').addEventListener('click', async () => {
     if(!requirePermission('academic-years.manage')) return;
     const inputEl = document.getElementById('academic-year-input');
@@ -12465,6 +12583,13 @@ onAuthStateChanged(auth, async (user) => {
             if (photoUploadToggle) photoUploadToggle.checked = d.allowStudentPhotoUpload === true;
             const detailsEditToggle = document.getElementById('admin-toggle-student-details-edit');
             if (detailsEditToggle) detailsEditToggle.checked = d.allowStudentDetailsEdit === true;
+
+            if (d.enabledModules && typeof d.enabledModules === 'object') {
+                localStorage.setItem('app_enabled_modules', JSON.stringify({ ...DEFAULT_ENABLED_MODULES, ...d.enabledModules }));
+                if (!document.getElementById('workflow-modules-page')?.classList.contains('hidden')) {
+                    renderWorkflowModules();
+                }
+            }
 
             feeItems = existingItems;
             renderDashboard();

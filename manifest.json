@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Noorul Islam Madrasa",
-  "short_name": "Noorul Islam",
-  "description": "Noorul Islam Madrasa 4883 Official Application",
+  "name": "Institutional Management System",
+  "short_name": "InstManage",
+  "description": "Official Institutional Management Application",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

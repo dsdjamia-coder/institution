@@ -866,6 +866,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const applyOfficialBranding = (conf = {}) => {
       institutionConfig = conf || {};
+      if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+        try {
+          localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+        } catch (_e) {}
+      }
       const institutionName = resolveInstitutionName(conf) || 'Official Portal';
       const effectiveLogo = rememberInstitutionLogo(conf.logoUrl || '') || 'assets/images/logo.png';
       ['header-logo', 'official-login-modal-logo'].forEach((id) => {
@@ -1259,7 +1264,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const userName = staffProfile?.name || userSession?.name || (isMasterAdmin ? 'Administrator' : 'Staff Member');
       const userRoleLabel = isMasterAdmin ? 'Super Administrator' : (staffProfile?.role || staffProfile?.type || userSession?.type || 'Staff Member');
 
-      const modules = [
+      const enabledModules = institutionConfig?.enabledModules || (function() {
+        try {
+          const raw = localStorage.getItem('app_enabled_modules');
+          return raw ? JSON.parse(raw) : {};
+        } catch (_e) { return {}; }
+      })();
+
+      const allPossibleModules = [
         {
           id: 'admin',
           title: 'Admin Panel',
@@ -1332,6 +1344,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           href: 'activity.html'
         }
       ];
+
+      const modules = allPossibleModules.filter((m) => m.id === 'admin' || enabledModules[m.id] !== false);
 
       const moduleCardsHtml = modules.map((m) => {
         if (m.hasAccess) {
@@ -3480,7 +3494,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const hasPhoto = Boolean(rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('assets/images/logo.png'));
 
       const access = getAllowedPageLabels();
-      const instName = resolveInstitutionName(institutionConfig) || 'Madrasa / Institution';
+      const instName = resolveInstitutionName(institutionConfig) || 'Institution Name';
       const instReg = institutionConfig?.regNo || institutionConfig?.code || '';
       const initialChar = String(label || 'S').trim().charAt(0).toUpperCase() || 'S';
 
@@ -7440,6 +7454,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         allStaff = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         syncLiveStaffSession();
+      }, () => {});
+
+      onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
+        const conf = snap.exists() ? snap.data() : {};
+        applyOfficialBranding(conf);
+        if (!isWorksheetPage) {
+          renderDashboard();
+        }
       }, () => {});
       if (isWorksheetPage) {
         const rawHash = (window.location.hash || '').replace('#', '');

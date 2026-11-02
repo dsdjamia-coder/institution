@@ -1,6 +1,6 @@
 {
-  "name": "Noorul Islam Madrasa Fee Management",
-  "description": "Fee management and administrative system for Noorul Islam Higher Secondary Madrasa.",
+  "name": "Institutional Management System",
+  "description": "Fee management and administrative system for academic institutions.",
   "requestFramePermissions": ["camera"],
   "permissions": {},
   "capabilities": [

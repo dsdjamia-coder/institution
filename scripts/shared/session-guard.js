@@ -212,6 +212,16 @@
             const role = getRole();
             return isStateFresh(getStateByRole(role), role);
         },
+        isModuleEnabled(moduleKey) {
+            try {
+                const raw = localStorage.getItem('app_enabled_modules');
+                if (!raw) return true;
+                const parsed = JSON.parse(raw);
+                return parsed?.[moduleKey] !== false;
+            } catch (_e) {
+                return true;
+            }
+        },
         hasStudentSession,
         hasStaffSession,
         hasAdminSession,
@@ -296,6 +306,34 @@
         },
         guardStaffPageAccess(requiredPage = 'collection') {
             pruneExpiredStates();
+
+            // Institutional module enablement check
+            const enabledModules = (function () {
+                try {
+                    const raw = localStorage.getItem('app_enabled_modules');
+                    return raw ? JSON.parse(raw) : null;
+                } catch (_e) {
+                    return null;
+                }
+            })();
+
+            const MODULE_NAMES = {
+                collection: 'Fee Collection',
+                worksheet: 'Worksheet Hub',
+                student: 'Student Directory',
+                result: 'Exam Results',
+                attendance: 'Attendance Register',
+                academicPlan: 'Academic Planning',
+                studentActivity: 'Activity & Rewards'
+            };
+
+            if (enabledModules && enabledModules[requiredPage] === false) {
+                const modName = MODULE_NAMES[requiredPage] || 'Requested';
+                setFlash(`Module Disabled: The ${modName} module is currently disabled by institution administration.`);
+                window.location.href = 'official.html';
+                return;
+            }
+
             if (hasAdminSession() && !hasStaffSession()) {
                 setCurrentRole('admin');
                 return;

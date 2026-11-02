@@ -2575,7 +2575,7 @@ const studentPwa = registerPortalForPwa('student', {
             const instLogoSrc = conf.logo || conf.logoUrl || headerLogoEl?.getAttribute('src') || 'assets/images/logo.png';
             const instLogoImg = await loadPosterImage(instLogoSrc);
 
-            const instName = conf.institutionName || conf.appName || document.getElementById('id-school-name')?.textContent?.trim() || 'NOORUL ISLAM HIGHER SECONDARY MADRASA';
+            const instName = conf.institutionName || conf.appName || document.getElementById('id-school-name')?.textContent?.trim() || 'INSTITUTION NAME';
             const rawReg = conf.regNo || conf.regNumber || conf.registrationNumber || document.getElementById('header-regno')?.textContent?.trim() || '';
             const cleanRegNo = String(rawReg).replace(/^(reg(istration)?\s*(no)?[:.]*\s*)+/gi, '').trim();
             const place = conf.place || conf.location || conf.address || document.getElementById('header-place')?.textContent?.trim() || '';
@@ -2890,7 +2890,7 @@ const studentPwa = registerPortalForPwa('student', {
                     const conf = window.institutionConfig || {};
                     const headerLogoEl = document.getElementById('header-logo');
                     const instLogoSrc = conf.logo || conf.logoUrl || headerLogoEl?.getAttribute('src') || 'assets/images/logo.png';
-                    const instName = conf.institutionName || conf.appName || document.getElementById('id-school-name')?.textContent?.trim() || 'NOORUL ISLAM HIGHER SECONDARY MADRASA';
+                    const instName = conf.institutionName || conf.appName || document.getElementById('id-school-name')?.textContent?.trim() || 'INSTITUTION NAME';
                     const rawReg = conf.regNo || conf.regNumber || conf.registrationNumber || document.getElementById('header-regno')?.textContent?.trim() || '';
                     const cleanRegNo = String(rawReg).replace(/^(reg(istration)?\s*(no)?[:.]*\s*)+/gi, '').trim();
                     const place = conf.place || conf.location || conf.address || document.getElementById('header-place')?.textContent?.trim() || '';
