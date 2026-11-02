@@ -3047,8 +3047,7 @@ const renderYearPlanUI = () => {
                                                     return `
                                                         <td class="p-2 border-r-2 border-slate-800 align-top bg-amber-50/20">
                                                             <input type="text" class="yp-cell-lesson w-full p-1 text-xs border border-slate-300 rounded font-bold text-slate-800 outline-none mb-1 bg-white" placeholder="Lesson #" value="${escapeHtml(cell.lessonNo || '')}" data-class="${escapeHtml(cls)}" data-key="${key}">
-                                                            <textarea class="yp-cell-topic w-full p-1 text-[11px] border border-slate-300 rounded text-slate-800 outline-none mb-1 bg-white font-medium resize-none" rows="2" placeholder="Topic / Chapters" data-class="${escapeHtml(cls)}" data-key="${key}">${escapeHtml(cell.topic || '')}</textarea>
-                                                            <input type="text" class="yp-cell-pages w-full p-1 text-[10px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages" value="${escapeHtml(cell.pages || '')}" data-class="${escapeHtml(cls)}" data-key="${key}">
+                                                            <textarea class="yp-cell-topic w-full p-1 text-[11px] border border-slate-300 rounded text-slate-800 outline-none bg-white font-medium resize-none" rows="2" placeholder="Topic / Chapters" data-class="${escapeHtml(cls)}" data-key="${key}">${escapeHtml(cell.topic || '')}</textarea>
                                                         </td>
                                                     `;
                                                 }
@@ -3133,8 +3132,7 @@ const renderYearPlanUI = () => {
                 html += `
                     <td class="p-2 border-r-2 border-slate-800 align-top bg-amber-50/20">
                         <input type="text" class="yp-input-lesson w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none mb-1 bg-white" placeholder="Lesson / Unit" value="${escapeHtml(cell.lessonNo || '')}" data-key="${key}" data-idx-key="${idxKey}">
-                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none mb-1 bg-white" placeholder="Topic / Chapters" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
-                        <input type="text" class="yp-input-pages w-full p-1 text-[11px] border border-slate-200 rounded text-slate-600 outline-none bg-white" placeholder="Pages" value="${escapeHtml(cell.pages || '')}" data-key="${key}">
+                        <input type="text" class="yp-input-topic w-full p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none bg-white" placeholder="Lesson Name / Topic" value="${escapeHtml(cell.topic || '')}" data-key="${key}">
                     </td>`;
             } else {
                 const hasTarget = Boolean(cell.topic || cell.lessonNo);
@@ -3145,7 +3143,6 @@ const renderYearPlanUI = () => {
                             <div class="p-2 rounded-xl bg-white border border-slate-200 shadow-2xs text-center space-y-1">
                                 <div class="font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo || '')}</div>
                                 ${cell.topic ? `<div class="font-semibold text-xs text-slate-700">${escapeHtml(cell.topic)}</div>` : ''}
-                                ${cell.pages ? `<div class="text-[10px] text-indigo-700 font-bold">${escapeHtml(cell.pages)}</div>` : ''}
                                 <div class="pt-0.5 flex items-center justify-center gap-1">
                                     ${(cell.isCompleted || (cell.progressPercent || 0) === 100) ? `
                                         <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -3207,13 +3204,11 @@ const saveYearPlan = async () => {
             lessonInputs.forEach(input => {
                 const key = input.dataset.key;
                 const topicInput = document.querySelector(`.yp-cell-topic[data-class="${cls}"][data-key="${key}"]`);
-                const pagesInput = document.querySelector(`.yp-cell-pages[data-class="${cls}"][data-key="${key}"]`);
                 const existing = cGrid[key] || {};
                 cGrid[key] = {
                     ...existing,
                     lessonNo: input.value.trim(),
-                    topic: topicInput?.value.trim() || '',
-                    pages: pagesInput?.value.trim() || ''
+                    topic: topicInput?.value.trim() || ''
                 };
             });
 
@@ -3248,18 +3243,15 @@ const saveYearPlan = async () => {
         const key = input.dataset.key;
         const idxKey = input.dataset.idxKey;
         const topicInput = document.querySelector(`.yp-input-topic[data-key="${key}"]`);
-        const pagesInput = document.querySelector(`.yp-input-pages[data-key="${key}"]`);
 
         const lessonNo = input.value.trim();
         const topic = topicInput?.value.trim() || '';
-        const pages = pagesInput?.value.trim() || '';
 
         const existing = yearPlanGrid[key] || (idxKey ? yearPlanGrid[idxKey] : {}) || {};
         const cellData = {
             ...existing,
             lessonNo,
-            topic,
-            pages
+            topic
         };
         yearPlanGrid[key] = cellData;
         if (idxKey) {
@@ -4229,12 +4221,12 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
         if (isDayOff) {
             html += `
                 <tr class="bg-rose-50/25 hover:bg-rose-50/35 transition border-b-2 border-slate-900">
-                    <td class="py-3 px-3 border-r-2 border-slate-800 text-center font-black text-slate-500 bg-slate-100/60">${d}</td>
-                    <td class="py-3 px-3 border-r-2 border-slate-800 whitespace-nowrap bg-slate-50/40">
+                    <td class="py-3 px-3 border-r-2 border-slate-800 border-b-2 border-slate-900 text-center font-black text-slate-500 bg-slate-100/60">${d}</td>
+                    <td class="py-3 px-3 border-r-2 border-slate-800 border-b-2 border-slate-900 whitespace-nowrap bg-slate-50/40">
                         <div class="text-xs font-black text-slate-900">${String(d).padStart(2, '0')} ${monthShort}</div>
                         <div class="text-[10px] font-bold text-slate-500">${dayName}</div>
                     </td>
-                    <td colspan="3" class="py-3 px-4 border-r-2 border-slate-800 text-center bg-rose-50/15 text-rose-700 font-bold text-xs select-none">
+                    <td colspan="3" class="py-3 px-4 border-r-2 border-slate-800 border-b-2 border-slate-900 text-center bg-rose-50/15 text-rose-700 font-bold text-xs select-none">
                         <i class="fas fa-couch mr-1.5 text-rose-400"></i> Weekly Off Day / Institutional Holiday
                     </td>
                 </tr>
@@ -4245,15 +4237,15 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
         if (!teachingSlots.length) {
             html += `
                 <tr class="hover:bg-slate-50/70 transition border-b-2 border-slate-900">
-                    <td class="py-3 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50">${d}</td>
-                    <td class="py-3 px-3 border-r-2 border-slate-800 whitespace-nowrap bg-slate-50/50">
+                    <td class="py-3 px-3 border-r-2 border-slate-800 border-b-2 border-slate-900 text-center font-black text-slate-900 bg-slate-50">${d}</td>
+                    <td class="py-3 px-3 border-r-2 border-slate-800 border-b-2 border-slate-900 whitespace-nowrap bg-slate-50/50">
                         <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
                             <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
                             <span>${String(d).padStart(2, '0')} ${monthShort}</span>
                         </div>
                         <div class="text-[10px] font-bold text-slate-500 mt-0.5">${dayName}</div>
                     </td>
-                    <td colspan="3" class="py-3 px-4 border-r-2 border-slate-800 text-center text-slate-400 font-bold text-xs italic">
+                    <td colspan="3" class="py-3 px-4 border-r-2 border-slate-800 border-b-2 border-slate-900 text-center text-slate-400 font-bold text-xs italic">
                         No teaching periods configured in Class ${escapeHtml(cls)} timetable.
                     </td>
                 </tr>
@@ -4294,10 +4286,10 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
             if (isFirstSubRow) {
                 html += `
-                    <td rowspan="${N}" class="py-2.5 px-3 border-r-2 border-slate-800 text-center font-black text-slate-900 bg-slate-50 align-top">
+                    <td rowspan="${N}" class="py-2.5 px-3 border-r-2 border-slate-800 border-b-2 border-slate-900 text-center font-black text-slate-900 bg-slate-50 align-top">
                         ${d}
                     </td>
-                    <td rowspan="${N}" class="py-2.5 px-3 border-r-2 border-slate-800 whitespace-nowrap align-top bg-slate-50/50">
+                    <td rowspan="${N}" class="py-2.5 px-3 border-r-2 border-slate-800 border-b-2 border-slate-900 whitespace-nowrap align-top bg-slate-50/50">
                         <div class="text-xs font-black text-slate-950 flex items-center gap-1.5">
                             <i class="fas fa-calendar-day text-indigo-600 text-xs"></i>
                             <span>${String(d).padStart(2, '0')} ${monthShort}</span>
@@ -4310,7 +4302,7 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
             // Column 3: Scheduled Periods & Subject with Cumulative % Progress
             html += `
-                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle">
+                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle ${borderClass}">
                     <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-1.5">
                             <span class="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 font-black text-[11px] shrink-0">
@@ -4338,7 +4330,7 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
             // Column 4: Taught Lessons & Portions Log
             html += `
-                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle hover:bg-indigo-50/30 transition cursor-pointer btn-st-trigger-portion"
+                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle hover:bg-indigo-50/30 transition cursor-pointer btn-st-trigger-portion ${borderClass}"
                     data-class="${escapeHtml(cls)}"
                     data-date="${dateStr}"
                     data-slot-id="${escapeHtml(slot.slotId)}"
@@ -4369,7 +4361,7 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
 
             // Column 5: Teacher Remarks / Notes
             html += `
-                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle hover:bg-purple-50/30 transition cursor-pointer btn-st-trigger-remarks"
+                <td class="py-2 px-3 border-r-2 border-slate-800 align-middle hover:bg-purple-50/30 transition cursor-pointer btn-st-trigger-remarks ${borderClass}"
                     data-class="${escapeHtml(cls)}"
                     data-date="${dateStr}"
                     data-slot-id="${escapeHtml(slot.slotId)}"
@@ -4569,6 +4561,211 @@ const loadSyllabusTracker = async () => {
     renderSyllabusTrackerUI();
 };
 
+const renderSyllabusTrackerMonthSubjectCards = (cls, activeMonth) => {
+    const container = document.getElementById('st-month-syllabus-summary');
+    if (!container) return;
+
+    const isAll = (cls === 'all');
+    let html = '';
+
+    if (isAll) {
+        const allowed = getAllowedClassesForTeacher();
+        html += `
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                        <i class="fas fa-book-bookmark"></i>
+                    </span>
+                    <div>
+                        <h4 class="font-black text-xs uppercase tracking-wider text-slate-900">
+                            Monthly Planned Syllabus Targets &bull; <span class="text-indigo-600">${escapeHtml(activeMonth)}</span>
+                        </h4>
+                        <p class="text-[10px] font-bold text-slate-500">
+                            Planned Lesson Number &amp; Lesson Name from Academic Year Plan across All Classes
+                        </p>
+                    </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-black">
+                    All Classes (${allowed.length})
+                </span>
+            </div>
+            <div class="space-y-4 pt-1">
+        `;
+
+        let totalCards = 0;
+        allowed.forEach(c => {
+            const cData = allClassesSyllabusData[c] || {};
+            const subjs = cData.subjects || [];
+            const grid = cData.grid || {};
+
+            let visibleSubjs = subjs;
+            if (selectedStSubject && selectedStSubject !== 'all') {
+                visibleSubjs = subjs.filter(s => s.id === selectedStSubject);
+            }
+            if (stSearchQuery) {
+                const q = stSearchQuery.toLowerCase();
+                visibleSubjs = visibleSubjs.filter(s => {
+                    const key = `${activeMonth}__${s.id}`;
+                    const cell = grid[key] || {};
+                    return s.name.toLowerCase().includes(q) ||
+                        (cell.lessonNo && cell.lessonNo.toLowerCase().includes(q)) ||
+                        (cell.topic && cell.topic.toLowerCase().includes(q));
+                });
+            }
+
+            if (!visibleSubjs.length) return;
+            totalCards += visibleSubjs.length;
+
+            html += `
+                <div class="bg-slate-50/60 p-3 rounded-xl border border-slate-200/80">
+                    <div class="text-[11px] font-black text-slate-800 uppercase tracking-wider mb-2 flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-chalkboard text-indigo-600"></i>
+                            <span>Class ${escapeHtml(c)}</span>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-500">${visibleSubjs.length} Subjects</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">
+            `;
+
+            visibleSubjs.forEach(s => {
+                const key = `${activeMonth}__${s.id}`;
+                const cell = grid[key] || {};
+                const lessonNo = cell.lessonNo || '';
+                const topic = cell.topic || '';
+                const hasPlan = Boolean(lessonNo || topic);
+                const progress = typeof cell.progressPercent === 'number' ? cell.progressPercent : 0;
+
+                html += `
+                    <div class="p-2.5 rounded-xl border ${hasPlan ? 'border-slate-300 bg-white shadow-2xs hover:border-indigo-300' : 'border-dashed border-slate-200 bg-white/50'} transition flex flex-col justify-between gap-1.5">
+                        <div>
+                            <div class="flex items-start justify-between gap-1 mb-1">
+                                <span class="font-black text-xs text-slate-900 leading-tight">${escapeHtml(s.name)}</span>
+                                ${progress > 0 ? `
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] font-black shrink-0 ${progress === 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-indigo-100 text-indigo-800 border border-indigo-200'}">
+                                        ${progress}%
+                                    </span>
+                                ` : `
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] font-bold text-slate-400 bg-slate-100 shrink-0">
+                                        Planned
+                                    </span>
+                                `}
+                            </div>
+                            ${lessonNo ? `
+                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-950 font-black text-[11px] mb-1">
+                                    <i class="fas fa-bookmark text-[9px] text-indigo-500"></i>
+                                    <span>${escapeHtml(lessonNo)}</span>
+                                </div>
+                            ` : ''}
+                            <div class="text-xs font-semibold ${topic ? 'text-slate-800' : 'text-slate-400 italic'} line-clamp-2 leading-snug">
+                                ${topic ? escapeHtml(topic) : 'No lesson name planned'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+
+        if (totalCards === 0) {
+            html += `<div class="text-xs text-slate-400 italic py-2 text-center">No planned subjects match the selected filters for ${escapeHtml(activeMonth)}.</div>`;
+        }
+
+        html += `</div>`;
+    } else {
+        const subjs = stClassSubjects || [];
+        const grid = (stCurrentGrid && Object.keys(stCurrentGrid).length > 0)
+            ? stCurrentGrid
+            : (allClassesSyllabusData[cls]?.grid || yearPlanGrid || {});
+
+        let visibleSubjs = subjs;
+        if (selectedStSubject && selectedStSubject !== 'all') {
+            visibleSubjs = subjs.filter(s => s.id === selectedStSubject);
+        }
+        if (stSearchQuery) {
+            const q = stSearchQuery.toLowerCase();
+            visibleSubjs = visibleSubjs.filter(s => {
+                const key = `${activeMonth}__${s.id}`;
+                const cell = grid[key] || {};
+                return s.name.toLowerCase().includes(q) ||
+                    (cell.lessonNo && cell.lessonNo.toLowerCase().includes(q)) ||
+                    (cell.topic && cell.topic.toLowerCase().includes(q));
+            });
+        }
+
+        html += `
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                        <i class="fas fa-book-bookmark"></i>
+                    </span>
+                    <div>
+                        <h4 class="font-black text-xs uppercase tracking-wider text-slate-900">
+                            Monthly Planned Syllabus Targets &bull; <span class="text-indigo-600">${escapeHtml(activeMonth)}</span>
+                        </h4>
+                        <p class="text-[10px] font-bold text-slate-500">
+                            Planned Lesson Number &amp; Lesson Name from Academic Year Plan (Class ${escapeHtml(cls)})
+                        </p>
+                    </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-black">
+                    Class ${escapeHtml(cls)}
+                </span>
+            </div>
+        `;
+
+        if (!visibleSubjs.length) {
+            html += `<div class="text-xs text-slate-400 italic py-2 text-center">No subjects found for Class ${escapeHtml(cls)}.</div>`;
+        } else {
+            html += `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 pt-1">`;
+            visibleSubjs.forEach(s => {
+                const key = `${activeMonth}__${s.id}`;
+                const cell = grid[key] || {};
+                const lessonNo = cell.lessonNo || '';
+                const topic = cell.topic || '';
+                const hasPlan = Boolean(lessonNo || topic);
+                const progress = typeof cell.progressPercent === 'number' ? cell.progressPercent : 0;
+
+                html += `
+                    <div class="p-3 rounded-xl border ${hasPlan ? 'border-slate-300 bg-slate-50/40 hover:bg-white hover:border-indigo-300' : 'border-dashed border-slate-200 bg-slate-50/20'} transition shadow-2xs flex flex-col justify-between gap-1.5">
+                        <div>
+                            <div class="flex items-start justify-between gap-1 mb-1.5">
+                                <span class="font-black text-xs text-slate-900 leading-tight">${escapeHtml(s.name)}</span>
+                                ${progress > 0 ? `
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-black shrink-0 ${progress === 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-indigo-100 text-indigo-800 border border-indigo-200'}">
+                                        ${progress}%
+                                    </span>
+                                ` : `
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-400 bg-slate-100 shrink-0">
+                                        Planned
+                                    </span>
+                                `}
+                            </div>
+                            ${lessonNo ? `
+                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-950 font-black text-[11px] mb-1">
+                                    <i class="fas fa-bookmark text-[9px] text-indigo-500"></i>
+                                    <span>${escapeHtml(lessonNo)}</span>
+                                </div>
+                            ` : ''}
+                            <div class="text-xs font-semibold ${topic ? 'text-slate-800' : 'text-slate-400 italic'} line-clamp-2 leading-snug">
+                                ${topic ? escapeHtml(topic) : 'No lesson name planned'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+    }
+
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+};
+
 const renderSyllabusTrackerUI = () => {
     const gridEl = document.getElementById('st-schedule-grid');
     if (!gridEl) return;
@@ -4581,6 +4778,8 @@ const renderSyllabusTrackerUI = () => {
     const yearNum = parseInt(year) || new Date().getFullYear();
     const daysInMonth = isHijri ? 30 : new Date(yearNum, mIndex + 1, 0).getDate();
     const instOffDays = getOffDaysFromWeekendDays(attendanceConfig.weekendDays || [5]);
+
+    renderSyllabusTrackerMonthSubjectCards(selectedStClass, activeMonth);
 
     if (selectedStClass === 'all') {
         const allowed = getAllowedClassesForTeacher();
