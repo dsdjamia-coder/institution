@@ -3644,19 +3644,23 @@ const getPriorSubjectProgress = (classLabel, subjectId, targetDateStr) => {
 };
 
 // Open Subject Progress Modal
-const openSubjectProgressModal = (classLabel, dateStr, slotId, subjectId, subjectName, currentCumPct) => {
-    const activeMonth = (selectedStMonth && selectedStMonth !== 'all') ? selectedStMonth : getActiveCalendarCurrentMonth(currentYpCalendarType);
+const openSubjectProgressModal = (classLabel, dateStr = '', slotId = '', subjectId = '', subjectName = '', currentCumPct = 0, targetMonth = null) => {
+    const activeMonth = (targetMonth && targetMonth !== 'all')
+        ? targetMonth
+        : ((selectedStMonth && selectedStMonth !== 'all') ? selectedStMonth : getActiveCalendarCurrentMonth(currentYpCalendarType));
     const modal = document.getElementById('modal-st-subject-progress');
     if (!modal) return;
 
     document.getElementById('modal-st-prog-class').value = classLabel;
     document.getElementById('modal-st-prog-month').value = activeMonth;
-    document.getElementById('modal-st-prog-date').value = dateStr;
-    document.getElementById('modal-st-prog-slot-id').value = slotId;
+    document.getElementById('modal-st-prog-date').value = dateStr || '';
+    document.getElementById('modal-st-prog-slot-id').value = slotId || '';
     document.getElementById('modal-st-prog-subject-id').value = subjectId;
 
     document.getElementById('modal-st-prog-subject-name').textContent = subjectName || 'Subject Progress';
-    document.getElementById('modal-st-prog-meta').textContent = `Class ${classLabel} • ${formatDisplayDate(dateStr)} • ${activeMonth}`;
+    document.getElementById('modal-st-prog-meta').textContent = dateStr
+        ? `Class ${classLabel} • ${formatDisplayDate(dateStr)} • ${activeMonth}`
+        : `Class ${classLabel} • ${activeMonth} Progress`;
 
     const targetGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
         ? yearPlanGrid
@@ -3667,33 +3671,42 @@ const openSubjectProgressModal = (classLabel, dateStr, slotId, subjectId, subjec
     const cellKey = `${activeMonth}__${subjectId}`;
     const cell = targetGrid[cellKey] || {};
 
-    const topic = cell.topic || cell.lessonNo || 'No specific topic planned in Year Plan';
-    const pages = cell.pages ? `Pages: ${cell.pages}` : 'Pages: Not specified';
-    const breakdown = cell.breakdown || cell.notes || '';
-    const alloc = cell.allocatedPeriods ? `${cell.allocatedPeriods} periods` : 'Periods: --';
+    let topicText = '';
+    if (cell.lessonNo && cell.topic) {
+        topicText = `${cell.lessonNo}: ${cell.topic}`;
+    } else if (cell.lessonNo) {
+        topicText = cell.lessonNo;
+    } else if (cell.topic) {
+        topicText = cell.topic;
+    } else {
+        topicText = 'No specific lesson planned in Year Plan';
+    }
 
-    document.getElementById('modal-st-prog-topic').textContent = topic;
-    document.getElementById('modal-st-prog-pages').textContent = pages;
-    document.getElementById('modal-st-prog-breakdown').textContent = breakdown ? `Notes: ${breakdown}` : '';
-    document.getElementById('modal-st-prog-allocated-periods').textContent = alloc;
+    const topicEl = document.getElementById('modal-st-prog-topic');
+    if (topicEl) topicEl.textContent = topicText;
 
-    const priorPct = getPriorSubjectProgress(classLabel, subjectId, dateStr);
-    document.getElementById('modal-st-prog-prev-pct').value = priorPct;
-    document.getElementById('modal-st-prog-prev-badge').textContent = `${priorPct}%`;
+    const priorPct = (typeof cell.progressPercent === 'number')
+        ? cell.progressPercent
+        : (dateStr ? getPriorSubjectProgress(classLabel, subjectId, dateStr) : 0);
 
-    const initPct = Math.max(priorPct, Math.min(100, Math.round(Number(currentCumPct) || 0)));
+    const prevPctInput = document.getElementById('modal-st-prog-prev-pct');
+    if (prevPctInput) prevPctInput.value = priorPct;
+    const prevBadge = document.getElementById('modal-st-prog-prev-badge');
+    if (prevBadge) prevBadge.textContent = `${priorPct}%`;
+
+    const initPct = Math.max(0, Math.min(100, Math.round(Number(currentCumPct) || priorPct || 0)));
 
     const input = document.getElementById('modal-st-prog-input');
     const slider = document.getElementById('modal-st-prog-slider');
     const completeCb = document.getElementById('modal-st-prog-complete-cb');
 
     if (input) {
-        input.min = priorPct;
+        input.min = 0;
         input.max = 100;
         input.value = initPct;
     }
     if (slider) {
-        slider.min = priorPct;
+        slider.min = 0;
         slider.max = 100;
         slider.value = initPct;
     }
@@ -3716,74 +3729,14 @@ const saveSubjectProgressModal = async () => {
     const rawVal = Number(document.getElementById('modal-st-prog-input')?.value);
     const isCompleted = document.getElementById('modal-st-prog-complete-cb')?.checked || rawVal >= 100;
 
-    if (!classLabel || !dateStr || !subjectId) {
-        showToast('Missing required subject or date context.', 'error');
+    if (!classLabel || !subjectId) {
+        showToast('Missing required subject or class context.', 'error');
         return;
     }
 
-    const newPct = Math.max(priorPct, Math.min(100, isNaN(rawVal) ? priorPct : Math.round(rawVal)));
+    const newPct = Math.max(0, Math.min(100, isNaN(rawVal) ? priorPct : Math.round(rawVal)));
 
-    // 1. Update Daily Log for this date
-    const docId = `${year}__${classLabel}__${dateStr}`;
-    let logData = cachedSyllabusDailyLogs[docId];
-
-    if (!logData || !Array.isArray(logData.periods)) {
-        let dayName = 'Monday';
-        try {
-            const dt = new Date(dateStr + 'T00:00:00');
-            dayName = ALL_WEEKDAYS[dt.getDay()] || 'Monday';
-        } catch (_) {}
-
-        const cData = allClassesTimetables[classLabel] || {};
-        const cSlots = (Array.isArray(cData.slots) && cData.slots.length > 0)
-            ? cData.slots
-            : ((classLabel === selectedTtClass && Array.isArray(currentClassSlots) && currentClassSlots.length > 0) ? currentClassSlots : normalizeTimetableSlots(timetableConfig));
-        const matrix = cData.matrix || (classLabel === selectedTtClass ? timetableMatrix : {});
-        const periods = cSlots.filter(s => !s.isBreak).map(s => {
-            const ttCell = matrix[`${dayName}_${s.slotId}`] || matrix[`${dayName}_${s.slotNum}`] || {};
-            const isMatch = s.slotId === slotId || ttCell.subjectId === subjectId;
-            return {
-                slotId: s.slotId,
-                periodNum: s.slotNum,
-                label: s.label,
-                startTime: s.startTime,
-                endTime: s.endTime,
-                subjectId: ttCell.subjectId || '',
-                subjectName: ttCell.subjectName || '',
-                isCompleted: isMatch ? (newPct === 100) : false,
-                progressPercent: isMatch ? newPct : 0,
-                description: '',
-                descriptionImage: '',
-                remarks: '',
-                remarksImage: ''
-            };
-        });
-        logData = {
-            academicYear: String(year),
-            classLabel: String(classLabel),
-            date: dateStr,
-            dayOfWeek: dayName,
-            periods,
-            updatedAt: Date.now(),
-            updatedBy: auth.currentUser?.email || 'admin'
-        };
-    } else {
-        let targetPeriod = logData.periods.find(p => p.slotId === slotId);
-        if (!targetPeriod) {
-            targetPeriod = logData.periods.find(p => p.subjectId === subjectId);
-        }
-        if (targetPeriod) {
-            targetPeriod.progressPercent = newPct;
-            if (newPct === 100) targetPeriod.isCompleted = true;
-        } else if (logData.periods.length > 0) {
-            logData.periods[0].progressPercent = newPct;
-            if (newPct === 100) logData.periods[0].isCompleted = true;
-        }
-        logData.updatedAt = Date.now();
-        logData.updatedBy = auth.currentUser?.email || 'admin';
-    }
-
-    // 2. Update Year Plan Grid for this Month & Subject
+    // 1. Update Year Plan Grid for this Month & Subject
     const ypDocId = getYearPlanDocId(year, classLabel);
     const targetGrid = (classLabel === selectedYpClass && yearPlanGrid && Object.keys(yearPlanGrid).length > 0)
         ? yearPlanGrid
@@ -3805,19 +3758,35 @@ const saveSubjectProgressModal = async () => {
         allClassesSyllabusData[classLabel].grid[cellKey] = cell;
     }
 
-    try {
-        await Promise.all([
-            setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true }),
-            setDoc(doc(db, `${BASE_PATH}/yearPlans`, ypDocId), { grid: targetGrid, updatedAt: Date.now() }, { merge: true })
-        ]);
+    const saveTasks = [
+        setDoc(doc(db, `${BASE_PATH}/yearPlans`, ypDocId), { grid: targetGrid, updatedAt: Date.now() }, { merge: true })
+    ];
 
-        cachedSyllabusDailyLogs[docId] = logData;
-        stMonthlyLogsMap[dateStr] = logData;
+    // 2. If a specific date log exists or if daily logs exist, update them
+    if (dateStr) {
+        const docId = `${year}__${classLabel}__${dateStr}`;
+        let logData = cachedSyllabusDailyLogs[docId];
+        if (logData && Array.isArray(logData.periods)) {
+            let targetPeriod = logData.periods.find(p => p.slotId === slotId) || logData.periods.find(p => p.subjectId === subjectId);
+            if (targetPeriod) {
+                targetPeriod.progressPercent = newPct;
+                if (newPct === 100) targetPeriod.isCompleted = true;
+            }
+            logData.updatedAt = Date.now();
+            logData.updatedBy = auth.currentUser?.email || 'admin';
+            saveTasks.push(setDoc(doc(db, `${BASE_PATH}/syllabusDailyLogs`, docId), logData, { merge: true }));
+            cachedSyllabusDailyLogs[docId] = logData;
+            stMonthlyLogsMap[dateStr] = logData;
+        }
+    }
+
+    try {
+        await Promise.all(saveTasks);
 
         const modal = document.getElementById('modal-st-subject-progress');
         if (modal) modal.classList.add('hidden');
 
-        showToast(`Cumulative progress updated to ${newPct}%!`, 'success');
+        showToast(`Progress updated to ${newPct}%!`, 'success');
         renderSyllabusTrackerUI();
     } catch (err) {
         console.error('Failed to save subject progress:', err);
@@ -3858,11 +3827,9 @@ const openTaughtPortionModal = (classLabel, dateStr, slotId, subjectId, subjectN
     const log = cachedSyllabusDailyLogs[docId];
     const p = log?.periods?.find(lp => lp.slotId === slotId) || null;
 
-    const isCompleted = p ? Boolean(p.isCompleted) : true;
     const desc = p?.description || p?.topic || '';
     const img = p?.descriptionImage || '';
 
-    document.getElementById('modal-st-portion-completed').checked = isCompleted;
     document.getElementById('modal-st-portion-desc').value = desc;
     document.getElementById('modal-st-portion-image').value = img;
 
@@ -3896,8 +3863,8 @@ const saveTaughtPortionModal = async () => {
     const subjSelect = document.getElementById('modal-st-portion-subject');
     const subjectId = subjSelect ? subjSelect.value : '';
     const subjectName = subjSelect?.selectedOptions?.[0] ? subjSelect.selectedOptions[0].textContent.trim() : '';
-    const isCompleted = Boolean(document.getElementById('modal-st-portion-completed')?.checked);
     const description = document.getElementById('modal-st-portion-desc')?.value.trim() || '';
+    const isCompleted = Boolean(description || image);
 
     if (!classLabel || !dateStr || !slotId) {
         showToast('Missing required period context.', 'error');
@@ -4311,17 +4278,12 @@ const renderMonthlyRegisterTable = (cls, targetMonth, monthLogsMap, cData) => {
                             <span class="text-[10px] font-bold text-slate-400 hidden xl:inline">${slot.startTime} - ${slot.endTime}</span>
                         </div>
                         ${effectiveSubjId ? `
-                            <button type="button" class="btn-st-trigger-subject-progress px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 font-black text-xs text-slate-800 transition cursor-pointer flex items-center gap-1.5 text-left"
-                                data-class="${escapeHtml(cls)}"
-                                data-date="${dateStr}"
-                                data-slot-id="${escapeHtml(slot.slotId)}"
-                                data-subject-id="${escapeHtml(effectiveSubjId)}"
-                                data-subject-name="${escapeHtml(effectiveSubjName)}"
-                                data-cum-pct="${cumPct}"
-                                title="Click to view &amp; update monthly progress for ${escapeHtml(effectiveSubjName)}">
-                                <span>${escapeHtml(effectiveSubjName)}</span>
-                                <span class="px-1.5 py-0.2 rounded text-[10px] font-black ${cumPct === 100 ? 'bg-emerald-100 text-emerald-800' : (cumPct > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600')}">(${cumPct}%)</span>
-                            </button>
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-bold text-xs text-slate-800">${escapeHtml(effectiveSubjName)}</span>
+                                ${cumPct > 0 ? `
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] font-black ${cumPct === 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">(${cumPct}%)</span>
+                                ` : ''}
+                            </div>
                         ` : `
                             <span class="text-[11px] text-slate-400 italic font-medium">Free</span>
                         `}
@@ -4661,6 +4623,15 @@ const renderSyllabusTrackerMonthSubjectCards = (cls, activeMonth) => {
                                 ${topic ? escapeHtml(topic) : 'No lesson name planned'}
                             </div>
                         </div>
+                        <button type="button" class="btn-st-card-update-prog mt-2 w-full py-1.5 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer"
+                            data-class="${escapeHtml(c)}"
+                            data-subject-id="${escapeHtml(s.id)}"
+                            data-subject-name="${escapeHtml(s.name)}"
+                            data-month="${escapeHtml(activeMonth)}"
+                            data-pct="${progress}">
+                            <i class="fas fa-chart-line text-[10px]"></i>
+                            <span>Update Progress</span>
+                        </button>
                     </div>
                 `;
             });
@@ -4755,6 +4726,15 @@ const renderSyllabusTrackerMonthSubjectCards = (cls, activeMonth) => {
                                 ${topic ? escapeHtml(topic) : 'No lesson name planned'}
                             </div>
                         </div>
+                        <button type="button" class="btn-st-card-update-prog mt-2 w-full py-1.5 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer"
+                            data-class="${escapeHtml(cls)}"
+                            data-subject-id="${escapeHtml(s.id)}"
+                            data-subject-name="${escapeHtml(s.name)}"
+                            data-month="${escapeHtml(activeMonth)}"
+                            data-pct="${progress}">
+                            <i class="fas fa-chart-line text-[10px]"></i>
+                            <span>Update Progress</span>
+                        </button>
                     </div>
                 `;
             });
@@ -7042,6 +7022,20 @@ const setupEventListeners = () => {
 
     document.getElementById('btn-save-st-entry')?.addEventListener('click', saveTrackerEntry);
 
+    document.getElementById('st-month-syllabus-summary')?.addEventListener('click', (e) => {
+        const progBtn = e.target.closest('.btn-st-card-update-prog');
+        if (progBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cls = progBtn.dataset.class;
+            const sId = progBtn.dataset.subjectId;
+            const sName = progBtn.dataset.subjectName;
+            const m = progBtn.dataset.month;
+            const cumPct = Number(progBtn.dataset.pct) || 0;
+            openSubjectProgressModal(cls, '', '', sId, sName, cumPct, m);
+        }
+    });
+
     document.getElementById('st-schedule-grid')?.addEventListener('click', async (e) => {
         const previewThumb = e.target.closest('.st-thumb-preview');
         if (previewThumb) {
@@ -7050,20 +7044,6 @@ const setupEventListeners = () => {
             const src = previewThumb.dataset.fullImg || previewThumb.src;
             const caption = previewThumb.dataset.caption || 'Attached Teaching Photo';
             openStImageLightbox(src, caption);
-            return;
-        }
-
-        const progBtn = e.target.closest('.btn-st-trigger-subject-progress');
-        if (progBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            const cls = progBtn.dataset.class;
-            const dateStr = progBtn.dataset.date;
-            const slotId = progBtn.dataset.slotId;
-            const sId = progBtn.dataset.subjectId;
-            const sName = progBtn.dataset.subjectName;
-            const cumPct = Number(progBtn.dataset.cumPct) || 0;
-            openSubjectProgressModal(cls, dateStr, slotId, sId, sName, cumPct);
             return;
         }
 
