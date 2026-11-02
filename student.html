@@ -67,9 +67,12 @@
                 <li><a href="index.html#notices" class="nav-link student-public-nav-link"><i class="fas fa-bullhorn text-lg w-6"></i> Notices</a></li>
                 <li><a href="index.html#gallery" class="nav-link student-public-nav-link"><i class="fas fa-images text-lg w-6"></i> Gallery</a></li>
                 <div class="border-t border-gray-100 my-1"></div>
-                <li><a href="#home" class="nav-link tab-link active" data-target="home-page"><i class="fas fa-id-badge text-lg w-6"></i> My Profile</a></li>
-                <li><a href="#fees" class="nav-link tab-link" data-target="fees-page"><i class="fas fa-file-invoice-dollar text-lg w-6"></i> Fee Details</a></li>
-                <li id="results-nav-item"><a href="#results" class="nav-link tab-link" data-target="results-page"><i class="fas fa-square-poll-vertical text-lg w-6"></i> <span>Results</span></a></li>
+                <li id="student-nav-home"><a href="#home" class="nav-link tab-link active" data-target="home-page"><i class="fas fa-id-badge text-lg w-6"></i> My Profile</a></li>
+                <li id="student-nav-fees"><a href="#fees" class="nav-link tab-link" data-target="fees-page"><i class="fas fa-file-invoice-dollar text-lg w-6"></i> Fee Details</a></li>
+                <li id="student-nav-attendance"><a href="#attendance" class="nav-link tab-link" data-target="attendance-page"><i class="fas fa-calendar-check text-lg w-6"></i> Attendance</a></li>
+                <li id="student-nav-timetable"><a href="#timetable" class="nav-link tab-link" data-target="timetable-page"><i class="fas fa-calendar-days text-lg w-6"></i> Timetable &amp; Syllabus</a></li>
+                <li id="student-nav-results"><a href="#results" class="nav-link tab-link" data-target="results-page"><i class="fas fa-square-poll-vertical text-lg w-6"></i> <span>Results</span></a></li>
+                <li id="student-nav-activities"><a href="#activities" class="nav-link tab-link" data-target="activities-page"><i class="fas fa-award text-lg w-6"></i> Activities &amp; Badges</a></li>
                 <div class="border-t border-gray-100 my-1"></div>
                 <li id="student-install-menu-item" class="hidden"><button type="button" id="student-install-btn" class="nav-link w-full text-left font-bold text-blue-600 hover:bg-blue-50 cursor-pointer"><i class="fas fa-download text-lg w-6"></i> Install App</button></li>
                 <li><button id="student-public-btn" class="login-btn-nav bg-slate-100 hover:bg-slate-200 text-slate-700"><i class="fas fa-home"></i> Public Page</button></li>
@@ -367,16 +370,253 @@
                 <div id="results-container"></div>
             </div>
         </section>
+
+        <!-- 3. ATTENDANCE REGISTER TAB -->
+        <section id="attendance-page" class="page-content hidden">
+            <div class="content-card space-y-5">
+                <!-- Title & Academic Year / Month Bar -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <i class="fas fa-calendar-check text-teal-600"></i> Attendance Record
+                        </h2>
+                        <p class="text-xs text-slate-500 font-semibold mt-0.5">Personalized academic year attendance history &amp; calendar</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                            <i class="fas fa-calendar-alt text-teal-600 text-xs"></i>
+                            <select id="stu-att-year-select" class="text-xs font-bold text-slate-800 bg-transparent outline-none cursor-pointer"></select>
+                        </div>
+                        <button type="button" id="btn-print-stu-attendance" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-1.5 cursor-pointer transition">
+                            <i class="fas fa-print"></i> Print Slip
+                        </button>
+                    </div>
+                </div>
+
+                <!-- High-level Metric Cards Grid -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <!-- Overall Percentage -->
+                    <div class="p-4 rounded-2xl border bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-200 flex flex-col justify-between">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-teal-700">Attendance Rate</div>
+                        <div class="text-2xl sm:text-3xl font-black text-teal-950 mt-1 font-mono" id="stu-att-rate">--%</div>
+                        <div class="mt-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block self-start" id="stu-att-rate-badge">Calculating...</div>
+                    </div>
+
+                    <!-- Total Working Days -->
+                    <div class="p-4 rounded-2xl border border-slate-200 bg-white flex flex-col justify-between">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Working Days</div>
+                        <div class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 font-mono" id="stu-att-total-days">0</div>
+                        <div class="mt-2 text-[10px] font-bold text-slate-500">Recorded sessions</div>
+                    </div>
+
+                    <!-- Present Days -->
+                    <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Days Present</div>
+                        <div class="text-2xl sm:text-3xl font-black text-emerald-900 mt-1 font-mono" id="stu-att-present-days">0</div>
+                        <div class="mt-2 text-[10px] font-bold text-emerald-700">In-class attendance</div>
+                    </div>
+
+                    <!-- Absent & Leave Days -->
+                    <div class="p-4 rounded-2xl border border-rose-200 bg-rose-50/50 flex flex-col justify-between">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-rose-700">Absent / Leave</div>
+                        <div class="text-2xl sm:text-3xl font-black text-rose-900 mt-1 font-mono">
+                            <span id="stu-att-absent-days">0</span>
+                            <span class="text-xs text-rose-400 font-bold">/</span>
+                            <span class="text-sm text-amber-700 font-bold" id="stu-att-leave-days">0 Lv</span>
+                        </div>
+                        <div class="mt-2 text-[10px] font-bold text-rose-600">Missed / Excused</div>
+                    </div>
+                </div>
+
+                <!-- Month Pills Selector -->
+                <div>
+                    <div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Filter by Month</div>
+                    <div id="stu-att-month-pills" class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                        <!-- Dynamic Month Pills Injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Monthly Attendance Daily Log & Calendar Container -->
+                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-list text-teal-600 text-xs"></i>
+                            <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800" id="stu-att-month-title">Monthly Session Register</h3>
+                        </div>
+                        <div class="flex items-center gap-3 text-[11px] font-bold text-slate-600">
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Present</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Absent</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Leave</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span> Holiday</span>
+                        </div>
+                    </div>
+                    <div id="stu-att-daily-grid" class="p-4 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-2.5">
+                        <!-- Daily Status Pills Injected by JS -->
+                    </div>
+                    <div id="stu-att-empty-state" class="p-8 text-center text-slate-400 font-bold hidden">
+                        <i class="fas fa-calendar-xmark text-2xl mb-2 text-slate-300"></i>
+                        <p class="text-xs">No attendance marked for the selected month.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. TIMETABLE & SYLLABUS PLAN TAB -->
+        <section id="timetable-page" class="page-content hidden">
+            <div class="content-card space-y-5">
+                <!-- Header with Sub-Tab Switcher -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <i class="fas fa-calendar-days text-indigo-600"></i> Class Timetable &amp; Syllabus
+                        </h2>
+                        <p class="text-xs text-slate-500 font-semibold mt-0.5">Daily period routine &amp; monthly curriculum progress</p>
+                    </div>
+                    <!-- Sub-tabs: Routine Timetable vs Syllabus Tracker -->
+                    <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold self-start sm:self-auto">
+                        <button type="button" id="btn-stu-subtab-tt" class="px-3.5 py-1.5 rounded-lg bg-white text-indigo-700 shadow-xs transition font-extrabold cursor-pointer border-none">
+                            <i class="fas fa-clock mr-1"></i> Routine Timetable
+                        </button>
+                        <button type="button" id="btn-stu-subtab-syllabus" class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-bold cursor-pointer border-none bg-transparent">
+                            <i class="fas fa-book-open mr-1"></i> Syllabus Plan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-view A: Routine Timetable -->
+                <div id="stu-tt-subview" class="space-y-4">
+                    <!-- Day of Week Selector Pills -->
+                    <div>
+                        <div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Select Day of Week</div>
+                        <div id="stu-tt-day-pills" class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                            <!-- Injected by JS (Monday through Sunday) -->
+                        </div>
+                    </div>
+
+                    <!-- Daily Routine Periods Grid -->
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                            <div class="flex items-center gap-2">
+                                <span id="stu-tt-selected-day-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">Monday</span>
+                                <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800" id="stu-tt-day-title">Daily Period Schedule</h3>
+                            </div>
+                            <span class="text-xs font-bold text-slate-500" id="stu-tt-class-badge">Class --</span>
+                        </div>
+
+                        <div id="stu-tt-periods-container" class="p-4 space-y-3">
+                            <!-- Period Schedule Cards Injected by JS -->
+                        </div>
+                        <div id="stu-tt-empty-state" class="p-8 text-center text-slate-400 font-bold hidden">
+                            <i class="fas fa-mug-hot text-2xl mb-2 text-slate-300"></i>
+                            <p class="text-xs">No periods scheduled for this day (Holiday / Rest Day).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-view B: Monthly Syllabus Plan & Targets -->
+                <div id="stu-syllabus-subview" class="space-y-4 hidden">
+                    <!-- Month Selector Pills -->
+                    <div>
+                        <div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Academic Month</div>
+                        <div id="stu-syllabus-month-pills" class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Syllabus Targets List -->
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-book-bookmark text-indigo-600 text-xs"></i>
+                                <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800" id="stu-syllabus-month-heading">Monthly Course Plan</h3>
+                            </div>
+                            <span class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full" id="stu-syllabus-portion-count">0 Subjects Planned</span>
+                        </div>
+
+                        <div id="stu-syllabus-cards-container" class="p-4 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            <!-- Planned Subject Cards with Progress Bars Injected by JS -->
+                        </div>
+                        <div id="stu-syllabus-empty-state" class="p-8 text-center text-slate-400 font-bold hidden">
+                            <i class="fas fa-circle-check text-2xl mb-2 text-slate-300"></i>
+                            <p class="text-xs">No syllabus portions configured for this month.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. ACTIVITIES & REWARDS TAB -->
+        <section id="activities-page" class="page-content hidden">
+            <div class="content-card space-y-5">
+                <!-- Header Banner -->
+                <div class="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-5 sm:p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white backdrop-blur-xs">
+                            <i class="fas fa-award"></i> Student Achievements
+                        </div>
+                        <h2 class="text-xl sm:text-2xl font-black tracking-tight" id="stu-act-hero-name">Activities &amp; Rewards</h2>
+                        <p class="text-xs text-amber-100 font-medium">Co-curricular points, badges &amp; character cultivation</p>
+                    </div>
+                    <div class="bg-white/15 border border-white/25 backdrop-blur-md rounded-2xl px-5 py-3 text-center self-start sm:self-auto min-w-[130px]">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-white/80">Total Points</div>
+                        <div class="text-2xl sm:text-3xl font-black text-white font-mono mt-0.5" id="stu-act-total-points">0</div>
+                        <div class="text-[10px] font-extrabold text-amber-200 mt-0.5" id="stu-act-tier-badge">Star Student</div>
+                    </div>
+                </div>
+
+                <!-- Badges Showcase -->
+                <div>
+                    <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                        <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                            <i class="fas fa-medal text-amber-500"></i> Earned Badges &amp; Recognitions
+                        </h3>
+                        <span id="stu-act-badges-count" class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">0 Badges</span>
+                    </div>
+
+                    <div id="stu-act-badges-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        <!-- Badges Injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Daily Habits & Streak Checklist -->
+                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-hands-praying text-amber-600 text-xs"></i>
+                            <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800">Routine Habits &amp; Daily Prayers</h3>
+                        </div>
+                        <span class="text-xs text-slate-500 font-bold" id="stu-act-streak-date">Today</span>
+                    </div>
+                    <div id="stu-act-prayers-container" class="p-4 grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                        <!-- Prayer Status Cards Injected by JS (Fajr, Dhuhr, Asr, Maghrib, Isha) -->
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <nav id="student-bottom-nav" class="hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-40">
-        <div class="grid grid-cols-4 text-xs font-bold text-gray-600">
-            <button class="py-2 student-bottom-nav-btn" data-action="public"><i class="fas fa-home block text-base mb-1"></i>Public</button>
-            <button class="py-2 student-bottom-nav-btn" data-target="fees-page"><i class="fas fa-receipt block text-base mb-1"></i>Fees</button>
-            <button id="results-bottom-btn" class="py-2 student-bottom-nav-btn" data-target="results-page"><i class="fas fa-square-poll-vertical block text-base mb-1"></i><span>Results</span></button>
-            <button class="py-2 student-bottom-nav-btn" id="bottom-profile-btn" data-target="home-page"><i class="fas fa-id-badge block text-base mb-1"></i>Profile</button>
+        <div id="student-bottom-nav-container" class="grid grid-cols-4 sm:grid-cols-5 text-xs font-bold text-gray-600">
+            <!-- Dynamically populated by student-page.js -->
         </div>
     </nav>
+
+    <!-- Mobile More Tabs Bottom Sheet -->
+    <div id="student-more-sheet" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-200">
+        <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 animate-[slideUp_.2s_ease-out] space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
+                    <i class="fas fa-grid text-blue-600"></i> More Portal Features
+                </h3>
+                <button type="button" id="btn-close-more-sheet" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition border-none cursor-pointer">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+            <div id="student-more-sheet-items" class="grid grid-cols-2 gap-2.5">
+                <!-- Additional Tabs Injected by JS -->
+            </div>
+        </div>
+    </div>
 
     <div id="student-account-switcher" class="fixed inset-0 bg-slate-900/55 backdrop-blur-[1px] hidden items-center justify-center z-50 px-4">
         <div class="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md p-5 sm:p-6 animate-[fadeIn_.18s_ease-out]">

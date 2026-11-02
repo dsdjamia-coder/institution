@@ -1393,6 +1393,109 @@ const saveWorkflowModules = async () => {
     }
 };
 
+// --- STUDENT PORTAL CONFIGURATION ---
+const DEFAULT_STUDENT_PORTAL_CONFIG = {
+    tabs: {
+        profile: true,
+        fees: true,
+        attendance: true,
+        timetable: true,
+        results: true,
+        activities: true
+    }
+};
+
+let cachedStudentPortalConfig = { ...DEFAULT_STUDENT_PORTAL_CONFIG };
+
+const openStudentPortalConfigModal = async () => {
+    const modal = document.getElementById('modal-student-portal-config');
+    if (!modal) return;
+
+    try {
+        const snap = await getDoc(getConfigRef());
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data?.studentPortalConfig && typeof data.studentPortalConfig === 'object') {
+                cachedStudentPortalConfig = {
+                    tabs: { ...DEFAULT_STUDENT_PORTAL_CONFIG.tabs, ...(data.studentPortalConfig.tabs || {}) }
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('Could not fetch student portal config:', e);
+    }
+
+    const tabs = cachedStudentPortalConfig.tabs || DEFAULT_STUDENT_PORTAL_CONFIG.tabs;
+    const feeToggle = document.getElementById('cfg-stu-tab-fees');
+    const attToggle = document.getElementById('cfg-stu-tab-attendance');
+    const ttToggle = document.getElementById('cfg-stu-tab-timetable');
+    const resToggle = document.getElementById('cfg-stu-tab-results');
+    const actToggle = document.getElementById('cfg-stu-tab-activities');
+
+    if (feeToggle) feeToggle.checked = tabs.fees !== false;
+    if (attToggle) attToggle.checked = tabs.attendance !== false;
+    if (ttToggle) ttToggle.checked = tabs.timetable !== false;
+    if (resToggle) resToggle.checked = tabs.results !== false;
+    if (actToggle) actToggle.checked = tabs.activities !== false;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closeStudentPortalConfigModal = () => {
+    const modal = document.getElementById('modal-student-portal-config');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+const saveStudentPortalConfig = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const saveBtn = document.getElementById('btn-save-student-portal-config');
+    const originalHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+    }
+
+    try {
+        const studentPortalConfig = {
+            tabs: {
+                profile: true,
+                fees: Boolean(document.getElementById('cfg-stu-tab-fees')?.checked),
+                attendance: Boolean(document.getElementById('cfg-stu-tab-attendance')?.checked),
+                timetable: Boolean(document.getElementById('cfg-stu-tab-timetable')?.checked),
+                results: Boolean(document.getElementById('cfg-stu-tab-results')?.checked),
+                activities: Boolean(document.getElementById('cfg-stu-tab-activities')?.checked)
+            }
+        };
+
+        await setDoc(getConfigRef(), { studentPortalConfig }, { merge: true });
+        cachedStudentPortalConfig = studentPortalConfig;
+        localStorage.setItem('app_student_portal_config', JSON.stringify(studentPortalConfig));
+
+        await logAuditEvent({
+            category: 'settings',
+            action: 'student_portal_config.update',
+            entityType: 'config',
+            entityId: 'studentPortalConfig',
+            message: `Updated student portal tab configuration: ${Object.entries(studentPortalConfig.tabs).map(([k, v]) => `${k}:${v ? 'ON' : 'OFF'}`).join(', ')}`
+        });
+
+        closeStudentPortalConfigModal();
+        alert('Student Portal configuration saved successfully!\n\nChanges will immediately reflect in the Student Portal navigation.');
+    } catch (error) {
+        console.error('Failed to save student portal config:', error);
+        alert('Failed to save config: ' + (error.message || error));
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalHtml;
+        }
+    }
+};
+
 const renderAcademicYears = () => {
     const listEl = document.getElementById('academic-years-list');
     if (academicYears.length === 0) {
@@ -11978,6 +12081,10 @@ document.querySelectorAll('.workflow-module-toggle').forEach((toggle) => {
     });
 });
 document.getElementById('btn-save-workflow-modules')?.addEventListener('click', saveWorkflowModules);
+document.getElementById('btn-config-student-portal')?.addEventListener('click', openStudentPortalConfigModal);
+document.getElementById('btn-close-student-portal-modal')?.addEventListener('click', closeStudentPortalConfigModal);
+document.getElementById('btn-cancel-student-portal-modal')?.addEventListener('click', closeStudentPortalConfigModal);
+document.getElementById('btn-save-student-portal-config')?.addEventListener('click', saveStudentPortalConfig);
 
 document.getElementById('add-academic-year-btn').addEventListener('click', async () => {
     if(!requirePermission('academic-years.manage')) return;

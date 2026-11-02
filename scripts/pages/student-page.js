@@ -101,12 +101,21 @@ const studentPwa = registerPortalForPwa('student', {
             document.querySelectorAll('.student-bottom-nav-btn[data-target]').forEach((btn) => {
                 btn.classList.toggle('active', btn.dataset.target === safeTargetId);
             });
+            const isOverflowActive = Array.isArray(window.currentOverflowTabIds) && window.currentOverflowTabIds.includes(safeTargetId);
+            const moreBtn = document.getElementById('btn-student-bottom-more');
+            if (moreBtn) moreBtn.classList.toggle('active', isOverflowActive);
 
-            // Re-render when switching to fees page or results page so student sees latest state immediately
+            // Re-render when switching tabs so student sees latest state immediately
             if (safeTargetId === 'fees-page' && typeof renderStudentFeeDetails === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
                 renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
             } else if (safeTargetId === 'results-page' && typeof renderStudentResults === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
                 renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
+            } else if (safeTargetId === 'attendance-page' && typeof renderStudentAttendanceModule === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
+                renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear || currentAcademicYear || studentProfile.academicYear);
+            } else if (safeTargetId === 'timetable-page' && typeof renderStudentTimetableModule === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
+                renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear || currentAcademicYear || studentProfile.academicYear);
+            } else if (safeTargetId === 'activities-page' && typeof renderStudentActivitiesModule === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
+                renderStudentActivitiesModule(studentProfile);
             }
         };
         
@@ -1679,7 +1688,7 @@ const studentPwa = registerPortalForPwa('student', {
         };
         const getStudentGender = (st = {}) => {
             const raw = String(st?.gender || st?.profile?.gender || st?.sex || '').trim().toLowerCase();
-            if (raw.startsWith('f') || raw === 'girl' || raw.includes('fem') || raw.includes('പെൺ') || raw.includes('സ്ത്രീ')) {
+            if (raw.startsWith('f') || raw === 'girl' || raw.includes('fem')) {
                 return 'female';
             }
             return 'male';
@@ -1764,10 +1773,12 @@ const studentPwa = registerPortalForPwa('student', {
         };
 
         const syncResultTabVisibility = (showResults = false) => {
-            const navItem = document.getElementById('results-nav-item');
-            const bottomBtn = document.getElementById('results-bottom-btn');
-            navItem?.classList.remove('hidden');
-            bottomBtn?.classList.remove('hidden');
+            const isTabConfigAllowed = (typeof cachedStudentPortalConfig !== 'undefined' && cachedStudentPortalConfig.results !== false)
+                && (typeof cachedGlobalEnabledModules !== 'undefined' && cachedGlobalEnabledModules.resultCenter !== false);
+            const navItem = document.getElementById('student-nav-results') || document.getElementById('results-nav-item');
+            if (navItem) {
+                navItem.classList.toggle('hidden', !isTabConfigAllowed);
+            }
         };
 
         const getStudentResultExamKey = (result = {}) => result.examType || result.examKey || String(result.examId || '').split('::').pop() || '';
@@ -4402,6 +4413,1023 @@ const studentPwa = registerPortalForPwa('student', {
             if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();
         };
 
+        // ----------------------------------------------------
+        // STUDENT PORTAL MODULAR NAVIGATION & WORKFLOW ENGINE
+        // ----------------------------------------------------
+        const PORTAL_TABS_REGISTRY = [
+            { key: 'profile', id: 'home-page', navId: 'student-nav-home', label: 'Profile', icon: 'fas fa-id-badge', moduleKey: null },
+            { key: 'fees', id: 'fees-page', navId: 'student-nav-fees', label: 'Fees', icon: 'fas fa-receipt', moduleKey: 'feeCollection' },
+            { key: 'attendance', id: 'attendance-page', navId: 'student-nav-attendance', label: 'Attendance', icon: 'fas fa-calendar-check', moduleKey: 'attendance' },
+            { key: 'timetable', id: 'timetable-page', navId: 'student-nav-timetable', label: 'Timetable', icon: 'fas fa-calendar-days', moduleKey: 'academicPlan' },
+            { key: 'results', id: 'results-page', navId: 'student-nav-results', label: 'Results', icon: 'fas fa-square-poll-vertical', moduleKey: 'resultCenter' },
+            { key: 'activities', id: 'activities-page', navId: 'student-nav-activities', label: 'Activities', icon: 'fas fa-award', moduleKey: 'activityTracker' }
+        ];
+
+        let cachedStudentPortalConfig = {
+            profile: true,
+            fees: true,
+            attendance: true,
+            timetable: true,
+            results: true,
+            activities: true
+        };
+        let cachedGlobalEnabledModules = {};
+        window.currentOverflowTabIds = [];
+
+        const applyStudentPortalNavigation = (portalConfig = {}, enabledModules = {}) => {
+            cachedStudentPortalConfig = { ...cachedStudentPortalConfig, ...portalConfig };
+            cachedGlobalEnabledModules = { ...cachedGlobalEnabledModules, ...enabledModules };
+
+            const activeTabs = PORTAL_TABS_REGISTRY.filter((tab) => {
+                const tabEnabled = cachedStudentPortalConfig[tab.key] !== false;
+                const moduleEnabled = tab.moduleKey ? cachedGlobalEnabledModules[tab.moduleKey] !== false : true;
+                return tabEnabled && moduleEnabled;
+            });
+
+            // 1. Sync Desktop Navigation Menu
+            PORTAL_TABS_REGISTRY.forEach((tab) => {
+                const navEl = document.getElementById(tab.navId);
+                const isActive = activeTabs.some((t) => t.key === tab.key);
+                if (navEl) {
+                    navEl.classList.toggle('hidden', !isActive);
+                }
+            });
+
+            // 2. Sync Mobile Bottom Navigation Bar & More Sheet
+            const bottomContainer = document.getElementById('student-bottom-nav-container');
+            const moreSheet = document.getElementById('student-more-sheet');
+            const moreSheetItems = document.getElementById('student-more-sheet-items');
+
+            if (bottomContainer) {
+                const maxDirectTabs = 4;
+                const useMoreSheet = activeTabs.length > maxDirectTabs;
+                const directTabs = useMoreSheet ? activeTabs.slice(0, maxDirectTabs) : activeTabs;
+                const overflowTabs = useMoreSheet ? activeTabs.slice(maxDirectTabs) : [];
+
+                window.currentOverflowTabIds = overflowTabs.map((t) => t.id);
+
+                let directHtml = directTabs.map((tab) => `
+                    <button type="button" class="py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-target="${tab.id}">
+                        <i class="${tab.icon} block text-base mb-1"></i>
+                        <span class="text-[11px] leading-tight font-extrabold">${tab.label}</span>
+                    </button>
+                `).join('');
+
+                if (useMoreSheet) {
+                    directHtml += `
+                        <button type="button" id="btn-student-bottom-more" class="py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-action="open-more">
+                            <i class="fas fa-grid block text-base mb-1"></i>
+                            <span class="text-[11px] leading-tight font-extrabold">More</span>
+                        </button>
+                    `;
+                }
+
+                bottomContainer.className = `grid grid-cols-${useMoreSheet ? directTabs.length + 1 : Math.max(2, directTabs.length)} text-xs font-bold text-gray-600`;
+                bottomContainer.innerHTML = directHtml;
+
+                // Populate More Sheet Items
+                if (moreSheetItems) {
+                    moreSheetItems.innerHTML = overflowTabs.map((tab) => `
+                        <button type="button" class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-2 group cursor-pointer student-more-tile" data-target="${tab.id}">
+                            <div class="w-10 h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-lg group-hover:scale-110 transition">
+                                <i class="${tab.icon}"></i>
+                            </div>
+                            <span class="font-extrabold text-xs text-slate-800">${tab.label}</span>
+                        </button>
+                    `).join('');
+                }
+
+                // Bind Bottom Nav Buttons
+                bottomContainer.querySelectorAll('.student-bottom-nav-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        if (btn.dataset.action === 'open-more') {
+                            if (moreSheet) {
+                                moreSheet.classList.remove('hidden');
+                                moreSheet.classList.add('flex');
+                            }
+                            return;
+                        }
+                        if (btn.dataset.target) activateStudentTab(btn.dataset.target);
+                    });
+                });
+
+                // Bind More Sheet Items
+                moreSheetItems?.querySelectorAll('.student-more-tile').forEach((tile) => {
+                    tile.addEventListener('click', () => {
+                        if (moreSheet) {
+                            moreSheet.classList.add('hidden');
+                            moreSheet.classList.remove('flex');
+                        }
+                        if (tile.dataset.target) activateStudentTab(tile.dataset.target);
+                    });
+                });
+            }
+
+            // Close More Sheet Event Handlers
+            document.getElementById('btn-close-more-sheet')?.addEventListener('click', () => {
+                if (moreSheet) {
+                    moreSheet.classList.add('hidden');
+                    moreSheet.classList.remove('flex');
+                }
+            });
+            moreSheet?.addEventListener('click', (e) => {
+                if (e.target === moreSheet) {
+                    moreSheet.classList.add('hidden');
+                    moreSheet.classList.remove('flex');
+                }
+            });
+
+            // Ensure currently visible page is still valid; if disabled, redirect to home
+            const visiblePage = pages.find((p) => !p.classList.contains('hidden'));
+            if (visiblePage && !activeTabs.some((t) => t.id === visiblePage.id)) {
+                activateStudentTab('home-page');
+            }
+        };
+
+        // ----------------------------------------------------
+        // MODULE: PERSONALIZED ATTENDANCE REGISTER
+        // ----------------------------------------------------
+        let selectedAttendanceAcademicYear = '';
+        let selectedAttendanceMonth = '';
+        let studentAttendanceStats = { workingDays: 0, presentDays: 0, absentDays: 0, leaveDays: 0, rate: 0 };
+        let cachedAttendanceDocs = [];
+
+        const renderStudentAttendanceModule = async (profile, targetYear = '') => {
+            const pageEl = document.getElementById('attendance-page');
+            if (!pageEl || !profile) return;
+
+            const year = targetYear || currentAcademicYear || profile.academicYear || '--';
+            selectedAttendanceAcademicYear = year;
+
+            // Populate Year Dropdown
+            const yearSelect = document.getElementById('stu-att-year-select');
+            if (yearSelect && availableAcademicYears.length) {
+                const optsHtml = availableAcademicYears.map((yr) => `<option value="${escapeHtml(yr)}" ${yr === year ? 'selected' : ''}>${escapeHtml(yr)}</option>`).join('');
+                if (yearSelect.innerHTML !== optsHtml) {
+                    yearSelect.innerHTML = optsHtml;
+                }
+            }
+
+            try {
+                const attQuery = query(
+                    collection(db, `${BASE_PATH}/attendance`),
+                    where('classLabel', '==', profile.class || '')
+                );
+                const snap = await getDocs(attQuery);
+                const allDocs = snap.docs.map((d) => d.data());
+
+                // Filter by selected year
+                cachedAttendanceDocs = allDocs.filter((d) => {
+                    if (d.academicYear) return d.academicYear === year;
+                    return String(d.date || '').startsWith(year.split('-')[0]);
+                }).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+                let workingCount = 0;
+                let presCount = 0;
+                let absCount = 0;
+                let leaveCount = 0;
+
+                cachedAttendanceDocs.forEach((d) => {
+                    if (d.isHoliday) return;
+                    workingCount++;
+                    const rec = d.records?.[profile.id];
+                    const rawStatus = typeof rec === 'object' ? rec?.status : rec;
+                    const st = rawStatus === 'E' ? 'L' : rawStatus;
+
+                    if (st === 'P') presCount++;
+                    else if (st === 'A') absCount++;
+                    else if (st === 'L') leaveCount++;
+                });
+
+                const rate = workingCount > 0 ? Math.round((presCount / workingCount) * 100) : 100;
+                studentAttendanceStats = {
+                    workingDays: workingCount,
+                    presentDays: presCount,
+                    absentDays: absCount,
+                    leaveDays: leaveCount,
+                    rate
+                };
+
+                // Update Metric Cards
+                const rateEl = document.getElementById('stu-att-rate');
+                const rateBadge = document.getElementById('stu-att-rate-badge');
+                const totalEl = document.getElementById('stu-att-total-days');
+                const presEl = document.getElementById('stu-att-present-days');
+                const absEl = document.getElementById('stu-att-absent-days');
+                const leaveEl = document.getElementById('stu-att-leave-days');
+
+                if (rateEl) rateEl.textContent = `${rate}%`;
+                if (rateBadge) {
+                    if (rate >= 85) {
+                        rateBadge.className = 'mt-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block self-start bg-emerald-100 text-emerald-800 border border-emerald-300';
+                        rateBadge.textContent = 'Excellent Attendance';
+                    } else if (rate >= 75) {
+                        rateBadge.className = 'mt-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block self-start bg-teal-100 text-teal-800 border border-teal-300';
+                        rateBadge.textContent = 'Good Attendance';
+                    } else if (rate >= 60) {
+                        rateBadge.className = 'mt-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block self-start bg-amber-100 text-amber-800 border border-amber-300';
+                        rateBadge.textContent = 'Average Attendance';
+                    } else {
+                        rateBadge.className = 'mt-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block self-start bg-rose-100 text-rose-800 border border-rose-300';
+                        rateBadge.textContent = 'Low Attendance';
+                    }
+                }
+                if (totalEl) totalEl.textContent = workingCount;
+                if (presEl) presEl.textContent = presCount;
+                if (absEl) absEl.textContent = absCount;
+                if (leaveEl) leaveEl.textContent = `${leaveCount} Lv`;
+
+                // Distinct months
+                const monthsSet = new Set();
+                cachedAttendanceDocs.forEach((d) => {
+                    if (d.date && typeof d.date === 'string' && d.date.length >= 7) {
+                        monthsSet.add(d.date.slice(0, 7));
+                    }
+                });
+                const availableMonths = Array.from(monthsSet).sort();
+                if (!availableMonths.length) {
+                    const nowStr = new Date().toISOString().slice(0, 7);
+                    availableMonths.push(nowStr);
+                }
+
+                if (!selectedAttendanceMonth || !availableMonths.includes(selectedAttendanceMonth)) {
+                    const currentMonthStr = new Date().toISOString().slice(0, 7);
+                    selectedAttendanceMonth = availableMonths.includes(currentMonthStr)
+                        ? currentMonthStr
+                        : availableMonths[availableMonths.length - 1];
+                }
+
+                renderStudentAttendanceMonthPills(availableMonths, selectedAttendanceMonth);
+                renderStudentAttendanceDailyGrid(selectedAttendanceMonth, profile);
+
+            } catch (err) {
+                console.warn('Could not load student attendance:', err);
+            }
+        };
+
+        const renderStudentAttendanceMonthPills = (availableMonths, activeMonth) => {
+            const container = document.getElementById('stu-att-month-pills');
+            if (!container) return;
+
+            const formatMonthPillLabel = (mStr) => {
+                const parts = mStr.split('-');
+                if (parts.length < 2) return mStr;
+                const dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+                return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+            };
+
+            container.innerHTML = availableMonths.map((mStr) => {
+                const isActive = mStr === activeMonth;
+                return `
+                    <button type="button" class="stu-att-month-btn px-3.5 py-1.5 rounded-xl text-xs font-black transition border cursor-pointer shrink-0 ${
+                        isActive
+                            ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }" data-month="${mStr}">
+                        ${formatMonthPillLabel(mStr)}
+                    </button>
+                `;
+            }).join('');
+
+            container.querySelectorAll('.stu-att-month-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    selectedAttendanceMonth = btn.dataset.month;
+                    renderStudentAttendanceMonthPills(availableMonths, selectedAttendanceMonth);
+                    renderStudentAttendanceDailyGrid(selectedAttendanceMonth, studentProfile);
+                });
+            });
+        };
+
+        const renderStudentAttendanceDailyGrid = (monthStr, profile) => {
+            const grid = document.getElementById('stu-att-daily-grid');
+            const emptyState = document.getElementById('stu-att-empty-state');
+            const monthTitle = document.getElementById('stu-att-month-title');
+            if (!grid) return;
+
+            const [yearNumStr, monthNumStr] = monthStr.split('-');
+            const yearNum = parseInt(yearNumStr, 10);
+            const monthNum = parseInt(monthNumStr, 10);
+
+            if (monthTitle) {
+                const dt = new Date(yearNum, monthNum - 1, 1);
+                monthTitle.textContent = `${dt.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} Daily Record`;
+            }
+
+            const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+            const docsInMonth = cachedAttendanceDocs.filter((d) => String(d.date || '').startsWith(monthStr));
+            const dayDocsMap = {};
+            docsInMonth.forEach((d) => {
+                const dayNum = parseInt(String(d.date || '').split('-')[2], 10);
+                if (dayNum) dayDocsMap[dayNum] = d;
+            });
+
+            if (docsInMonth.length === 0) {
+                grid.innerHTML = '';
+                if (emptyState) emptyState.classList.remove('hidden');
+                return;
+            }
+            if (emptyState) emptyState.classList.add('hidden');
+
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            let html = '';
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dt = new Date(yearNum, monthNum - 1, day);
+                const dayName = dayNames[dt.getDay()];
+                const dayDoc = dayDocsMap[day];
+
+                if (!dayDoc) {
+                    html += `
+                        <div class="p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col justify-between min-h-[64px] text-slate-400">
+                            <div class="flex items-center justify-between text-[11px] font-black">
+                                <span>${day}</span>
+                                <span class="text-[9px] uppercase font-bold">${dayName}</span>
+                            </div>
+                            <div class="text-[10px] font-semibold text-slate-400 mt-1">--</div>
+                        </div>
+                    `;
+                    continue;
+                }
+
+                if (dayDoc.isHoliday) {
+                    const reason = dayDoc.holidayReason || 'Holiday';
+                    html += `
+                        <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-100 flex flex-col justify-between min-h-[64px]" title="${escapeHtml(reason)}">
+                            <div class="flex items-center justify-between text-[11px] font-black text-slate-700">
+                                <span>${day}</span>
+                                <span class="text-[9px] uppercase font-bold text-slate-500">${dayName}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-[10px] font-extrabold text-slate-600 mt-1 truncate">
+                                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                <span class="truncate">Holiday</span>
+                            </div>
+                        </div>
+                    `;
+                    continue;
+                }
+
+                const rec = dayDoc.records?.[profile.id];
+                const rawStatus = typeof rec === 'object' ? rec?.status : rec;
+                const status = rawStatus === 'E' ? 'L' : rawStatus;
+                const reason = (typeof rec === 'object' ? rec?.reason : '') || '';
+
+                if (status === 'P') {
+                    html += `
+                        <div class="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 flex flex-col justify-between min-h-[64px]">
+                            <div class="flex items-center justify-between text-[11px] font-black text-emerald-950">
+                                <span>${day}</span>
+                                <span class="text-[9px] uppercase font-bold text-emerald-700">${dayName}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-[10px] font-black text-emerald-700 mt-1">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <span>Present</span>
+                            </div>
+                        </div>
+                    `;
+                } else if (status === 'A') {
+                    html += `
+                        <div class="p-2.5 rounded-xl border border-rose-200 bg-rose-50/70 flex flex-col justify-between min-h-[64px]" title="${escapeHtml(reason ? 'Reason: ' + reason : 'Absent')}">
+                            <div class="flex items-center justify-between text-[11px] font-black text-rose-950">
+                                <span>${day}</span>
+                                <span class="text-[9px] uppercase font-bold text-rose-700">${dayName}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-[10px] font-black text-rose-700 mt-1 truncate">
+                                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                <span class="truncate">${escapeHtml(reason || 'Absent')}</span>
+                            </div>
+                        </div>
+                    `;
+                } else if (status === 'L') {
+                    html += `
+                        <div class="p-2.5 rounded-xl border border-amber-200 bg-amber-50/70 flex flex-col justify-between min-h-[64px]" title="${escapeHtml(reason ? 'Leave Reason: ' + reason : 'Excused Leave')}">
+                            <div class="flex items-center justify-between text-[11px] font-black text-amber-950">
+                                <span>${day}</span>
+                                <span class="text-[9px] uppercase font-bold text-amber-700">${dayName}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-[10px] font-black text-amber-700 mt-1 truncate">
+                                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                <span class="truncate">${escapeHtml(reason || 'Leave')}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex flex-col justify-between min-h-[64px]">
+                            <div class="flex items-center justify-between text-[11px] font-black text-slate-600">
+                                <span>${day}</span>
+                                <span class="text-[9px] uppercase font-bold text-slate-400">${dayName}</span>
+                            </div>
+                            <div class="text-[10px] font-bold text-slate-400 mt-1">Unmarked</div>
+                        </div>
+                    `;
+                }
+            }
+
+            grid.innerHTML = html;
+        };
+
+        const printStudentAttendanceSlip = () => {
+            if (!studentProfile) return;
+            const printWin = window.open('', '_blank', 'width=800,height=900');
+            if (!printWin) {
+                alert('Please allow popups to print the attendance slip.');
+                return;
+            }
+
+            const monthsMap = {};
+            cachedAttendanceDocs.forEach((d) => {
+                if (d.isHoliday) return;
+                const mKey = String(d.date || '').slice(0, 7);
+                if (!monthsMap[mKey]) monthsMap[mKey] = { work: 0, pres: 0, abs: 0, leave: 0 };
+                monthsMap[mKey].work++;
+
+                const rec = d.records?.[studentProfile.id];
+                const rawStatus = typeof rec === 'object' ? rec?.status : rec;
+                const st = rawStatus === 'E' ? 'L' : rawStatus;
+                if (st === 'P') monthsMap[mKey].pres++;
+                else if (st === 'A') monthsMap[mKey].abs++;
+                else if (st === 'L') monthsMap[mKey].leave++;
+            });
+
+            const rowsHtml = Object.keys(monthsMap).sort().map((mKey) => {
+                const item = monthsMap[mKey];
+                const [y, m] = mKey.split('-');
+                const monthName = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                const mRate = item.work > 0 ? Math.round((item.pres / item.work) * 100) : 0;
+                return `
+                    <tr>
+                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold;">${monthName}</td>
+                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center;">${item.work}</td>
+                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; color: #047857; font-weight: bold;">${item.pres}</td>
+                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; color: #b91c1c;">${item.abs}</td>
+                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; color: #b45309;">${item.leave}</td>
+                        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800;">${mRate}%</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const slipHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Student Attendance Slip - ${escapeHtml(studentProfile.name || 'Student')}</title>
+                    <style>
+                        body { font-family: system-ui, -apple-system, sans-serif; color: #0f172a; margin: 30px; font-size: 13px; line-height: 1.5; }
+                        .slip-card { border: 2px solid #0f172a; border-radius: 12px; padding: 24px; max-width: 720px; margin: 0 auto; }
+                        .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
+                        .header h1 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+                        .header p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+                        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; font-size: 13px; }
+                        .info-item { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 8px; }
+                        .info-label { font-size: 11px; text-transform: uppercase; font-weight: bold; color: #64748b; }
+                        .info-val { font-size: 14px; font-weight: bold; color: #0f172a; }
+                        .stats-banner { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px; text-align: center; }
+                        .stat-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
+                        .stat-num { font-size: 20px; font-weight: 900; margin-top: 4px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                        th { background: #f1f5f9; padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 11px; text-transform: uppercase; }
+                        .footer { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 20px; }
+                        .sig-line { width: 180px; border-top: 1px solid #0f172a; text-align: center; padding-top: 4px; font-size: 12px; font-weight: bold; }
+                        @media print { body { margin: 0; } .slip-card { border: none; padding: 0; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="slip-card">
+                        <div class="header">
+                            <h1>OFFICIAL STUDENT ATTENDANCE SLIP</h1>
+                            <p>Academic Session: ${escapeHtml(selectedAttendanceAcademicYear || currentAcademicYear || '--')}</p>
+                        </div>
+                        <div class="info-grid">
+                            <div class="info-item"><div class="info-label">Student Name</div><div class="info-val">${escapeHtml(studentProfile.name || '--')}</div></div>
+                            <div class="info-item"><div class="info-label">Admission Number</div><div class="info-val">${escapeHtml(studentProfile.adm || studentProfile.admissionNo || '--')}</div></div>
+                            <div class="info-item"><div class="info-label">Class / Division</div><div class="info-val">${escapeHtml(studentProfile.class || '--')}</div></div>
+                            <div class="info-item"><div class="info-label">Date Generated</div><div class="info-val">${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
+                        </div>
+
+                        <div class="stats-banner">
+                            <div class="stat-box" style="background: #f0fdf4; border-color: #bbf7d0;">
+                                <div class="info-label" style="color: #166534;">Attendance Rate</div>
+                                <div class="stat-num" style="color: #166534;">${studentAttendanceStats.rate}%</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="info-label">Working Days</div>
+                                <div class="stat-num">${studentAttendanceStats.workingDays}</div>
+                            </div>
+                            <div class="stat-box" style="background: #f0fdf4;">
+                                <div class="info-label" style="color: #15803d;">Days Present</div>
+                                <div class="stat-num" style="color: #15803d;">${studentAttendanceStats.presentDays}</div>
+                            </div>
+                            <div class="stat-box" style="background: #fef2f2;">
+                                <div class="info-label" style="color: #b91c1c;">Days Absent / Leave</div>
+                                <div class="stat-num" style="color: #b91c1c;">${studentAttendanceStats.absentDays + studentAttendanceStats.leaveDays}</div>
+                            </div>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Working Days</th>
+                                    <th>Present</th>
+                                    <th>Absent</th>
+                                    <th>Leave</th>
+                                    <th>Attendance %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHtml || '<tr><td colspan="6" style="text-align: center; padding: 12px; color: #94a3b8;">No monthly attendance records found.</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <div class="footer">
+                            <div class="sig-line">Class Teacher Signature</div>
+                            <div class="sig-line">Principal / Office Seal</div>
+                        </div>
+                    </div>
+                    <script>
+                        window.onload = function() { window.print(); };
+                    </script>
+                </body>
+                </html>
+            `;
+            printWin.document.write(slipHtml);
+            printWin.document.close();
+        };
+
+        // ----------------------------------------------------
+        // MODULE: CLASS ROUTINE TIMETABLE & MONTHLY SYLLABUS
+        // ----------------------------------------------------
+        let selectedTimetableAcademicYear = '';
+        let selectedTimetableDay = new Date().getDay();
+        let selectedSyllabusMonth = '';
+        let cachedTimetableDoc = null;
+        let cachedStructureDoc = null;
+        let cachedClassSubjects = [];
+        let cachedYearPlanDoc = null;
+
+        const WEEKDAYS_LIST = [
+            { num: 1, name: 'Monday', short: 'Mon' },
+            { num: 2, name: 'Tuesday', short: 'Tue' },
+            { num: 3, name: 'Wednesday', short: 'Wed' },
+            { num: 4, name: 'Thursday', short: 'Thu' },
+            { num: 5, name: 'Friday', short: 'Fri' },
+            { num: 6, name: 'Saturday', short: 'Sat' },
+            { num: 0, name: 'Sunday', short: 'Sun' }
+        ];
+
+        const MONTHS_ORDER = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+
+        const setupTimetableSubtabs = () => {
+            const btnTt = document.getElementById('btn-stu-subtab-tt');
+            const btnSyllabus = document.getElementById('btn-stu-subtab-syllabus');
+            const viewTt = document.getElementById('stu-tt-subview');
+            const viewSyllabus = document.getElementById('stu-syllabus-subview');
+
+            if (!btnTt || !btnSyllabus || !viewTt || !viewSyllabus) return;
+
+            btnTt.onclick = () => {
+                btnTt.className = 'px-3.5 py-1.5 rounded-lg bg-white text-indigo-700 shadow-xs transition font-extrabold cursor-pointer border-none';
+                btnSyllabus.className = 'px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-bold cursor-pointer border-none bg-transparent';
+                viewTt.classList.remove('hidden');
+                viewSyllabus.classList.add('hidden');
+            };
+
+            btnSyllabus.onclick = () => {
+                btnSyllabus.className = 'px-3.5 py-1.5 rounded-lg bg-white text-indigo-700 shadow-xs transition font-extrabold cursor-pointer border-none';
+                btnTt.className = 'px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-bold cursor-pointer border-none bg-transparent';
+                viewSyllabus.classList.remove('hidden');
+                viewTt.classList.add('hidden');
+            };
+        };
+
+        const renderStudentTimetableModule = async (profile, targetYear = '') => {
+            const pageEl = document.getElementById('timetable-page');
+            if (!pageEl || !profile) return;
+
+            const year = targetYear || currentAcademicYear || profile.academicYear || '--';
+            selectedTimetableAcademicYear = year;
+            const classLabel = profile.class || '';
+
+            const classBadge = document.getElementById('stu-tt-class-badge');
+            if (classBadge) classBadge.textContent = `Class: ${classLabel}`;
+
+            const cleanY = String(year).trim().replace(/[^\w-]/g, '_');
+            const cleanC = String(classLabel).trim().replace(/[^\w-]/g, '_');
+            const ttDocId = `${cleanY}__${cleanC}`;
+
+            try {
+                const [tSnap, structSnap, subjSnap, ypSnap] = await Promise.all([
+                    getDoc(doc(db, `${BASE_PATH}/timetables`, ttDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/settings`, 'timetableStructure')).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/classSubjects`, ttDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/yearPlans`, ttDocId)).catch(() => null)
+                ]);
+
+                cachedTimetableDoc = tSnap?.exists() ? tSnap.data() : null;
+                cachedStructureDoc = structSnap?.exists() ? structSnap.data() : null;
+                cachedClassSubjects = subjSnap?.exists() && Array.isArray(subjSnap.data().subjects) ? subjSnap.data().subjects : [];
+                cachedYearPlanDoc = ypSnap?.exists() ? ypSnap.data() : null;
+
+                renderTimetableDayPills();
+                renderTimetablePeriodsForDay(selectedTimetableDay);
+                renderSyllabusMonthPills();
+                renderSyllabusCards();
+
+            } catch (err) {
+                console.warn('Could not load student timetable and syllabus:', err);
+            }
+        };
+
+        const renderTimetableDayPills = () => {
+            const container = document.getElementById('stu-tt-day-pills');
+            if (!container) return;
+
+            const todayNum = new Date().getDay();
+
+            container.innerHTML = WEEKDAYS_LIST.map((w) => {
+                const isSelected = w.num === selectedTimetableDay;
+                const isToday = w.num === todayNum;
+                return `
+                    <button type="button" class="stu-tt-day-btn px-3.5 py-1.5 rounded-xl text-xs font-black transition border cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                        isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }" data-day="${w.num}">
+                        <span>${w.name}</span>
+                        ${isToday ? `<span class="text-[9px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? 'bg-white/30 text-white' : 'bg-indigo-100 text-indigo-800'}">Today</span>` : ''}
+                    </button>
+                `;
+            }).join('');
+
+            container.querySelectorAll('.stu-tt-day-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    selectedTimetableDay = parseInt(btn.dataset.day, 10);
+                    renderTimetableDayPills();
+                    renderTimetablePeriodsForDay(selectedTimetableDay);
+                });
+            });
+        };
+
+        const renderTimetablePeriodsForDay = (dayNum) => {
+            const container = document.getElementById('stu-tt-periods-container');
+            const emptyState = document.getElementById('stu-tt-empty-state');
+            const dayBadge = document.getElementById('stu-tt-selected-day-badge');
+            const dayTitle = document.getElementById('stu-tt-day-title');
+            if (!container) return;
+
+            const weekdayObj = WEEKDAYS_LIST.find((w) => w.num === dayNum) || WEEKDAYS_LIST[0];
+            if (dayBadge) dayBadge.textContent = weekdayObj.name;
+            if (dayTitle) dayTitle.textContent = `${weekdayObj.name} Routine Schedule`;
+
+            const dayStatuses = cachedTimetableDoc?.dayStatuses || {};
+            const isDayOff = dayStatuses[dayNum]?.isOff === true;
+
+            if (isDayOff) {
+                container.innerHTML = '';
+                if (emptyState) {
+                    emptyState.classList.remove('hidden');
+                    const emptyP = emptyState.querySelector('p');
+                    if (emptyP) emptyP.textContent = `${weekdayObj.name} is configured as a Weekly Off / Holiday.`;
+                }
+                return;
+            }
+
+            let slots = [];
+            if (cachedTimetableDoc?.slots && Array.isArray(cachedTimetableDoc.slots) && cachedTimetableDoc.slots.length) {
+                slots = cachedTimetableDoc.slots;
+            } else if (cachedStructureDoc?.slots && Array.isArray(cachedStructureDoc.slots) && cachedStructureDoc.slots.length) {
+                slots = cachedStructureDoc.slots;
+            } else {
+                slots = [
+                    { slotNumber: 1, name: 'Period 1', startTime: '08:30 AM', endTime: '09:15 AM' },
+                    { slotNumber: 2, name: 'Period 2', startTime: '09:15 AM', endTime: '10:00 AM' },
+                    { slotNumber: 3, name: 'Period 3', startTime: '10:15 AM', endTime: '11:00 AM' },
+                    { slotNumber: 4, name: 'Period 4', startTime: '11:00 AM', endTime: '11:45 AM' },
+                    { slotNumber: 5, name: 'Period 5', startTime: '11:45 AM', endTime: '12:30 PM' },
+                    { slotNumber: 6, name: 'Period 6', startTime: '01:15 PM', endTime: '02:00 PM' }
+                ];
+            }
+
+            const matrix = cachedTimetableDoc?.matrix || {};
+            const subjectsMap = {};
+            cachedClassSubjects.forEach((s) => {
+                subjectsMap[s.id] = s.name;
+            });
+
+            const cardsHtml = slots.map((slot, idx) => {
+                const slotNum = slot.slotNumber || idx + 1;
+                const key1 = `${dayNum}_${slotNum}`;
+                const key2 = `${dayNum}_${idx + 1}`;
+                const entry = matrix[key1] || matrix[key2] || {};
+
+                const hasSubject = Boolean(entry.subjectName || entry.subjectId);
+                const subjName = entry.subjectName || subjectsMap[entry.subjectId] || entry.subjectId || 'Self Study / Free Period';
+                const teacherName = entry.teacher || (hasSubject ? 'Faculty' : 'Supervised Study');
+                const timeStr = (slot.startTime && slot.endTime) ? `${slot.startTime} - ${slot.endTime}` : (slot.name || `Period ${slotNum}`);
+                const roomStr = entry.room ? `Room ${entry.room}` : '';
+
+                return `
+                    <div class="p-3.5 rounded-2xl border ${hasSubject ? 'border-slate-200 bg-white hover:border-indigo-300' : 'border-slate-100 bg-slate-50/70'} flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition shadow-2xs">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl ${hasSubject ? 'bg-indigo-50 border border-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-500'} flex items-center justify-center font-black text-sm shrink-0">
+                                P${slotNum}
+                            </div>
+                            <div>
+                                <div class="font-extrabold text-sm ${hasSubject ? 'text-slate-900' : 'text-slate-500'}">${escapeHtml(subjName)}</div>
+                                <div class="flex items-center gap-2 text-xs text-slate-500 font-semibold mt-0.5 flex-wrap">
+                                    <span class="flex items-center gap-1"><i class="fas fa-chalkboard-user text-indigo-600 text-[10px]"></i> ${escapeHtml(teacherName)}</span>
+                                    ${roomStr ? `<span class="bg-slate-100 px-2 py-0.2 rounded-md text-[10px] font-bold text-slate-600">${escapeHtml(roomStr)}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl self-start sm:self-auto shrink-0">
+                            <i class="fas fa-clock text-slate-400 text-xs"></i>
+                            <span class="font-mono">${escapeHtml(timeStr)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = cardsHtml;
+            if (emptyState) emptyState.classList.add('hidden');
+        };
+
+        const renderSyllabusMonthPills = () => {
+            const container = document.getElementById('stu-syllabus-month-pills');
+            if (!container) return;
+
+            if (!selectedSyllabusMonth) {
+                const currentMonthName = new Date().toLocaleDateString(undefined, { month: 'long' });
+                selectedSyllabusMonth = MONTHS_ORDER.includes(currentMonthName) ? currentMonthName : MONTHS_ORDER[0];
+            }
+
+            container.innerHTML = MONTHS_ORDER.map((m) => {
+                const isActive = m === selectedSyllabusMonth;
+                return `
+                    <button type="button" class="stu-syl-month-btn px-3.5 py-1.5 rounded-xl text-xs font-black transition border cursor-pointer shrink-0 ${
+                        isActive
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }" data-month="${m}">
+                        ${m}
+                    </button>
+                `;
+            }).join('');
+
+            container.querySelectorAll('.stu-syl-month-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    selectedSyllabusMonth = btn.dataset.month;
+                    renderSyllabusMonthPills();
+                    renderSyllabusCards();
+                });
+            });
+        };
+
+        const renderSyllabusCards = () => {
+            const container = document.getElementById('stu-syllabus-cards-container');
+            const emptyState = document.getElementById('stu-syllabus-empty-state');
+            const heading = document.getElementById('stu-syllabus-month-heading');
+            const countBadge = document.getElementById('stu-syllabus-portion-count');
+            if (!container) return;
+
+            if (heading) heading.textContent = `${selectedSyllabusMonth} Syllabus Curriculum`;
+
+            const grid = cachedYearPlanDoc?.grid || {};
+            const subjects = cachedClassSubjects.length ? cachedClassSubjects : [{ id: 'general', name: 'General Curriculum' }];
+
+            let plannedCount = 0;
+            const mIdx = MONTHS_ORDER.indexOf(selectedSyllabusMonth);
+
+            const cardsHtml = subjects.map((subj) => {
+                const key1 = `${selectedSyllabusMonth}__${subj.id}`;
+                const key2 = `idx_${mIdx}__${subj.id}`;
+                const cell = grid[key1] || grid[key2] || {};
+
+                const hasTarget = Boolean(cell.topic || cell.lessonNo);
+                if (hasTarget) plannedCount++;
+
+                const progress = Number(cell.progressPercent || (cell.isCompleted ? 100 : 0));
+                const isDone = cell.isCompleted || progress === 100;
+
+                return `
+                    <div class="p-4 rounded-2xl border ${hasTarget ? 'border-slate-200 bg-white hover:border-indigo-300' : 'border-slate-100 bg-slate-50/60'} shadow-2xs space-y-3 transition">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="font-extrabold text-xs uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">${escapeHtml(subj.name || 'Subject')}</span>
+                            ${isDone ? `
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                    <i class="fas fa-circle-check text-emerald-600"></i> Completed
+                                </span>
+                            ` : (progress > 0 ? `
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                                    <i class="fas fa-spinner fa-spin text-indigo-600"></i> In Progress (${progress}%)
+                                </span>
+                            ` : `
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    Planned
+                                </span>
+                            `)}
+                        </div>
+
+                        <div>
+                            <div class="font-black text-sm text-slate-900">${escapeHtml(cell.lessonNo ? `Lesson / Unit: ${cell.lessonNo}` : 'Lesson target')}</div>
+                            <div class="text-xs text-slate-600 font-semibold mt-0.5">${escapeHtml(cell.topic || 'No topic designated for this month')}</div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                                <span>Progress</span>
+                                <span class="font-mono font-extrabold text-slate-800">${progress}%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
+                                <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (countBadge) countBadge.textContent = `${plannedCount} Subjects Planned`;
+
+            container.innerHTML = cardsHtml;
+            if (emptyState) emptyState.classList.toggle('hidden', plannedCount > 0 || subjects.length > 0);
+        };
+
+        // ----------------------------------------------------
+        // MODULE: PERSONALIZED ACTIVITIES, REWARDS & STREAKS
+        // ----------------------------------------------------
+        const renderStudentActivitiesModule = async (profile) => {
+            const pageEl = document.getElementById('activities-page');
+            if (!pageEl || !profile) return;
+
+            const heroName = document.getElementById('stu-act-hero-name');
+            if (heroName) heroName.textContent = `${escapeHtml(profile.name || 'Student')} Achievements`;
+
+            const todayDate = getTodayDateKey();
+            const dateBadge = document.getElementById('stu-act-streak-date');
+            if (dateBadge) dateBadge.textContent = `Today (${formatDateDisplay(todayDate)})`;
+
+            const cleanY = String(currentAcademicYear || profile.academicYear || '').trim().replace(/[^\w-]/g, '_');
+            const cleanC = String(profile.class || '').trim().replace(/[^\w-]/g, '_');
+            const prayerDocId = `${cleanY}__${cleanC}__${todayDate}`;
+
+            try {
+                const [customBadgesSnap, bonusSnap, prayerSnap] = await Promise.all([
+                    getDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, profile.id)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, profile.id)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId)).catch(() => null)
+                ]);
+
+                const customBadgesList = customBadgesSnap?.exists() && Array.isArray(customBadgesSnap.data().badges)
+                    ? customBadgesSnap.data().badges
+                    : [];
+
+                const bonusPointsList = bonusSnap?.exists() && Array.isArray(bonusSnap.data().pointsList)
+                    ? bonusSnap.data().pointsList
+                    : [];
+
+                const prayerDoc = prayerSnap?.exists() ? prayerSnap.data() : null;
+                const studentPrayerRecord = prayerDoc?.records?.[profile.id] || {};
+
+                // 1. Calculate Aggregate Points
+                const attendancePts = (studentAttendanceStats.presentDays || 0) * 5;
+                const bonusPts = bonusPointsList.reduce((acc, b) => acc + (Number(b.points) || 0), 0);
+
+                let prayerCompletedCount = 0;
+                ['subh', 'zuhr', 'asr', 'maghrib', 'isha'].forEach((pKey) => {
+                    const st = studentPrayerRecord[pKey];
+                    if (st === 'jamaah' || st === 'adaa') prayerCompletedCount++;
+                });
+                const prayerPts = prayerCompletedCount * 10;
+
+                const totalPoints = attendancePts + bonusPts + prayerPts;
+
+                // Update Points and Tier Badge
+                const ptsEl = document.getElementById('stu-act-total-points');
+                const tierEl = document.getElementById('stu-act-tier-badge');
+                if (ptsEl) ptsEl.textContent = totalPoints;
+
+                if (tierEl) {
+                    if (totalPoints >= 500) tierEl.textContent = 'Gold Champion';
+                    else if (totalPoints >= 300) tierEl.textContent = 'Silver Achiever';
+                    else if (totalPoints >= 150) tierEl.textContent = 'Bronze Scholar';
+                    else tierEl.textContent = 'Star Student';
+                }
+
+                // 2. Aggregate Badges
+                const earnedBadges = [];
+
+                // Milestone Badges
+                if (studentAttendanceStats.rate >= 85) {
+                    earnedBadges.push({ title: 'Attendance Star', icon: 'fas fa-shield-check', color: 'teal', note: '85%+ Attendance Record' });
+                }
+                if (totalPoints >= 200) {
+                    earnedBadges.push({ title: 'Punctual Star', icon: 'fas fa-star', color: 'amber', note: 'Active Score 200+ Points' });
+                }
+                if (bonusPts > 0) {
+                    earnedBadges.push({ title: 'Exemplary Adab', icon: 'fas fa-heart', color: 'rose', note: 'Virtuous Student Conduct' });
+                }
+                if (prayerCompletedCount >= 3) {
+                    earnedBadges.push({ title: 'Prayer Champion', icon: 'fas fa-hands-praying', color: 'indigo', note: 'Consistent Daily Prayers' });
+                }
+                if (studentResultsCache.length > 0) {
+                    earnedBadges.push({ title: 'Academic Scholar', icon: 'fas fa-graduation-cap', color: 'blue', note: 'Curriculum Assessment Achiever' });
+                }
+
+                // Teacher Awarded Custom Badges
+                customBadgesList.forEach((badgeName) => {
+                    earnedBadges.push({
+                        title: badgeName,
+                        icon: 'fas fa-award',
+                        color: 'violet',
+                        note: 'Awarded by Class Teacher'
+                    });
+                });
+
+                const badgeCountEl = document.getElementById('stu-act-badges-count');
+                if (badgeCountEl) badgeCountEl.textContent = `${earnedBadges.length} Badges`;
+
+                const badgeGrid = document.getElementById('stu-act-badges-grid');
+                if (badgeGrid) {
+                    const colorMap = {
+                        teal: 'border-teal-200 bg-teal-50/70 text-teal-700',
+                        amber: 'border-amber-200 bg-amber-50/70 text-amber-700',
+                        rose: 'border-rose-200 bg-rose-50/70 text-rose-700',
+                        indigo: 'border-indigo-200 bg-indigo-50/70 text-indigo-700',
+                        blue: 'border-blue-200 bg-blue-50/70 text-blue-700',
+                        violet: 'border-purple-200 bg-purple-50/70 text-purple-700'
+                    };
+
+                    badgeGrid.innerHTML = earnedBadges.map((b) => `
+                        <div class="p-3.5 rounded-2xl border ${colorMap[b.color] || colorMap.amber} shadow-2xs flex flex-col items-center text-center gap-2 transition hover:scale-102">
+                            <div class="w-12 h-12 rounded-2xl bg-white shadow-2xs border border-current flex items-center justify-center text-xl">
+                                <i class="${b.icon}"></i>
+                            </div>
+                            <div>
+                                <div class="font-black text-xs text-slate-900">${escapeHtml(b.title)}</div>
+                                <div class="text-[10px] font-semibold text-slate-500 mt-0.5">${escapeHtml(b.note)}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                // 3. Render Routine Daily Prayers Checklist
+                const prayersContainer = document.getElementById('stu-act-prayers-container');
+                if (prayersContainer) {
+                    const PRAYERS_LIST = [
+                        { key: 'subh', name: 'Subh / Fajr', label: 'Dawn' },
+                        { key: 'zuhr', name: 'Zuhr', label: 'Noon' },
+                        { key: 'asr', name: 'Asr', label: 'Afternoon' },
+                        { key: 'maghrib', name: 'Maghrib', label: 'Sunset' },
+                        { key: 'isha', name: 'Isha', label: 'Night' }
+                    ];
+
+                    prayersContainer.innerHTML = PRAYERS_LIST.map((p) => {
+                        const rawStatus = studentPrayerRecord[p.key];
+                        let statusText = 'Pending';
+                        let pillClass = 'bg-slate-100 text-slate-600 border-slate-200';
+                        let iconClass = 'fas fa-circle-dot text-slate-400';
+
+                        if (rawStatus === 'jamaah') {
+                            statusText = 'In Jama\'ah';
+                            pillClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                            iconClass = 'fas fa-check-double text-emerald-600';
+                        } else if (rawStatus === 'adaa') {
+                            statusText = 'On Time (Ada\'a)';
+                            pillClass = 'bg-blue-100 text-blue-800 border-blue-300';
+                            iconClass = 'fas fa-check text-blue-600';
+                        } else if (rawStatus === 'qaza') {
+                            statusText = 'Made Up (Qaza)';
+                            pillClass = 'bg-amber-100 text-amber-800 border-amber-300';
+                            iconClass = 'fas fa-clock-rotate-left text-amber-600';
+                        }
+
+                        return `
+                            <div class="p-3 rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[90px] shadow-2xs">
+                                <div>
+                                    <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">${p.label}</div>
+                                    <div class="font-black text-sm text-slate-800 mt-0.5">${p.name}</div>
+                                </div>
+                                <div class="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-xl text-[10px] font-extrabold border ${pillClass} self-start">
+                                    <i class="${iconClass}"></i>
+                                    <span>${statusText}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+            } catch (err) {
+                console.warn('Could not load student activities and badges:', err);
+            }
+        };
+
+        // Wire Event Listeners for Module Actions
+        document.getElementById('btn-print-stu-attendance')?.addEventListener('click', printStudentAttendanceSlip);
+        document.getElementById('stu-att-year-select')?.addEventListener('change', (e) => {
+            renderStudentAttendanceModule(studentProfile, e.target.value);
+        });
+        setupTimetableSubtabs();
+
         async function loadDashboardData() {
             try {
                 // Notif Listeners
@@ -4436,6 +5464,14 @@ const studentPwa = registerPortalForPwa('student', {
                     studentPortalPerms.allowDetailsEdit = conf.allowStudentDetailsEdit === true;
                     applyStudentPortalPermissionsUI();
 
+                    const portalTabs = (conf.studentPortalConfig && typeof conf.studentPortalConfig.tabs === 'object')
+                        ? conf.studentPortalConfig.tabs
+                        : { profile: true, fees: true, attendance: true, timetable: true, results: true, activities: true };
+                    const enabledMods = (conf.enabledModules && typeof conf.enabledModules === 'object')
+                        ? conf.enabledModules
+                        : {};
+                    applyStudentPortalNavigation(portalTabs, enabledMods);
+
                     applyInstitutionBranding(conf, {
                         defaultAppName: 'Student Dashboard',
                         primaryTitleIds: ['id-school-name'],
@@ -4468,8 +5504,13 @@ const studentPwa = registerPortalForPwa('student', {
                         availableAcademicYears = buildAvailableAcademicYears(studentProfile, allPayments, studentResultsCache);
                         if (!selectedFeeAcademicYear || !availableAcademicYears.includes(selectedFeeAcademicYear)) selectedFeeAcademicYear = currentAcademicYear && availableAcademicYears.includes(currentAcademicYear) ? currentAcademicYear : availableAcademicYears[0];
                         if (!selectedResultAcademicYear || !availableAcademicYears.includes(selectedResultAcademicYear)) selectedResultAcademicYear = selectedFeeAcademicYear;
+                        selectedAttendanceAcademicYear = selectedFeeAcademicYear;
+                        selectedTimetableAcademicYear = selectedFeeAcademicYear;
                         renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
                         renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
+                        renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear);
+                        renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear);
+                        renderStudentActivitiesModule(studentProfile);
                     }
                 });
 
@@ -4606,7 +5647,12 @@ const studentPwa = registerPortalForPwa('student', {
                     renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
                 });
 
+                selectedAttendanceAcademicYear = selectedFeeAcademicYear;
+                selectedTimetableAcademicYear = selectedFeeAcademicYear;
                 renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
+                renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear);
+                renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear);
+                renderStudentActivitiesModule(studentProfile);
                 dismissLoader();
 
                 // Secondary background loads (non-blocking)
@@ -4682,6 +5728,15 @@ const studentPwa = registerPortalForPwa('student', {
                         }
                         if (typeof renderStudentFeeDetails === 'function') {
                             renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
+                        }
+                        if (typeof renderStudentAttendanceModule === 'function') {
+                            renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear);
+                        }
+                        if (typeof renderStudentTimetableModule === 'function') {
+                            renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear);
+                        }
+                        if (typeof renderStudentActivitiesModule === 'function') {
+                            renderStudentActivitiesModule(studentProfile);
                         }
                         rawFeeAlerts = buildFeeNotificationAlerts(studentProfile);
                         if (window.triggerNotificationUpdate) window.triggerNotificationUpdate();

@@ -1417,8 +1417,10 @@ textarea:focus-visible {
     box-shadow: var(--ds-ring);
 }
 
-@media (display-mode: standalone) and (max-width: 900px) {
+@media (max-width: 900px) {
     #student-bottom-nav { display: block !important; }
+}
+@media (display-mode: standalone) and (max-width: 900px) {
     body { padding-bottom: 74px; }
 }
 
