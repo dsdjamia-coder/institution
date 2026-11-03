@@ -44,6 +44,7 @@ let unsubscribeImpositions = null;
 // Monthly Evaluation Matrix Data (For Participation Fairness & Analytics)
 let monthlyEvalsCache = {}; // studentId -> { totalAsked, answeredWell, partial, missed, readingChecks, writingCompleted, impositionsCount }
 let selectedAnalyticsMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+let selectedAnalyticsSubject = 'all';
 
 // Filter & Search State
 let currentLiveFilter = 'least-turns'; // 'least-turns' | 'not-today' | 'evaluated-today' | 'all'
@@ -67,6 +68,24 @@ const isClassInDutyScope = (clsName = '', dutyList = []) => {
     if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
     const targetNorm = normalizeClassLabel(clsName);
     return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
+};
+
+const getStudentAdm = (s) => String(s?.adm || s?.profile?.admNo || s?.admNo || s?.admissionNo || s?.profile?.adm || s?.profile?.admissionNo || '-').trim();
+
+const getStudentClass = (s, year = selectedYear) => {
+    if (s?.academicYears && typeof s.academicYears === 'object' && s.academicYears[year]?.class) {
+        return String(s.academicYears[year].class).trim();
+    }
+    return String(s?.class || '').trim();
+};
+
+const getClassStudents = (targetClass = selectedClass, targetYear = selectedYear) => {
+    if (!targetClass) return [];
+    return allStudents.filter((s) => {
+        if (s.status === 'alumni' || s.isAlumni) return false;
+        const stuClass = getStudentClass(s, targetYear);
+        return isClassInDutyScope(stuClass, [targetClass]);
+    });
 };
 
 const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
@@ -274,67 +293,160 @@ const loadAcademicYears = async () => {
 };
 
 // --- Class Subjects & Timetable Engine ---
+const getAllClassSubjectNames = () => {
+    const set = new Set();
+    const list = [];
+    const addSubj = (name) => {
+        const clean = String(name || '').trim();
+        if (clean && !set.has(clean.toLowerCase())) {
+            set.add(clean.toLowerCase());
+            list.push(clean);
+        }
+    };
+    todaysScheduledPeriods.forEach((p) => addSubj(p.subjectName));
+    classCurriculumSubjects.forEach((s) => addSubj(s.name));
+    classCustomSubjects.forEach((cs) => addSubj(cs));
+    return list;
+};
+
+const populateAnalyticsSubjectFilter = () => {
+    const filterSelect = document.getElementById('analytics-subject-filter');
+    if (!filterSelect) return;
+
+    const subjects = getAllClassSubjectNames();
+    let html = `<option value="all" ${selectedAnalyticsSubject === 'all' ? 'selected' : ''}>All Subjects (Combined)</option>`;
+
+    if (subjects.length > 0) {
+        subjects.forEach((s) => {
+            const isSelected = selectedAnalyticsSubject.toLowerCase() === s.toLowerCase();
+            html += `<option value="${escapeHtml(s)}" ${isSelected ? 'selected' : ''}>${escapeHtml(s)}</option>`;
+        });
+    }
+
+    filterSelect.innerHTML = html;
+};
+
+const populateImpositionSubjectSelect = (preselectedSubject = '') => {
+    const impSubSelect = document.getElementById('imp-subject');
+    if (!impSubSelect) return;
+
+    const subjects = getAllClassSubjectNames();
+    const target = preselectedSubject || selectedSubject || subjects[0] || 'General';
+
+    if (subjects.length === 0) {
+        impSubSelect.innerHTML = `<option value="General" selected>General</option>`;
+        return;
+    }
+
+    impSubSelect.innerHTML = subjects.map((s) => `
+        <option value="${escapeHtml(s)}" ${s.toLowerCase() === target.toLowerCase() ? 'selected' : ''}>
+            ${escapeHtml(s)}
+        </option>
+    `).join('');
+};
+
 const loadClassSubjectsAndTimetable = async () => {
     if (!selectedClass || !selectedYear) return;
 
-    const cleanC = String(selectedClass).trim().replace(/[^\w-]/g, '_');
-    const ttDocId = getTimetableDocId(selectedYear, selectedClass);
-    const subjDocId = getClassSubjectsDocId(selectedYear, selectedClass);
+    const cleanY = String(selectedYear || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const rawC = String(selectedClass || '').trim();
+    const cleanC = rawC.replace(/[^\w-]/g, '_');
+    const normC = normalizeClassLabel(rawC).replace(/[^\w-]/g, '_');
+    const prefixedC = normC.startsWith('class_') ? normC : `Class_${normC}`;
+
+    const candidateClassKeys = Array.from(new Set([cleanC, normC, prefixedC])).filter(Boolean);
 
     try {
-        const [ttSnap, subjSnap, classSettingsSnap] = await Promise.all([
-            getDoc(doc(db, `${BASE_PATH}/timetables`, ttDocId)).catch(() => null),
-            getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null),
-            getDoc(doc(db, `${BASE_PATH}/settings`, `evaluationConfig_${cleanC}`)).catch(() => null)
-        ]);
-
-        // 1. Class Curriculum Subjects
         const subjsSet = new Set();
         const subjsList = [];
 
-        if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
-            subjSnap.data().subjects.forEach((s) => {
-                const sName = String(s.name || s.title || s).trim();
-                if (sName && !subjsSet.has(sName.toLowerCase())) {
-                    subjsSet.add(sName.toLowerCase());
-                    subjsList.push({ id: s.id || sName, name: sName, code: s.code || '' });
-                }
-            });
-        }
+        const addSubjectName = (name, code = '', id = '') => {
+            const sName = String(name || '').trim();
+            if (sName && !subjsSet.has(sName.toLowerCase())) {
+                subjsSet.add(sName.toLowerCase());
+                subjsList.push({ id: id || sName, name: sName, code: code || '' });
+            }
+        };
 
-        // 2. Class Routine Timetable Matrix
-        currentClassTimetableDoc = ttSnap && ttSnap.exists() ? ttSnap.data() : null;
-        if (currentClassTimetableDoc?.matrix) {
-            Object.values(currentClassTimetableDoc.matrix).forEach((cell) => {
-                const sName = String(cell.subjectName || '').trim();
-                if (sName && !cell.isBreak && !cell.isNoExam && !subjsSet.has(sName.toLowerCase())) {
-                    subjsSet.add(sName.toLowerCase());
-                    subjsList.push({ id: cell.subjectId || sName, name: sName, code: cell.subjectCode || '' });
-                }
-            });
-        }
+        // Query classSubjects, timetables, resultSchemas across all candidate keys
+        const fetchPromises = [];
 
+        candidateClassKeys.forEach((k) => {
+            fetchPromises.push(getDoc(doc(db, `${BASE_PATH}/classSubjects`, `${cleanY}__${k}`)).catch(() => null));
+            fetchPromises.push(getDoc(doc(db, `${BASE_PATH}/timetables`, `${cleanY}__${k}`)).catch(() => null));
+            fetchPromises.push(getDoc(doc(db, `${BASE_PATH}/resultSchemas`, `${cleanY}_${k}`)).catch(() => null));
+            fetchPromises.push(getDoc(doc(db, `${BASE_PATH}/resultSchemas`, `${cleanY}__${k}`)).catch(() => null));
+        });
+
+        const settingsPromise = getDoc(doc(db, `${BASE_PATH}/settings`, `evaluationConfig_${cleanC}`)).catch(() => null);
+
+        const [results, classSettingsSnap] = await Promise.all([
+            Promise.all(fetchPromises),
+            settingsPromise
+        ]);
+
+        let resolvedTimetableDoc = null;
+
+        results.forEach((snap) => {
+            if (!snap || !snap.exists()) return;
+            const data = snap.data();
+
+            // 1. From classSubjects / resultSchemas subjects array
+            if (Array.isArray(data.subjects)) {
+                data.subjects.forEach((s) => {
+                    if (typeof s === 'string') {
+                        addSubjectName(s);
+                    } else if (s && (s.name || s.title)) {
+                        addSubjectName(s.name || s.title, s.code, s.id);
+                    }
+                });
+            }
+
+            // 2. From resultSchemas subjectRows
+            if (Array.isArray(data.subjectRows)) {
+                data.subjectRows.forEach((row) => {
+                    if (row && row.name) {
+                        addSubjectName(row.name, row.code, row.id);
+                    }
+                });
+            }
+
+            // 3. From timetables matrix
+            if (data.matrix && typeof data.matrix === 'object') {
+                if (!resolvedTimetableDoc) {
+                    resolvedTimetableDoc = data;
+                }
+                Object.values(data.matrix).forEach((cell) => {
+                    if (cell && cell.subjectName && !cell.isBreak && !cell.isNoExam) {
+                        addSubjectName(cell.subjectName, cell.subjectCode, cell.subjectId);
+                    }
+                });
+            }
+        });
+
+        currentClassTimetableDoc = resolvedTimetableDoc;
         classCurriculumSubjects = subjsList;
 
-        // 3. Class-Scoped Settings (Custom evaluation subjects & default-off activity points)
+        // Class-Scoped Settings
         if (classSettingsSnap && classSettingsSnap.exists()) {
             const csData = classSettingsSnap.data();
             classCustomSubjects = Array.isArray(csData.customSubjects) ? csData.customSubjects : [];
-            classEvaluationSettings.autoAwardActivityPoints = csData.autoAwardActivityPoints === true; // Default OFF
+            classEvaluationSettings.autoAwardActivityPoints = csData.autoAwardActivityPoints === true;
             classEvaluationSettings.activityPointsBonus = typeof csData.activityPointsBonus === 'number' ? csData.activityPointsBonus : 5;
         } else {
             classCustomSubjects = [];
-            classEvaluationSettings.autoAwardActivityPoints = false; // Default OFF
+            classEvaluationSettings.autoAwardActivityPoints = false;
             classEvaluationSettings.activityPointsBonus = 5;
         }
 
-        // 4. Resolve Today's Scheduled Periods according to selectedDate
+        // Resolve Today's Scheduled Periods according to selectedDate
         resolveTodaysTimetablePeriods();
 
-        // 5. Populate Subject Dropdown & Quick Period Pills
+        // Populate Subject Dropdowns & Quick Period Pills
         renderSubjectDropdownAndPills();
         renderSettingsView();
-
+        populateImpositionSubjectSelect();
+        populateAnalyticsSubjectFilter();
     } catch (err) {
         console.warn('Error loading class subjects and timetable:', err);
     }
@@ -410,10 +522,10 @@ const renderSubjectDropdownAndPills = () => {
     // Default subject selection if current subject is empty or not in class subjects
     const scheduledNames = todaysScheduledPeriods.map((p) => p.subjectName);
     const curriculumNames = classCurriculumSubjects.map((s) => s.name);
-    const allAvailable = Array.from(new Set([...scheduledNames, ...curriculumNames, ...classCustomSubjects]));
+    const allAvailable = getAllClassSubjectNames();
 
     if (!selectedSubject || !allAvailable.some((s) => s.toLowerCase() === selectedSubject.toLowerCase())) {
-        selectedSubject = scheduledNames[0] || curriculumNames[0] || classCustomSubjects[0] || 'General';
+        selectedSubject = scheduledNames[0] || curriculumNames[0] || classCustomSubjects[0] || (allAvailable[0] || 'General');
     }
 
     // Populate Subject Dropdown
@@ -450,6 +562,9 @@ const renderSubjectDropdownAndPills = () => {
 
         subSelect.innerHTML = optHtml;
     }
+
+    populateAnalyticsSubjectFilter();
+    populateImpositionSubjectSelect();
 };
 
 const renderSettingsView = () => {
@@ -504,8 +619,29 @@ const fetchStudentsAndClasses = async () => {
         snap.forEach((d) => {
             const s = { id: d.id, ...d.data() };
             list.push(s);
-            if (s.class) classesSet.add(String(s.class).trim());
+            if (s.class && s.class.toLowerCase() !== 'alumni') classesSet.add(String(s.class).trim());
+            if (s.academicYears && typeof s.academicYears === 'object') {
+                Object.values(s.academicYears).forEach((yObj) => {
+                    if (yObj && yObj.class && String(yObj.class).toLowerCase() !== 'alumni') {
+                        classesSet.add(String(yObj.class).trim());
+                    }
+                });
+            }
         });
+
+        // Also check settings/classes for registered class levels
+        try {
+            const classesSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'classes'));
+            if (classesSnap.exists()) {
+                const data = classesSnap.data();
+                (data.list || data.classes || []).forEach((c) => {
+                    const cName = String(c.id || c.name || c).trim();
+                    if (cName && cName.toLowerCase() !== 'alumni') classesSet.add(cName);
+                });
+            }
+        } catch (e) {
+            console.warn('Could not load settings/classes', e);
+        }
 
         allStudents = list;
         allClasses = Array.from(classesSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -533,7 +669,9 @@ const populateClassDropdown = () => {
     classSelect.innerHTML = allowed.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
 
     if (allowed.length > 0) {
-        selectedClass = allowed[0];
+        if (!selectedClass || !allowed.includes(selectedClass)) {
+            selectedClass = allowed[0];
+        }
         classSelect.value = selectedClass;
         onClassOrDateChanged();
     } else {
@@ -545,19 +683,22 @@ const populateImpositionStudentSelect = (preselectedStudentId = '') => {
     const impSelect = document.getElementById('imp-student-select');
     if (!impSelect) return;
 
-    const classStudents = allStudents.filter((s) => String(s.class).trim().toLowerCase() === String(selectedClass).trim().toLowerCase())
-        .sort((a, b) => String(a.admNo || '').localeCompare(String(b.admNo || ''), undefined, { numeric: true }));
+    const classStudents = getClassStudents(selectedClass, selectedYear)
+        .sort((a, b) => getStudentAdm(a).localeCompare(getStudentAdm(b), undefined, { numeric: true }));
 
     if (classStudents.length === 0) {
         impSelect.innerHTML = '<option value="">No students in class</option>';
         return;
     }
 
-    impSelect.innerHTML = classStudents.map((s) => `
-        <option value="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name)}" data-adm="${escapeHtml(s.admNo || '')}" ${s.id === preselectedStudentId ? 'selected' : ''}>
-            ${escapeHtml(s.name)} (Adm: ${escapeHtml(s.admNo || '-')})
-        </option>
-    `).join('');
+    impSelect.innerHTML = classStudents.map((s) => {
+        const adm = getStudentAdm(s);
+        return `
+            <option value="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name)}" data-adm="${escapeHtml(adm)}" ${s.id === preselectedStudentId ? 'selected' : ''}>
+                ${escapeHtml(s.name)} (Adm: ${escapeHtml(adm)})
+            </option>
+        `;
+    }).join('');
 };
 
 const onClassOrDateChanged = async () => {
@@ -633,8 +774,7 @@ const fetchMonthlyEvaluations = async () => {
         const colRef = collection(db, BASE_PATH, 'evaluations');
         const q = query(
             colRef,
-            where('academicYear', '==', selectedYear),
-            where('class', '==', selectedClass)
+            where('academicYear', '==', selectedYear)
         );
 
         const snap = await getDocs(q);
@@ -642,6 +782,9 @@ const fetchMonthlyEvaluations = async () => {
 
         snap.forEach((d) => {
             const data = d.data();
+            const docClass = data.class || '';
+            if (!isClassInDutyScope(docClass, [selectedClass])) return;
+
             const dateStr = data.date || '';
             if (dateStr.startsWith(monthPrefix)) {
                 const records = data.records || {};
@@ -653,20 +796,53 @@ const fetchMonthlyEvaluations = async () => {
                             partial: 0,
                             missed: 0,
                             readingChecks: 0,
-                            writingCompleted: 0
+                            writingCompleted: 0,
+                            all: { totalAsked: 0, answeredWell: 0, partial: 0, missed: 0, readingChecks: 0, writingCompleted: 0 },
+                            bySubject: {}
                         };
                     }
                     const evals = records[sId].evaluations || [];
                     evals.forEach((ev) => {
+                        const subj = String(ev.subject || 'General').trim();
+                        const subjLower = subj.toLowerCase();
+                        if (!map[sId].bySubject[subjLower]) {
+                            map[sId].bySubject[subjLower] = {
+                                totalAsked: 0,
+                                answeredWell: 0,
+                                partial: 0,
+                                missed: 0,
+                                readingChecks: 0,
+                                writingCompleted: 0
+                            };
+                        }
+
                         if (ev.activityType === 'reading' || ev.readingRating) {
                             map[sId].readingChecks++;
+                            map[sId].all.readingChecks++;
+                            map[sId].bySubject[subjLower].readingChecks++;
                         } else if (ev.activityType === 'writing' || ev.writingStatus) {
-                            if (ev.writingStatus === 'completed') map[sId].writingCompleted++;
+                            if (ev.writingStatus === 'completed') {
+                                map[sId].writingCompleted++;
+                                map[sId].all.writingCompleted++;
+                                map[sId].bySubject[subjLower].writingCompleted++;
+                            }
                         } else {
                             map[sId].totalAsked++;
-                            if (ev.status === 'answered') map[sId].answeredWell++;
-                            else if (ev.status === 'partial') map[sId].partial++;
-                            else if (ev.status === 'missed') map[sId].missed++;
+                            map[sId].all.totalAsked++;
+                            map[sId].bySubject[subjLower].totalAsked++;
+                            if (ev.status === 'answered') {
+                                map[sId].answeredWell++;
+                                map[sId].all.answeredWell++;
+                                map[sId].bySubject[subjLower].answeredWell++;
+                            } else if (ev.status === 'partial') {
+                                map[sId].partial++;
+                                map[sId].all.partial++;
+                                map[sId].bySubject[subjLower].partial++;
+                            } else if (ev.status === 'missed') {
+                                map[sId].missed++;
+                                map[sId].all.missed++;
+                                map[sId].bySubject[subjLower].missed++;
+                            }
                         }
                     });
                 });
@@ -681,12 +857,25 @@ const fetchMonthlyEvaluations = async () => {
     }
 };
 
+const getStudentMonthlyStats = (studentId, subjectFilter = 'all') => {
+    const studentData = monthlyEvalsCache[studentId];
+    const defaultStats = { totalAsked: 0, answeredWell: 0, partial: 0, missed: 0, readingChecks: 0, writingCompleted: 0 };
+    if (!studentData) return defaultStats;
+
+    if (!subjectFilter || subjectFilter === 'all') {
+        return studentData.all || studentData;
+    }
+
+    const key = String(subjectFilter).trim().toLowerCase();
+    return studentData.bySubject?.[key] || defaultStats;
+};
+
 // --- Live Classroom Board Rendering ---
 const renderLiveClassroomBoard = () => {
     const container = document.getElementById('live-students-container');
     if (!container) return;
 
-    const classStudents = allStudents.filter((s) => String(s.class).trim().toLowerCase() === String(selectedClass).trim().toLowerCase());
+    const classStudents = getClassStudents(selectedClass, selectedYear);
 
     if (classStudents.length === 0) {
         container.innerHTML = `
@@ -703,7 +892,7 @@ const renderLiveClassroomBoard = () => {
     let list = classStudents;
     if (currentLiveSearch) {
         const q = currentLiveSearch.toLowerCase();
-        list = list.filter((s) => (s.name && s.name.toLowerCase().includes(q)) || (s.admNo && String(s.admNo).toLowerCase().includes(q)));
+        list = list.filter((s) => (s.name && s.name.toLowerCase().includes(q)) || (getStudentAdm(s).toLowerCase().includes(q)));
     }
 
     // Sort / Filter according to Participation Fairness
@@ -720,7 +909,7 @@ const renderLiveClassroomBoard = () => {
         list = list.filter((s) => currentDailyRecords[s.id] && currentDailyRecords[s.id].evaluations && currentDailyRecords[s.id].evaluations.length > 0);
     } else {
         // Roll / Adm No Order
-        list.sort((a, b) => String(a.admNo || '').localeCompare(String(b.admNo || ''), undefined, { numeric: true }));
+        list.sort((a, b) => getStudentAdm(a).localeCompare(getStudentAdm(b), undefined, { numeric: true }));
     }
 
     if (list.length === 0) {
@@ -738,6 +927,7 @@ const renderLiveClassroomBoard = () => {
         const isEvaluatedToday = todayEvals.length > 0;
         const monthlyStats = monthlyEvalsCache[student.id] || { totalAsked: 0, answeredWell: 0, partial: 0, missed: 0 };
         const lastEval = todayEvals[todayEvals.length - 1];
+        const adm = getStudentAdm(student);
 
         // Status badge color
         let statusBadge = `
@@ -789,9 +979,11 @@ const renderLiveClassroomBoard = () => {
                                 ${student.photo ? `<img src="${escapeHtml(student.photo)}" alt="Photo" class="w-full h-full object-cover">` : `<i class="fas fa-user"></i>`}
                             </div>
                             <div class="overflow-hidden">
-                                <h4 class="font-black text-xs sm:text-sm text-slate-800 truncate" title="${escapeHtml(student.name || 'Student')}">${escapeHtml(student.name || 'Student')}</h4>
+                                <h4 class="font-black text-xs sm:text-sm text-slate-800 truncate" title="${escapeHtml(student.name || 'Student')}">
+                                    ${escapeHtml(student.name || 'Student')} <span class="text-[11px] font-mono font-bold text-slate-500">(Adm: ${escapeHtml(adm)})</span>
+                                </h4>
                                 <div class="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold mt-0.5">
-                                    <span>Adm: ${escapeHtml(student.admNo || '-')}</span>
+                                    <span>Adm: ${escapeHtml(adm)}</span>
                                     <span>•</span>
                                     <span class="text-rose-600 font-extrabold" title="Turn fairness count">Turns: ${monthlyStats.totalAsked} this mo</span>
                                 </div>
@@ -852,7 +1044,7 @@ const renderLiveClassroomBoard = () => {
                         <button type="button" class="btn-open-writing py-1.5 px-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 transition cursor-pointer" data-student-id="${student.id}" data-name="${escapeHtml(student.name)}" title="Check Notebook / Homework">
                             <i class="fas fa-pencil mr-0.5"></i> Writing
                         </button>
-                        <button type="button" class="btn-assign-imp py-1.5 px-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 transition cursor-pointer" data-student-id="${student.id}" data-name="${escapeHtml(student.name)}" data-adm="${escapeHtml(student.admNo || '')}" title="Assign Imposition / Follow-up">
+                        <button type="button" class="btn-assign-imp py-1.5 px-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 transition cursor-pointer" data-student-id="${student.id}" data-name="${escapeHtml(student.name)}" data-adm="${escapeHtml(adm)}" title="Assign Imposition / Follow-up">
                             <i class="fas fa-pen-fancy mr-0.5"></i> Imposition
                         </button>
                     </div>
@@ -869,6 +1061,8 @@ const recordEvaluationAction = async (studentId, actionType, extraDetails = {}) 
     const student = allStudents.find((s) => s.id === studentId);
     if (!student) return;
 
+    const adm = getStudentAdm(student);
+
     const evalRecord = {
         id: `eval_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         subject: selectedSubject || 'General',
@@ -884,7 +1078,8 @@ const recordEvaluationAction = async (studentId, actionType, extraDetails = {}) 
     const docRef = doc(db, BASE_PATH, 'evaluations', docId);
 
     try {
-        const studentRec = currentDailyRecords[studentId] || { studentId, name: student.name, admNo: student.admNo || '', evaluations: [] };
+        const studentRec = currentDailyRecords[studentId] || { studentId, name: student.name, admNo: adm, evaluations: [] };
+        studentRec.admNo = adm;
         const updatedEvals = [...(studentRec.evaluations || []), evalRecord];
 
         const newRecords = {
@@ -943,11 +1138,15 @@ const recordEvaluationAction = async (studentId, actionType, extraDetails = {}) 
 const assignNewImposition = async ({ studentId, studentName, admNo, subject, taskTitle, dueDate, teacherRemark }) => {
     if (!selectedClass || !selectedYear) return;
 
+    const student = allStudents.find((s) => s.id === studentId);
+    const resolvedAdm = admNo || (student ? getStudentAdm(student) : '');
+    const resolvedName = studentName || (student ? student.name : 'Student');
+
     const newImp = {
         id: `imp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         studentId,
-        studentName,
-        admNo: admNo || '',
+        studentName: resolvedName,
+        admNo: resolvedAdm,
         subject: subject || selectedSubject || 'General',
         type: 'imposition',
         taskTitle,
@@ -979,7 +1178,7 @@ const assignNewImposition = async ({ studentId, studentName, admNo, subject, tas
         updateQuickStatsBanner();
 
         closeModal('modal-assign-imposition');
-        showToast(`Imposition assigned to ${studentName}`, 'success');
+        showToast(`Imposition assigned to ${resolvedName}`, 'success');
     } catch (err) {
         console.error('Error saving imposition:', err);
         showToast('Failed to assign imposition', 'error');
@@ -1134,11 +1333,14 @@ const renderImpositionsList = () => {
             `;
         }
 
+        const stu = allStudents.find((s) => s.id === imp.studentId);
+        const resolvedAdm = imp.admNo || (stu ? getStudentAdm(stu) : '-');
+
         return `
             <tr class="hover:bg-slate-50/80 transition">
                 <td class="py-3 px-4">
                     <div class="font-extrabold text-slate-800">${escapeHtml(imp.studentName)}</div>
-                    <div class="text-[10px] text-slate-400 font-semibold">Adm: ${escapeHtml(imp.admNo || '-')}</div>
+                    <div class="text-[10px] text-slate-400 font-semibold">Adm: ${escapeHtml(resolvedAdm)}</div>
                 </td>
                 <td class="py-3 px-4">
                     <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">${escapeHtml(imp.subject)}</span>
@@ -1188,7 +1390,9 @@ const renderMonthlyRegister = () => {
     const tbody = document.getElementById('analytics-register-tbody');
     if (!tbody) return;
 
-    const classStudents = allStudents.filter((s) => String(s.class).trim().toLowerCase() === String(selectedClass).trim().toLowerCase());
+    const classStudents = getClassStudents(selectedClass, selectedYear)
+        .sort((a, b) => getStudentAdm(a).localeCompare(getStudentAdm(b), undefined, { numeric: true }));
+
     if (classStudents.length === 0) {
         tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-center text-slate-400">No students found.</td></tr>`;
         return;
@@ -1200,13 +1404,16 @@ const renderMonthlyRegister = () => {
     const attentionStudents = [];
 
     const rows = classStudents.map((s) => {
-        const st = monthlyEvalsCache[s.id] || { totalAsked: 0, answeredWell: 0, partial: 0, missed: 0, readingChecks: 0, writingCompleted: 0 };
+        const st = getStudentMonthlyStats(s.id, selectedAnalyticsSubject);
         totalQ += st.totalAsked;
         totalAnsweredWell += st.answeredWell;
         totalMissed += st.missed;
 
         const rate = st.totalAsked > 0 ? Math.round((st.answeredWell / st.totalAsked) * 100) : 0;
-        const imps = currentImpositionsList.filter((imp) => imp.studentId === s.id);
+        let imps = currentImpositionsList.filter((imp) => imp.studentId === s.id);
+        if (selectedAnalyticsSubject !== 'all') {
+            imps = imps.filter((imp) => String(imp.subject || '').trim().toLowerCase() === selectedAnalyticsSubject.toLowerCase());
+        }
         const impsCleared = imps.filter((imp) => imp.cleared === true).length;
 
         // Flag attention if turns < 2 or rate < 50% (after at least 2 questions)
@@ -1214,9 +1421,11 @@ const renderMonthlyRegister = () => {
             attentionStudents.push({ name: s.name, reason: st.totalAsked < 2 ? 'Only ' + st.totalAsked + ' turns' : rate + '% success' });
         }
 
+        const adm = getStudentAdm(s);
+
         return `
             <tr class="hover:bg-slate-50/80 transition text-xs">
-                <td class="py-2.5 px-3 font-semibold text-slate-500">${escapeHtml(s.admNo || '-')}</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-500">${escapeHtml(adm)}</td>
                 <td class="py-2.5 px-3 font-extrabold text-slate-800">${escapeHtml(s.name)}</td>
                 <td class="py-2.5 px-3 text-center font-bold text-slate-800">${st.totalAsked}</td>
                 <td class="py-2.5 px-3 text-center font-black text-emerald-700">${st.answeredWell}</td>
@@ -1251,8 +1460,12 @@ const renderMonthlyRegister = () => {
 
     const impRatioEl = document.getElementById('analytics-impositions-ratio');
     if (impRatioEl) {
-        const clearedTotal = currentImpositionsList.filter((imp) => imp.cleared === true).length;
-        impRatioEl.textContent = `${clearedTotal} / ${currentImpositionsList.length}`;
+        let filteredImps = currentImpositionsList;
+        if (selectedAnalyticsSubject !== 'all') {
+            filteredImps = filteredImps.filter((imp) => String(imp.subject || '').trim().toLowerCase() === selectedAnalyticsSubject.toLowerCase());
+        }
+        const clearedTotal = filteredImps.filter((imp) => imp.cleared === true).length;
+        impRatioEl.textContent = `${clearedTotal} / ${filteredImps.length}`;
     }
 
     // Attention Needed Box
@@ -1274,13 +1487,14 @@ const renderMonthlyRegister = () => {
 
     const titleEl = document.getElementById('register-table-title');
     if (titleEl) {
-        titleEl.textContent = `Monthly Evaluation Register: ${selectedClass} (${selectedAnalyticsMonth})`;
+        const subjPart = selectedAnalyticsSubject === 'all' ? 'All Subjects' : selectedAnalyticsSubject;
+        titleEl.textContent = `Monthly Evaluation Register: ${selectedClass} - ${subjPart} (${selectedAnalyticsMonth})`;
     }
 };
 
 // --- Quick Stats Banner Update ---
 const updateQuickStatsBanner = () => {
-    const classStudents = allStudents.filter((s) => String(s.class).trim().toLowerCase() === String(selectedClass).trim().toLowerCase());
+    const classStudents = getClassStudents(selectedClass, selectedYear);
 
     const totalStudentsEl = document.getElementById('stat-total-students');
     if (totalStudentsEl) totalStudentsEl.textContent = classStudents.length;
@@ -1492,8 +1706,8 @@ const initEventBindings = () => {
             if (impBtn) {
                 const studentId = impBtn.getAttribute('data-student-id');
                 populateImpositionStudentSelect(studentId);
+                populateImpositionSubjectSelect(selectedSubject);
 
-                document.getElementById('imp-subject').value = selectedSubject || 'General';
                 document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
 
                 const tom = new Date();
@@ -1537,7 +1751,7 @@ const initEventBindings = () => {
 
                 if (status === 'not_written_imposition' || status === 'incomplete_due_tomorrow') {
                     populateImpositionStudentSelect(studentId);
-                    document.getElementById('imp-subject').value = selectedSubject || 'General';
+                    populateImpositionSubjectSelect(selectedSubject);
                     document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
                     const tom = new Date();
                     tom.setDate(tom.getDate() + 1);
@@ -1569,7 +1783,7 @@ const initEventBindings = () => {
         const studentName = selectedOpt?.getAttribute('data-name') || selectedOpt?.textContent || '';
         const admNo = selectedOpt?.getAttribute('data-adm') || '';
 
-        const subject = document.getElementById('imp-subject').value;
+        const subject = document.getElementById('imp-subject')?.value || selectedSubject || 'General';
         const taskTitle = document.getElementById('imp-title').value.trim();
         const dueDate = document.getElementById('imp-due-date').value;
         const teacherRemark = document.getElementById('imp-remark').value.trim();
@@ -1598,7 +1812,7 @@ const initEventBindings = () => {
     // Open Add Imposition Button from Tab 2
     document.getElementById('btn-open-add-imposition')?.addEventListener('click', () => {
         populateImpositionStudentSelect();
-        document.getElementById('imp-subject').value = selectedSubject || 'General';
+        populateImpositionSubjectSelect(selectedSubject);
         document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
         const tom = new Date();
         tom.setDate(tom.getDate() + 1);
@@ -1668,6 +1882,12 @@ const initEventBindings = () => {
     document.getElementById('analytics-month-select')?.addEventListener('change', (e) => {
         selectedAnalyticsMonth = e.target.value;
         fetchMonthlyEvaluations();
+    });
+
+    // Analytics Subject Filter Select
+    document.getElementById('analytics-subject-filter')?.addEventListener('change', (e) => {
+        selectedAnalyticsSubject = e.target.value;
+        renderMonthlyRegister();
     });
 
     // Print Register
