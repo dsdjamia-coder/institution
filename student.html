@@ -865,6 +865,11 @@
                     <div id="quick-edit-input-container">
                         <!-- Dynamically injected input based on field type -->
                     </div>
+                    <div class="flex items-center justify-between mt-1 text-[11px]">
+                        <span id="quick-edit-helper" class="text-slate-400 font-medium"></span>
+                        <span id="quick-edit-char-counter" class="text-slate-400 font-mono font-bold"></span>
+                    </div>
+                    <div id="quick-edit-error-msg" class="hidden text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2 mt-1"></div>
                 </div>
             </div>
 
@@ -885,7 +890,7 @@
             <div class="space-y-3 max-h-[60vh] overflow-y-auto px-1">
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Student Name <span class="text-red-500">*</span></label>
-                    <input type="text" id="st-edit-name" class="w-full p-2 border rounded-lg font-semibold uppercase text-sm">
+                    <input type="text" id="st-edit-name" maxlength="60" class="w-full p-2 border rounded-lg font-semibold uppercase text-sm" placeholder="Student Name (Max 60 chars)">
                 </div>
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Gender</label>
@@ -900,28 +905,34 @@
                 </div>
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Aadhaar Number</label>
-                    <input type="text" id="st-edit-adhaar" class="w-full p-2 border rounded-lg text-sm" placeholder="Aadhaar No.">
+                    <input type="text" id="st-edit-adhaar" maxlength="12" inputmode="numeric" class="w-full p-2 border rounded-lg text-sm font-mono" placeholder="12-digit Aadhaar Number">
                 </div>
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Father's Name</label>
-                    <input type="text" id="st-edit-father" class="w-full p-2 border rounded-lg uppercase text-sm">
+                    <input type="text" id="st-edit-father" maxlength="60" class="w-full p-2 border rounded-lg uppercase text-sm" placeholder="Father's Name (Max 60 chars)">
                 </div>
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Mother's Name</label>
-                    <input type="text" id="st-edit-mother" class="w-full p-2 border rounded-lg uppercase text-sm">
+                    <input type="text" id="st-edit-mother" maxlength="60" class="w-full p-2 border rounded-lg uppercase text-sm" placeholder="Mother's Name (Max 60 chars)">
                 </div>
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Father's Phone Number</label>
-                    <input type="tel" id="st-edit-father-phone" class="w-full p-2 border rounded-lg text-sm">
+                    <input type="tel" id="st-edit-father-phone" maxlength="13" inputmode="tel" class="w-full p-2 border rounded-lg text-sm font-mono" placeholder="10 digits or +91XXXXXXXXXX">
+                    <p class="text-[10px] text-slate-400 mt-0.5">10 digits, or up to 13 characters with country code (e.g. +91XXXXXXXXXX)</p>
                 </div>
                 <div>
                     <label class="text-xs font-bold text-gray-600 block mb-1">Mother's Phone Number</label>
-                    <input type="tel" id="st-edit-mother-phone" class="w-full p-2 border rounded-lg text-sm">
+                    <input type="tel" id="st-edit-mother-phone" maxlength="13" inputmode="tel" class="w-full p-2 border rounded-lg text-sm font-mono" placeholder="10 digits or +91XXXXXXXXXX">
+                    <p class="text-[10px] text-slate-400 mt-0.5">10 digits, or up to 13 characters with country code (e.g. +91XXXXXXXXXX)</p>
                 </div>
                 <div>
-                    <label class="text-xs font-bold text-gray-600 block mb-1">Permanent Address</label>
-                    <textarea id="st-edit-address" rows="2" class="w-full p-2 border rounded-lg text-sm"></textarea>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-600">Permanent Address</label>
+                        <span id="st-edit-address-counter" class="text-[10px] text-slate-400 font-mono">0 / 250</span>
+                    </div>
+                    <textarea id="st-edit-address" rows="2" maxlength="250" class="w-full p-2 border rounded-lg text-sm" placeholder="Permanent Address (Max 250 chars)"></textarea>
                 </div>
+                <div id="st-edit-error-msg" class="hidden text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2"></div>
             </div>
             <div class="flex justify-end gap-2 border-t pt-3">
                 <button type="button" id="student-edit-details-cancel-btn" class="px-4 py-2 border rounded text-xs font-bold text-gray-600">Cancel</button>

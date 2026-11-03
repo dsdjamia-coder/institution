@@ -3193,14 +3193,87 @@ const studentPwa = registerPortalForPwa('student', {
             }
         };
 
+        const verifyGenuineImageFile = async (file) => {
+            if (!file) return { valid: false, error: 'No file selected.' };
+
+            // 1. Whitelist allowed file extensions
+            const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+            const fileNameParts = (file.name || '').toLowerCase().split('.');
+            const ext = fileNameParts.length > 1 ? fileNameParts.pop() : '';
+            if (!allowedExtensions.includes(ext)) {
+                return { valid: false, error: 'Invalid file format. Only JPG, JPEG, PNG, or WEBP image formats are allowed.' };
+            }
+
+            // 2. File size constraints (Min 100 bytes, Max 5 MB)
+            const MAX_SIZE = 5 * 1024 * 1024;
+            if (file.size > MAX_SIZE) {
+                return { valid: false, error: 'Image file size exceeds the 5 MB limit. Please select a smaller photo.' };
+            }
+            if (file.size < 100) {
+                return { valid: false, error: 'The selected file is empty or corrupted (too small to be an image).' };
+            }
+
+            // 3. Binary Magic Number / Header byte inspection
+            try {
+                const headerSlice = file.slice(0, 16);
+                const buffer = await headerSlice.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+
+                // JPEG starts with FF D8 FF
+                const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+
+                // PNG starts with 89 50 4E 47 0D 0A 1A 0A
+                const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47 &&
+                              bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A;
+
+                // WebP starts with 'RIFF' (52 49 46 46) and bytes 8-11 are 'WEBP' (57 45 42 50)
+                const isWebp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+                               bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+
+                if (!isJpeg && !isPng && !isWebp) {
+                    return { valid: false, error: 'Security rejection: The file header does not match genuine JPEG, PNG, or WEBP binary data.' };
+                }
+            } catch (err) {
+                return { valid: false, error: 'Unable to inspect image binary headers: ' + err.message };
+            }
+
+            // 4. Genuine Bitmap Decoding Verification
+            return new Promise((resolve) => {
+                const img = new Image();
+                const objectUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    if (!img.naturalWidth || !img.naturalHeight || img.naturalWidth < 50 || img.naturalHeight < 50) {
+                        resolve({ valid: false, error: 'Image dimensions are too small (minimum 50x50 pixels required).' });
+                    } else if (img.naturalWidth > 8000 || img.naturalHeight > 8000) {
+                        resolve({ valid: false, error: 'Image dimensions exceed the maximum allowed limit (8000x8000 pixels).' });
+                    } else {
+                        resolve({ valid: true });
+                    }
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve({ valid: false, error: 'The file failed bitmap decoding. It may be corrupt or not a valid image.' });
+                };
+                img.src = objectUrl;
+            });
+        };
+
         const setupStudentPhotoActions = () => {
             const fileInput = document.getElementById('student-photo-file-input');
             const cameraBtn = document.getElementById('student-photo-camera-btn');
             
             if (fileInput) {
-                fileInput.addEventListener('change', (e) => {
+                fileInput.addEventListener('change', async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                        const verifyRes = await verifyGenuineImageFile(file);
+                        if (!verifyRes.valid) {
+                            alert(verifyRes.error);
+                            e.target.value = '';
+                            return;
+                        }
+
                         const topModal = document.getElementById('student-edit-top-modal');
                         if (topModal) {
                             topModal.classList.add('hidden');
@@ -3856,6 +3929,92 @@ const studentPwa = registerPortalForPwa('student', {
             });
         };
 
+        const sanitizePhoneString = (val) => {
+            let clean = String(val || '').trim();
+            const hasPlus = clean.startsWith('+');
+            clean = clean.replace(/[^\d]/g, '');
+            if (hasPlus) clean = '+' + clean;
+            return clean.slice(0, 13);
+        };
+
+        const validatePhoneNumber = (val, fieldLabel = 'Phone Number') => {
+            const raw = String(val || '').trim();
+            if (!raw) return { valid: true, value: '' };
+            const cleaned = sanitizePhoneString(raw);
+            if (cleaned.length < 10) {
+                return { valid: false, error: `${fieldLabel} must have at least 10 digits.` };
+            }
+            if (cleaned.length > 13) {
+                return { valid: false, error: `${fieldLabel} cannot exceed 13 characters (e.g. +91XXXXXXXXXX).` };
+            }
+            if (!/^(\+?\d{10,12})$/.test(cleaned)) {
+                return { valid: false, error: `${fieldLabel} is invalid. Only numbers and an optional leading + are allowed.` };
+            }
+            return { valid: true, value: cleaned };
+        };
+
+        const validateAadhaarNumber = (val) => {
+            const raw = String(val || '').trim();
+            if (!raw) return { valid: true, value: '' };
+            const digits = raw.replace(/\D/g, '').slice(0, 12);
+            if (digits.length !== 12) {
+                return { valid: false, error: 'Aadhaar Number must be exactly 12 numeric digits.' };
+            }
+            return { valid: true, value: digits };
+        };
+
+        const validateNameString = (val, fieldLabel = 'Name') => {
+            const trimmed = String(val || '').trim();
+            if (!trimmed) return { valid: false, error: `${fieldLabel} is required.` };
+            if (trimmed.length < 2) return { valid: false, error: `${fieldLabel} must be at least 2 characters.` };
+            if (trimmed.length > 60) return { valid: false, error: `${fieldLabel} cannot exceed 60 characters.` };
+            if (!/^[A-Za-z\s\.]+$/.test(trimmed)) {
+                return { valid: false, error: `${fieldLabel} can only contain letters, spaces, and dots.` };
+            }
+            return { valid: true, value: trimmed.toUpperCase() };
+        };
+
+        const validateOptionalNameString = (val, fieldLabel = 'Name') => {
+            const trimmed = String(val || '').trim();
+            if (!trimmed) return { valid: true, value: '' };
+            if (trimmed.length < 2) return { valid: false, error: `${fieldLabel} must be at least 2 characters.` };
+            if (trimmed.length > 60) return { valid: false, error: `${fieldLabel} cannot exceed 60 characters.` };
+            if (!/^[A-Za-z\s\.]+$/.test(trimmed)) {
+                return { valid: false, error: `${fieldLabel} can only contain letters, spaces, and dots.` };
+            }
+            return { valid: true, value: trimmed.toUpperCase() };
+        };
+
+        const validateAddressString = (val) => {
+            const trimmed = String(val || '').trim();
+            if (trimmed.length > 250) {
+                return { valid: false, error: 'Address cannot exceed 250 characters.' };
+            }
+            const sanitized = trimmed.replace(/[<>]/g, '');
+            return { valid: true, value: sanitized };
+        };
+
+        const validateDobString = (val) => {
+            const dateStr = String(val || '').trim();
+            if (!dateStr) return { valid: true, value: '' };
+            const parsed = new Date(dateStr);
+            if (isNaN(parsed.getTime())) {
+                return { valid: false, error: 'Invalid Date of Birth format.' };
+            }
+            const now = new Date();
+            if (parsed > now) {
+                return { valid: false, error: 'Date of Birth cannot be in the future.' };
+            }
+            const ageYears = (now.getTime() - parsed.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+            if (ageYears < 3) {
+                return { valid: false, error: 'Student age must be at least 3 years.' };
+            }
+            if (ageYears > 40) {
+                return { valid: false, error: 'Student age cannot exceed 40 years.' };
+            }
+            return { valid: true, value: dateStr };
+        };
+
         // SETUP QUICK EDIT FOR INDIVIDUAL PERMITTED FIELDS
         const setupStudentQuickFieldEdit = (studentId, currentSt) => {
             const modal = document.getElementById('student-quick-edit-modal');
@@ -3865,6 +4024,9 @@ const studentPwa = registerPortalForPwa('student', {
             const titleEl = document.getElementById('quick-edit-title');
             const labelEl = document.getElementById('quick-edit-label');
             const inputContainer = document.getElementById('quick-edit-input-container');
+            const helperEl = document.getElementById('quick-edit-helper');
+            const counterEl = document.getElementById('quick-edit-char-counter');
+            const errorEl = document.getElementById('quick-edit-error-msg');
 
             if (!modal) return;
 
@@ -3876,6 +4038,10 @@ const studentPwa = registerPortalForPwa('student', {
             const closeModal = () => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
+                if (errorEl) {
+                    errorEl.classList.add('hidden');
+                    errorEl.textContent = '';
+                }
             };
 
             closeBtn?.addEventListener('click', closeModal);
@@ -3905,6 +4071,11 @@ const studentPwa = registerPortalForPwa('student', {
                     activeField = field;
                     activeLabel = label;
 
+                    if (errorEl) {
+                        errorEl.classList.add('hidden');
+                        errorEl.textContent = '';
+                    }
+
                     const prof = currentSt.profile || {};
                     let curVal = '';
                     if (field === 'name') curVal = currentSt.name || prof.name || '';
@@ -3926,16 +4097,57 @@ const studentPwa = registerPortalForPwa('student', {
                             <select id="quick-edit-input" class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
                                 ${optList.map((opt) => `<option value="${escapeHtml(opt)}" ${opt.toLowerCase() === String(curVal).toLowerCase() ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}
                             </select>`;
+                        if (helperEl) helperEl.textContent = '';
+                        if (counterEl) counterEl.textContent = '';
                     } else if (type === 'textarea') {
                         inputContainer.innerHTML = `
-                            <textarea id="quick-edit-input" rows="3" class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">${escapeHtml(curVal)}</textarea>`;
-                    } else if (field === 'name') {
+                            <textarea id="quick-edit-input" rows="3" maxlength="250" class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Permanent Address (Max 250 chars)">${escapeHtml(curVal)}</textarea>`;
+                        if (helperEl) helperEl.textContent = 'Max 250 characters';
+                        if (counterEl) counterEl.textContent = `${curVal.length} / 250`;
+                    } else if (field === 'name' || field === 'father' || field === 'mother') {
                         inputContainer.innerHTML = `
-                            <input type="text" id="quick-edit-input" value="${escapeHtml(curVal)}" class="w-full p-2.5 border rounded-lg text-sm uppercase font-semibold bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Student Name">`;
+                            <input type="text" id="quick-edit-input" maxlength="60" value="${escapeHtml(curVal)}" class="w-full p-2.5 border rounded-lg text-sm uppercase font-semibold bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="${escapeHtml(label)} (Max 60 chars)">`;
+                        if (helperEl) helperEl.textContent = 'Letters, spaces and dots only (Max 60)';
+                        if (counterEl) counterEl.textContent = `${curVal.length} / 60`;
+                    } else if (field === 'mobile' || field === 'motherMobile') {
+                        inputContainer.innerHTML = `
+                            <input type="tel" id="quick-edit-input" maxlength="13" inputmode="tel" value="${escapeHtml(curVal)}" class="w-full p-2.5 border rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="10 digits or +91XXXXXXXXXX">`;
+                        if (helperEl) helperEl.textContent = 'Min 10, Max 13 chars with country code (e.g. +91XXXXXXXXXX)';
+                        if (counterEl) counterEl.textContent = `${curVal.length} / 13`;
+                    } else if (field === 'adhaar') {
+                        inputContainer.innerHTML = `
+                            <input type="text" id="quick-edit-input" maxlength="12" inputmode="numeric" value="${escapeHtml(curVal)}" class="w-full p-2.5 border rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="12-digit Aadhaar Number">`;
+                        if (helperEl) helperEl.textContent = 'Exactly 12 numeric digits';
+                        if (counterEl) counterEl.textContent = `${curVal.length} / 12`;
                     } else {
                         inputContainer.innerHTML = `
                             <input type="${type}" id="quick-edit-input" value="${escapeHtml(curVal)}" class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">`;
+                        if (helperEl) helperEl.textContent = field === 'dob' ? 'Valid date, cannot be in future' : '';
+                        if (counterEl) counterEl.textContent = '';
                     }
+
+                    const activeInput = document.getElementById('quick-edit-input');
+                    activeInput?.addEventListener('input', (evt) => {
+                        if (errorEl) errorEl.classList.add('hidden');
+                        let val = evt.target.value;
+                        if (field === 'name' || field === 'father' || field === 'mother') {
+                            val = val.replace(/[^A-Za-z\s\.]/g, '').slice(0, 60).toUpperCase();
+                            evt.target.value = val;
+                            if (counterEl) counterEl.textContent = `${val.length} / 60`;
+                        } else if (field === 'mobile' || field === 'motherMobile') {
+                            val = sanitizePhoneString(val);
+                            evt.target.value = val;
+                            if (counterEl) counterEl.textContent = `${val.length} / 13`;
+                        } else if (field === 'adhaar') {
+                            val = val.replace(/\D/g, '').slice(0, 12);
+                            evt.target.value = val;
+                            if (counterEl) counterEl.textContent = `${val.length} / 12`;
+                        } else if (field === 'address') {
+                            val = val.replace(/[<>]/g, '').slice(0, 250);
+                            evt.target.value = val;
+                            if (counterEl) counterEl.textContent = `${val.length} / 250`;
+                        }
+                    });
 
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
@@ -3948,13 +4160,36 @@ const studentPwa = registerPortalForPwa('student', {
                 if (!inputEl) return;
                 let newVal = inputEl.value.trim();
 
+                // Run field-specific validation
+                let validation = { valid: true, value: newVal };
                 if (activeField === 'name') {
-                    newVal = newVal.toUpperCase();
-                    if (!newVal) {
-                        alert('Student name is required!');
-                        return;
-                    }
+                    validation = validateNameString(newVal, 'Student Name');
+                } else if (activeField === 'father') {
+                    validation = validateOptionalNameString(newVal, "Father's Name");
+                } else if (activeField === 'mother') {
+                    validation = validateOptionalNameString(newVal, "Mother's Name");
+                } else if (activeField === 'mobile') {
+                    validation = validatePhoneNumber(newVal, "Father's Phone Number");
+                } else if (activeField === 'motherMobile') {
+                    validation = validatePhoneNumber(newVal, "Mother's Phone Number");
+                } else if (activeField === 'adhaar') {
+                    validation = validateAadhaarNumber(newVal);
+                } else if (activeField === 'address') {
+                    validation = validateAddressString(newVal);
+                } else if (activeField === 'dob') {
+                    validation = validateDobString(newVal);
                 }
+
+                if (!validation.valid) {
+                    if (errorEl) {
+                        errorEl.textContent = validation.error;
+                        errorEl.classList.remove('hidden');
+                    } else {
+                        alert(validation.error);
+                    }
+                    return;
+                }
+                newVal = validation.value !== undefined ? validation.value : newVal;
 
                 saveBtn.disabled = true;
                 saveBtn.textContent = 'Saving...';
@@ -4007,6 +4242,8 @@ const studentPwa = registerPortalForPwa('student', {
             const closeBtn = document.getElementById('student-edit-details-close-btn');
             const cancelBtn = document.getElementById('student-edit-details-cancel-btn');
             const saveBtn = document.getElementById('student-edit-details-save-btn');
+            const errorEl = document.getElementById('st-edit-error-msg');
+            const addressCounterEl = document.getElementById('st-edit-address-counter');
 
             if (!editBtn || !modal || editBtn.dataset.bound === 'true') return;
             editBtn.dataset.bound = 'true';
@@ -4014,9 +4251,59 @@ const studentPwa = registerPortalForPwa('student', {
             const closeModal = () => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
+                if (errorEl) {
+                    errorEl.classList.add('hidden');
+                    errorEl.textContent = '';
+                }
             };
 
+            const bindLiveSanitizers = () => {
+                const nameInput = document.getElementById('st-edit-name');
+                const fatherInput = document.getElementById('st-edit-father');
+                const motherInput = document.getElementById('st-edit-mother');
+                const fatherPhoneInput = document.getElementById('st-edit-father-phone');
+                const motherPhoneInput = document.getElementById('st-edit-mother-phone');
+                const adhaarInput = document.getElementById('st-edit-adhaar');
+                const addressInput = document.getElementById('st-edit-address');
+
+                nameInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    e.target.value = e.target.value.replace(/[^A-Za-z\s\.]/g, '').slice(0, 60).toUpperCase();
+                });
+                fatherInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    e.target.value = e.target.value.replace(/[^A-Za-z\s\.]/g, '').slice(0, 60).toUpperCase();
+                });
+                motherInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    e.target.value = e.target.value.replace(/[^A-Za-z\s\.]/g, '').slice(0, 60).toUpperCase();
+                });
+                fatherPhoneInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    e.target.value = sanitizePhoneString(e.target.value);
+                });
+                motherPhoneInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    e.target.value = sanitizePhoneString(e.target.value);
+                });
+                adhaarInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                });
+                addressInput?.addEventListener('input', (e) => {
+                    if (errorEl) errorEl.classList.add('hidden');
+                    const val = e.target.value.replace(/[<>]/g, '').slice(0, 250);
+                    e.target.value = val;
+                    if (addressCounterEl) addressCounterEl.textContent = `${val.length} / 250`;
+                });
+            };
+            bindLiveSanitizers();
+
             editBtn.addEventListener('click', () => {
+                if (errorEl) {
+                    errorEl.classList.add('hidden');
+                    errorEl.textContent = '';
+                }
                 const prof = currentSt.profile || {};
                 const nameInput = document.getElementById('st-edit-name');
                 const genderInput = document.getElementById('st-edit-gender');
@@ -4036,7 +4323,9 @@ const studentPwa = registerPortalForPwa('student', {
                 if (motherInput) motherInput.value = currentSt.mother || prof.mother || '';
                 if (fatherPhoneInput) fatherPhoneInput.value = currentSt.mobile || prof.mobile || currentSt.phone || prof.phone || '';
                 if (motherPhoneInput) motherPhoneInput.value = currentSt.motherMobile || prof.motherMobile || '';
-                if (addressInput) addressInput.value = currentSt.address || prof.address || '';
+                const addr = currentSt.address || prof.address || '';
+                if (addressInput) addressInput.value = addr;
+                if (addressCounterEl) addressCounterEl.textContent = `${addr.length} / 250`;
 
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
@@ -4046,20 +4335,63 @@ const studentPwa = registerPortalForPwa('student', {
             cancelBtn?.addEventListener('click', closeModal);
 
             saveBtn?.addEventListener('click', async () => {
-                const newName = document.getElementById('st-edit-name')?.value.trim();
-                const newGender = document.getElementById('st-edit-gender')?.value || 'Male';
-                const newDob = document.getElementById('st-edit-dob')?.value || '';
-                const newAdhaar = document.getElementById('st-edit-adhaar')?.value.trim() || '';
-                const newFather = document.getElementById('st-edit-father')?.value.trim();
-                const newMother = document.getElementById('st-edit-mother')?.value.trim();
-                const newFatherPhone = document.getElementById('st-edit-father-phone')?.value.trim();
-                const newMotherPhone = document.getElementById('st-edit-mother-phone')?.value.trim();
-                const newAddress = document.getElementById('st-edit-address')?.value.trim();
-
-                if (!newName) {
-                    alert('Student name is required!');
-                    return;
+                if (errorEl) {
+                    errorEl.classList.add('hidden');
+                    errorEl.textContent = '';
                 }
+
+                const rawName = document.getElementById('st-edit-name')?.value || '';
+                const newGender = document.getElementById('st-edit-gender')?.value || 'Male';
+                const rawDob = document.getElementById('st-edit-dob')?.value || '';
+                const rawAdhaar = document.getElementById('st-edit-adhaar')?.value || '';
+                const rawFather = document.getElementById('st-edit-father')?.value || '';
+                const rawMother = document.getElementById('st-edit-mother')?.value || '';
+                const rawFatherPhone = document.getElementById('st-edit-father-phone')?.value || '';
+                const rawMotherPhone = document.getElementById('st-edit-mother-phone')?.value || '';
+                const rawAddress = document.getElementById('st-edit-address')?.value || '';
+
+                const showFieldError = (msg, inputId) => {
+                    if (errorEl) {
+                        errorEl.textContent = msg;
+                        errorEl.classList.remove('hidden');
+                    } else {
+                        alert(msg);
+                    }
+                    if (inputId) document.getElementById(inputId)?.focus();
+                };
+
+                // Sequential Validation
+                const nameCheck = validateNameString(rawName, 'Student Name');
+                if (!nameCheck.valid) return showFieldError(nameCheck.error, 'st-edit-name');
+                const newName = nameCheck.value;
+
+                const fatherCheck = validateOptionalNameString(rawFather, "Father's Name");
+                if (!fatherCheck.valid) return showFieldError(fatherCheck.error, 'st-edit-father');
+                const newFather = fatherCheck.value;
+
+                const motherCheck = validateOptionalNameString(rawMother, "Mother's Name");
+                if (!motherCheck.valid) return showFieldError(motherCheck.error, 'st-edit-mother');
+                const newMother = motherCheck.value;
+
+                const fatherPhoneCheck = validatePhoneNumber(rawFatherPhone, "Father's Phone Number");
+                if (!fatherPhoneCheck.valid) return showFieldError(fatherPhoneCheck.error, 'st-edit-father-phone');
+                const newFatherPhone = fatherPhoneCheck.value;
+
+                const motherPhoneCheck = validatePhoneNumber(rawMotherPhone, "Mother's Phone Number");
+                if (!motherPhoneCheck.valid) return showFieldError(motherPhoneCheck.error, 'st-edit-mother-phone');
+                const newMotherPhone = motherPhoneCheck.value;
+
+                const adhaarCheck = validateAadhaarNumber(rawAdhaar);
+                if (!adhaarCheck.valid) return showFieldError(adhaarCheck.error, 'st-edit-adhaar');
+                const newAdhaar = adhaarCheck.value;
+
+                const addressCheck = validateAddressString(rawAddress);
+                if (!addressCheck.valid) return showFieldError(addressCheck.error, 'st-edit-address');
+                const newAddress = addressCheck.value;
+
+                const dobCheck = validateDobString(rawDob);
+                if (!dobCheck.valid) return showFieldError(dobCheck.error, 'st-edit-dob');
+                const newDob = dobCheck.value;
 
                 saveBtn.disabled = true;
                 saveBtn.textContent = 'Saving...';
