@@ -285,6 +285,11 @@
         touchSession,
         guardStudentPage() {
             pruneExpiredStates();
+            if (this.isModuleEnabled('student') === false) {
+                this.logoutStudent();
+                redirectHome('Student Portal is currently disabled by institution administration.');
+                return;
+            }
             if (!hasStudentSession()) {
                 redirectHome('Please log in to continue.');
                 return;

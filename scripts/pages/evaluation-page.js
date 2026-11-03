@@ -265,31 +265,33 @@ const switchTab = (tabId) => {
 
 // --- Load Metadata & Scopes ---
 const loadAcademicYears = async () => {
-    try {
-        const snap = await getDoc(doc(db, BASE_PATH, 'settings', 'academicYears', 'config'));
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
-            if (Array.isArray(data.years) && data.years.length > 0) {
-                availableAcademicYears = data.years.map((y) => typeof y === 'string' ? y : y.name || y.id).filter(Boolean);
+            const rawYears = data.years || [];
+            if (Array.isArray(rawYears) && rawYears.length > 0) {
+                availableAcademicYears = rawYears.map((y) => typeof y === 'string' ? y : y.label || y.year || y.name || y.id).filter(Boolean);
             }
             if (data.activeYear) {
-                currentAcademicYear = data.activeYear;
-                selectedYear = currentAcademicYear;
+                currentAcademicYear = typeof data.activeYear === 'object' ? (data.activeYear.label || data.activeYear.year || '') : data.activeYear;
+                if (!selectedYear || !availableAcademicYears.includes(selectedYear)) {
+                    selectedYear = currentAcademicYear;
+                }
             }
         }
-    } catch (e) {
-        console.warn('Could not load academic years config, using fallback:', e);
-    }
 
-    const yearSelect = document.getElementById('eval-year-select');
-    if (yearSelect) {
-        yearSelect.innerHTML = availableAcademicYears.map((yr) => `<option value="${escapeHtml(yr)}" ${yr === selectedYear ? 'selected' : ''}>${escapeHtml(yr)}</option>`).join('');
-    }
+        const yearSelect = document.getElementById('eval-year-select');
+        if (yearSelect && availableAcademicYears.length) {
+            yearSelect.innerHTML = availableAcademicYears.map((yr) => `<option value="${escapeHtml(yr)}" ${yr === selectedYear ? 'selected' : ''}>${escapeHtml(yr)}</option>`).join('');
+        }
 
-    const yearBadge = document.getElementById('header-active-year');
-    if (yearBadge) {
-        yearBadge.textContent = selectedYear;
-    }
+        const yearBadge = document.getElementById('header-active-year');
+        if (yearBadge) {
+            yearBadge.textContent = selectedYear || currentAcademicYear || 'Session Active';
+        }
+    }, (err) => {
+        console.warn('Could not listen to academic years config:', err);
+    });
 };
 
 // --- Class Subjects & Timetable Engine ---
@@ -609,10 +611,11 @@ const renderSettingsView = () => {
     }
 };
 
-// --- Students & Classes Fetching ---
+// --- Students & Classes Real-time Fetching ---
+let unsubscribeStudents = null;
 const fetchStudentsAndClasses = async () => {
-    try {
-        const snap = await getDocs(collection(db, BASE_PATH, 'students'));
+    if (unsubscribeStudents) unsubscribeStudents();
+    unsubscribeStudents = onSnapshot(collection(db, `${BASE_PATH}/students`), async (snap) => {
         const list = [];
         const classesSet = new Set();
 
@@ -647,10 +650,14 @@ const fetchStudentsAndClasses = async () => {
         allClasses = Array.from(classesSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
         populateClassDropdown();
-    } catch (err) {
-        console.error('Error fetching students:', err);
+        if (selectedClass) {
+            renderLiveStudents();
+            populateImpositionStudentSelect();
+        }
+    }, (err) => {
+        console.error('Error listening to students:', err);
         showToast('Error loading students roster', 'error');
-    }
+    });
 };
 
 const populateClassDropdown = () => {
@@ -1955,6 +1962,31 @@ const initEvaluationModule = async () => {
     populateAnalyticsMonths();
     initEventBindings();
     await fetchStudentsAndClasses();
+
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
+        const conf = snap.exists() ? snap.data() : {};
+        if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+            try {
+                localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+            } catch (_) {}
+            const isEvaluationEnabled = conf.enabledModules.classroomEvaluation !== false && conf.enabledModules.evaluation !== false;
+            if (!isEvaluationEnabled) {
+                sessionStorage.setItem('app_session_flash', 'Module Disabled: The Classroom Evaluation module is currently disabled by institution administration.');
+                window.location.href = 'official.html';
+            }
+        }
+    });
+
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'sessionControl'), (snap) => {
+        if (!snap.exists()) return;
+        const ctrl = snap.data();
+        const role = window.AppSession?.getRole?.() || '';
+        if (ctrl.isLocked && role !== 'admin') {
+            sessionStorage.setItem('app_session_flash', ctrl.lockMessage || 'Official session is currently locked by institution administrator.');
+            window.AppSession?.clearAll?.();
+            window.location.href = 'index.html';
+        }
+    });
 };
 
 if (document.readyState === 'loading') {

@@ -72,11 +72,17 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             `;
             }).join('') : '<p class="text-sm text-gray-500">No saved student accounts.</p>';
         };
+        let globalInstitutionConfig = {};
         const openSavedStudentModal = () => {
             renderSavedStudents();
             document.getElementById('saved-student-modal').style.display = 'flex';
         };
         const openStudentLoginModal = () => {
+            if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
+                showToast("Student Portal is currently disabled by institution administration.", "error");
+                showLoginMessage("Student Portal is currently disabled by institution administration.");
+                return;
+            }
             document.getElementById('login-modal').style.display = 'flex'; 
             setMobileMenuState(false);
             showLoginMessage('');
@@ -86,6 +92,13 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         window.openLogin = () => {
             if (window.AppSession?.hasStaffSession?.() || window.AppSession?.hasAdminSession?.()) {
                 window.location.href = 'official.html';
+                return;
+            }
+            if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
+                showToast("Student Portal is currently disabled by institution administration.", "error");
+                document.getElementById('login-modal').style.display = 'flex';
+                setMobileMenuState(false);
+                showLoginMessage("Student Portal is currently disabled by institution administration.");
                 return;
             }
             const accounts = window.AppSession?.getStudentAccounts?.() || [];
@@ -235,6 +248,10 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             const selectBtn = e.target.closest('.saved-student-select');
             const removeBtn = e.target.closest('.saved-student-remove');
             if (selectBtn) {
+                if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
+                    showToast("Student Portal is currently disabled by institution administration.", "error");
+                    return;
+                }
                 const switched = window.AppSession?.switchStudent?.(selectBtn.dataset.id);
                 if (switched) window.location.href = 'student.html';
             }
@@ -530,6 +547,12 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 if(user) {
                     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), snap => {
                         const conf = snap.exists() ? snap.data() : {};
+                        globalInstitutionConfig = conf;
+                        if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+                            try {
+                                localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+                            } catch (_) {}
+                        }
                         
                         applyInstitutionBranding(conf, {
                             defaultAppName: 'Institution',
@@ -963,6 +986,11 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     }
                 }
                 const studentPassword = normalizePhone(passwordInput);
+                if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
+                    showLoginMessage("Student Portal is currently disabled by institution administration.");
+                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                    return;
+                }
                 if(!selectedLoginStudent || !studentPassword) { showLoginMessage("Select student and enter the registered mobile number"); return; }
                 if (!confirmRoleSwitch('Student')) return;
 

@@ -95,7 +95,8 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin(institutionId)
         || (isResultOperator(institutionId) && docId == 'resultCenter')
-        || (isCollectionSession() && (docId == 'sessionRegistry' && validSessionRegistryWrite() || docId == 'receiptSequence'));
+        || (isCollectionSession() && (docId == 'sessionRegistry' && validSessionRegistryWrite() || docId == 'receiptSequence'))
+        || (isSignedIn() && (docId == 'attendanceConfig' || docId == 'timetableStructure' || docId == 'yearPlanConfig' || docId.matches('evaluationConfig_.*')));
     }
 
     match /institutions/{institutionId}/staff/{docId} {
@@ -130,13 +131,87 @@ service cloud.firestore {
     }
 
     match /institutions/{institutionId}/payments/{docId} {
-      allow read: if isAdmin(institutionId) || isCollectionSession();
+      allow read: if isSignedIn();
       allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
       allow delete: if isAdmin(institutionId);
     }
 
     match /institutions/{institutionId}/donations/{docId} {
       allow read, write: if isAdmin(institutionId) || isCollectionSession();
+    }
+
+    match /institutions/{institutionId}/attendance/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/timetables/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/classSubjects/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/yearPlans/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/syllabusDailyLogs/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/examTimetables/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/activities/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/ibadah/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/taskCompletions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/studentCustomBadges/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/studentBonusPoints/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/rewardSettings/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/prayerSettings/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/evaluations/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/impositions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /institutions/{institutionId}/worksheets/{docId} {
+      allow read, write: if isSignedIn();
     }
 
     match /institutions/{institutionId}/publicDirectory/{docId} {
@@ -191,13 +266,13 @@ service cloud.firestore {
     }
 
     match /institutions/{institutionId}/academicYears/{yearId}/payments/{docId} {
-      allow read: if isAdmin(institutionId) || isCollectionSession();
+      allow read: if isSignedIn();
       allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
       allow delete: if isAdmin(institutionId);
     }
 
     match /institutions/{institutionId}/years/{yearId}/payments/{docId} {
-      allow read: if isAdmin(institutionId) || isCollectionSession();
+      allow read: if isSignedIn();
       allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
       allow delete: if isAdmin(institutionId);
     }

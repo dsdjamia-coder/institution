@@ -1196,6 +1196,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       let canAcademicPlan = false;
       let canStudentActivity = false;
       let canClassroomEvaluation = false;
+      let canStudent = false;
 
       if (isMasterAdmin) {
         canCollection = true;
@@ -1206,6 +1207,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canAcademicPlan = true;
         canStudentActivity = true;
         canClassroomEvaluation = true;
+        canStudent = true;
       } else if (isStaffSession) {
         const staffProfile = getCurrentSessionProfile() || {};
         const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
@@ -1220,6 +1222,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canAcademicPlan = true;
           canStudentActivity = true;
           canClassroomEvaluation = true;
+          canStudent = true;
         } else {
           canCollection = staffAccess.collection === true || staffProfile.canCollect === true;
           canResult = staffAccess.result === true || staffProfile.canManageResults === true;
@@ -1229,6 +1232,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canStudentActivity = staffAccess.studentActivity === true || staffAccess.activity === true || staffProfile.canAccessActivity === true;
           canClassroomEvaluation = staffAccess.classroomEvaluation === true || staffAccess.evaluation === true || staffProfile.canAccessEvaluation === true;
           canAdmin = staffAccess.admin === true || staffAccess.canAccessAdmin === true || staffProfile.canAccessAdmin === true;
+          canStudent = staffAccess.student === true || staffProfile.canAccessStudent === true;
         }
       } else if (userSession?.source === 'directory') {
         const entry = directoryEntries.find((item) => item.id === userSession.id);
@@ -1243,6 +1247,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canAcademicPlan = false;
           canStudentActivity = false;
           canClassroomEvaluation = false;
+          canStudent = false;
         }
       } else {
         canWorksheet = false;
@@ -1250,6 +1255,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canAcademicPlan = false;
         canStudentActivity = false;
         canClassroomEvaluation = false;
+        canStudent = false;
       }
 
       return {
@@ -1260,7 +1266,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         attendance: canAttendance,
         academicPlan: canAcademicPlan,
         studentActivity: canStudentActivity,
-        classroomEvaluation: canClassroomEvaluation
+        classroomEvaluation: canClassroomEvaluation,
+        student: canStudent
       };
     };
 
@@ -7476,9 +7483,40 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         syncLiveStaffSession();
       }, () => {});
 
+      onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
+        allStudents = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        if (isWorksheetPage) {
+          syncFilteredRows();
+          renderWorksheet();
+        } else {
+          renderDashboard();
+        }
+      }, () => {});
+
+      onSnapshot(doc(db, `${BASE_PATH}/settings`, 'sessionControl'), (snap) => {
+        if (!snap.exists()) return;
+        const ctrl = snap.data();
+        const role = window.AppSession?.getRole?.() || '';
+        if (ctrl.isLocked && role !== 'admin') {
+          sessionStorage.setItem('app_session_flash', ctrl.lockMessage || 'Official session locked by institution administrator.');
+          window.AppSession?.clearAll?.();
+          window.location.href = 'index.html';
+        }
+      }, () => {});
+
       onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
         const conf = snap.exists() ? snap.data() : {};
         applyOfficialBranding(conf);
+        if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+          try {
+            localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+          } catch (_) {}
+          if (isWorksheetPage && conf.enabledModules.worksheet === false) {
+            sessionStorage.setItem('app_session_flash', 'Module Disabled: The Class Worksheet module is currently disabled by institution administration.');
+            window.location.href = 'official.html';
+            return;
+          }
+        }
         if (!isWorksheetPage) {
           renderDashboard();
         }

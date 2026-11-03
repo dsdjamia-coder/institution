@@ -5131,6 +5131,7 @@ const studentPwa = registerPortalForPwa('student', {
         let selectedAttendanceMonth = '';
         let studentAttendanceStats = { workingDays: 0, presentDays: 0, absentDays: 0, leaveDays: 0, rate: 0 };
         let cachedAttendanceDocs = [];
+        let cachedAttendanceConfig = { weekendDays: [5] };
 
         const renderStudentAttendanceModule = async (profile, targetYear = '') => {
             const pageEl = document.getElementById('attendance-page');
@@ -5149,6 +5150,11 @@ const studentPwa = registerPortalForPwa('student', {
             }
 
             try {
+                const cfgSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig')).catch(() => null);
+                if (cfgSnap && cfgSnap.exists()) {
+                    cachedAttendanceConfig = { ...cachedAttendanceConfig, ...(cfgSnap.data() || {}) };
+                }
+
                 const attQuery = query(
                     collection(db, `${BASE_PATH}/attendance`),
                     where('classLabel', '==', profile.class || '')
@@ -5350,15 +5356,31 @@ const studentPwa = registerPortalForPwa('student', {
                 const dayDoc = dayDocsMap[day];
 
                 if (!dayDoc) {
-                    html += `
-                        <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col justify-between min-h-[50px] sm:min-h-[64px] text-slate-400">
-                            <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black">
-                                <span>${day}</span>
-                                <span class="text-[8px] sm:text-[9px] uppercase font-bold">${dayName}</span>
+                    const isWeeklyOff = Array.isArray(cachedAttendanceConfig?.weekendDays) && cachedAttendanceConfig.weekendDays.includes(dt.getDay());
+                    if (isWeeklyOff) {
+                        html += `
+                            <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-100 flex flex-col justify-between min-h-[50px] sm:min-h-[64px]" title="Weekly Off">
+                                <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black text-slate-700">
+                                    <span>${day}</span>
+                                    <span class="text-[8px] sm:text-[9px] uppercase font-bold text-slate-500">${dayName}</span>
+                                </div>
+                                <div class="flex items-center gap-1 text-[9px] sm:text-[10px] font-extrabold text-slate-500 mt-0.5 truncate">
+                                    <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-slate-400"></span>
+                                    <span class="truncate">Off Day</span>
+                                </div>
                             </div>
-                            <div class="text-[9px] sm:text-[10px] font-semibold text-slate-400 mt-0.5">--</div>
-                        </div>
-                    `;
+                        `;
+                    } else {
+                        html += `
+                            <div class="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col justify-between min-h-[50px] sm:min-h-[64px] text-slate-400">
+                                <div class="flex items-center justify-between text-[10px] sm:text-[11px] font-black">
+                                    <span>${day}</span>
+                                    <span class="text-[8px] sm:text-[9px] uppercase font-bold">${dayName}</span>
+                                </div>
+                                <div class="text-[9px] sm:text-[10px] font-semibold text-slate-400 mt-0.5">--</div>
+                            </div>
+                        `;
+                    }
                     continue;
                 }
 
@@ -6783,6 +6805,18 @@ const studentPwa = registerPortalForPwa('student', {
                 onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), snap => {
                     const conf = snap.exists() ? snap.data() : {};
                     
+                    if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+                        try {
+                            localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+                        } catch (_) {}
+                        if (conf.enabledModules.student === false) {
+                            window.AppSession?.logoutStudent?.();
+                            sessionStorage.setItem('app_session_flash', 'Student Portal is currently disabled by institution administration.');
+                            window.location.replace('index.html');
+                            return;
+                        }
+                    }
+
                     studentPortalPerms.allowPhotoUpload = conf.allowStudentPhotoUpload === true;
                     studentPortalPerms.allowDetailsEdit = conf.allowStudentDetailsEdit === true;
                     applyStudentPortalPermissionsUI();

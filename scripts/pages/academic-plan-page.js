@@ -508,6 +508,33 @@ const restoreSessionContext = async () => {
 };
 
 const setupRealtimeListeners = () => {
+    // 0. Config & Module Enablement
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
+        const conf = snap.exists() ? snap.data() : {};
+        if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+            try {
+                localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+            } catch (_) {}
+            if (conf.enabledModules.academicPlan === false) {
+                sessionStorage.setItem('app_session_flash', 'Module Disabled: The Academic Planning module is currently disabled by institution administration.');
+                window.location.href = 'official.html';
+                return;
+            }
+        }
+    });
+
+    // 0b. Session Control (Lockdown / Force Logout)
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'sessionControl'), (snap) => {
+        if (!snap.exists()) return;
+        const ctrl = snap.data();
+        const role = window.AppSession?.getRole?.() || '';
+        if (ctrl.isLocked && role !== 'admin') {
+            sessionStorage.setItem('app_session_flash', ctrl.lockMessage || 'Official session is currently locked by institution administrator.');
+            window.AppSession?.clearAll?.();
+            window.location.href = 'index.html';
+        }
+    });
+
     // 1. Institution Branding & Settings
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'institution'), (snap) => {
         if (snap.exists()) {

@@ -5228,6 +5228,17 @@ onAuthStateChanged(auth, async (user) => {
         if (docSnap.exists()) {
             const d = docSnap.data();
 
+            if (d.enabledModules && typeof d.enabledModules === 'object') {
+                try {
+                    localStorage.setItem('app_enabled_modules', JSON.stringify(d.enabledModules));
+                } catch (_) {}
+                if (d.enabledModules.collection === false) {
+                    sessionStorage.setItem('app_session_flash', 'Module Disabled: The Fee Collection module is currently disabled by institution administration.');
+                    window.location.href = 'official.html';
+                    return;
+                }
+            }
+
             applyInstitutionBranding(d, {
                 defaultAppName: 'Fee Collection',
                 logoIds: ['header-logo', 'splash-logo-img'],
