@@ -513,6 +513,23 @@ const setupRealtimeListeners = () => {
         }
     });
 
+    // 6b. Activity Config & Prayer Feature Toggle Listener
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'activityConfig'), (snap) => {
+        if (snap.exists()) {
+            const actData = snap.data();
+            isPrayerTrackingActive = actData?.prayerTrackingEnabled !== false;
+            cachedSelfLoggingByClass = (actData && typeof actData.studentSelfLoggingByClass === 'object')
+                ? { ...actData.studentSelfLoggingByClass }
+                : {};
+            cachedPastDateLoggingByClass = (actData && typeof actData.studentPastDateLoggingByClass === 'object')
+                ? { ...actData.studentPastDateLoggingByClass }
+                : {};
+        } else {
+            isPrayerTrackingActive = true;
+        }
+        updatePrayerTrackingUI();
+    });
+
     // 7. Configured Routine Tasks Listener
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions'), (snap) => {
         if (snap.exists() && Array.isArray(snap.data().tasks)) {
@@ -1538,6 +1555,51 @@ const loadRewardsRubric = async () => {
     updatePrayerStatusLegendPoints();
 };
 
+let isPrayerTrackingActive = true;
+
+const updatePrayerTrackingUI = () => {
+    const btn = document.getElementById('btn-toggle-prayer-feature');
+    const icon = document.getElementById('prayer-toggle-feature-icon');
+    const label = document.getElementById('prayer-toggle-feature-label');
+    const banner = document.getElementById('prayer-feature-disabled-banner');
+
+    if (isPrayerTrackingActive) {
+        if (btn) {
+            btn.className = 'px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer';
+            btn.title = 'Prayer Tracking is ACTIVE across portal. Click to turn OFF';
+        }
+        if (icon) icon.className = 'fas fa-toggle-on text-emerald-600 text-sm';
+        if (label) label.textContent = 'Prayer: ON';
+        if (banner) banner.classList.add('hidden');
+    } else {
+        if (btn) {
+            btn.className = 'px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer';
+            btn.title = 'Prayer Tracking is DISABLED. Click to turn ON';
+        }
+        if (icon) icon.className = 'fas fa-toggle-off text-rose-600 text-sm';
+        if (label) label.textContent = 'Prayer: OFF';
+        if (banner) banner.classList.remove('hidden');
+    }
+};
+
+const togglePrayerTrackingFeature = async () => {
+    const nextStatus = !isPrayerTrackingActive;
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'), {
+            prayerTrackingEnabled: nextStatus,
+            updatedAt: Date.now(),
+            updatedBy: currentUserKey || currentStaffName || 'Admin'
+        }, { merge: true });
+
+        isPrayerTrackingActive = nextStatus;
+        updatePrayerTrackingUI();
+        showToast(`Prayer Tracking turned ${nextStatus ? 'ON' : 'OFF'}!`, nextStatus ? 'success' : 'info');
+    } catch (err) {
+        console.error('Failed to toggle prayer tracking:', err);
+        alert('Failed to update prayer tracking setting: ' + err.message);
+    }
+};
+
 const openRewardsSettingsModal = () => {
     const attInput = document.getElementById('rubric-pts-attendance');
     const jamInput = document.getElementById('rubric-pts-jamaah');
@@ -2510,7 +2572,9 @@ const setupEventListeners = () => {
         }
     });
 
-    // Prayer Points Rules modal
+    // Prayer Points Rules modal & Feature Toggle
+    document.getElementById('btn-toggle-prayer-feature')?.addEventListener('click', togglePrayerTrackingFeature);
+    document.getElementById('btn-banner-enable-prayer')?.addEventListener('click', togglePrayerTrackingFeature);
     document.getElementById('btn-open-prayer-points-config')?.addEventListener('click', openPrayerPointsConfigModal);
     document.getElementById('btn-save-prayer-points-config')?.addEventListener('click', savePrayerPointsConfig);
 

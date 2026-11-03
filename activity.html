@@ -720,6 +720,17 @@
         <!-- TAB 4: PRAYER TRACKER                      -->
         <!-- ========================================== -->
         <section id="tab-prayer" class="tab-content hidden space-y-4">
+          <!-- Prayer Disabled Banner (Shows when Feature is Turned OFF) -->
+          <div id="prayer-feature-disabled-banner" class="hidden p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs font-bold flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <i class="fas fa-ban text-rose-600 text-base shrink-0"></i>
+              <span><strong>Prayer Tracking is currently DISABLED.</strong> Daily prayer checklists and points are hidden from students across the Student Portal.</span>
+            </div>
+            <button type="button" id="btn-banner-enable-prayer" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs transition shadow-2xs shrink-0 cursor-pointer">
+              Turn ON Prayer Tracking
+            </button>
+          </div>
+
           <!-- Controls Bar -->
           <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-3">
             <div class="flex items-center gap-3 flex-wrap">
@@ -733,11 +744,15 @@
               </div>
             </div>
 
-            <!-- Action Buttons (Strict Explicit Save Workflow + Prayer Rules Button) -->
+            <!-- Action Buttons (Strict Explicit Save Workflow + Prayer Rules Button + Feature Toggle) -->
             <div class="flex items-center gap-2 flex-wrap">
               <span id="prayer-unsaved-badge" class="hidden text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-xl font-bold text-xs">
                 <i class="fas fa-clock mr-1"></i>Unsaved Changes
               </span>
+              <button type="button" id="btn-toggle-prayer-feature" class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Toggle Prayer Tracking Feature ON/OFF">
+                <i class="fas fa-toggle-on text-emerald-600 text-sm" id="prayer-toggle-feature-icon"></i>
+                <span id="prayer-toggle-feature-label">Prayer: ON</span>
+              </button>
               <button type="button" id="btn-open-prayer-points-config" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Configure custom points for Jama'ah, Ada', and Qaza">
                 <i class="fas fa-sliders text-amber-600"></i> Prayer Points Rules
               </button>

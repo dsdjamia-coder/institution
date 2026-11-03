@@ -186,7 +186,6 @@ const studentPwa = registerPortalForPwa('student', {
         }
         window.logoutStudent = logoutStudent;
         document.getElementById('student-logout-btn')?.addEventListener('click', () => logoutStudent());
-        document.getElementById('student-header-logout-btn')?.addEventListener('click', () => logoutStudent());
         document.getElementById('student-public-btn')?.addEventListener('click', () => { window.location.href = 'index.html?public=1'; });
         document.querySelectorAll('.student-bottom-nav-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -5881,6 +5880,7 @@ const studentPwa = registerPortalForPwa('student', {
                 const isFuture = (selectedActivityDate > todayDate);
 
                 const actConfigData = actConfigSnap?.exists() ? actConfigSnap.data() : {};
+                const isPrayerTrackingEnabled = actConfigData?.prayerTrackingEnabled !== false;
                 const isClassSelfLoggingAllowed = Boolean(actConfigData?.studentSelfLoggingByClass?.[profile.class]);
                 const isPastDateLoggingAllowed = Boolean(actConfigData?.studentPastDateLoggingByClass?.[profile.class]);
 
@@ -6019,7 +6019,25 @@ const studentPwa = registerPortalForPwa('student', {
                     }
                 });
 
-                const totalPoints = attendancePts + bonusPts + fardPrayerPts + sunnahPrayerPts + taskPoints;
+                const totalPoints = attendancePts + bonusPts + (isPrayerTrackingEnabled ? (fardPrayerPts + sunnahPrayerPts) : 0) + taskPoints;
+
+                // Toggle Prayer Sections Visibility
+                const fardSection = document.getElementById('stu-act-fard-section');
+                const sunnahSection = document.getElementById('stu-act-sunnah-section');
+                if (fardSection) {
+                    if (!isPrayerTrackingEnabled) {
+                        fardSection.classList.add('hidden');
+                    } else {
+                        fardSection.classList.remove('hidden');
+                    }
+                }
+                if (sunnahSection) {
+                    if (!isPrayerTrackingEnabled || customPrayersList.length === 0) {
+                        sunnahSection.classList.add('hidden');
+                    } else {
+                        sunnahSection.classList.remove('hidden');
+                    }
+                }
 
                 // Update Points and Tier Badge
                 const ptsEl = document.getElementById('stu-act-total-points');
@@ -6095,6 +6113,16 @@ const studentPwa = registerPortalForPwa('student', {
                     `).join('');
                 }
 
+                // Rubric points subtext under 5 Daily Fard Prayers heading
+                const rubricSubtextEl = document.getElementById('stu-act-fard-rubric-subtext');
+                if (rubricSubtextEl) {
+                    rubricSubtextEl.innerHTML = `
+                        <span class="text-emerald-700 font-bold"><strong class="font-black bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded border border-emerald-300">J</strong> Jama'ah (+${jamaahPts} pts)</span>
+                        <span class="text-blue-700 font-bold"><strong class="font-black bg-blue-100 text-blue-800 px-1 py-0.2 rounded border border-blue-300">A</strong> Ada'a (+${adaaPts} pts)</span>
+                        <span class="text-rose-700 font-bold"><strong class="font-black bg-rose-100 text-rose-800 px-1 py-0.2 rounded border border-rose-300">Q</strong> Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)</span>
+                    `;
+                }
+
                 // 4. Render 5 Fard Prayers Checklist (With Point Values & Touch-Friendly Mobile Buttons)
                 const prayersContainer = document.getElementById('stu-act-prayers-container');
                 const fardStatusPill = document.getElementById('stu-act-fard-status-pill');
@@ -6111,66 +6139,90 @@ const studentPwa = registerPortalForPwa('student', {
                         { key: 'isha', name: 'Isha', label: 'Night' }
                     ];
 
-                    prayersContainer.innerHTML = PRAYERS_LIST.map((p) => {
+                    const prayersData = PRAYERS_LIST.map((p) => {
                         const rawStatus = studentPrayerRecord[p.key] || 'none';
                         const isJ = (rawStatus === 'jamaah' || rawStatus === 'J');
                         const isA = (rawStatus === 'adaa' || rawStatus === 'A');
                         const isQ = (rawStatus === 'qaza' || rawStatus === 'Q');
 
                         let statusText = 'Pending';
+                        let statusShort = 'Pending';
                         let pillClass = 'bg-slate-100 text-slate-600 border-slate-200';
                         let iconClass = 'fas fa-circle-dot text-slate-400';
 
                         if (isJ) {
                             statusText = `In Jama'ah (+${jamaahPts} pts)`;
+                            statusShort = `Jama'ah (+${jamaahPts})`;
                             pillClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
                             iconClass = 'fas fa-check-double text-emerald-600';
                         } else if (isA) {
                             statusText = `On Time (+${adaaPts} pts)`;
+                            statusShort = `Ada'a (+${adaaPts})`;
                             pillClass = 'bg-blue-100 text-blue-800 border-blue-300';
                             iconClass = 'fas fa-check text-blue-600';
                         } else if (isQ) {
                             statusText = `Made Up (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)`;
+                            statusShort = `Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts})`;
                             pillClass = qazaPts < 0 ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300';
                             iconClass = 'fas fa-clock-rotate-left text-amber-600';
                         }
 
-                        const actionButtonsHtml = canEdit ? `
-                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
-                                <button type="button" class="btn-stu-log-prayer flex-1 py-2 sm:py-1.5 px-2.5 sm:px-2 min-h-[38px] sm:min-h-[32px] text-xs sm:text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isJ ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-emerald-50 text-slate-700'}" data-prayer="${p.key}" data-status="jamaah" title="Mark Jama'ah (+${jamaahPts} pts)">
-                                    <span>Jama'ah</span>
-                                    <span class="text-[9px] opacity-80">(+${jamaahPts})</span>
-                                </button>
-                                <button type="button" class="btn-stu-log-prayer flex-1 py-2 sm:py-1.5 px-2.5 sm:px-2 min-h-[38px] sm:min-h-[32px] text-xs sm:text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isA ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-blue-50 text-slate-700'}" data-prayer="${p.key}" data-status="adaa" title="Mark Ada'a (+${adaaPts} pts)">
-                                    <span>Ada'a</span>
-                                    <span class="text-[9px] opacity-80">(+${adaaPts})</span>
-                                </button>
-                                <button type="button" class="btn-stu-log-prayer flex-1 py-2 sm:py-1.5 px-2.5 sm:px-2 min-h-[38px] sm:min-h-[32px] text-xs sm:text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isQ ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-rose-50 text-slate-700'}" data-prayer="${p.key}" data-status="qaza" title="Mark Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">
-                                    <span>Qaza</span>
-                                    <span class="text-[9px] opacity-80">(${qazaPts > 0 ? '+' : ''}${qazaPts})</span>
-                                </button>
-                                ${rawStatus !== 'none' ? `
-                                    <button type="button" class="btn-stu-log-prayer py-2 sm:py-1.5 px-2 min-h-[38px] sm:min-h-[32px] text-xs font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Reset / Clear">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                ` : ''}
-                            </div>
-                        ` : '';
+                        return { p, rawStatus, isJ, isA, isQ, statusText, statusShort, pillClass, iconClass };
+                    });
 
-                        return `
-                            <div class="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[85px] sm:min-h-[105px] shadow-2xs">
-                                <div>
-                                    <div class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">${p.label}</div>
-                                    <div class="font-black text-xs sm:text-sm text-slate-800 mt-0.5">${p.name}</div>
+                    // Mobile view: 5 sleek single-line rows with touch buttons
+                    const mobileHtml = `
+                        <div class="sm:hidden divide-y divide-slate-100">
+                            ${prayersData.map(({ p, rawStatus, isJ, isA, isQ, statusShort, pillClass }) => `
+                                <div class="py-1.5 px-2 flex items-center justify-between gap-2 hover:bg-slate-50 transition rounded-lg">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <span class="font-black text-xs text-slate-800 w-16 truncate">${escapeHtml(p.name.split('/')[0].trim())}</span>
+                                        <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${pillClass} truncate">${escapeHtml(statusShort)}</span>
+                                    </div>
+                                    <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 prayer-pill-group shrink-0">
+                                        <button type="button" class="btn-stu-log-prayer w-7 h-7 flex items-center justify-center rounded text-[11px] font-black cursor-pointer transition ${isJ ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-emerald-50'}" data-prayer="${p.key}" data-status="jamaah" title="Jama'ah (+${jamaahPts} pts)">J</button>
+                                        <button type="button" class="btn-stu-log-prayer w-7 h-7 flex items-center justify-center rounded text-[11px] font-black cursor-pointer transition ${isA ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-blue-50'}" data-prayer="${p.key}" data-status="adaa" title="Ada'a (+${adaaPts} pts)">A</button>
+                                        <button type="button" class="btn-stu-log-prayer w-7 h-7 flex items-center justify-center rounded text-[11px] font-black cursor-pointer transition ${isQ ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-rose-50'}" data-prayer="${p.key}" data-status="qaza" title="Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">Q</button>
+                                        ${(canEdit && rawStatus !== 'none') ? `
+                                            <button type="button" class="btn-stu-log-prayer w-6 h-7 flex items-center justify-center rounded text-[9px] font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Clear Prayer Status">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        ` : ''}
+                                    </div>
                                 </div>
-                                <div class="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold border ${pillClass} self-start">
-                                    <i class="${iconClass}"></i>
-                                    <span>${statusText}</span>
+                            `).join('')}
+                        </div>
+                    `;
+
+                    // Desktop view: 5 compact cards in a responsive grid
+                    const desktopHtml = `
+                        <div class="hidden sm:grid sm:grid-cols-5 gap-2 sm:gap-2.5">
+                            ${prayersData.map(({ p, rawStatus, isJ, isA, isQ, statusText, pillClass, iconClass }) => `
+                                <div class="p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-white flex flex-col justify-between min-h-[95px] shadow-2xs">
+                                    <div>
+                                        <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">${p.label}</div>
+                                        <div class="font-black text-xs text-slate-800 mt-0.5">${escapeHtml(p.name)}</div>
+                                    </div>
+                                    <div class="my-1.5 flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-extrabold border ${pillClass} self-start truncate max-w-full">
+                                        <i class="${iconClass} shrink-0"></i>
+                                        <span class="truncate">${escapeHtml(statusText)}</span>
+                                    </div>
+                                    <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 prayer-pill-group w-full justify-between">
+                                        <button type="button" class="btn-stu-log-prayer flex-1 py-1 flex items-center justify-center rounded text-[10px] font-black cursor-pointer transition ${isJ ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-emerald-50'}" data-prayer="${p.key}" data-status="jamaah" title="Jama'ah (+${jamaahPts} pts)">J</button>
+                                        <button type="button" class="btn-stu-log-prayer flex-1 py-1 flex items-center justify-center rounded text-[10px] font-black cursor-pointer transition ${isA ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-blue-50'}" data-prayer="${p.key}" data-status="adaa" title="Ada'a (+${adaaPts} pts)">A</button>
+                                        <button type="button" class="btn-stu-log-prayer flex-1 py-1 flex items-center justify-center rounded text-[10px] font-black cursor-pointer transition ${isQ ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-rose-50'}" data-prayer="${p.key}" data-status="qaza" title="Mark Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">Q</button>
+                                        ${(canEdit && rawStatus !== 'none') ? `
+                                            <button type="button" class="btn-stu-log-prayer px-1.5 py-1 flex items-center justify-center rounded text-[9px] font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Clear Prayer Status">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        ` : ''}
+                                    </div>
                                 </div>
-                                ${actionButtonsHtml}
-                            </div>
-                        `;
-                    }).join('');
+                            `).join('')}
+                        </div>
+                    `;
+
+                    prayersContainer.innerHTML = mobileHtml + desktopHtml;
 
                     if (canEdit) {
                         prayersContainer.querySelectorAll('.btn-stu-log-prayer').forEach((btn) => {
@@ -6229,13 +6281,13 @@ const studentPwa = registerPortalForPwa('student', {
                             const pts = Number(p.points || 5);
 
                             const sunnahActionHtml = canEdit ? `
-                                <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5">
-                                    <button type="button" class="btn-stu-log-sunnah flex-1 py-2 sm:py-1.5 px-3 min-h-[38px] sm:min-h-[32px] text-xs font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${isDone ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200'}" data-sunnah-id="${escapeHtml(p.id)}" data-performed="${isDone ? '0' : '1'}">
+                                <div class="mt-2 pt-1.5 border-t border-slate-100 flex items-center gap-1.5">
+                                    <button type="button" class="btn-stu-log-sunnah flex-1 py-1.5 px-2 text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isDone ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200'}" data-sunnah-id="${escapeHtml(p.id)}" data-performed="${isDone ? '0' : '1'}">
                                         <i class="${isDone ? 'fas fa-check-circle' : 'fas fa-plus-circle'}"></i>
-                                        <span>${isDone ? 'Completed' : 'Mark Performed'} (+${pts} pts)</span>
+                                        <span>${isDone ? 'Done' : 'Mark'} (+${pts})</span>
                                     </button>
                                     ${isDone ? `
-                                        <button type="button" class="btn-stu-log-sunnah py-2 sm:py-1.5 px-2 min-h-[38px] sm:min-h-[32px] text-xs font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-sunnah-id="${escapeHtml(p.id)}" data-performed="0" title="Reset Sunnah">
+                                        <button type="button" class="btn-stu-log-sunnah py-1.5 px-2 text-xs font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-sunnah-id="${escapeHtml(p.id)}" data-performed="0" title="Reset Sunnah">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     ` : ''}
@@ -6243,19 +6295,19 @@ const studentPwa = registerPortalForPwa('student', {
                             ` : '';
 
                             return `
-                                <div class="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${isDone ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-white'} flex flex-col justify-between min-h-[90px] shadow-2xs transition">
-                                    <div class="flex items-start justify-between gap-2">
-                                        <div>
-                                            <div class="text-[9px] sm:text-[10px] font-extrabold text-amber-700 uppercase tracking-wider">Sunnah Prayer</div>
-                                            <div class="font-black text-xs sm:text-sm text-slate-900 mt-0.5">${escapeHtml(p.name)}</div>
+                                <div class="p-2.5 sm:p-3 rounded-xl border ${isDone ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-white'} flex flex-col justify-between shadow-2xs transition">
+                                    <div class="flex items-start justify-between gap-1.5">
+                                        <div class="min-w-0">
+                                            <div class="text-[9px] font-extrabold text-amber-700 uppercase tracking-wider">Sunnah</div>
+                                            <div class="font-black text-xs text-slate-900 truncate mt-0.5">${escapeHtml(p.name)}</div>
                                         </div>
-                                        <span class="text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full ${isDone ? 'bg-amber-200 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 border border-slate-200'}">
+                                        <span class="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${isDone ? 'bg-amber-200 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 border border-slate-200'}">
                                             +${pts} pts
                                         </span>
                                     </div>
-                                    <div class="mt-2 flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-extrabold self-start ${isDone ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
+                                    <div class="mt-1.5 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold self-start ${isDone ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
                                         <i class="${isDone ? 'fas fa-check-double text-amber-600' : 'fas fa-circle-dot text-slate-400'}"></i>
-                                        <span>${isDone ? 'Completed Today' : 'Pending Routine'}</span>
+                                        <span class="truncate">${isDone ? 'Completed' : 'Pending'}</span>
                                     </div>
                                     ${sunnahActionHtml}
                                 </div>
@@ -6344,30 +6396,30 @@ const studentPwa = registerPortalForPwa('student', {
                                     if (!isScheduledToday) {
                                         isEligibleDay = false;
                                         statusHint = isDone
-                                            ? `Completed for this week`
-                                            : `Scheduled for ${t.dayOfWeek} (Locked today)`;
+                                            ? `Completed this week`
+                                            : `Scheduled for ${t.dayOfWeek} (Locked)`;
                                     } else {
-                                        statusHint = isDone ? `Completed for this week` : `Scheduled for today (${t.dayOfWeek})`;
+                                        statusHint = isDone ? `Completed this week` : `Scheduled today (${t.dayOfWeek})`;
                                     }
                                 } else {
-                                    scheduleBadge = 'Weekly (Once a week)';
-                                    statusHint = isDone ? 'Completed (This Week)' : 'Pending weekly task';
+                                    scheduleBadge = 'Weekly (Once)';
+                                    statusHint = isDone ? 'Completed this week' : 'Pending weekly task';
                                 }
                             } else if (taskCadence === 'monthly') {
                                 if (t.dayOfMonth) {
-                                    scheduleBadge = `Scheduled: ${t.dayOfMonth}`;
+                                    scheduleBadge = `Day ${t.dayOfMonth}`;
                                     const isScheduledToday = isMatchingMonthlySchedule(selectedActivityDate, t.dayOfMonth);
                                     if (!isScheduledToday) {
                                         isEligibleDay = false;
                                         statusHint = isDone
-                                            ? `Completed for this month`
-                                            : `Scheduled for ${t.dayOfMonth} (Locked today)`;
+                                            ? `Completed this month`
+                                            : `Scheduled for ${t.dayOfMonth} (Locked)`;
                                     } else {
-                                        statusHint = isDone ? `Completed for this month` : `Scheduled for today (${t.dayOfMonth})`;
+                                        statusHint = isDone ? `Completed this month` : `Scheduled today (${t.dayOfMonth})`;
                                     }
                                 } else {
-                                    scheduleBadge = 'Monthly (Once a month)';
-                                    statusHint = isDone ? 'Completed (This Month)' : 'Pending monthly task';
+                                    scheduleBadge = 'Monthly (Once)';
+                                    statusHint = isDone ? 'Completed this month' : 'Pending monthly task';
                                 }
                             } else {
                                 scheduleBadge = 'Daily';
@@ -6377,20 +6429,20 @@ const studentPwa = registerPortalForPwa('student', {
                             const canToggleThisTask = canEdit && isEligibleDay;
 
                             return `
-                                <div class="p-3 sm:p-3.5 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : (isEligibleDay ? 'border-slate-200 bg-white' : 'border-slate-200/60 bg-slate-50/70')} flex items-center justify-between gap-3 shadow-2xs transition">
-                                    <div class="flex items-center gap-3 min-w-0">
-                                        <input type="checkbox" class="stu-act-task-toggle w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer ${!canToggleThisTask ? 'opacity-50 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" data-cadence="${escapeHtml(taskCadence)}" ${isDone ? 'checked' : ''} ${!canToggleThisTask ? 'disabled' : ''}>
-                                        <div class="min-w-0">
-                                            <div class="flex items-center gap-1.5 flex-wrap">
-                                                <span class="text-xs sm:text-sm font-bold text-slate-800 truncate ${isDone ? 'line-through text-slate-500' : ''}">${escapeHtml(t.title)}</span>
-                                                <span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(taskCadence)}</span>
-                                                ${scheduleBadge ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60">${escapeHtml(scheduleBadge)}</span>` : ''}
+                                <div class="p-2 sm:p-2.5 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : (isEligibleDay ? 'border-slate-200 bg-white' : 'border-slate-200/60 bg-slate-50/70')} flex flex-col justify-between gap-1.5 shadow-2xs transition">
+                                    <div class="flex items-start gap-1.5">
+                                        <input type="checkbox" class="stu-act-task-toggle w-4 h-4 sm:w-4.5 sm:h-4.5 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 ${!canToggleThisTask ? 'opacity-50 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" data-cadence="${escapeHtml(taskCadence)}" ${isDone ? 'checked' : ''} ${!canToggleThisTask ? 'disabled' : ''}>
+                                        <div class="min-w-0 flex-1">
+                                            <h4 class="text-xs font-bold text-slate-800 leading-snug line-clamp-2 ${isDone ? 'line-through text-slate-500' : ''}" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h4>
+                                            <div class="flex items-center gap-1 flex-wrap mt-0.5">
+                                                <span class="text-[8px] sm:text-[9px] font-extrabold uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(taskCadence)}</span>
+                                                ${scheduleBadge ? `<span class="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200/60 truncate max-w-[95px]">${escapeHtml(scheduleBadge)}</span>` : ''}
                                             </div>
-                                            <div class="text-[10px] ${isDone ? 'text-emerald-700 font-bold' : (isEligibleDay ? 'text-slate-400 font-semibold' : 'text-amber-600 font-bold')} mt-0.5">${escapeHtml(statusHint)}</div>
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+                                    <div class="flex items-center justify-between pt-1 border-t border-slate-100 gap-1 mt-auto">
+                                        <span class="text-[8px] sm:text-[9px] truncate ${isDone ? 'text-emerald-700 font-bold' : (isEligibleDay ? 'text-slate-400 font-medium' : 'text-amber-600 font-bold')}">${escapeHtml(statusHint)}</span>
+                                        <span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0 ${isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
                                             +${points} pts
                                         </span>
                                     </div>
