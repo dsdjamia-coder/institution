@@ -3817,7 +3817,7 @@
                 <div>
                     <h4 class="text-xs font-black uppercase tracking-wider text-slate-500 mb-2.5 px-1 flex items-center justify-between">
                         <span>Active Student Portal Tabs (Drag to Reorder)</span>
-                        <span class="text-[10px] font-bold text-slate-400 lowercase">7 tabs total</span>
+                        <span class="text-[10px] font-bold text-slate-400 lowercase">8 tabs total</span>
                     </h4>
                     <div id="stu-portal-tabs-sortable-list" class="space-y-2.5">
                         <!-- Tab 1: Profile & ID Badge -->
@@ -3889,7 +3889,7 @@
                             </label>
                         </div>
 
-                        <!-- Tab 4: Timetable & Syllabus -->
+                        <!-- Tab 4: Timetable Routine -->
                         <div class="stu-portal-sortable-row flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 transition select-none" data-tab-key="timetable" draggable="true">
                             <div class="flex items-center gap-2 sm:gap-3">
                                 <div class="drag-handle cursor-grab active:cursor-grabbing p-1.5 text-slate-400 hover:text-indigo-600 transition flex items-center justify-center shrink-0" title="Drag to reorder">
@@ -3903,13 +3903,37 @@
                                     <i class="fas fa-calendar-days"></i>
                                 </div>
                                 <div>
-                                    <div class="text-xs font-extrabold text-slate-900">Routine Timetable &amp; Syllabus Progress</div>
-                                    <div class="text-[11px] text-slate-500">Daily period timings, assigned teachers &amp; monthly syllabus targets</div>
+                                    <div class="text-xs font-extrabold text-slate-900">Class Timetable Routine</div>
+                                    <div class="text-[11px] text-slate-500">Daily period routine, timings &amp; subject schedules</div>
                                 </div>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="cfg-stu-tab-timetable" class="sr-only peer stu-portal-tab-toggle" checked>
                                 <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Tab 5: Syllabus Plan -->
+                        <div class="stu-portal-sortable-row flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-300 transition select-none" data-tab-key="syllabus" draggable="true">
+                            <div class="flex items-center gap-2 sm:gap-3">
+                                <div class="drag-handle cursor-grab active:cursor-grabbing p-1.5 text-slate-400 hover:text-blue-600 transition flex items-center justify-center shrink-0" title="Drag to reorder">
+                                    <i class="fas fa-grip-vertical text-sm"></i>
+                                </div>
+                                <div class="flex flex-col gap-0.5 shrink-0">
+                                    <button type="button" class="btn-move-tab-up w-5 h-5 rounded flex items-center justify-center text-[10px] text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition" title="Move Up"><i class="fas fa-chevron-up"></i></button>
+                                    <button type="button" class="btn-move-tab-down w-5 h-5 rounded flex items-center justify-center text-[10px] text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition" title="Move Down"><i class="fas fa-chevron-down"></i></button>
+                                </div>
+                                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-sm shrink-0">
+                                    <i class="fas fa-book-open"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-extrabold text-slate-900">Syllabus Plan &amp; Curriculum</div>
+                                    <div class="text-[11px] text-slate-500">Monthly lesson goals, chapters, topics &amp; syllabus progress</div>
+                                </div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="cfg-stu-tab-syllabus" class="sr-only peer stu-portal-tab-toggle" checked>
+                                <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                             </label>
                         </div>
 

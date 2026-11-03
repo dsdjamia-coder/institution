@@ -1142,3 +1142,10 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         }
 
         init();
+
+        if (window.AppSession?.hasStudentSession?.()) {
+            document.querySelectorAll('.login-btn-nav, .main-login-btn').forEach((btn) => {
+                btn.innerHTML = '<i class="fas fa-arrow-left mr-1"></i> Student Portal';
+                btn.title = 'Return to Student Portal';
+            });
+        }

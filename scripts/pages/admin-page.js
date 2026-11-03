@@ -1412,11 +1412,12 @@ const DEFAULT_STUDENT_PORTAL_CONFIG = {
         fees: true,
         attendance: true,
         timetable: true,
+        syllabus: true,
         results: true,
         activities: true,
         publicHome: true
     },
-    order: ['profile', 'fees', 'attendance', 'timetable', 'results', 'activities', 'publicHome']
+    order: ['profile', 'fees', 'attendance', 'timetable', 'syllabus', 'results', 'activities', 'publicHome']
 };
 
 let cachedStudentPortalConfig = { ...DEFAULT_STUDENT_PORTAL_CONFIG };
@@ -1531,6 +1532,7 @@ const openStudentPortalConfigModal = async () => {
     const feeToggle = document.getElementById('cfg-stu-tab-fees');
     const attToggle = document.getElementById('cfg-stu-tab-attendance');
     const ttToggle = document.getElementById('cfg-stu-tab-timetable');
+    const sylToggle = document.getElementById('cfg-stu-tab-syllabus');
     const resToggle = document.getElementById('cfg-stu-tab-results');
     const actToggle = document.getElementById('cfg-stu-tab-activities');
     const pubToggle = document.getElementById('cfg-stu-tab-publicHome');
@@ -1538,6 +1540,7 @@ const openStudentPortalConfigModal = async () => {
     if (feeToggle) feeToggle.checked = tabs.fees !== false;
     if (attToggle) attToggle.checked = tabs.attendance !== false;
     if (ttToggle) ttToggle.checked = tabs.timetable !== false;
+    if (sylToggle) sylToggle.checked = tabs.syllabus !== false;
     if (resToggle) resToggle.checked = tabs.results !== false;
     if (actToggle) actToggle.checked = tabs.activities !== false;
     if (pubToggle) pubToggle.checked = tabs.publicHome !== false;
@@ -1579,6 +1582,7 @@ const saveStudentPortalConfig = async () => {
                 fees: Boolean(document.getElementById('cfg-stu-tab-fees')?.checked),
                 attendance: Boolean(document.getElementById('cfg-stu-tab-attendance')?.checked),
                 timetable: Boolean(document.getElementById('cfg-stu-tab-timetable')?.checked),
+                syllabus: Boolean(document.getElementById('cfg-stu-tab-syllabus')?.checked),
                 results: Boolean(document.getElementById('cfg-stu-tab-results')?.checked),
                 activities: Boolean(document.getElementById('cfg-stu-tab-activities')?.checked),
                 publicHome: Boolean(document.getElementById('cfg-stu-tab-publicHome')?.checked)

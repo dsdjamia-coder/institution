@@ -798,6 +798,9 @@
 
             <!-- Action Buttons -->
             <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" id="btn-open-self-logging" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Enable or disable student self-logging per class">
+                <i class="fas fa-user-pen text-indigo-600"></i> Student Self-Logging
+              </button>
               <button type="button" id="btn-rewards-settings" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Configure custom points and rubric weights">
                 <i class="fas fa-sliders text-amber-600"></i> Rubric &amp; Points Settings
               </button>
@@ -1333,6 +1336,59 @@
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Modal: Student Self-Logging Permissions -->
+  <div id="modal-student-self-logging" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all flex flex-col max-h-[85vh]">
+      <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+            <i class="fas fa-user-pen"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-800">Student Self-Logging Permissions</h3>
+            <p class="text-[11px] text-indigo-700 font-semibold" id="self-logging-role-scope">Configure self-logging for each class</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1.5 rounded-lg hover:bg-white/80 transition cursor-pointer" data-modal="modal-student-self-logging">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-5 space-y-3.5 text-xs overflow-y-auto flex-1">
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-2.5 text-slate-600">
+          <i class="fas fa-info-circle text-indigo-600 mt-0.5 text-sm shrink-0"></i>
+          <div>
+            When enabled for a class, students in that class can log their daily 5 prayers and assigned activity progress directly in their Student Portal. Default is <strong>OFF</strong>.
+          </div>
+        </div>
+
+        <div id="self-logging-admin-actions" class="flex items-center justify-between gap-2 p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100 hidden">
+          <span class="text-[11px] font-bold text-indigo-900">Quick Actions (Admin):</span>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-self-logging-enable-all" class="px-2.5 py-1 bg-white hover:bg-indigo-600 hover:text-white border border-indigo-200 text-indigo-700 rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer">Enable All</button>
+            <button type="button" id="btn-self-logging-disable-all" class="px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer">Disable All</button>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-500 mb-2 px-1">Class Permissions</h4>
+          <div id="self-logging-classes-list" class="space-y-2">
+            <!-- Injected by JS: per-class toggle rows -->
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+        <button type="button" id="btn-save-self-logging" class="py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">
+          Save Permissions
+        </button>
+        <button type="button" class="btn-close-modal py-2.5 px-4 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-student-self-logging">
+          Close
+        </button>
       </div>
     </div>
   </div>

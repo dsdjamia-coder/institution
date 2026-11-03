@@ -61,19 +61,20 @@
             </div>
             
             <ul class="nav-menu" aria-label="Primary navigation">
-                <li><a href="index.html" class="nav-link student-public-nav-link"><i class="fas fa-home text-lg w-6"></i> Home</a></li>
-                <li><a href="index.html#about" class="nav-link student-public-nav-link"><i class="fas fa-circle-info text-lg w-6"></i> About</a></li>
-                <li><a href="index.html#teachers" class="nav-link student-public-nav-link"><i class="fas fa-chalkboard-teacher text-lg w-6"></i> Teachers</a></li>
-                <li><a href="index.html#notices" class="nav-link student-public-nav-link"><i class="fas fa-bullhorn text-lg w-6"></i> Notices</a></li>
-                <li><a href="index.html#gallery" class="nav-link student-public-nav-link"><i class="fas fa-images text-lg w-6"></i> Gallery</a></li>
+                <li><a href="index.html?public=1" class="nav-link student-public-nav-link"><i class="fas fa-home text-lg w-6"></i> Home</a></li>
+                <li><a href="index.html?public=1#about" class="nav-link student-public-nav-link"><i class="fas fa-circle-info text-lg w-6"></i> About</a></li>
+                <li><a href="index.html?public=1#teachers" class="nav-link student-public-nav-link"><i class="fas fa-chalkboard-teacher text-lg w-6"></i> Teachers</a></li>
+                <li><a href="index.html?public=1#notices" class="nav-link student-public-nav-link"><i class="fas fa-bullhorn text-lg w-6"></i> Notices</a></li>
+                <li><a href="index.html?public=1#gallery" class="nav-link student-public-nav-link"><i class="fas fa-images text-lg w-6"></i> Gallery</a></li>
                 <div class="border-t border-gray-100 my-1"></div>
                 <li id="student-nav-home"><a href="#home" class="nav-link tab-link active" data-target="home-page"><i class="fas fa-id-badge text-lg w-6"></i> My Profile</a></li>
                 <li id="student-nav-fees"><a href="#fees" class="nav-link tab-link" data-target="fees-page"><i class="fas fa-file-invoice-dollar text-lg w-6"></i> Fee Details</a></li>
                 <li id="student-nav-attendance"><a href="#attendance" class="nav-link tab-link" data-target="attendance-page"><i class="fas fa-calendar-check text-lg w-6"></i> Attendance</a></li>
-                <li id="student-nav-timetable"><a href="#timetable" class="nav-link tab-link" data-target="timetable-page"><i class="fas fa-calendar-days text-lg w-6"></i> Timetable &amp; Syllabus</a></li>
+                <li id="student-nav-timetable"><a href="#timetable" class="nav-link tab-link" data-target="timetable-page"><i class="fas fa-calendar-days text-lg w-6"></i> Timetable</a></li>
+                <li id="student-nav-syllabus"><a href="#syllabus" class="nav-link tab-link" data-target="syllabus-page"><i class="fas fa-book-open text-lg w-6"></i> Syllabus Plan</a></li>
                 <li id="student-nav-results"><a href="#results" class="nav-link tab-link" data-target="results-page"><i class="fas fa-square-poll-vertical text-lg w-6"></i> <span>Results</span></a></li>
                 <li id="student-nav-activities"><a href="#activities" class="nav-link tab-link" data-target="activities-page"><i class="fas fa-award text-lg w-6"></i> Activities &amp; Badges</a></li>
-                <li id="student-nav-publichome"><a href="index.html" class="nav-link"><i class="fas fa-globe text-lg w-6"></i> Public Page</a></li>
+                <li id="student-nav-publichome"><a href="index.html?public=1" class="nav-link"><i class="fas fa-globe text-lg w-6"></i> Public Page</a></li>
                 <div class="border-t border-gray-100 my-1"></div>
                 <li id="student-install-menu-item" class="hidden"><button type="button" id="student-install-btn" class="nav-link w-full text-left font-bold text-blue-600 hover:bg-blue-50 cursor-pointer"><i class="fas fa-download text-lg w-6"></i> Install App</button></li>
                 <li><button id="student-public-btn" class="login-btn-nav bg-slate-100 hover:bg-slate-200 text-slate-700"><i class="fas fa-home"></i> Public Page</button></li>
@@ -388,6 +389,10 @@
                             <i class="fas fa-calendar-alt text-teal-600 text-xs"></i>
                             <select id="stu-att-year-select" class="text-xs font-bold text-slate-800 bg-transparent outline-none cursor-pointer"></select>
                         </div>
+                        <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                            <i class="fas fa-calendar-day text-teal-600 text-xs"></i>
+                            <select id="stu-att-month-select" class="text-xs font-bold text-slate-800 bg-transparent outline-none cursor-pointer"></select>
+                        </div>
                     </div>
                 </div>
 
@@ -459,29 +464,18 @@
             </div>
         </section>
 
-        <!-- 4. TIMETABLE & SYLLABUS PLAN TAB -->
+        <!-- 4. TIMETABLE PLAN TAB -->
         <section id="timetable-page" class="page-content hidden">
             <div class="content-card p-3.5 sm:p-6 space-y-3.5 sm:space-y-5">
-                <!-- Header with Sub-Tab Switcher -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 pb-2.5 sm:pb-3">
                     <div>
                         <h2 class="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
-                            <i class="fas fa-calendar-days text-indigo-600"></i> Class Timetable &amp; Syllabus
+                            <i class="fas fa-calendar-days text-indigo-600"></i> Class Timetable
                         </h2>
-                        <p class="text-xs text-slate-500 font-semibold mt-0.5">Daily period routine &amp; monthly curriculum progress</p>
-                    </div>
-                    <!-- Sub-tabs: Routine Timetable vs Syllabus Tracker -->
-                    <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold self-start sm:self-auto">
-                        <button type="button" id="btn-stu-subtab-tt" class="px-3 py-1.5 rounded-lg bg-white text-indigo-700 shadow-xs transition font-extrabold cursor-pointer border-none text-xs">
-                            <i class="fas fa-clock mr-1"></i> Routine Timetable
-                        </button>
-                        <button type="button" id="btn-stu-subtab-syllabus" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition font-bold cursor-pointer border-none bg-transparent text-xs">
-                            <i class="fas fa-book-open mr-1"></i> Syllabus Plan
-                        </button>
+                        <p class="text-xs text-slate-500 font-semibold mt-0.5">Daily period routine, timings &amp; subject schedules</p>
                     </div>
                 </div>
 
-                <!-- Sub-view A: Routine Timetable -->
                 <div id="stu-tt-subview" class="space-y-3 sm:space-y-4">
                     <!-- Day of Week Selector Pills -->
                     <div>
@@ -510,9 +504,22 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
 
-                <!-- Sub-view B: Monthly Syllabus Plan & Targets -->
-                <div id="stu-syllabus-subview" class="space-y-3 sm:space-y-4 hidden">
+        <!-- 5. SYLLABUS PLAN TAB -->
+        <section id="syllabus-page" class="page-content hidden">
+            <div class="content-card p-3.5 sm:p-6 space-y-3.5 sm:space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 pb-2.5 sm:pb-3">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <i class="fas fa-book-open text-blue-600"></i> Syllabus Plan &amp; Curriculum
+                        </h2>
+                        <p class="text-xs text-slate-500 font-semibold mt-0.5">Monthly course plan, textbook units &amp; syllabus completion targets</p>
+                    </div>
+                </div>
+
+                <div id="stu-syllabus-subview" class="space-y-3 sm:space-y-4">
                     <!-- Month Selector Pills -->
                     <div>
                         <div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5 sm:mb-2">Academic Month</div>
@@ -525,10 +532,10 @@
                     <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
                         <div class="p-3 sm:p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
                             <div class="flex items-center gap-2">
-                                <i class="fas fa-book-bookmark text-indigo-600 text-xs"></i>
+                                <i class="fas fa-book-bookmark text-blue-600 text-xs"></i>
                                 <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800" id="stu-syllabus-month-heading">Monthly Course Plan</h3>
                             </div>
-                            <span class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full" id="stu-syllabus-portion-count">0 Subjects Planned</span>
+                            <span class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full" id="stu-syllabus-portion-count">0 Subjects Planned</span>
                         </div>
 
                         <div id="stu-syllabus-cards-container" class="p-2.5 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3.5">
@@ -543,9 +550,17 @@
             </div>
         </section>
 
-        <!-- 5. ACTIVITIES & REWARDS TAB -->
+        <!-- 6. ACTIVITIES & REWARDS TAB -->
         <section id="activities-page" class="page-content hidden">
             <div class="content-card p-3.5 sm:p-6 space-y-3.5 sm:space-y-5">
+                <!-- Self-Logging Permission Notice Banner -->
+                <div id="stu-act-logging-status-banner" class="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-xs font-bold flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2">
+                        <i class="fas fa-lock text-slate-400"></i>
+                        <span>Self-logging is currently locked for your class. Records are updated by your class teacher.</span>
+                    </span>
+                </div>
+
                 <!-- Header Banner -->
                 <div class="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                     <div class="space-y-1">
@@ -585,13 +600,26 @@
                         </div>
                         <span class="text-xs text-slate-500 font-bold" id="stu-act-streak-date">Today</span>
                     </div>
-                    <div id="stu-act-prayers-container" class="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-2.5">
-                        <!-- Prayer Status Cards Injected by JS (Fajr, Dhuhr, Asr, Maghrib, Isha) -->
+                    <div id="stu-act-prayers-container" class="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-2.5">
+                        <!-- Prayer Status Cards Injected by JS (Subh, Zuhr, Asr, Maghrib, Isha) -->
                     </div>
                 </div>
-            </div>
-        </section>
-                        <!-- Prayer Status Cards Injected by JS (Fajr, Dhuhr, Asr, Maghrib, Isha) -->
+
+                <!-- Assigned Activities & Daily Tasks Checklist -->
+                <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <div class="p-3 sm:p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-tasks text-amber-600 text-xs"></i>
+                            <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800">Assigned Tasks &amp; Activities</h3>
+                        </div>
+                        <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" id="stu-act-tasks-count">Daily Targets</span>
+                    </div>
+                    <div id="stu-act-tasks-container" class="p-3 sm:p-4 space-y-2 sm:space-y-2.5">
+                        <!-- Task items injected by JS -->
+                    </div>
+                    <div id="stu-act-tasks-empty" class="p-6 text-center text-slate-400 font-bold text-xs hidden">
+                        <i class="fas fa-clipboard-check text-2xl mb-1 text-slate-300"></i>
+                        <p>No activity tasks assigned for today.</p>
                     </div>
                 </div>
             </div>

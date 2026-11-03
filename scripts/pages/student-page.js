@@ -114,6 +114,8 @@ const studentPwa = registerPortalForPwa('student', {
                 renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear || currentAcademicYear || studentProfile.academicYear);
             } else if (safeTargetId === 'timetable-page' && typeof renderStudentTimetableModule === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
                 renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear || currentAcademicYear || studentProfile.academicYear);
+            } else if (safeTargetId === 'syllabus-page' && typeof renderStudentSyllabusModule === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
+                renderStudentSyllabusModule(studentProfile, selectedTimetableAcademicYear || currentAcademicYear || studentProfile.academicYear);
             } else if (safeTargetId === 'activities-page' && typeof renderStudentActivitiesModule === 'function' && typeof studentProfile !== 'undefined' && studentProfile) {
                 renderStudentActivitiesModule(studentProfile);
             }
@@ -4748,16 +4750,17 @@ const studentPwa = registerPortalForPwa('student', {
         // ----------------------------------------------------
         // STUDENT PORTAL MODULAR NAVIGATION & WORKFLOW ENGINE
         // ----------------------------------------------------
-        const DEFAULT_PORTAL_ORDER = ['profile', 'fees', 'attendance', 'timetable', 'results', 'activities', 'publicHome'];
+        const DEFAULT_PORTAL_ORDER = ['profile', 'fees', 'attendance', 'timetable', 'syllabus', 'results', 'activities', 'publicHome'];
 
         const PORTAL_TABS_REGISTRY = [
             { key: 'profile', id: 'home-page', navId: 'student-nav-home', label: 'Profile', icon: 'fas fa-id-badge', moduleKey: null },
             { key: 'fees', id: 'fees-page', navId: 'student-nav-fees', label: 'Fees', icon: 'fas fa-receipt', moduleKey: 'feeCollection' },
             { key: 'attendance', id: 'attendance-page', navId: 'student-nav-attendance', label: 'Attendance', icon: 'fas fa-calendar-check', moduleKey: 'attendance' },
             { key: 'timetable', id: 'timetable-page', navId: 'student-nav-timetable', label: 'Timetable', icon: 'fas fa-calendar-days', moduleKey: 'academicPlan' },
+            { key: 'syllabus', id: 'syllabus-page', navId: 'student-nav-syllabus', label: 'Syllabus', icon: 'fas fa-book-open', moduleKey: 'academicPlan' },
             { key: 'results', id: 'results-page', navId: 'student-nav-results', label: 'Results', icon: 'fas fa-square-poll-vertical', moduleKey: 'resultCenter' },
             { key: 'activities', id: 'activities-page', navId: 'student-nav-activities', label: 'Activities', icon: 'fas fa-award', moduleKey: 'activityTracker' },
-            { key: 'publicHome', id: 'public-home-nav', navId: 'student-nav-publichome', label: 'Public Page', icon: 'fas fa-globe', moduleKey: null, isExternal: true, url: 'index.html' }
+            { key: 'publicHome', id: 'public-home-nav', navId: 'student-nav-publichome', label: 'Public Page', icon: 'fas fa-globe', moduleKey: null, isExternal: true, url: 'index.html?public=1' }
         ];
 
         let cachedStudentPortalConfig = {
@@ -4766,6 +4769,7 @@ const studentPwa = registerPortalForPwa('student', {
                 fees: true,
                 attendance: true,
                 timetable: true,
+                syllabus: true,
                 results: true,
                 activities: true,
                 publicHome: true
@@ -5049,24 +5053,47 @@ const studentPwa = registerPortalForPwa('student', {
                 if (absEl) absEl.textContent = absCount;
                 if (leaveEl) leaveEl.textContent = `${leaveCount} Lv`;
 
-                // Distinct months
-                const monthsSet = new Set();
-                cachedAttendanceDocs.forEach((d) => {
-                    if (d.date && typeof d.date === 'string' && d.date.length >= 7) {
-                        monthsSet.add(d.date.slice(0, 7));
-                    }
+                // Build all months for the selected academic year
+                const yearRecord = getAcademicYearRecord(year) || {};
+                const startMonth = Number.isInteger(Number(yearRecord?.startMonth)) ? Number(yearRecord.startMonth) : 5;
+                const yearParts = String(year).split('-');
+                const startYr = parseInt(yearParts[0], 10) || new Date().getFullYear();
+                const endYr = parseInt(yearParts[1], 10) || (startYr + 1);
+
+                const academicMonthIndices = getAcademicMonthSequence(year);
+                const availableMonths = academicMonthIndices.map((mIdx) => {
+                    const calYear = (mIdx >= startMonth) ? startYr : endYr;
+                    const mNum = String(mIdx + 1).padStart(2, '0');
+                    return `${calYear}-${mNum}`;
                 });
-                const availableMonths = Array.from(monthsSet).sort();
+
                 if (!availableMonths.length) {
                     const nowStr = new Date().toISOString().slice(0, 7);
                     availableMonths.push(nowStr);
                 }
 
+                const currentMonthStr = new Date().toISOString().slice(0, 7);
                 if (!selectedAttendanceMonth || !availableMonths.includes(selectedAttendanceMonth)) {
-                    const currentMonthStr = new Date().toISOString().slice(0, 7);
                     selectedAttendanceMonth = availableMonths.includes(currentMonthStr)
                         ? currentMonthStr
-                        : availableMonths[availableMonths.length - 1];
+                        : availableMonths[0];
+                }
+
+                // Populate and sync Month Select Dropdown
+                const monthSelect = document.getElementById('stu-att-month-select');
+                if (monthSelect) {
+                    monthSelect.innerHTML = availableMonths.map((mStr) => {
+                        const [y, m] = mStr.split('-');
+                        const dt = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+                        const label = dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+                        return `<option value="${mStr}" ${mStr === selectedAttendanceMonth ? 'selected' : ''}>${label}</option>`;
+                    }).join('');
+
+                    monthSelect.onchange = (e) => {
+                        selectedAttendanceMonth = e.target.value;
+                        renderStudentAttendanceMonthPills(availableMonths, selectedAttendanceMonth);
+                        renderStudentAttendanceDailyGrid(selectedAttendanceMonth, profile);
+                    };
                 }
 
                 renderStudentAttendanceMonthPills(availableMonths, selectedAttendanceMonth);
@@ -5079,6 +5106,10 @@ const studentPwa = registerPortalForPwa('student', {
 
         const renderStudentAttendanceMonthPills = (availableMonths, activeMonth) => {
             const container = document.getElementById('stu-att-month-pills');
+            const monthSelect = document.getElementById('stu-att-month-select');
+            if (monthSelect && monthSelect.value !== activeMonth) {
+                monthSelect.value = activeMonth;
+            }
             if (!container) return;
 
             const formatMonthPillLabel = (mStr) => {
@@ -5104,6 +5135,7 @@ const studentPwa = registerPortalForPwa('student', {
             container.querySelectorAll('.stu-att-month-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     selectedAttendanceMonth = btn.dataset.month;
+                    if (monthSelect) monthSelect.value = selectedAttendanceMonth;
                     renderStudentAttendanceMonthPills(availableMonths, selectedAttendanceMonth);
                     renderStudentAttendanceDailyGrid(selectedAttendanceMonth, studentProfile);
                 });
@@ -5300,25 +5332,52 @@ const studentPwa = registerPortalForPwa('student', {
             const ttDocId = `${cleanY}__${cleanC}`;
 
             try {
-                const [tSnap, structSnap, subjSnap, ypSnap] = await Promise.all([
+                const [tSnap, structSnap, subjSnap] = await Promise.all([
                     getDoc(doc(db, `${BASE_PATH}/timetables`, ttDocId)).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/settings`, 'timetableStructure')).catch(() => null),
-                    getDoc(doc(db, `${BASE_PATH}/classSubjects`, ttDocId)).catch(() => null),
-                    getDoc(doc(db, `${BASE_PATH}/yearPlans`, ttDocId)).catch(() => null)
+                    getDoc(doc(db, `${BASE_PATH}/classSubjects`, ttDocId)).catch(() => null)
                 ]);
 
                 cachedTimetableDoc = tSnap?.exists() ? tSnap.data() : null;
                 cachedStructureDoc = structSnap?.exists() ? structSnap.data() : null;
                 cachedClassSubjects = subjSnap?.exists() && Array.isArray(subjSnap.data().subjects) ? subjSnap.data().subjects : [];
-                cachedYearPlanDoc = ypSnap?.exists() ? ypSnap.data() : null;
 
                 renderTimetableDayPills();
                 renderTimetablePeriodsForDay(selectedTimetableDay);
+
+            } catch (err) {
+                console.warn('Could not load student timetable:', err);
+            }
+        };
+
+        const renderStudentSyllabusModule = async (profile, targetYear = '') => {
+            const pageEl = document.getElementById('syllabus-page');
+            if (!pageEl || !profile) return;
+
+            const year = targetYear || currentAcademicYear || profile.academicYear || '--';
+            selectedTimetableAcademicYear = year;
+            const classLabel = profile.class || '';
+
+            const cleanY = String(year).trim().replace(/[^\w-]/g, '_');
+            const cleanC = String(classLabel).trim().replace(/[^\w-]/g, '_');
+            const ttDocId = `${cleanY}__${cleanC}`;
+
+            try {
+                const [ypSnap, subjSnap] = await Promise.all([
+                    getDoc(doc(db, `${BASE_PATH}/yearPlans`, ttDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/classSubjects`, ttDocId)).catch(() => null)
+                ]);
+
+                cachedYearPlanDoc = ypSnap?.exists() ? ypSnap.data() : null;
+                if (subjSnap?.exists() && Array.isArray(subjSnap.data().subjects)) {
+                    cachedClassSubjects = subjSnap.data().subjects;
+                }
+
                 renderSyllabusMonthPills();
                 renderSyllabusCards();
 
             } catch (err) {
-                console.warn('Could not load student timetable and syllabus:', err);
+                console.warn('Could not load student syllabus plan:', err);
             }
         };
 
@@ -5537,8 +5596,14 @@ const studentPwa = registerPortalForPwa('student', {
         };
 
         // ----------------------------------------------------
+        // ----------------------------------------------------
         // MODULE: PERSONALIZED ACTIVITIES, REWARDS & STREAKS
         // ----------------------------------------------------
+        const studentActivitiesState = {
+            savingPrayer: false,
+            savingTask: false
+        };
+
         const renderStudentActivitiesModule = async (profile) => {
             const pageEl = document.getElementById('activities-page');
             if (!pageEl || !profile) return;
@@ -5553,13 +5618,45 @@ const studentPwa = registerPortalForPwa('student', {
             const cleanY = String(currentAcademicYear || profile.academicYear || '').trim().replace(/[^\w-]/g, '_');
             const cleanC = String(profile.class || '').trim().replace(/[^\w-]/g, '_');
             const prayerDocId = `${cleanY}__${cleanC}__${todayDate}`;
+            const tasksDocId = `${cleanY}__${cleanC}__${todayDate}__daily`;
 
             try {
-                const [customBadgesSnap, bonusSnap, prayerSnap] = await Promise.all([
+                const [customBadgesSnap, bonusSnap, prayerSnap, actConfigSnap, taskDefsSnap, taskCompsSnap] = await Promise.all([
                     getDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, profile.id)).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, profile.id)).catch(() => null),
-                    getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId)).catch(() => null)
+                    getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig')).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions')).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, tasksDocId)).catch(() => null)
                 ]);
+
+                // 0. Check Self-Logging Permission for Student's Class
+                const actConfigData = actConfigSnap?.exists() ? actConfigSnap.data() : {};
+                const isSelfLoggingAllowed = Boolean(actConfigData?.studentSelfLoggingByClass?.[profile.class]);
+
+                // Update Status Banner
+                const statusBanner = document.getElementById('stu-act-logging-status-banner');
+                if (statusBanner) {
+                    if (isSelfLoggingAllowed) {
+                        statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center justify-between gap-2';
+                        statusBanner.innerHTML = `
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-lock-open text-emerald-600"></i>
+                                <span>Self-Logging Unlocked: You can record your daily prayers and tasks for today.</span>
+                            </span>
+                            <span class="px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded-full text-[10px] uppercase tracking-wider font-extrabold">Active</span>
+                        `;
+                    } else {
+                        statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-xs font-bold flex items-center justify-between gap-2';
+                        statusBanner.innerHTML = `
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-lock text-slate-400"></i>
+                                <span>Self-logging is locked for Class ${escapeHtml(profile.class)}. Daily records are reviewed and logged by your teachers.</span>
+                            </span>
+                            <span class="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] uppercase tracking-wider font-extrabold">Read Only</span>
+                        `;
+                    }
+                }
 
                 const customBadgesList = customBadgesSnap?.exists() && Array.isArray(customBadgesSnap.data().badges)
                     ? customBadgesSnap.data().badges
@@ -5572,6 +5669,19 @@ const studentPwa = registerPortalForPwa('student', {
                 const prayerDoc = prayerSnap?.exists() ? prayerSnap.data() : null;
                 const studentPrayerRecord = prayerDoc?.records?.[profile.id] || {};
 
+                // Task definitions & today's completions
+                const rawTasks = taskDefsSnap?.exists() && Array.isArray(taskDefsSnap.data().tasks)
+                    ? taskDefsSnap.data().tasks
+                    : [
+                        { id: 'task_d1', title: 'Morning Adhkar & Duas', cadence: 'daily', points: 5 },
+                        { id: 'task_d2', title: 'Uniform & Personal Cleanliness', cadence: 'daily', points: 5 },
+                        { id: 'task_d3', title: 'Class Kit & Books Prepared', cadence: 'daily', points: 5 }
+                    ];
+                const dailyTasksList = rawTasks.filter(t => t.cadence === 'daily' || !t.cadence);
+
+                const taskCompsDoc = taskCompsSnap?.exists() ? taskCompsSnap.data() : null;
+                const studentTaskCompletions = taskCompsDoc?.completions?.[profile.id] || {};
+
                 // 1. Calculate Aggregate Points
                 const attendancePts = (studentAttendanceStats.presentDays || 0) * 5;
                 const bonusPts = bonusPointsList.reduce((acc, b) => acc + (Number(b.points) || 0), 0);
@@ -5583,7 +5693,17 @@ const studentPwa = registerPortalForPwa('student', {
                 });
                 const prayerPts = prayerCompletedCount * 10;
 
-                const totalPoints = attendancePts + bonusPts + prayerPts;
+                // Daily tasks points
+                let taskPoints = 0;
+                let taskCompletedCount = 0;
+                dailyTasksList.forEach(task => {
+                    if (studentTaskCompletions[task.id]) {
+                        taskPoints += (Number(task.points) || 5);
+                        taskCompletedCount++;
+                    }
+                });
+
+                const totalPoints = attendancePts + bonusPts + prayerPts + taskPoints;
 
                 // Update Points and Tier Badge
                 const ptsEl = document.getElementById('stu-act-total-points');
@@ -5613,6 +5733,9 @@ const studentPwa = registerPortalForPwa('student', {
                 if (prayerCompletedCount >= 3) {
                     earnedBadges.push({ title: 'Prayer Champion', icon: 'fas fa-hands-praying', color: 'indigo', note: 'Consistent Daily Prayers' });
                 }
+                if (taskCompletedCount >= 2) {
+                    earnedBadges.push({ title: 'Daily Diligence', icon: 'fas fa-clipboard-check', color: 'emerald', note: 'Routine Habits Completed' });
+                }
                 if (studentResultsCache.length > 0) {
                     earnedBadges.push({ title: 'Academic Scholar', icon: 'fas fa-graduation-cap', color: 'blue', note: 'Curriculum Assessment Achiever' });
                 }
@@ -5638,6 +5761,7 @@ const studentPwa = registerPortalForPwa('student', {
                         rose: 'border-rose-200 bg-rose-50/70 text-rose-700',
                         indigo: 'border-indigo-200 bg-indigo-50/70 text-indigo-700',
                         blue: 'border-blue-200 bg-blue-50/70 text-blue-700',
+                        emerald: 'border-emerald-200 bg-emerald-50/70 text-emerald-700',
                         violet: 'border-purple-200 bg-purple-50/70 text-purple-700'
                     };
 
@@ -5666,7 +5790,7 @@ const studentPwa = registerPortalForPwa('student', {
                     ];
 
                     prayersContainer.innerHTML = PRAYERS_LIST.map((p) => {
-                        const rawStatus = studentPrayerRecord[p.key];
+                        const rawStatus = studentPrayerRecord[p.key] || 'none';
                         let statusText = 'Pending';
                         let pillClass = 'bg-slate-100 text-slate-600 border-slate-200';
                         let iconClass = 'fas fa-circle-dot text-slate-400';
@@ -5685,6 +5809,25 @@ const studentPwa = registerPortalForPwa('student', {
                             iconClass = 'fas fa-clock-rotate-left text-amber-600';
                         }
 
+                        const actionButtonsHtml = isSelfLoggingAllowed ? `
+                            <div class="mt-2 pt-2 border-t border-slate-100 flex flex-wrap gap-1">
+                                <button type="button" class="btn-stu-log-prayer flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg transition ${rawStatus === 'jamaah' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-emerald-50 text-slate-700'}" data-prayer="${p.key}" data-status="jamaah" title="Mark Jama'ah">
+                                    Jama'ah
+                                </button>
+                                <button type="button" class="btn-stu-log-prayer flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg transition ${rawStatus === 'adaa' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-blue-50 text-slate-700'}" data-prayer="${p.key}" data-status="adaa" title="Mark Ada'a">
+                                    Ada'a
+                                </button>
+                                <button type="button" class="btn-stu-log-prayer flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg transition ${rawStatus === 'qaza' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-amber-50 text-slate-700'}" data-prayer="${p.key}" data-status="qaza" title="Mark Qaza">
+                                    Qaza
+                                </button>
+                                ${rawStatus !== 'none' ? `
+                                    <button type="button" class="btn-stu-log-prayer p-1 text-[10px] font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" data-prayer="${p.key}" data-status="none" title="Reset / Clear">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        ` : '';
+
                         return `
                             <div class="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[72px] sm:min-h-[90px] shadow-2xs">
                                 <div>
@@ -5695,9 +5838,117 @@ const studentPwa = registerPortalForPwa('student', {
                                     <i class="${iconClass}"></i>
                                     <span>${statusText}</span>
                                 </div>
+                                ${actionButtonsHtml}
                             </div>
                         `;
                     }).join('');
+
+                    if (isSelfLoggingAllowed) {
+                        prayersContainer.querySelectorAll('.btn-stu-log-prayer').forEach((btn) => {
+                            btn.addEventListener('click', async () => {
+                                const targetPrayer = btn.getAttribute('data-prayer');
+                                const targetStatus = btn.getAttribute('data-status');
+                                if (!targetPrayer || !targetStatus || studentActivitiesState.savingPrayer) return;
+
+                                studentActivitiesState.savingPrayer = true;
+                                btn.disabled = true;
+
+                                try {
+                                    const updatedPrayerRecord = { ...studentPrayerRecord, [targetPrayer]: targetStatus };
+                                    const allRecords = prayerDoc?.records || {};
+                                    allRecords[profile.id] = updatedPrayerRecord;
+
+                                    await setDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId), {
+                                        academicYear: cleanY,
+                                        class: cleanC,
+                                        date: todayDate,
+                                        records: allRecords,
+                                        updatedAt: Date.now()
+                                    }, { merge: true });
+
+                                    await renderStudentActivitiesModule(profile);
+                                } catch (pErr) {
+                                    console.error('Failed to log prayer:', pErr);
+                                    alert('Failed to save prayer update: ' + (pErr?.message || pErr));
+                                } finally {
+                                    studentActivitiesState.savingPrayer = false;
+                                }
+                            });
+                        });
+                    }
+                }
+
+                // 4. Render Daily Tasks & Activities
+                const tasksContainer = document.getElementById('stu-act-tasks-container');
+                const tasksCountEl = document.getElementById('stu-act-tasks-count');
+                const tasksEmptyEl = document.getElementById('stu-act-tasks-empty');
+
+                if (tasksCountEl) {
+                    tasksCountEl.textContent = `${taskCompletedCount}/${dailyTasksList.length} Done`;
+                }
+
+                if (tasksContainer) {
+                    if (dailyTasksList.length === 0) {
+                        tasksContainer.innerHTML = '';
+                        if (tasksEmptyEl) tasksEmptyEl.classList.remove('hidden');
+                    } else {
+                        if (tasksEmptyEl) tasksEmptyEl.classList.add('hidden');
+                        tasksContainer.innerHTML = dailyTasksList.map((t) => {
+                            const isDone = Boolean(studentTaskCompletions[t.id]);
+                            const points = Number(t.points) || 5;
+
+                            return `
+                                <div class="p-2.5 sm:p-3 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'} flex items-center justify-between gap-3 shadow-2xs transition">
+                                    <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                                        <input type="checkbox" class="stu-act-task-toggle w-4 h-4 sm:w-5 sm:h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer ${!isSelfLoggingAllowed ? 'opacity-60 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" ${isDone ? 'checked' : ''} ${!isSelfLoggingAllowed ? 'disabled' : ''}>
+                                        <div class="min-w-0">
+                                            <div class="text-xs sm:text-sm font-bold text-slate-800 truncate ${isDone ? 'line-through text-slate-500' : ''}">${escapeHtml(t.title)}</div>
+                                            <div class="text-[10px] text-slate-400 font-semibold">${isDone ? 'Completed today' : 'Pending routine task'}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+                                            +${points} pts
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+
+                        if (isSelfLoggingAllowed) {
+                            tasksContainer.querySelectorAll('.stu-act-task-toggle').forEach((chk) => {
+                                chk.addEventListener('change', async () => {
+                                    const taskId = chk.getAttribute('data-task-id');
+                                    if (!taskId || studentActivitiesState.savingTask) return;
+
+                                    studentActivitiesState.savingTask = true;
+                                    chk.disabled = true;
+
+                                    try {
+                                        const updatedComps = { ...studentTaskCompletions, [taskId]: chk.checked };
+                                        const allComps = taskCompsDoc?.completions || {};
+                                        allComps[profile.id] = updatedComps;
+
+                                        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, tasksDocId), {
+                                            academicYear: cleanY,
+                                            class: cleanC,
+                                            date: todayDate,
+                                            completions: allComps,
+                                            updatedAt: Date.now()
+                                        }, { merge: true });
+
+                                        await renderStudentActivitiesModule(profile);
+                                    } catch (tErr) {
+                                        console.error('Failed to log task:', tErr);
+                                        alert('Failed to save task update: ' + (tErr?.message || tErr));
+                                        chk.checked = !chk.checked;
+                                    } finally {
+                                        studentActivitiesState.savingTask = false;
+                                    }
+                                });
+                            });
+                        }
+                    }
                 }
 
             } catch (err) {
@@ -5794,6 +6045,7 @@ const studentPwa = registerPortalForPwa('student', {
                         renderStudentResults(studentProfile, studentResultsCache, selectedResultAcademicYear);
                         renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear);
                         renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear);
+                        renderStudentSyllabusModule(studentProfile, selectedTimetableAcademicYear);
                         renderStudentActivitiesModule(studentProfile);
                     }
                 });
@@ -5936,6 +6188,7 @@ const studentPwa = registerPortalForPwa('student', {
                 renderStudentFeeDetails(studentProfile, selectedFeeAcademicYear);
                 renderStudentAttendanceModule(studentProfile, selectedAttendanceAcademicYear);
                 renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear);
+                renderStudentSyllabusModule(studentProfile, selectedTimetableAcademicYear);
                 renderStudentActivitiesModule(studentProfile);
                 dismissLoader();
 
@@ -6018,6 +6271,9 @@ const studentPwa = registerPortalForPwa('student', {
                         }
                         if (typeof renderStudentTimetableModule === 'function') {
                             renderStudentTimetableModule(studentProfile, selectedTimetableAcademicYear);
+                        }
+                        if (typeof renderStudentSyllabusModule === 'function') {
+                            renderStudentSyllabusModule(studentProfile, selectedTimetableAcademicYear);
                         }
                         if (typeof renderStudentActivitiesModule === 'function') {
                             renderStudentActivitiesModule(studentProfile);

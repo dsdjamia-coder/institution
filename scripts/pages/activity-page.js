@@ -1530,6 +1530,109 @@ const saveRewardsRubric = async () => {
     }
 };
 
+// --- Student Self-Logging Class Permissions ---
+let cachedSelfLoggingByClass = {};
+
+const openStudentSelfLoggingModal = async () => {
+    try {
+        const snap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'));
+        cachedSelfLoggingByClass = snap.exists() && typeof snap.data().studentSelfLoggingByClass === 'object'
+            ? { ...snap.data().studentSelfLoggingByClass }
+            : {};
+    } catch (e) {
+        console.warn('Could not load activity config:', e);
+    }
+
+    const container = document.getElementById('self-logging-classes-list');
+    const adminActions = document.getElementById('self-logging-admin-actions');
+    const roleScope = document.getElementById('self-logging-role-scope');
+
+    // Determine manageable classes
+    let targetClasses = [];
+    if (isSuperAdmin) {
+        targetClasses = [...allClasses];
+        if (adminActions) adminActions.classList.remove('hidden');
+        if (roleScope) roleScope.textContent = 'Administrator Scope: All Classes';
+    } else {
+        targetClasses = (teacherAssignedClasses && teacherAssignedClasses.length)
+            ? [...teacherAssignedClasses]
+            : [...allClasses];
+        if (adminActions) adminActions.classList.add('hidden');
+        if (roleScope) roleScope.textContent = `Staff Scope: ${targetClasses.length} Assigned Class(es)`;
+    }
+
+    targetClasses.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    if (container) {
+        if (!targetClasses.length) {
+            container.innerHTML = '<div class="p-6 text-center text-slate-400 font-bold">No classes available for management.</div>';
+        } else {
+            container.innerHTML = targetClasses.map(cName => {
+                const isChecked = cachedSelfLoggingByClass[cName] === true;
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 transition select-none">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-xs">
+                                ${escapeHtml(cName)}
+                            </div>
+                            <div>
+                                <div class="font-extrabold text-xs text-slate-900">Class ${escapeHtml(cName)}</div>
+                                <div class="text-[10px] text-slate-500 font-semibold self-logging-status-lbl-${escapeHtml(cName)}">
+                                    ${isChecked ? '<span class="text-emerald-700 font-bold">Self-Logging Allowed</span>' : '<span class="text-slate-400 font-bold">Locked (Teacher only)</span>'}
+                                </div>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer self-logging-class-toggle" data-class="${escapeHtml(cName)}" ${isChecked ? 'checked' : ''}>
+                            <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    openModal('modal-student-self-logging');
+};
+
+const saveStudentSelfLoggingConfig = async () => {
+    const saveBtn = document.getElementById('btn-save-self-logging');
+    const originalText = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+    }
+
+    try {
+        const toggles = document.querySelectorAll('.self-logging-class-toggle');
+        const updatedSelfLogging = { ...cachedSelfLoggingByClass };
+        toggles.forEach(toggle => {
+            const cName = toggle.dataset.class;
+            if (cName) {
+                updatedSelfLogging[cName] = Boolean(toggle.checked);
+            }
+        });
+
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'), {
+            studentSelfLoggingByClass: updatedSelfLogging,
+            updatedAt: Date.now(),
+            updatedBy: currentUserKey || currentStaffName
+        }, { merge: true });
+
+        cachedSelfLoggingByClass = updatedSelfLogging;
+        closeModal('modal-student-self-logging');
+        showToast('Student self-logging permissions saved!', 'success');
+    } catch (err) {
+        console.error('Failed to save self-logging:', err);
+        alert('Failed to save permissions: ' + (err.message || err));
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+        }
+    }
+};
+
 const loadRewardsLeaderboard = async () => {
     await loadRewardsRubric();
 
@@ -2331,6 +2434,14 @@ const setupEventListeners = () => {
     });
     document.getElementById('btn-rewards-settings')?.addEventListener('click', openRewardsSettingsModal);
     document.getElementById('btn-save-rewards-settings')?.addEventListener('click', saveRewardsRubric);
+    document.getElementById('btn-open-self-logging')?.addEventListener('click', openStudentSelfLoggingModal);
+    document.getElementById('btn-save-self-logging')?.addEventListener('click', saveStudentSelfLoggingConfig);
+    document.getElementById('btn-self-logging-enable-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.self-logging-class-toggle').forEach(t => { t.checked = true; });
+    });
+    document.getElementById('btn-self-logging-disable-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.self-logging-class-toggle').forEach(t => { t.checked = false; });
+    });
     document.getElementById('btn-open-award-points')?.addEventListener('click', () => openModal('modal-award-points'));
     document.getElementById('btn-submit-award-points')?.addEventListener('click', awardBonusPoints);
     document.getElementById('btn-print-leaderboard')?.addEventListener('click', () => window.print());
