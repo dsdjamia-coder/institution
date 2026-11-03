@@ -2148,4 +2148,21 @@ html[data-session-guard="result"] .page-content {
     transform: scale(0.96);
 }
 
+/* Responsive visibility for student 5 Fard Prayers */
+.stu-prayer-mobile-view {
+    display: block;
+}
+.stu-prayer-desktop-view {
+    display: none;
+}
+@media (min-width: 640px) {
+    .stu-prayer-mobile-view {
+        display: none !important;
+    }
+    .stu-prayer-desktop-view {
+        display: grid !important;
+    }
+}
+
+
 

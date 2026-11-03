@@ -6055,118 +6055,160 @@ const studentPwa = registerPortalForPwa('student', {
                     }
                 }
 
-                // 2b. Evaluate Configured Scope (Daily, Weekly, Monthly, Academic Year)
-                const configuredPointsScope = actConfigData?.pointsScope || 'daily';
+                // 2b. Calculate Scores Across All 3 Tiers (Daily, Monthly, Total/Yearly)
                 const configuredWeeklyResetDay = actConfigData?.weeklyResetDay || 'sunday';
                 const configuredMonthlyResetDay = Number(actConfigData?.monthlyResetDay || 1);
 
-                const periodInfo = getPeriodDateRange(configuredPointsScope, {
-                    weeklyResetDay: configuredWeeklyResetDay,
+                const monthRange = getPeriodDateRange('monthly', {
                     monthlyResetDay: configuredMonthlyResetDay,
                     referenceDate: selectedActivityDate
                 });
 
-                const scopeLabelEl = document.getElementById('stu-act-points-scope-label');
-                const cadenceSubEl = document.getElementById('stu-act-points-cadence-sub');
-
-                if (scopeLabelEl) {
-                    if (configuredPointsScope === 'daily') scopeLabelEl.textContent = 'Daily Score';
-                    else if (configuredPointsScope === 'weekly') scopeLabelEl.textContent = 'Weekly Score';
-                    else if (configuredPointsScope === 'monthly') scopeLabelEl.textContent = 'Monthly Score';
-                    else scopeLabelEl.textContent = 'Session Score';
-                }
-
-                if (cadenceSubEl) {
-                    if (configuredPointsScope === 'daily') cadenceSubEl.textContent = '24-hr score';
-                    else if (configuredPointsScope === 'weekly') cadenceSubEl.textContent = `Resets ${configuredWeeklyResetDay}`;
-                    else if (configuredMonthlyResetDay && configuredPointsScope === 'monthly') cadenceSubEl.textContent = `Resets day ${configuredMonthlyResetDay}`;
-                    else cadenceSubEl.textContent = 'Academic Year';
-                }
-
-                let cumulativePeriodPoints = totalPoints;
-                if (configuredPointsScope !== 'daily') {
+                // Ensure attendance docs are available for period calculations
+                if (!cachedAttendanceDocs || cachedAttendanceDocs.length === 0) {
                     try {
-                        const [rangeIbadahSnap, rangeTasksSnap] = await Promise.all([
-                            getDocs(collection(db, `${BASE_PATH}/ibadah`)),
-                            getDocs(collection(db, `${BASE_PATH}/taskCompletions`))
-                        ]);
+                        const attSnap = await getDocs(query(
+                            collection(db, `${BASE_PATH}/attendance`),
+                            where('classLabel', '==', profile.class || '')
+                        ));
+                        cachedAttendanceDocs = attSnap.docs.map(d => d.data());
+                    } catch (_) {}
+                }
 
-                        let rangePrayerPts = 0;
-                        rangeIbadahSnap.docs.forEach(dSnap => {
-                            const d = dSnap.data();
-                            const parts = dSnap.id.split('__');
-                            const itemYear = d.academicYear || parts[0];
-                            const itemClass = d.class || parts[1];
-                            const itemDate = d.date || parts[2];
-                            if (
-                                itemYear === cleanY &&
-                                itemClass === cleanC &&
-                                itemDate >= periodInfo.startDate &&
-                                itemDate <= periodInfo.endDate
-                            ) {
-                                const sRec = d.records?.[profile.id];
-                                if (!sRec) return;
-                                ['subh', 'zuhr', 'asr', 'maghrib', 'isha'].forEach(pKey => {
-                                    const pSt = sRec[pKey];
-                                    if (pSt === 'jamaah' || pSt === 'J') rangePrayerPts += jamaahPts;
-                                    else if (pSt === 'adaa' || pSt === 'A') rangePrayerPts += adaaPts;
-                                    else if (pSt === 'qaza' || pSt === 'Q') rangePrayerPts += qazaPts;
-                                });
-                                customPrayersList.forEach(p => {
-                                    const st = sRec[p.id] || sRec[p.name?.toLowerCase()] || sRec[p.name];
-                                    if (st === 'performed' || st === 'done' || st === 'jamaah' || st === 'J' || st === 'adaa' || st === 'A') {
-                                        rangePrayerPts += Number(p.points || 5);
-                                    }
-                                });
+                // Attendance Points across Daily, Monthly, and Yearly
+                const attRubricPts = Number(rubricData.attendance ?? 5);
+                let dailyAttPts = 0;
+                let monthlyAttPts = 0;
+                const yearlyAttPts = (studentAttendanceStats.presentDays || 0) * attRubricPts;
+
+                cachedAttendanceDocs.forEach((d) => {
+                    if (d.isHoliday || !d.date) return;
+                    const rec = d.records?.[profile.id];
+                    const rawSt = typeof rec === 'object' ? rec?.status : rec;
+                    const st = rawSt === 'E' ? 'L' : rawSt;
+                    if (st === 'P') {
+                        if (d.date === selectedActivityDate) dailyAttPts = attRubricPts;
+                        if (d.date >= monthRange.startDate && d.date <= monthRange.endDate) {
+                            monthlyAttPts += attRubricPts;
+                        }
+                    }
+                });
+
+                // Bonus Points across Daily, Monthly, and Yearly
+                const dailyBonusPts = bonusPointsList
+                    .filter(b => b.date === selectedActivityDate)
+                    .reduce((acc, b) => acc + (Number(b.points) || 0), 0);
+
+                const monthlyBonusPts = bonusPointsList
+                    .filter(b => (!b.date || (b.date >= monthRange.startDate && b.date <= monthRange.endDate)))
+                    .reduce((acc, b) => acc + (Number(b.points) || 0), 0);
+
+                const yearlyBonusPts = bonusPointsList
+                    .reduce((acc, b) => acc + (Number(b.points) || 0), 0);
+
+                // Prayer & Task Points across Range
+                let monthlyPrayerPts = 0;
+                let yearlyPrayerPts = 0;
+                let monthlyTasksPts = 0;
+                let yearlyTasksPts = 0;
+
+                try {
+                    const [rangeIbadahSnap, rangeTasksSnap] = await Promise.all([
+                        getDocs(collection(db, `${BASE_PATH}/ibadah`)),
+                        getDocs(collection(db, `${BASE_PATH}/taskCompletions`))
+                    ]);
+
+                    rangeIbadahSnap.docs.forEach(dSnap => {
+                        const d = dSnap.data();
+                        const parts = dSnap.id.split('__');
+                        const itemYear = d.academicYear || parts[0];
+                        const itemClass = d.class || parts[1];
+                        const itemDate = d.date || parts[2];
+                        if (itemYear === cleanY && itemClass === cleanC) {
+                            const sRec = d.records?.[profile.id];
+                            if (!sRec) return;
+                            let docPrayerPts = 0;
+                            ['subh', 'zuhr', 'asr', 'maghrib', 'isha'].forEach(pKey => {
+                                const pSt = sRec[pKey];
+                                if (pSt === 'jamaah' || pSt === 'J') docPrayerPts += jamaahPts;
+                                else if (pSt === 'adaa' || pSt === 'A') docPrayerPts += adaaPts;
+                                else if (pSt === 'qaza' || pSt === 'Q') docPrayerPts += qazaPts;
+                            });
+                            customPrayersList.forEach(p => {
+                                const st = sRec[p.id] || sRec[p.name?.toLowerCase()] || sRec[p.name];
+                                if (st === 'performed' || st === 'done' || st === 'jamaah' || st === 'J' || st === 'adaa' || st === 'A') {
+                                    docPrayerPts += Number(p.points || 5);
+                                }
+                            });
+
+                            yearlyPrayerPts += docPrayerPts;
+                            if (itemDate >= monthRange.startDate && itemDate <= monthRange.endDate) {
+                                monthlyPrayerPts += docPrayerPts;
                             }
-                        });
+                        }
+                    });
 
-                        let rangeTasksPts = 0;
-                        rangeTasksSnap.docs.forEach(dSnap => {
-                            const d = dSnap.data();
-                            const parts = dSnap.id.split('__');
-                            const itemYear = d.academicYear || parts[0];
-                            const itemClass = d.class || parts[1];
-                            const itemPeriod = d.period || parts[2];
-                            const itemCadence = d.cadence || parts[3] || 'daily';
-                            if (itemYear === cleanY && itemClass === cleanC) {
-                                let inRange = false;
-                                if (itemCadence === 'daily') inRange = (itemPeriod >= periodInfo.startDate && itemPeriod <= periodInfo.endDate);
-                                else if (itemCadence === 'weekly') inRange = (configuredPointsScope !== 'daily');
-                                else if (itemCadence === 'monthly') inRange = (configuredPointsScope === 'monthly' || configuredPointsScope === 'yearly');
-                                else inRange = true;
-
-                                if (inRange) {
-                                    const comps = d.completions?.[profile.id];
-                                    if (comps) {
-                                        Object.keys(comps).forEach(tId => {
-                                            if (comps[tId]) {
-                                                const tDef = rawTasks.find(t => t.id === tId);
-                                                rangeTasksPts += Number(tDef?.points || 5);
-                                            }
-                                        });
+                    rangeTasksSnap.docs.forEach(dSnap => {
+                        const d = dSnap.data();
+                        const parts = dSnap.id.split('__');
+                        const itemYear = d.academicYear || parts[0];
+                        const itemClass = d.class || parts[1];
+                        const itemPeriod = d.period || parts[2];
+                        const itemCadence = d.cadence || parts[3] || 'daily';
+                        if (itemYear === cleanY && itemClass === cleanC) {
+                            const comps = d.completions?.[profile.id];
+                            if (comps) {
+                                let docTaskPts = 0;
+                                Object.keys(comps).forEach(tId => {
+                                    if (comps[tId]) {
+                                        const tDef = rawTasks.find(t => t.id === tId);
+                                        docTaskPts += Number(tDef?.points || 5);
                                     }
+                                });
+
+                                yearlyTasksPts += docTaskPts;
+
+                                let inMonth = false;
+                                if (itemCadence === 'daily') {
+                                    inMonth = (itemPeriod >= monthRange.startDate && itemPeriod <= monthRange.endDate);
+                                } else if (itemCadence === 'weekly') {
+                                    inMonth = (itemPeriod >= monthRange.startDate.slice(0, 7));
+                                } else if (itemCadence === 'monthly') {
+                                    inMonth = (itemPeriod === monthRange.periodKey || itemPeriod.startsWith(monthRange.periodKey.slice(0, 7)));
+                                } else {
+                                    inMonth = true;
+                                }
+
+                                if (inMonth) {
+                                    monthlyTasksPts += docTaskPts;
                                 }
                             }
-                        });
-
-                        cumulativePeriodPoints = attendancePts + bonusPts + (isPrayerTrackingEnabled ? rangePrayerPts : 0) + rangeTasksPts;
-                    } catch (rangeErr) {
-                        console.warn('Could not compute range points:', rangeErr);
-                    }
+                        }
+                    });
+                } catch (rangeErr) {
+                    console.warn('Could not compute range points:', rangeErr);
                 }
 
-                const finalDisplayPoints = (configuredPointsScope === 'daily') ? totalPoints : cumulativePeriodPoints;
+                // Daily scores for today / selected day
+                const dailyPrayerPts = isPrayerTrackingEnabled ? (fardPrayerPts + sunnahPrayerPts) : 0;
+                const dailyScore = dailyAttPts + dailyPrayerPts + taskPoints + dailyBonusPts;
+                const monthlyScore = monthlyAttPts + (isPrayerTrackingEnabled ? monthlyPrayerPts : 0) + monthlyTasksPts + monthlyBonusPts;
+                const yearlyScore = yearlyAttPts + (isPrayerTrackingEnabled ? yearlyPrayerPts : 0) + yearlyTasksPts + yearlyBonusPts;
 
-                // Update Points and Tier Badge
-                const ptsEl = document.getElementById('stu-act-total-points');
+                // Update 3 Score Badges on Single Line
+                const dailyPtsEl = document.getElementById('stu-act-daily-points');
+                const monthlyPtsEl = document.getElementById('stu-act-monthly-points');
+                const totalPtsEl = document.getElementById('stu-act-total-points');
                 const tierEl = document.getElementById('stu-act-tier-badge');
-                if (ptsEl) ptsEl.textContent = finalDisplayPoints;
+
+                if (dailyPtsEl) dailyPtsEl.textContent = dailyScore;
+                if (monthlyPtsEl) monthlyPtsEl.textContent = monthlyScore;
+                if (totalPtsEl) totalPtsEl.textContent = yearlyScore;
 
                 if (tierEl) {
-                    if (finalDisplayPoints >= 500) tierEl.textContent = 'Gold Champion';
-                    else if (finalDisplayPoints >= 300) tierEl.textContent = 'Silver Achiever';
-                    else if (finalDisplayPoints >= 150) tierEl.textContent = 'Bronze Scholar';
+                    if (yearlyScore >= 500) tierEl.textContent = 'Gold Champion';
+                    else if (yearlyScore >= 300) tierEl.textContent = 'Silver Achiever';
+                    else if (yearlyScore >= 150) tierEl.textContent = 'Bronze Scholar';
                     else tierEl.textContent = 'Star Student';
                 }
 
@@ -6291,7 +6333,7 @@ const studentPwa = registerPortalForPwa('student', {
 
                     // Mobile view: 5 sleek single-line rows with touch buttons
                     const mobileHtml = `
-                        <div class="sm:hidden divide-y divide-slate-100">
+                        <div class="stu-prayer-mobile-view divide-y divide-slate-100">
                             ${prayersData.map(({ p, rawStatus, isJ, isA, isQ, statusShort, pillClass }) => `
                                 <div class="py-2 px-2 sm:py-2.5 sm:px-2.5 flex items-center justify-between gap-2 hover:bg-slate-50 transition rounded-xl">
                                     <div class="flex items-center gap-1.5 min-w-0">
@@ -6299,9 +6341,9 @@ const studentPwa = registerPortalForPwa('student', {
                                         <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${pillClass} truncate">${escapeHtml(statusShort)}</span>
                                     </div>
                                     <div class="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-100 prayer-pill-group shrink-0 gap-1">
-                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isJ ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-emerald-50'}" data-prayer="${p.key}" data-status="jamaah" title="Jama'ah (+${jamaahPts} pts)">J</button>
-                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isA ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-blue-50'}" data-prayer="${p.key}" data-status="adaa" title="Ada'a (+${adaaPts} pts)">A</button>
-                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isQ ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-rose-50'}" data-prayer="${p.key}" data-status="qaza" title="Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">Q</button>
+                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isJ ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-emerald-50 bg-white'}" data-prayer="${p.key}" data-status="jamaah" title="Jama'ah (+${jamaahPts} pts)">J</button>
+                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isA ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-blue-50 bg-white'}" data-prayer="${p.key}" data-status="adaa" title="Ada'a (+${adaaPts} pts)">A</button>
+                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isQ ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-rose-50 bg-white'}" data-prayer="${p.key}" data-status="qaza" title="Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">Q</button>
                                         ${(canEdit && rawStatus !== 'none') ? `
                                             <button type="button" class="btn-stu-log-prayer w-7.5 h-9.5 flex items-center justify-center rounded-lg text-xs font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Clear Prayer Status">
                                                 <i class="fas fa-times"></i>
@@ -6315,7 +6357,7 @@ const studentPwa = registerPortalForPwa('student', {
 
                     // Desktop view: 5 compact cards in a responsive grid
                     const desktopHtml = `
-                        <div class="hidden sm:grid sm:grid-cols-5 gap-2 sm:gap-2.5">
+                        <div class="stu-prayer-desktop-view grid-cols-5 gap-2 sm:gap-2.5">
                             ${prayersData.map(({ p, rawStatus, isJ, isA, isQ, statusText, pillClass, iconClass }) => `
                                 <div class="p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-white flex flex-col justify-between min-h-[95px] shadow-2xs">
                                     <div>
@@ -6547,21 +6589,45 @@ const studentPwa = registerPortalForPwa('student', {
 
                             const canToggleThisTask = canEdit && isEligibleDay;
 
+                            // Ticked = Vibrant Green card & badge, Unticked = Clear Red card & badge (No line-through!)
+                            const cardThemeClasses = isDone
+                                ? 'border-emerald-300 bg-emerald-50/70 shadow-xs'
+                                : (isEligibleDay ? 'border-rose-300 bg-rose-50/40 shadow-xs' : 'border-slate-200/80 bg-slate-50/70');
+
+                            const titleColorClass = isDone
+                                ? 'text-emerald-950 font-extrabold'
+                                : (isEligibleDay ? 'text-rose-950 font-extrabold' : 'text-slate-600 font-bold');
+
+                            const cadenceBadgeClasses = isDone
+                                ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300'
+                                : (isEligibleDay ? 'bg-rose-100/90 text-rose-800 border-rose-300' : 'bg-slate-100 text-slate-600 border-slate-200');
+
+                            const statusHintClasses = isDone
+                                ? 'text-emerald-700 font-extrabold'
+                                : (isEligibleDay ? 'text-rose-600 font-extrabold' : 'text-slate-500 font-medium');
+
+                            const pointsBadgeClasses = isDone
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : (isEligibleDay ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-slate-100 text-slate-600 border border-slate-200');
+
                             return `
-                                <div class="p-2 sm:p-2.5 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : (isEligibleDay ? 'border-slate-200 bg-white' : 'border-slate-200/60 bg-slate-50/70')} flex flex-col justify-between gap-1.5 shadow-2xs transition">
+                                <div class="p-2 sm:p-2.5 rounded-xl border ${cardThemeClasses} flex flex-col justify-between gap-1.5 transition">
                                     <div class="flex items-start gap-1.5">
                                         <input type="checkbox" class="stu-act-task-toggle w-4 h-4 sm:w-4.5 sm:h-4.5 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 ${!canToggleThisTask ? 'opacity-50 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" data-cadence="${escapeHtml(taskCadence)}" ${isDone ? 'checked' : ''} ${!canToggleThisTask ? 'disabled' : ''}>
                                         <div class="min-w-0 flex-1">
-                                            <h4 class="text-xs font-bold text-slate-800 leading-snug line-clamp-2 ${isDone ? 'line-through text-slate-500' : ''}" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h4>
+                                            <h4 class="text-xs leading-snug line-clamp-2 ${titleColorClass}" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h4>
                                             <div class="flex items-center gap-1 flex-wrap mt-0.5">
-                                                <span class="text-[8px] sm:text-[9px] font-extrabold uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(taskCadence)}</span>
-                                                ${scheduleBadge ? `<span class="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200/60 truncate max-w-[95px]">${escapeHtml(scheduleBadge)}</span>` : ''}
+                                                <span class="text-[8px] sm:text-[9px] font-extrabold uppercase px-1 py-0.2 rounded border ${cadenceBadgeClasses}">${escapeHtml(taskCadence)}</span>
+                                                ${scheduleBadge ? `<span class="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-white text-slate-700 border border-slate-200 truncate max-w-[95px]">${escapeHtml(scheduleBadge)}</span>` : ''}
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex items-center justify-between pt-1 border-t border-slate-100 gap-1 mt-auto">
-                                        <span class="text-[8px] sm:text-[9px] truncate ${isDone ? 'text-emerald-700 font-bold' : (isEligibleDay ? 'text-slate-400 font-medium' : 'text-amber-600 font-bold')}">${escapeHtml(statusHint)}</span>
-                                        <span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0 ${isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+                                    <div class="flex items-center justify-between pt-1 border-t ${isDone ? 'border-emerald-200/80' : (isEligibleDay ? 'border-rose-200/80' : 'border-slate-200/60')} gap-1 mt-auto">
+                                        <span class="text-[8px] sm:text-[9px] truncate ${statusHintClasses}">
+                                            <i class="${isDone ? 'fas fa-check-circle text-emerald-600' : (isEligibleDay ? 'fas fa-clock text-rose-500' : 'fas fa-lock text-slate-400')} mr-0.5"></i>
+                                            ${escapeHtml(statusHint)}
+                                        </span>
+                                        <span class="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0 ${pointsBadgeClasses}">
                                             +${points} pts
                                         </span>
                                     </div>

@@ -559,7 +559,7 @@
                 </div>
 
                 <!-- Header Banner -->
-                <div class="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-xl sm:rounded-2xl p-3 sm:p-5 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
+                <div class="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-xl sm:rounded-2xl p-3 sm:p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                     <div class="space-y-1">
                         <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white backdrop-blur-xs">
                             <i class="fas fa-award"></i> Student Achievements
@@ -567,11 +567,29 @@
                         <h2 class="text-base sm:text-2xl font-black tracking-tight" id="stu-act-hero-name">Activities &amp; Rewards</h2>
                         <p class="text-[11px] sm:text-xs text-amber-100 font-medium">Co-curricular points, badges &amp; character cultivation</p>
                     </div>
-                    <div class="bg-white/15 border border-white/25 backdrop-blur-md rounded-xl sm:rounded-2xl px-3.5 py-1.5 sm:px-5 sm:py-3 text-center self-start sm:self-auto min-w-[90px] sm:min-w-[130px]">
-                        <div class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-white/80" id="stu-act-points-scope-label">Total Points</div>
-                        <div class="text-lg sm:text-3xl font-black text-white font-mono mt-0.5" id="stu-act-total-points">0</div>
-                        <div class="text-[9px] sm:text-[10px] font-extrabold text-amber-200 mt-0.5" id="stu-act-tier-badge">Star Student</div>
-                        <div class="text-[8px] sm:text-[9px] font-semibold text-amber-100/90 mt-0.5" id="stu-act-points-cadence-sub"></div>
+
+                    <!-- 3 Scores in a Single Row (Daily, Monthly, Total) -->
+                    <div class="grid grid-cols-3 gap-1.5 sm:gap-2.5 w-full md:w-auto">
+                        <!-- 1. Daily Score -->
+                        <div class="bg-white/15 border border-white/25 backdrop-blur-md rounded-xl px-2 py-1.5 sm:px-3.5 sm:py-2 text-center min-w-[70px] sm:min-w-[95px]">
+                            <div class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-white/80">Daily</div>
+                            <div class="text-base sm:text-2xl font-black text-white font-mono mt-0.5" id="stu-act-daily-points">0</div>
+                            <div class="text-[8px] sm:text-[9px] font-semibold text-amber-100/90 mt-0.5">Today</div>
+                        </div>
+
+                        <!-- 2. Monthly Score -->
+                        <div class="bg-white/15 border border-white/25 backdrop-blur-md rounded-xl px-2 py-1.5 sm:px-3.5 sm:py-2 text-center min-w-[70px] sm:min-w-[95px]">
+                            <div class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-white/80">Monthly</div>
+                            <div class="text-base sm:text-2xl font-black text-white font-mono mt-0.5" id="stu-act-monthly-points">0</div>
+                            <div class="text-[8px] sm:text-[9px] font-semibold text-amber-100/90 mt-0.5">This Month</div>
+                        </div>
+
+                        <!-- 3. Total / Yearly Score -->
+                        <div class="bg-white/20 border-2 border-white/40 backdrop-blur-md rounded-xl px-2 py-1.5 sm:px-3.5 sm:py-2 text-center min-w-[75px] sm:min-w-[105px] shadow-xs">
+                            <div class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-amber-200" id="stu-act-points-scope-label">Total</div>
+                            <div class="text-base sm:text-2xl font-black text-white font-mono mt-0.5" id="stu-act-total-points">0</div>
+                            <div class="text-[8px] sm:text-[9px] font-extrabold text-amber-200 mt-0.5" id="stu-act-tier-badge">Star Student</div>
+                        </div>
                     </div>
                 </div>
 
