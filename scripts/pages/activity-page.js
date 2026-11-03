@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // --- State Variables ---
@@ -52,6 +52,13 @@ let currentRewardsRubric = {
     task: 10,
     bonus: 10
 };
+
+// --- Points Evaluation Cadence & Period Navigation State ---
+let configuredPointsScope = 'daily'; // 'daily' | 'weekly' | 'monthly' | 'yearly'
+let configuredWeeklyResetDay = 'sunday'; // 'sunday' | 'monday' | 'thursday' | 'friday' | 'saturday'
+let configuredMonthlyResetDay = 1; // 1 | 15 | 25 | 28
+let selectedRewardsPeriodCadence = 'daily';
+let selectedRewardsPeriodRefDate = new Date();
 
 // --- Confirmation Dialog Handler ---
 let pendingConfirmCallback = null;
@@ -524,6 +531,9 @@ const setupRealtimeListeners = () => {
             cachedPastDateLoggingByClass = (actData && typeof actData.studentPastDateLoggingByClass === 'object')
                 ? { ...actData.studentPastDateLoggingByClass }
                 : {};
+            configuredPointsScope = actData?.pointsScope || 'daily';
+            configuredWeeklyResetDay = actData?.weeklyResetDay || 'sunday';
+            configuredMonthlyResetDay = Number(actData?.monthlyResetDay || 1);
         } else {
             isPrayerTrackingActive = true;
         }
@@ -1468,6 +1478,9 @@ const savePrayerRecords = async () => {
     const docId = `${currentAcademicYear}__${selectedPrayerClass}__${selectedPrayerDate}`;
     try {
         await setDoc(doc(db, `${BASE_PATH}/ibadah`, docId), {
+            academicYear: currentAcademicYear,
+            class: selectedPrayerClass,
+            date: selectedPrayerDate,
             records: prayerRecordsMap,
             updatedAt: Date.now()
         }, { merge: true });
@@ -1607,6 +1620,9 @@ const openRewardsSettingsModal = () => {
     const qazaInput = document.getElementById('rubric-pts-qaza');
     const sunnahInput = document.getElementById('rubric-pts-sunnah');
     const taskInput = document.getElementById('rubric-pts-task');
+    const scopeSelect = document.getElementById('rubric-points-scope');
+    const weeklySelect = document.getElementById('rubric-weekly-reset-day');
+    const monthlySelect = document.getElementById('rubric-monthly-reset-day');
 
     if (attInput) attInput.value = currentRewardsRubric.attendance ?? 5;
     if (jamInput) jamInput.value = currentRewardsRubric.jamaah ?? 15;
@@ -1614,6 +1630,9 @@ const openRewardsSettingsModal = () => {
     if (qazaInput) qazaInput.value = currentRewardsRubric.qaza ?? 0;
     if (sunnahInput) sunnahInput.value = currentRewardsRubric.sunnah ?? 5;
     if (taskInput) taskInput.value = currentRewardsRubric.task ?? 10;
+    if (scopeSelect) scopeSelect.value = configuredPointsScope || 'daily';
+    if (weeklySelect) weeklySelect.value = configuredWeeklyResetDay || 'sunday';
+    if (monthlySelect) monthlySelect.value = String(configuredMonthlyResetDay || '1');
 
     openModal('modal-rewards-settings');
 };
@@ -1626,13 +1645,28 @@ const saveRewardsRubric = async () => {
     const sunnah = Number(document.getElementById('rubric-pts-sunnah')?.value || 5);
     const task = Number(document.getElementById('rubric-pts-task')?.value || 10);
 
+    const pointsScope = document.getElementById('rubric-points-scope')?.value || 'daily';
+    const weeklyResetDay = document.getElementById('rubric-weekly-reset-day')?.value || 'sunday';
+    const monthlyResetDay = Number(document.getElementById('rubric-monthly-reset-day')?.value || 1);
+
     currentRewardsRubric = { attendance, jamaah, adaa, qaza, sunnah, task, bonus: 10 };
+    configuredPointsScope = pointsScope;
+    configuredWeeklyResetDay = weeklyResetDay;
+    configuredMonthlyResetDay = monthlyResetDay;
 
     try {
-        await setDoc(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), {
-            points: currentRewardsRubric,
-            updatedAt: Date.now()
-        }, { merge: true });
+        await Promise.all([
+            setDoc(doc(db, `${BASE_PATH}/rewardSettings`, currentAcademicYear), {
+                points: currentRewardsRubric,
+                updatedAt: Date.now()
+            }, { merge: true }),
+            setDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'), {
+                pointsScope,
+                weeklyResetDay,
+                monthlyResetDay,
+                updatedAt: Date.now()
+            }, { merge: true })
+        ]);
 
         closeModal('modal-rewards-settings');
         updatePrayerStatusLegendPoints();
@@ -1775,6 +1809,15 @@ const saveStudentSelfLoggingConfig = async () => {
     }
 };
 
+const updateRewardsPeriodTabsUI = () => {
+    document.querySelectorAll('.btn-rewards-period').forEach(btn => {
+        const isSel = btn.dataset.period === selectedRewardsPeriodCadence;
+        btn.className = `btn-rewards-period px-3 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+            isSel ? 'font-black bg-white text-amber-700 shadow-2xs' : 'font-bold text-slate-600 hover:text-slate-900'
+        }`;
+    });
+};
+
 const loadRewardsLeaderboard = async () => {
     await loadRewardsRubric();
 
@@ -1786,6 +1829,17 @@ const loadRewardsLeaderboard = async () => {
     const topPtsEl = document.getElementById('rewards-top-student-points');
     const classAvgEl = document.getElementById('rewards-class-avg-points');
     const totalBadgesEl = document.getElementById('rewards-total-badges');
+
+    updateRewardsPeriodTabsUI();
+
+    const periodInfo = getPeriodDateRange(selectedRewardsPeriodCadence, {
+        weeklyResetDay: configuredWeeklyResetDay,
+        monthlyResetDay: configuredMonthlyResetDay,
+        referenceDate: selectedRewardsPeriodRefDate
+    });
+
+    const periodDisplayEl = document.getElementById('rewards-period-display-label');
+    if (periodDisplayEl) periodDisplayEl.textContent = periodInfo.label;
 
     if (!selectedRewardsClass) {
         if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">Please select a class.</td></tr>`;
@@ -1802,21 +1856,140 @@ const loadRewardsLeaderboard = async () => {
         studentBonusPointsMap = {};
     }
 
+    // Load attendance docs for selected class in range
+    let classAttendanceDocs = [];
+    try {
+        const attSnap = await getDocs(query(
+            collection(db, `${BASE_PATH}/attendance`),
+            where('classLabel', '==', selectedRewardsClass)
+        ));
+        classAttendanceDocs = attSnap.docs
+            .map(d => d.data())
+            .filter(d => {
+                const dStr = d.date;
+                return dStr && dStr >= periodInfo.startDate && dStr <= periodInfo.endDate && !d.isHoliday;
+            });
+    } catch (_) {
+        classAttendanceDocs = [];
+    }
+
+    // Load ibadah docs for this academic year in range
+    let periodIbadahDocs = [];
+    try {
+        const ibSnap = await getDocs(collection(db, `${BASE_PATH}/ibadah`));
+        ibSnap.docs.forEach(dSnap => {
+            const d = dSnap.data();
+            const parts = dSnap.id.split('__');
+            const itemYear = d.academicYear || parts[0];
+            const itemClass = d.class || parts[1];
+            const itemDate = d.date || parts[2];
+            if (
+                itemYear === currentAcademicYear &&
+                isClassInDutyScope(itemClass, [selectedRewardsClass]) &&
+                itemDate >= periodInfo.startDate &&
+                itemDate <= periodInfo.endDate
+            ) {
+                periodIbadahDocs.push({ date: itemDate, records: d.records || {} });
+            }
+        });
+    } catch (_) {
+        periodIbadahDocs = [];
+    }
+
+    // Load task completions for this academic year and class
+    let periodTaskDocs = [];
+    try {
+        const tcSnap = await getDocs(collection(db, `${BASE_PATH}/taskCompletions`));
+        tcSnap.docs.forEach(dSnap => {
+            const d = dSnap.data();
+            const parts = dSnap.id.split('__');
+            const itemYear = d.academicYear || parts[0];
+            const itemClass = d.class || parts[1];
+            const itemPeriod = d.period || parts[2];
+            const itemCadence = d.cadence || parts[3] || 'daily';
+            if (
+                itemYear === currentAcademicYear &&
+                isClassInDutyScope(itemClass, [selectedRewardsClass])
+            ) {
+                let match = false;
+                if (itemCadence === 'daily') {
+                    match = (itemPeriod >= periodInfo.startDate && itemPeriod <= periodInfo.endDate);
+                } else if (itemCadence === 'weekly') {
+                    match = (selectedRewardsPeriodCadence !== 'daily');
+                } else if (itemCadence === 'monthly') {
+                    match = (selectedRewardsPeriodCadence === 'monthly' || selectedRewardsPeriodCadence === 'yearly');
+                } else {
+                    match = true;
+                }
+                if (match) {
+                    periodTaskDocs.push({ completions: d.completions || {}, cadence: itemCadence });
+                }
+            }
+        });
+    } catch (_) {
+        periodTaskDocs = [];
+    }
+
     const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedRewardsClass]) && s.status !== 'alumni');
 
     const scores = classStudents.map(student => {
-        const attPts = (currentRewardsRubric.attendance ?? 5) * 12;
-        const prayerPts = (currentRewardsRubric.jamaah ?? 15) * 4 + (currentRewardsRubric.adaa ?? 10) * 1;
-        const tasksPts = (currentRewardsRubric.task ?? 10) * 3;
+        // Attendance Points
+        let presentDays = 0;
+        classAttendanceDocs.forEach(attDoc => {
+            const rec = attDoc.records?.[student.id];
+            const st = (typeof rec === 'object') ? rec?.status : rec;
+            if (st === 'P') presentDays++;
+        });
+        const attPts = presentDays * Number(currentRewardsRubric.attendance ?? 5);
 
+        // Prayer Points across period
+        let prayerPts = 0;
+        periodIbadahDocs.forEach(ib => {
+            const sRec = ib.records[student.id];
+            if (!sRec) return;
+            ['subh', 'zuhr', 'asr', 'maghrib', 'isha'].forEach(pKey => {
+                const pSt = sRec[pKey];
+                if (pSt === 'jamaah' || pSt === 'J') prayerPts += Number(currentRewardsRubric.jamaah ?? 15);
+                else if (pSt === 'adaa' || pSt === 'A') prayerPts += Number(currentRewardsRubric.adaa ?? 10);
+                else if (pSt === 'qaza' || pSt === 'Q') prayerPts += Number(currentRewardsRubric.qaza ?? 0);
+            });
+            Object.keys(sRec).forEach(k => {
+                if (!['subh', 'zuhr', 'asr', 'maghrib', 'isha'].includes(k)) {
+                    const cSt = sRec[k];
+                    if (cSt === 'performed' || cSt === 'done' || cSt === 'jamaah' || cSt === 'J' || cSt === 'adaa' || cSt === 'A') {
+                        prayerPts += Number(currentRewardsRubric.sunnah ?? 5);
+                    }
+                }
+            });
+        });
+
+        // Tasks Points across period
+        let tasksPts = 0;
+        periodTaskDocs.forEach(tDoc => {
+            const sComps = tDoc.completions[student.id];
+            if (!sComps) return;
+            Object.keys(sComps).forEach(tId => {
+                if (sComps[tId]) {
+                    const taskDef = taskDefsList.find(t => t.id === tId);
+                    tasksPts += Number(taskDef?.points ?? currentRewardsRubric.task ?? 10);
+                }
+            });
+        });
+
+        // Bonus Points in date window
         const bonusList = studentBonusPointsMap[student.id] || [];
-        const bonusPts = bonusList.reduce((acc, b) => acc + Number(b.points || 0), 0);
+        const validBonus = bonusList.filter(b => {
+            if (!b.date) return true;
+            return b.date >= periodInfo.startDate && b.date <= periodInfo.endDate;
+        });
+        const bonusPts = validBonus.reduce((acc, b) => acc + Number(b.points || 0), 0);
 
         const total = attPts + prayerPts + tasksPts + bonusPts;
 
         const autoBadges = [];
-        if (total >= 200) autoBadges.push('Punctual Star');
+        if (total >= 100) autoBadges.push('Consistent Achiever');
         if (prayerPts >= 60) autoBadges.push('Prayer Champion');
+        if (attPts >= 25) autoBadges.push('Punctual Star');
         if (bonusPts > 0) autoBadges.push('Exemplary Adab');
 
         const customBadges = studentCustomBadgesMap[student.id] || [];
@@ -1845,9 +2018,19 @@ const loadRewardsLeaderboard = async () => {
 
         const totalB = scores.reduce((a, b) => a + (b.autoBadges.length + b.customBadges.length), 0);
         if (totalBadgesEl) totalBadgesEl.textContent = totalB;
+    } else {
+        if (topNameEl) topNameEl.textContent = 'No Students';
+        if (topPtsEl) topPtsEl.textContent = '0 Points';
+        if (classAvgEl) classAvgEl.textContent = '0';
+        if (totalBadgesEl) totalBadgesEl.textContent = '0';
     }
 
     if (!tbody) return;
+
+    if (!scores.length) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400 font-bold">No active students found in this class.</td></tr>`;
+        return;
+    }
 
     tbody.innerHTML = scores.map((item, idx) => {
         const rank = idx + 1;
@@ -2596,6 +2779,43 @@ const setupEventListeners = () => {
     document.getElementById('btn-open-award-points')?.addEventListener('click', () => openModal('modal-award-points'));
     document.getElementById('btn-submit-award-points')?.addEventListener('click', awardBonusPoints);
     document.getElementById('btn-print-leaderboard')?.addEventListener('click', () => window.print());
+
+    // Period Cadence Switching Tabs
+    document.querySelectorAll('.btn-rewards-period').forEach(btn => {
+        btn.addEventListener('click', () => {
+            selectedRewardsPeriodCadence = btn.dataset.period || 'daily';
+            selectedRewardsPeriodRefDate = new Date();
+            loadRewardsLeaderboard();
+        });
+    });
+
+    // History Navigator Previous Period
+    document.getElementById('btn-rewards-prev-period')?.addEventListener('click', () => {
+        const d = new Date(selectedRewardsPeriodRefDate);
+        if (selectedRewardsPeriodCadence === 'daily') d.setDate(d.getDate() - 1);
+        else if (selectedRewardsPeriodCadence === 'weekly') d.setDate(d.getDate() - 7);
+        else if (selectedRewardsPeriodCadence === 'monthly') d.setMonth(d.getMonth() - 1);
+        else if (selectedRewardsPeriodCadence === 'yearly') d.setFullYear(d.getFullYear() - 1);
+        selectedRewardsPeriodRefDate = d;
+        loadRewardsLeaderboard();
+    });
+
+    // History Navigator Next Period
+    document.getElementById('btn-rewards-next-period')?.addEventListener('click', () => {
+        const d = new Date(selectedRewardsPeriodRefDate);
+        if (selectedRewardsPeriodCadence === 'daily') d.setDate(d.getDate() + 1);
+        else if (selectedRewardsPeriodCadence === 'weekly') d.setDate(d.getDate() + 7);
+        else if (selectedRewardsPeriodCadence === 'monthly') d.setMonth(d.getMonth() + 1);
+        else if (selectedRewardsPeriodCadence === 'yearly') d.setFullYear(d.getFullYear() + 1);
+        selectedRewardsPeriodRefDate = d;
+        loadRewardsLeaderboard();
+    });
+
+    // Jump to Current Period
+    document.getElementById('btn-rewards-current-period')?.addEventListener('click', () => {
+        selectedRewardsPeriodRefDate = new Date();
+        loadRewardsLeaderboard();
+    });
 
     document.getElementById('rewards-leaderboard-tbody')?.addEventListener('click', (e) => {
         const btnHistory = e.target.closest('.btn-view-bonus-history');

@@ -828,6 +828,42 @@
             </div>
           </div>
 
+          <!-- Period Filter & History Navigator Bar -->
+          <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-2.5">
+            <!-- Period Cadence Tabs -->
+            <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl" id="rewards-period-tabs">
+              <button type="button" class="btn-rewards-period px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer bg-white text-amber-700 shadow-2xs" data-period="daily">
+                Daily
+              </button>
+              <button type="button" class="btn-rewards-period px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer" data-period="weekly">
+                Weekly
+              </button>
+              <button type="button" class="btn-rewards-period px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer" data-period="monthly">
+                Monthly
+              </button>
+              <button type="button" class="btn-rewards-period px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer" data-period="yearly">
+                Academic Year
+              </button>
+            </div>
+
+            <!-- History Navigation Controls -->
+            <div class="flex items-center gap-2">
+              <button type="button" id="btn-rewards-prev-period" class="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Previous Period / History">
+                <i class="fas fa-chevron-left"></i> <span class="hidden sm:inline">Prev</span>
+              </button>
+              <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50/60 text-amber-900 text-xs font-black" id="rewards-period-label-box">
+                <i class="fas fa-calendar-day text-amber-600"></i>
+                <span id="rewards-period-display-label">Today</span>
+              </div>
+              <button type="button" id="btn-rewards-next-period" class="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Next Period">
+                <span class="hidden sm:inline">Next</span> <i class="fas fa-chevron-right"></i>
+              </button>
+              <button type="button" id="btn-rewards-current-period" class="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs transition shadow-2xs cursor-pointer" title="Jump to Current Period">
+                Current
+              </button>
+            </div>
+          </div>
+
           <!-- Top 3 Podium Card -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <!-- Rank 1 Winner -->
@@ -1319,6 +1355,47 @@
               <div class="text-[11px] text-slate-500">Default points per completed activity</div>
             </div>
             <input type="number" id="rubric-pts-task" value="10" min="0" max="50" class="w-20 p-2 border border-slate-300 rounded-xl font-black text-center text-slate-800 outline-none">
+          </div>
+        </div>
+
+        <!-- Points Scope & Cadence Configuration -->
+        <div class="border-t border-slate-200 pt-3 space-y-3">
+          <div class="font-extrabold text-xs uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+            <i class="fas fa-calendar-check text-amber-600"></i> Points Evaluation Cadence &amp; Reset Rules
+          </div>
+          <p class="text-[11px] text-slate-500">Choose how Total Points are calculated and reset in the Student Portal and Leaderboard:</p>
+
+          <div class="p-3 border border-slate-200 rounded-2xl bg-slate-50 space-y-2.5">
+            <div>
+              <label for="rubric-points-scope" class="block font-bold text-slate-700 mb-1">Active Evaluation Scope</label>
+              <select id="rubric-points-scope" class="w-full p-2 border border-slate-300 rounded-xl font-bold bg-white text-slate-800 text-xs outline-none focus:border-amber-500">
+                <option value="daily">Daily (24 Hours - Resets every midnight)</option>
+                <option value="weekly">Weekly (Active Week - Resets on boundary day)</option>
+                <option value="monthly">Monthly (Active Month - Resets on boundary day)</option>
+                <option value="yearly">Academic Year (Full session cumulative)</option>
+              </select>
+            </div>
+
+            <div id="rubric-weekly-day-box">
+              <label for="rubric-weekly-reset-day" class="block font-bold text-slate-700 mb-1">Weekly Reset Day</label>
+              <select id="rubric-weekly-reset-day" class="w-full p-2 border border-slate-300 rounded-xl font-bold bg-white text-slate-800 text-xs outline-none focus:border-amber-500">
+                <option value="sunday">Sunday (New cycle starts Monday)</option>
+                <option value="monday">Monday (New cycle starts Tuesday)</option>
+                <option value="thursday">Thursday (New cycle starts Friday)</option>
+                <option value="friday">Friday (New cycle starts Saturday)</option>
+                <option value="saturday">Saturday (New cycle starts Sunday)</option>
+              </select>
+            </div>
+
+            <div id="rubric-monthly-day-box">
+              <label for="rubric-monthly-reset-day" class="block font-bold text-slate-700 mb-1">Monthly Reset Boundary</label>
+              <select id="rubric-monthly-reset-day" class="w-full p-2 border border-slate-300 rounded-xl font-bold bg-white text-slate-800 text-xs outline-none focus:border-amber-500">
+                <option value="1">1st of Every Month</option>
+                <option value="15">15th of Every Month</option>
+                <option value="25">25th of Every Month</option>
+                <option value="28">28th / End of Month</option>
+              </select>
+            </div>
           </div>
         </div>
 

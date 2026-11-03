@@ -388,4 +388,98 @@ export const applyInstitutionBranding = (conf = {}, options = {}) => {
     renderVersionInfo();
 };
 
+export const getPeriodDateRange = (cadence = 'daily', { weeklyResetDay = 'sunday', monthlyResetDay = 1, referenceDate = new Date() } = {}) => {
+    const ref = new Date(referenceDate);
+    if (Number.isNaN(ref.getTime())) ref.setTime(Date.now());
+
+    const toDateStr = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    if (cadence === 'daily') {
+        const dStr = toDateStr(ref);
+        return {
+            startDate: dStr,
+            endDate: dStr,
+            label: formatDateDisplay(dStr),
+            periodKey: dStr
+        };
+    }
+
+    if (cadence === 'weekly') {
+        const DAY_MAP = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+        const resetIdx = DAY_MAP[String(weeklyResetDay).toLowerCase()] ?? 0;
+        const currentDayIdx = ref.getDay();
+        const diff = (currentDayIdx - resetIdx + 7) % 7;
+        const start = new Date(ref);
+        start.setDate(ref.getDate() - diff);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        const sStr = toDateStr(start);
+        const eStr = toDateStr(end);
+        return {
+            startDate: sStr,
+            endDate: eStr,
+            label: `${formatDateDisplay(sStr)} – ${formatDateDisplay(eStr)}`,
+            periodKey: `${sStr}__${eStr}`
+        };
+    }
+
+    if (cadence === 'monthly') {
+        const resetDayNum = Math.max(1, Math.min(28, Number(monthlyResetDay) || 1));
+        const y = ref.getFullYear();
+        const m = ref.getMonth();
+        const d = ref.getDate();
+
+        let startYear = y;
+        let startMonth = m;
+        if (d < resetDayNum) {
+            startMonth = m - 1;
+            if (startMonth < 0) {
+                startMonth = 11;
+                startYear = y - 1;
+            }
+        }
+        const start = new Date(startYear, startMonth, resetDayNum);
+        let endYear = startYear;
+        let endMonth = startMonth + 1;
+        if (endMonth > 11) {
+            endMonth = 0;
+            endYear = startYear + 1;
+        }
+        const end = new Date(endYear, endMonth, resetDayNum - 1);
+        if (resetDayNum === 1) {
+            end.setDate(new Date(startYear, startMonth + 1, 0).getDate());
+            end.setMonth(startMonth);
+            end.setFullYear(startYear);
+        }
+        const sStr = toDateStr(start);
+        const eStr = toDateStr(end);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return {
+            startDate: sStr,
+            endDate: eStr,
+            label: `${monthNames[startMonth]} ${startYear} (${formatDateDisplay(sStr)} – ${formatDateDisplay(eStr)})`,
+            periodKey: `${startYear}-${String(startMonth + 1).padStart(2, '0')}`
+        };
+    }
+
+    if (cadence === 'yearly') {
+        const sStr = `${ref.getFullYear()}-01-01`;
+        const eStr = `${ref.getFullYear()}-12-31`;
+        return {
+            startDate: sStr,
+            endDate: eStr,
+            label: `Session ${ref.getFullYear()}`,
+            periodKey: String(ref.getFullYear())
+        };
+    }
+
+    const dStr = toDateStr(ref);
+    return { startDate: dStr, endDate: dStr, label: dStr, periodKey: dStr };
+};
+
 initGlobalModalScrollLock();

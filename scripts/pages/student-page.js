@@ -1,7 +1,7 @@
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, getDocFromCache, collection, query, where, getDocs, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, registerServiceWorker, renderVersionInfo, sanitizeUrl } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, registerServiceWorker, renderVersionInfo, sanitizeUrl, getPeriodDateRange } from '../shared/app-common.js';
 import { registerPortalForPwa } from '../shared/pwa-install.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -35,6 +35,22 @@ async function fetchDocWithRetry(docRef, maxRetries = 3, initialDelayMs = 1200) 
 }
 
 window.AppSession?.guardStudentPage?.();
+
+// Clean URL: Strip any lingering hash fragment to ensure clean URL on every refresh
+if (window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
+// Global safety failsafe to prevent user from ever getting stuck on loading screen
+setTimeout(() => {
+    const l = document.getElementById('loading-screen');
+    if (l && l.style.display !== 'none') {
+        l.style.opacity = '0';
+        setTimeout(() => { l.style.display = 'none'; }, 200);
+    }
+}, 2500);
 
 const studentPwa = registerPortalForPwa('student', {
     menuItemId: 'student-install-menu-item',
@@ -84,7 +100,7 @@ const studentPwa = registerPortalForPwa('student', {
             const matchedLink = links.find((link) => link.getAttribute('href') === normalizedHash);
             return matchedLink?.dataset.target || defaultTabId;
         };
-        const activateStudentTab = (targetId, { updateHash = true } = {}) => {
+        const activateStudentTab = (targetId) => {
             const safeTargetId = document.getElementById(targetId) ? targetId : defaultTabId;
             const activeLink = getLinkForTarget(safeTargetId);
             if (!activeLink) return;
@@ -94,12 +110,14 @@ const studentPwa = registerPortalForPwa('student', {
                 link.setAttribute('aria-current', isActive ? 'page' : 'false');
             });
             pages.forEach((page) => page.classList.toggle('hidden', page.id !== safeTargetId));
-            if (updateHash) {
-                const nextHash = activeLink.getAttribute('href');
-                if (nextHash && window.location.hash !== nextHash) {
-                    history.pushState({ studentTab: safeTargetId }, '', nextHash);
-                }
+            
+            // Clean URL: Ensure no # hash is appended to the address bar
+            if (window.location.hash) {
+                try {
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
+                } catch (_) {}
             }
+
             setMobileMenuState(false);
             window.scrollTo(0,0);
             document.querySelectorAll('.student-bottom-nav-btn[data-target]').forEach((btn) => {
@@ -133,9 +151,7 @@ const studentPwa = registerPortalForPwa('student', {
                 activateStudentTab(link.dataset.target);
             });
         });
-        window.addEventListener('hashchange', () => activateStudentTab(getTargetFromHash(window.location.hash), { updateHash: false }));
-        window.addEventListener('popstate', () => activateStudentTab(getTargetFromHash(window.location.hash), { updateHash: false }));
-        activateStudentTab(getTargetFromHash(window.location.hash), { updateHash: false });
+        activateStudentTab(defaultTabId);
 
         // Inline Accordion Expansion (No Popup)
         window.toggleReceipt = (element) => {
@@ -6039,15 +6055,118 @@ const studentPwa = registerPortalForPwa('student', {
                     }
                 }
 
+                // 2b. Evaluate Configured Scope (Daily, Weekly, Monthly, Academic Year)
+                const configuredPointsScope = actConfigData?.pointsScope || 'daily';
+                const configuredWeeklyResetDay = actConfigData?.weeklyResetDay || 'sunday';
+                const configuredMonthlyResetDay = Number(actConfigData?.monthlyResetDay || 1);
+
+                const periodInfo = getPeriodDateRange(configuredPointsScope, {
+                    weeklyResetDay: configuredWeeklyResetDay,
+                    monthlyResetDay: configuredMonthlyResetDay,
+                    referenceDate: selectedActivityDate
+                });
+
+                const scopeLabelEl = document.getElementById('stu-act-points-scope-label');
+                const cadenceSubEl = document.getElementById('stu-act-points-cadence-sub');
+
+                if (scopeLabelEl) {
+                    if (configuredPointsScope === 'daily') scopeLabelEl.textContent = 'Daily Score';
+                    else if (configuredPointsScope === 'weekly') scopeLabelEl.textContent = 'Weekly Score';
+                    else if (configuredPointsScope === 'monthly') scopeLabelEl.textContent = 'Monthly Score';
+                    else scopeLabelEl.textContent = 'Session Score';
+                }
+
+                if (cadenceSubEl) {
+                    if (configuredPointsScope === 'daily') cadenceSubEl.textContent = '24-hr score';
+                    else if (configuredPointsScope === 'weekly') cadenceSubEl.textContent = `Resets ${configuredWeeklyResetDay}`;
+                    else if (configuredMonthlyResetDay && configuredPointsScope === 'monthly') cadenceSubEl.textContent = `Resets day ${configuredMonthlyResetDay}`;
+                    else cadenceSubEl.textContent = 'Academic Year';
+                }
+
+                let cumulativePeriodPoints = totalPoints;
+                if (configuredPointsScope !== 'daily') {
+                    try {
+                        const [rangeIbadahSnap, rangeTasksSnap] = await Promise.all([
+                            getDocs(collection(db, `${BASE_PATH}/ibadah`)),
+                            getDocs(collection(db, `${BASE_PATH}/taskCompletions`))
+                        ]);
+
+                        let rangePrayerPts = 0;
+                        rangeIbadahSnap.docs.forEach(dSnap => {
+                            const d = dSnap.data();
+                            const parts = dSnap.id.split('__');
+                            const itemYear = d.academicYear || parts[0];
+                            const itemClass = d.class || parts[1];
+                            const itemDate = d.date || parts[2];
+                            if (
+                                itemYear === cleanY &&
+                                itemClass === cleanC &&
+                                itemDate >= periodInfo.startDate &&
+                                itemDate <= periodInfo.endDate
+                            ) {
+                                const sRec = d.records?.[profile.id];
+                                if (!sRec) return;
+                                ['subh', 'zuhr', 'asr', 'maghrib', 'isha'].forEach(pKey => {
+                                    const pSt = sRec[pKey];
+                                    if (pSt === 'jamaah' || pSt === 'J') rangePrayerPts += jamaahPts;
+                                    else if (pSt === 'adaa' || pSt === 'A') rangePrayerPts += adaaPts;
+                                    else if (pSt === 'qaza' || pSt === 'Q') rangePrayerPts += qazaPts;
+                                });
+                                customPrayersList.forEach(p => {
+                                    const st = sRec[p.id] || sRec[p.name?.toLowerCase()] || sRec[p.name];
+                                    if (st === 'performed' || st === 'done' || st === 'jamaah' || st === 'J' || st === 'adaa' || st === 'A') {
+                                        rangePrayerPts += Number(p.points || 5);
+                                    }
+                                });
+                            }
+                        });
+
+                        let rangeTasksPts = 0;
+                        rangeTasksSnap.docs.forEach(dSnap => {
+                            const d = dSnap.data();
+                            const parts = dSnap.id.split('__');
+                            const itemYear = d.academicYear || parts[0];
+                            const itemClass = d.class || parts[1];
+                            const itemPeriod = d.period || parts[2];
+                            const itemCadence = d.cadence || parts[3] || 'daily';
+                            if (itemYear === cleanY && itemClass === cleanC) {
+                                let inRange = false;
+                                if (itemCadence === 'daily') inRange = (itemPeriod >= periodInfo.startDate && itemPeriod <= periodInfo.endDate);
+                                else if (itemCadence === 'weekly') inRange = (configuredPointsScope !== 'daily');
+                                else if (itemCadence === 'monthly') inRange = (configuredPointsScope === 'monthly' || configuredPointsScope === 'yearly');
+                                else inRange = true;
+
+                                if (inRange) {
+                                    const comps = d.completions?.[profile.id];
+                                    if (comps) {
+                                        Object.keys(comps).forEach(tId => {
+                                            if (comps[tId]) {
+                                                const tDef = rawTasks.find(t => t.id === tId);
+                                                rangeTasksPts += Number(tDef?.points || 5);
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        });
+
+                        cumulativePeriodPoints = attendancePts + bonusPts + (isPrayerTrackingEnabled ? rangePrayerPts : 0) + rangeTasksPts;
+                    } catch (rangeErr) {
+                        console.warn('Could not compute range points:', rangeErr);
+                    }
+                }
+
+                const finalDisplayPoints = (configuredPointsScope === 'daily') ? totalPoints : cumulativePeriodPoints;
+
                 // Update Points and Tier Badge
                 const ptsEl = document.getElementById('stu-act-total-points');
                 const tierEl = document.getElementById('stu-act-tier-badge');
-                if (ptsEl) ptsEl.textContent = totalPoints;
+                if (ptsEl) ptsEl.textContent = finalDisplayPoints;
 
                 if (tierEl) {
-                    if (totalPoints >= 500) tierEl.textContent = 'Gold Champion';
-                    else if (totalPoints >= 300) tierEl.textContent = 'Silver Achiever';
-                    else if (totalPoints >= 150) tierEl.textContent = 'Bronze Scholar';
+                    if (finalDisplayPoints >= 500) tierEl.textContent = 'Gold Champion';
+                    else if (finalDisplayPoints >= 300) tierEl.textContent = 'Silver Achiever';
+                    else if (finalDisplayPoints >= 150) tierEl.textContent = 'Bronze Scholar';
                     else tierEl.textContent = 'Star Student';
                 }
 
@@ -6174,17 +6293,17 @@ const studentPwa = registerPortalForPwa('student', {
                     const mobileHtml = `
                         <div class="sm:hidden divide-y divide-slate-100">
                             ${prayersData.map(({ p, rawStatus, isJ, isA, isQ, statusShort, pillClass }) => `
-                                <div class="py-1.5 px-2 flex items-center justify-between gap-2 hover:bg-slate-50 transition rounded-lg">
+                                <div class="py-2 px-2 sm:py-2.5 sm:px-2.5 flex items-center justify-between gap-2 hover:bg-slate-50 transition rounded-xl">
                                     <div class="flex items-center gap-1.5 min-w-0">
                                         <span class="font-black text-xs text-slate-800 w-16 truncate">${escapeHtml(p.name.split('/')[0].trim())}</span>
                                         <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${pillClass} truncate">${escapeHtml(statusShort)}</span>
                                     </div>
-                                    <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 prayer-pill-group shrink-0">
-                                        <button type="button" class="btn-stu-log-prayer w-7 h-7 flex items-center justify-center rounded text-[11px] font-black cursor-pointer transition ${isJ ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-emerald-50'}" data-prayer="${p.key}" data-status="jamaah" title="Jama'ah (+${jamaahPts} pts)">J</button>
-                                        <button type="button" class="btn-stu-log-prayer w-7 h-7 flex items-center justify-center rounded text-[11px] font-black cursor-pointer transition ${isA ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-blue-50'}" data-prayer="${p.key}" data-status="adaa" title="Ada'a (+${adaaPts} pts)">A</button>
-                                        <button type="button" class="btn-stu-log-prayer w-7 h-7 flex items-center justify-center rounded text-[11px] font-black cursor-pointer transition ${isQ ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-rose-50'}" data-prayer="${p.key}" data-status="qaza" title="Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">Q</button>
+                                    <div class="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-100 prayer-pill-group shrink-0 gap-1">
+                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isJ ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-emerald-50'}" data-prayer="${p.key}" data-status="jamaah" title="Jama'ah (+${jamaahPts} pts)">J</button>
+                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isA ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-blue-50'}" data-prayer="${p.key}" data-status="adaa" title="Ada'a (+${adaaPts} pts)">A</button>
+                                        <button type="button" class="btn-stu-log-prayer w-9.5 h-9.5 min-w-[38px] flex items-center justify-center rounded-lg text-xs font-black cursor-pointer transition active:scale-95 shadow-2xs ${isQ ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-rose-50'}" data-prayer="${p.key}" data-status="qaza" title="Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">Q</button>
                                         ${(canEdit && rawStatus !== 'none') ? `
-                                            <button type="button" class="btn-stu-log-prayer w-6 h-7 flex items-center justify-center rounded text-[9px] font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Clear Prayer Status">
+                                            <button type="button" class="btn-stu-log-prayer w-7.5 h-9.5 flex items-center justify-center rounded-lg text-xs font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Clear Prayer Status">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         ` : ''}
