@@ -1413,11 +1413,81 @@ const DEFAULT_STUDENT_PORTAL_CONFIG = {
         attendance: true,
         timetable: true,
         results: true,
-        activities: true
-    }
+        activities: true,
+        publicHome: true
+    },
+    order: ['profile', 'fees', 'attendance', 'timetable', 'results', 'activities', 'publicHome']
 };
 
 let cachedStudentPortalConfig = { ...DEFAULT_STUDENT_PORTAL_CONFIG };
+let stuPortalSortableInitialized = false;
+
+const initStudentPortalSortable = () => {
+    const container = document.getElementById('stu-portal-tabs-sortable-list');
+    if (!container || stuPortalSortableInitialized) return;
+    stuPortalSortableInitialized = true;
+
+    let draggedItem = null;
+
+    container.addEventListener('dragstart', (e) => {
+        const row = e.target.closest('.stu-portal-sortable-row');
+        if (!row) return;
+        draggedItem = row;
+        row.classList.add('opacity-40', 'border-blue-500', 'bg-blue-50/50');
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.dataset.tabKey || '');
+        }
+    });
+
+    container.addEventListener('dragend', (e) => {
+        const row = e.target.closest('.stu-portal-sortable-row');
+        if (row) {
+            row.classList.remove('opacity-40', 'border-blue-500', 'bg-blue-50/50');
+        }
+        draggedItem = null;
+    });
+
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        const targetRow = e.target.closest('.stu-portal-sortable-row');
+        if (!targetRow || !draggedItem || targetRow === draggedItem) return;
+
+        const bounding = targetRow.getBoundingClientRect();
+        const offset = e.clientY - bounding.top;
+        if (offset > bounding.height / 2) {
+            targetRow.after(draggedItem);
+        } else {
+            targetRow.before(draggedItem);
+        }
+    });
+
+    container.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (draggedItem) {
+            draggedItem.classList.remove('opacity-40', 'border-blue-500', 'bg-blue-50/50');
+            draggedItem = null;
+        }
+    });
+
+    // Up and Down button controls
+    container.addEventListener('click', (e) => {
+        const upBtn = e.target.closest('.btn-move-tab-up');
+        const downBtn = e.target.closest('.btn-move-tab-down');
+        if (upBtn) {
+            const row = upBtn.closest('.stu-portal-sortable-row');
+            if (row && row.previousElementSibling) {
+                container.insertBefore(row, row.previousElementSibling);
+            }
+        } else if (downBtn) {
+            const row = downBtn.closest('.stu-portal-sortable-row');
+            if (row && row.nextElementSibling) {
+                row.nextElementSibling.after(row);
+            }
+        }
+    });
+};
 
 const openStudentPortalConfigModal = async () => {
     const modal = document.getElementById('modal-student-portal-config');
@@ -1428,8 +1498,15 @@ const openStudentPortalConfigModal = async () => {
         if (snap.exists()) {
             const data = snap.data();
             if (data?.studentPortalConfig && typeof data.studentPortalConfig === 'object') {
+                const loadedTabs = { ...DEFAULT_STUDENT_PORTAL_CONFIG.tabs, ...(data.studentPortalConfig.tabs || {}) };
+                let loadedOrder = Array.isArray(data.studentPortalConfig.order) ? [...data.studentPortalConfig.order] : [];
+                DEFAULT_STUDENT_PORTAL_CONFIG.order.forEach((k) => {
+                    if (!loadedOrder.includes(k)) loadedOrder.push(k);
+                });
+                loadedOrder = loadedOrder.filter((k) => k in DEFAULT_STUDENT_PORTAL_CONFIG.tabs);
                 cachedStudentPortalConfig = {
-                    tabs: { ...DEFAULT_STUDENT_PORTAL_CONFIG.tabs, ...(data.studentPortalConfig.tabs || {}) }
+                    tabs: loadedTabs,
+                    order: loadedOrder
                 };
             }
         }
@@ -1437,18 +1514,33 @@ const openStudentPortalConfigModal = async () => {
         console.warn('Could not fetch student portal config:', e);
     }
 
+    initStudentPortalSortable();
+
     const tabs = cachedStudentPortalConfig.tabs || DEFAULT_STUDENT_PORTAL_CONFIG.tabs;
+    const order = cachedStudentPortalConfig.order || DEFAULT_STUDENT_PORTAL_CONFIG.order;
+
+    // Arrange rows according to order
+    const listEl = document.getElementById('stu-portal-tabs-sortable-list');
+    if (listEl) {
+        order.forEach((tabKey) => {
+            const row = listEl.querySelector(`[data-tab-key="${tabKey}"]`);
+            if (row) listEl.appendChild(row);
+        });
+    }
+
     const feeToggle = document.getElementById('cfg-stu-tab-fees');
     const attToggle = document.getElementById('cfg-stu-tab-attendance');
     const ttToggle = document.getElementById('cfg-stu-tab-timetable');
     const resToggle = document.getElementById('cfg-stu-tab-results');
     const actToggle = document.getElementById('cfg-stu-tab-activities');
+    const pubToggle = document.getElementById('cfg-stu-tab-publicHome');
 
     if (feeToggle) feeToggle.checked = tabs.fees !== false;
     if (attToggle) attToggle.checked = tabs.attendance !== false;
     if (ttToggle) ttToggle.checked = tabs.timetable !== false;
     if (resToggle) resToggle.checked = tabs.results !== false;
     if (actToggle) actToggle.checked = tabs.activities !== false;
+    if (pubToggle) pubToggle.checked = tabs.publicHome !== false;
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -1472,6 +1564,15 @@ const saveStudentPortalConfig = async () => {
     }
 
     try {
+        const listEl = document.getElementById('stu-portal-tabs-sortable-list');
+        const rows = listEl ? Array.from(listEl.querySelectorAll('.stu-portal-sortable-row')) : [];
+        const currentOrder = rows.map((r) => r.dataset.tabKey).filter(Boolean);
+
+        const finalOrder = currentOrder.length ? currentOrder : [...DEFAULT_STUDENT_PORTAL_CONFIG.order];
+        DEFAULT_STUDENT_PORTAL_CONFIG.order.forEach((k) => {
+            if (!finalOrder.includes(k)) finalOrder.push(k);
+        });
+
         const studentPortalConfig = {
             tabs: {
                 profile: true,
@@ -1479,8 +1580,10 @@ const saveStudentPortalConfig = async () => {
                 attendance: Boolean(document.getElementById('cfg-stu-tab-attendance')?.checked),
                 timetable: Boolean(document.getElementById('cfg-stu-tab-timetable')?.checked),
                 results: Boolean(document.getElementById('cfg-stu-tab-results')?.checked),
-                activities: Boolean(document.getElementById('cfg-stu-tab-activities')?.checked)
-            }
+                activities: Boolean(document.getElementById('cfg-stu-tab-activities')?.checked),
+                publicHome: Boolean(document.getElementById('cfg-stu-tab-publicHome')?.checked)
+            },
+            order: finalOrder
         };
 
         await setDoc(getConfigRef(), { studentPortalConfig }, { merge: true });
@@ -1492,7 +1595,7 @@ const saveStudentPortalConfig = async () => {
             action: 'student_portal_config.update',
             entityType: 'config',
             entityId: 'studentPortalConfig',
-            message: `Updated student portal tab configuration: ${Object.entries(studentPortalConfig.tabs).map(([k, v]) => `${k}:${v ? 'ON' : 'OFF'}`).join(', ')}`
+            message: `Updated student portal tab configuration: ${Object.entries(studentPortalConfig.tabs).map(([k, v]) => `${k}:${v ? 'ON' : 'OFF'}`).join(', ')} | Order: ${finalOrder.join(' > ')}`
         });
 
         closeStudentPortalConfigModal();

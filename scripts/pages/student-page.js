@@ -1773,7 +1773,7 @@ const studentPwa = registerPortalForPwa('student', {
         };
 
         const syncResultTabVisibility = (showResults = false) => {
-            const isTabConfigAllowed = (typeof cachedStudentPortalConfig !== 'undefined' && cachedStudentPortalConfig.results !== false)
+            const isTabConfigAllowed = (typeof cachedStudentPortalConfig !== 'undefined' && ((cachedStudentPortalConfig.tabs ? cachedStudentPortalConfig.tabs.results : cachedStudentPortalConfig.results) !== false))
                 && (typeof cachedGlobalEnabledModules !== 'undefined' && cachedGlobalEnabledModules.resultCenter !== false);
             const navItem = document.getElementById('student-nav-results') || document.getElementById('results-nav-item');
             if (navItem) {
@@ -4748,37 +4748,79 @@ const studentPwa = registerPortalForPwa('student', {
         // ----------------------------------------------------
         // STUDENT PORTAL MODULAR NAVIGATION & WORKFLOW ENGINE
         // ----------------------------------------------------
+        const DEFAULT_PORTAL_ORDER = ['profile', 'fees', 'attendance', 'timetable', 'results', 'activities', 'publicHome'];
+
         const PORTAL_TABS_REGISTRY = [
             { key: 'profile', id: 'home-page', navId: 'student-nav-home', label: 'Profile', icon: 'fas fa-id-badge', moduleKey: null },
             { key: 'fees', id: 'fees-page', navId: 'student-nav-fees', label: 'Fees', icon: 'fas fa-receipt', moduleKey: 'feeCollection' },
             { key: 'attendance', id: 'attendance-page', navId: 'student-nav-attendance', label: 'Attendance', icon: 'fas fa-calendar-check', moduleKey: 'attendance' },
             { key: 'timetable', id: 'timetable-page', navId: 'student-nav-timetable', label: 'Timetable', icon: 'fas fa-calendar-days', moduleKey: 'academicPlan' },
             { key: 'results', id: 'results-page', navId: 'student-nav-results', label: 'Results', icon: 'fas fa-square-poll-vertical', moduleKey: 'resultCenter' },
-            { key: 'activities', id: 'activities-page', navId: 'student-nav-activities', label: 'Activities', icon: 'fas fa-award', moduleKey: 'activityTracker' }
+            { key: 'activities', id: 'activities-page', navId: 'student-nav-activities', label: 'Activities', icon: 'fas fa-award', moduleKey: 'activityTracker' },
+            { key: 'publicHome', id: 'public-home-nav', navId: 'student-nav-publichome', label: 'Public Page', icon: 'fas fa-globe', moduleKey: null, isExternal: true, url: 'index.html' }
         ];
 
         let cachedStudentPortalConfig = {
-            profile: true,
-            fees: true,
-            attendance: true,
-            timetable: true,
-            results: true,
-            activities: true
+            tabs: {
+                profile: true,
+                fees: true,
+                attendance: true,
+                timetable: true,
+                results: true,
+                activities: true,
+                publicHome: true
+            },
+            order: [...DEFAULT_PORTAL_ORDER]
         };
         let cachedGlobalEnabledModules = {};
         window.currentOverflowTabIds = [];
 
         const applyStudentPortalNavigation = (portalConfig = {}, enabledModules = {}) => {
-            cachedStudentPortalConfig = { ...cachedStudentPortalConfig, ...portalConfig };
+            let incomingTabs = {};
+            let incomingOrder = null;
+
+            if (portalConfig && typeof portalConfig.tabs === 'object') {
+                incomingTabs = portalConfig.tabs;
+                if (Array.isArray(portalConfig.order)) incomingOrder = portalConfig.order;
+            } else if (portalConfig && typeof portalConfig === 'object') {
+                incomingTabs = portalConfig;
+                if (Array.isArray(portalConfig.order)) incomingOrder = portalConfig.order;
+            }
+
+            cachedStudentPortalConfig.tabs = {
+                ...cachedStudentPortalConfig.tabs,
+                ...incomingTabs
+            };
+            if (incomingOrder && incomingOrder.length) {
+                cachedStudentPortalConfig.order = incomingOrder;
+            }
             cachedGlobalEnabledModules = { ...cachedGlobalEnabledModules, ...enabledModules };
 
-            const activeTabs = PORTAL_TABS_REGISTRY.filter((tab) => {
-                const tabEnabled = cachedStudentPortalConfig[tab.key] !== false;
+            // Determine effective order
+            const effectiveOrder = Array.isArray(cachedStudentPortalConfig.order) && cachedStudentPortalConfig.order.length
+                ? [...cachedStudentPortalConfig.order]
+                : [...DEFAULT_PORTAL_ORDER];
+            DEFAULT_PORTAL_ORDER.forEach((k) => {
+                if (!effectiveOrder.includes(k)) effectiveOrder.push(k);
+            });
+
+            const activeTabsUnsorted = PORTAL_TABS_REGISTRY.filter((tab) => {
+                const tabEnabled = cachedStudentPortalConfig.tabs[tab.key] !== false;
                 const moduleEnabled = tab.moduleKey ? cachedGlobalEnabledModules[tab.moduleKey] !== false : true;
                 return tabEnabled && moduleEnabled;
             });
 
-            // 1. Sync Desktop Navigation Menu
+            // Sort active tabs according to admin configured order
+            const activeTabs = [...activeTabsUnsorted].sort((a, b) => {
+                const idxA = effectiveOrder.indexOf(a.key);
+                const idxB = effectiveOrder.indexOf(b.key);
+                return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+            });
+
+            // 1. Sync Desktop Navigation Menu & Reorder items in DOM
+            const navMenu = document.querySelector('.nav-menu');
+            const installItem = document.getElementById('student-install-menu-item');
+
             PORTAL_TABS_REGISTRY.forEach((tab) => {
                 const navEl = document.getElementById(tab.navId);
                 const isActive = activeTabs.some((t) => t.key === tab.key);
@@ -4786,6 +4828,22 @@ const studentPwa = registerPortalForPwa('student', {
                     navEl.classList.toggle('hidden', !isActive);
                 }
             });
+
+            if (navMenu) {
+                effectiveOrder.forEach((tabKey) => {
+                    const tab = PORTAL_TABS_REGISTRY.find((t) => t.key === tabKey);
+                    if (tab) {
+                        const navEl = document.getElementById(tab.navId);
+                        if (navEl) {
+                            if (installItem) {
+                                navMenu.insertBefore(navEl, installItem);
+                            } else {
+                                navMenu.appendChild(navEl);
+                            }
+                        }
+                    }
+                });
+            }
 
             // 2. Sync Mobile Bottom Navigation Bar & More Sheet
             const bottomContainer = document.getElementById('student-bottom-nav-container');
@@ -4813,7 +4871,7 @@ const studentPwa = registerPortalForPwa('student', {
                 window.currentOverflowTabIds = overflowTabs.map((t) => t.id);
 
                 let directHtml = directTabs.map((tab) => `
-                    <button type="button" class="py-2 sm:py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-target="${tab.id}">
+                    <button type="button" class="py-2 sm:py-2.5 student-bottom-nav-btn flex flex-col items-center justify-center text-center transition cursor-pointer" data-target="${tab.id}" data-url="${tab.url || ''}">
                         <i class="${tab.icon} block text-base sm:text-lg mb-0.5 sm:mb-1"></i>
                         <span class="text-[10px] sm:text-[11px] leading-tight font-extrabold truncate max-w-[65px] sm:max-w-none">${tab.label}</span>
                     </button>
@@ -4834,7 +4892,7 @@ const studentPwa = registerPortalForPwa('student', {
                 // Populate More Sheet Items
                 if (moreSheetItems) {
                     moreSheetItems.innerHTML = overflowTabs.map((tab) => `
-                        <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer student-more-tile" data-target="${tab.id}">
+                        <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer student-more-tile" data-target="${tab.id}" data-url="${tab.url || ''}">
                             <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
                                 <i class="${tab.icon}"></i>
                             </div>
@@ -4853,6 +4911,10 @@ const studentPwa = registerPortalForPwa('student', {
                             }
                             return;
                         }
+                        if (btn.dataset.url) {
+                            window.location.href = btn.dataset.url;
+                            return;
+                        }
                         if (btn.dataset.target) activateStudentTab(btn.dataset.target);
                     });
                 });
@@ -4863,6 +4925,10 @@ const studentPwa = registerPortalForPwa('student', {
                         if (moreSheet) {
                             moreSheet.classList.add('hidden');
                             moreSheet.classList.remove('flex');
+                        }
+                        if (tile.dataset.url) {
+                            window.location.href = tile.dataset.url;
+                            return;
                         }
                         if (tile.dataset.target) activateStudentTab(tile.dataset.target);
                     });
@@ -5679,13 +5745,16 @@ const studentPwa = registerPortalForPwa('student', {
                     studentPortalPerms.allowDetailsEdit = conf.allowStudentDetailsEdit === true;
                     applyStudentPortalPermissionsUI();
 
-                    const portalTabs = (conf.studentPortalConfig && typeof conf.studentPortalConfig.tabs === 'object')
-                        ? conf.studentPortalConfig.tabs
-                        : { profile: true, fees: true, attendance: true, timetable: true, results: true, activities: true };
+                    const portalConfig = (conf.studentPortalConfig && typeof conf.studentPortalConfig === 'object')
+                        ? conf.studentPortalConfig
+                        : {
+                            tabs: { profile: true, fees: true, attendance: true, timetable: true, results: true, activities: true, publicHome: true },
+                            order: ['profile', 'fees', 'attendance', 'timetable', 'results', 'activities', 'publicHome']
+                        };
                     const enabledMods = (conf.enabledModules && typeof conf.enabledModules === 'object')
                         ? conf.enabledModules
                         : {};
-                    applyStudentPortalNavigation(portalTabs, enabledMods);
+                    applyStudentPortalNavigation(portalConfig, enabledMods);
 
                     applyInstitutionBranding(conf, {
                         defaultAppName: 'Student Dashboard',
