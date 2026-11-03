@@ -131,6 +131,7 @@ service cloud.firestore {
     }
 
     match /institutions/{institutionId}/payments/{docId} {
+      allow read: if isAdmin(institutionId) || isCollectionSession();
       allow read: if isSignedIn();
       allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
       allow delete: if isAdmin(institutionId);

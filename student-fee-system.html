@@ -73,7 +73,7 @@
             }
         });
 
-        const BASE_PATH_GLOBAL = 'institutions/TEST_INSTITUTE_01';
+        const BASE_PATH_GLOBAL = 'institutions/school';
         const originalCollection = db.collection;
         db.collection = function(path) {
             if (path && !path.startsWith('institutions/')) {
@@ -92,7 +92,7 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
-        const BASE_PATH = 'institutions/TEST_INSTITUTE_01';
+        const BASE_PATH = 'institutions/school';
 
         const ALL_MONTHS_BASE = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const DEFAULT_ACADEMIC_MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];

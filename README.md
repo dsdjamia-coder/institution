@@ -210,9 +210,9 @@ When deploying the application to a new Firebase project:
    - Navigate to **Build > Firestore Database**.
    - Browse to your institution base path:
      ```
-     institutions/TEST_INSTITUTE_01/settings/adminAuth
+     institutions/school/settings/adminAuth
      ```
-     *(Note: Replace `TEST_INSTITUTE_01` if you modified `INSTITUTION_ID` in `config/app-config.js`).*
+     *(Note: Replace `school` if you modified `INSTITUTION_ID` in `config/app-config.js`).*
    - Create the document `adminAuth` with the following fields:
      ```json
      {
@@ -322,7 +322,7 @@ All institutional data resides under the base path:
 ```
 institutions/{INSTITUTION_ID}/
 ```
-*(Default: `institutions/TEST_INSTITUTE_01/`)*
+*(Default: `institutions/school/`)*
 
 ### Key Collections & Documents:
 
