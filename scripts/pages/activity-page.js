@@ -1104,6 +1104,38 @@ const saveTaskDefinitionsToFirestore = async (tasks) => {
 // =========================================================================
 // MODULE 3: HABITS & TASKS CHECKLIST (WITH 2D FROZEN TABLE & CADENCE ALL)
 // =========================================================================
+const getWeekPeriodKey = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T12:00:00');
+    if (isNaN(d.getTime())) return dateStr;
+    const day = d.getDay();
+    const sun = new Date(d);
+    sun.setDate(d.getDate() - day);
+    const y = sun.getFullYear();
+    const m = String(sun.getMonth() + 1).padStart(2, '0');
+    const dt = String(sun.getDate()).padStart(2, '0');
+    return `${y}-W${m}${dt}`;
+};
+
+const getMonthPeriodKey = (dateStr) => {
+    if (!dateStr || dateStr.length < 7) return '';
+    return dateStr.substring(0, 7);
+};
+
+const getTaskDocId = (year, className, dateStr, cadence) => {
+    const cleanY = String(year || '').trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(className || '').trim().replace(/[^\w-]/g, '_');
+    if (cadence === 'weekly') {
+        const weekKey = getWeekPeriodKey(dateStr);
+        return `${cleanY}__${cleanC}__${weekKey}__weekly`;
+    }
+    if (cadence === 'monthly') {
+        const monthKey = getMonthPeriodKey(dateStr);
+        return `${cleanY}__${cleanC}__${monthKey}__monthly`;
+    }
+    return `${cleanY}__${cleanC}__${dateStr}__daily`;
+};
+
 const loadTasksRoster = async () => {
     const allowed = getAllowedClassesForTeacher();
     const classVal = document.getElementById('tasks-class-select')?.value;
@@ -1129,9 +1161,16 @@ const loadTasksRoster = async () => {
     try {
         if (currentTaskCadence === 'all') {
             const cadences = ['daily', 'weekly', 'monthly'];
-            const snaps = await Promise.all(cadences.map(cad =>
-                getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${cad}`))
-            ));
+            const snaps = await Promise.all(cadences.map(async (cad) => {
+                const primaryDocId = getTaskDocId(currentAcademicYear, selectedTasksClass, selectedTasksDate, cad);
+                const snap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, primaryDocId));
+                if (snap.exists()) return snap;
+                if (cad !== 'daily') {
+                    const legacyDoc = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${cad}`)).catch(() => null);
+                    if (legacyDoc && legacyDoc.exists()) return legacyDoc;
+                }
+                return snap;
+            }));
             taskCompletionsMap = {};
             snaps.forEach(snap => {
                 if (snap.exists()) {
@@ -1143,8 +1182,12 @@ const loadTasksRoster = async () => {
                 }
             });
         } else {
-            const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
-            const snap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
+            const docId = getTaskDocId(currentAcademicYear, selectedTasksClass, selectedTasksDate, currentTaskCadence);
+            let snap = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId));
+            if (!snap.exists() && currentTaskCadence !== 'daily') {
+                const legacyDoc = await getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`)).catch(() => null);
+                if (legacyDoc && legacyDoc.exists()) snap = legacyDoc;
+            }
             taskCompletionsMap = snap.exists() ? (snap.data().completions || {}) : {};
         }
     } catch (_) {
@@ -1226,16 +1269,26 @@ const saveTasksCompletionsToFirestore = async () => {
                         }
                     });
                 });
-                const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${cad}`;
+                const docId = getTaskDocId(currentAcademicYear, selectedTasksClass, selectedTasksDate, cad);
                 return setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
+                    academicYear: currentAcademicYear,
+                    class: selectedTasksClass,
+                    cadence: cad,
+                    date: selectedTasksDate,
+                    period: (cad === 'weekly') ? getWeekPeriodKey(selectedTasksDate) : ((cad === 'monthly') ? getMonthPeriodKey(selectedTasksDate) : selectedTasksDate),
                     completions: cadenceComps,
                     updatedAt: Date.now()
                 }, { merge: true });
             });
             await Promise.all(savePromises);
         } else {
-            const docId = `${currentAcademicYear}__${selectedTasksClass}__${selectedTasksDate}__${currentTaskCadence}`;
+            const docId = getTaskDocId(currentAcademicYear, selectedTasksClass, selectedTasksDate, currentTaskCadence);
             await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, docId), {
+                academicYear: currentAcademicYear,
+                class: selectedTasksClass,
+                cadence: currentTaskCadence,
+                date: selectedTasksDate,
+                period: (currentTaskCadence === 'weekly') ? getWeekPeriodKey(selectedTasksDate) : ((currentTaskCadence === 'monthly') ? getMonthPeriodKey(selectedTasksDate) : selectedTasksDate),
                 completions: taskCompletionsMap,
                 updatedAt: Date.now()
             }, { merge: true });

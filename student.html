@@ -46,17 +46,15 @@
 
             <div class="flex items-center gap-3 relative z-[1001] ml-auto">
                 <!-- Notification Bell -->
-                <button id="student-notify-trigger" class="relative text-slate-600 hover:text-blue-600 transition p-2 focus:outline-none rounded-full hover:bg-slate-50">
+                <button id="student-notify-trigger" class="relative text-slate-600 hover:text-blue-600 transition p-2 focus:outline-none rounded-full hover:bg-slate-50 cursor-pointer" title="Notifications">
                     <i class="fas fa-bell text-[22px]"></i>
                     <span id="student-notify-badge" class="absolute top-[2px] right-[2px] bg-red-500 text-white text-[9px] font-bold px-1.5 py-[2px] rounded-full border-2 border-white shadow-sm hidden"></span>
                 </button>
 
-                <!-- Hamburger Toggle Icon -->
-                <button class="mobile-toggle" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
-                    <div class="menu-icon-wrapper">
-                        <i class="fas fa-bars icon-bars"></i>
-                        <i class="fas fa-times icon-close"></i>
-                    </div>
+                <!-- Header Logout Button (Replaces Hamburger) -->
+                <button type="button" id="student-header-logout-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-black transition shadow-2xs cursor-pointer" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
                 </button>
             </div>
             
@@ -77,11 +75,17 @@
                 <li id="student-nav-publichome"><a href="index.html?public=1" class="nav-link"><i class="fas fa-globe text-lg w-6"></i> Public Page</a></li>
                 <div class="border-t border-gray-100 my-1"></div>
                 <li id="student-install-menu-item" class="hidden"><button type="button" id="student-install-btn" class="nav-link w-full text-left font-bold text-blue-600 hover:bg-blue-50 cursor-pointer"><i class="fas fa-download text-lg w-6"></i> Install App</button></li>
-                <li><button id="student-public-btn" class="login-btn-nav bg-slate-100 hover:bg-slate-200 text-slate-700"><i class="fas fa-home"></i> Public Page</button></li>
                 <li><button id="student-logout-btn" class="login-btn-nav btn-danger"><i class="fas fa-sign-out-alt"></i> Logout</button></li>
             </ul>
         </div>
     </header>
+
+    <!-- Dedicated Desktop / Laptop Horizontal Tabs Navigation Bar -->
+    <nav id="student-desktop-tabs-bar" class="hidden md:flex items-center justify-center bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs px-4 py-2 sticky top-[60px] z-40">
+        <div id="student-desktop-tabs-container" class="max-w-6xl w-full flex items-center justify-center flex-wrap gap-1.5 sm:gap-2">
+            <!-- Injected dynamically by applyStudentPortalNavigation -->
+        </div>
+    </nav>
 
     <main class="w-full">
         <!-- 1. COMPREHENSIVE STUDENT PROFILE VIEW -->

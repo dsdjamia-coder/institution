@@ -44,22 +44,26 @@ const studentPwa = registerPortalForPwa('student', {
         hardenExternalLinks();
         enableSmartSelectWindowing(document, { visibleCount: 6 });
 
-        // Hamburger Menu Logic with 'X' Animation
+        // Hamburger Menu Logic (Gracefully checks if toggle exists)
         const mobileToggle = document.getElementById('mobile-menu-btn');
         const navMenu = document.querySelector('.nav-menu');
         const setMobileMenuState = (isOpen) => {
-            navMenu.classList.toggle('active', isOpen);
-            mobileToggle.classList.toggle('active-toggle', isOpen);
-            mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            if (navMenu) navMenu.classList.toggle('active', isOpen);
+            if (mobileToggle) {
+                mobileToggle.classList.toggle('active-toggle', isOpen);
+                mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            }
         };
 
-        mobileToggle.addEventListener('click', (e) => { 
-            e.stopPropagation(); 
-            setMobileMenuState(!navMenu.classList.contains('active'));
-        });
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', (e) => { 
+                e.stopPropagation(); 
+                setMobileMenuState(!navMenu?.classList.contains('active'));
+            });
+        }
 
         document.addEventListener('click', (e) => { 
-            if (!navMenu.contains(e.target) && !mobileToggle.contains(e.target)) { 
+            if (navMenu && !navMenu.contains(e.target) && (!mobileToggle || !mobileToggle.contains(e.target))) { 
                 setMobileMenuState(false);
             } 
         });
@@ -100,6 +104,15 @@ const studentPwa = registerPortalForPwa('student', {
             window.scrollTo(0,0);
             document.querySelectorAll('.student-bottom-nav-btn[data-target]').forEach((btn) => {
                 btn.classList.toggle('active', btn.dataset.target === safeTargetId);
+            });
+            document.querySelectorAll('.student-desktop-tab-btn[data-target]').forEach((btn) => {
+                const isActive = (btn.dataset.target === safeTargetId);
+                btn.classList.toggle('active', isActive);
+                btn.classList.toggle('bg-blue-600', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('shadow-2xs', isActive);
+                btn.classList.toggle('text-slate-600', !isActive);
+                btn.classList.toggle('hover:bg-slate-100', !isActive);
             });
             const isOverflowActive = Array.isArray(window.currentOverflowTabIds) && window.currentOverflowTabIds.includes(safeTargetId);
             const moreBtn = document.getElementById('btn-student-bottom-more');
@@ -182,6 +195,7 @@ const studentPwa = registerPortalForPwa('student', {
         }
         window.logoutStudent = logoutStudent;
         document.getElementById('student-logout-btn')?.addEventListener('click', () => logoutStudent());
+        document.getElementById('student-header-logout-btn')?.addEventListener('click', () => logoutStudent());
         document.getElementById('student-public-btn')?.addEventListener('click', () => { window.location.href = 'index.html?public=1'; });
         document.querySelectorAll('.student-bottom-nav-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -4980,7 +4994,37 @@ const studentPwa = registerPortalForPwa('student', {
                 });
             }
 
-            // 2. Sync Mobile Bottom Navigation Bar & More Sheet
+            // 2. Sync Dedicated Desktop / Laptop Horizontal Tabs Bar
+            const desktopContainer = document.getElementById('student-desktop-tabs-container');
+            if (desktopContainer) {
+                const currentVisiblePage = pages.find((p) => !p.classList.contains('hidden'));
+                const activePageId = currentVisiblePage ? currentVisiblePage.id : defaultTabId;
+
+                desktopContainer.innerHTML = activeTabs.map((tab) => {
+                    const isActive = (tab.id === activePageId);
+                    return `
+                        <button type="button" class="student-desktop-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer border border-transparent ${isActive ? 'bg-blue-600 text-white shadow-2xs active' : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100'}" data-target="${tab.id}" data-url="${tab.url || ''}">
+                            <i class="${tab.icon}"></i>
+                            <span>${escapeHtml(tab.label)}</span>
+                        </button>
+                    `;
+                }).join('');
+
+                desktopContainer.querySelectorAll('.student-desktop-tab-btn').forEach((btn) => {
+                    if (btn.dataset.target === 'home-page') {
+                        attachAccountGestureListeners(btn);
+                    }
+                    btn.addEventListener('click', () => {
+                        if (btn.dataset.url) {
+                            window.location.href = btn.dataset.url;
+                            return;
+                        }
+                        if (btn.dataset.target) activateStudentTab(btn.dataset.target);
+                    });
+                });
+            }
+
+            // 3. Sync Mobile Bottom Navigation Bar & More Sheet
             const bottomContainer = document.getElementById('student-bottom-nav-container');
             const moreSheet = document.getElementById('student-more-sheet');
             const moreSheetItems = document.getElementById('student-more-sheet-items');
@@ -5750,6 +5794,51 @@ const studentPwa = registerPortalForPwa('student', {
             savingTask: false
         };
 
+        const getWeekPeriodKey = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr + 'T12:00:00');
+            if (isNaN(d.getTime())) return dateStr;
+            const day = d.getDay(); // 0 is Sunday
+            const sun = new Date(d);
+            sun.setDate(d.getDate() - day);
+            const y = sun.getFullYear();
+            const m = String(sun.getMonth() + 1).padStart(2, '0');
+            const dt = String(sun.getDate()).padStart(2, '0');
+            return `${y}-W${m}${dt}`;
+        };
+
+        const getMonthPeriodKey = (dateStr) => {
+            if (!dateStr || dateStr.length < 7) return '';
+            return dateStr.substring(0, 7);
+        };
+
+        const getDayOfWeekName = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr + 'T12:00:00');
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleDateString('en-US', { weekday: 'long' });
+        };
+
+        const isMatchingMonthlySchedule = (dateStr, scheduleString = '') => {
+            if (!dateStr || !scheduleString) return false;
+            const cleanSchedule = scheduleString.trim().toLowerCase();
+            const d = new Date(dateStr + 'T12:00:00');
+            if (isNaN(d.getTime())) return false;
+            const dayNum = d.getDate();
+
+            if (cleanSchedule === 'last day of month') {
+                const nextDay = new Date(d);
+                nextDay.setDate(d.getDate() + 1);
+                return nextDay.getDate() === 1;
+            }
+
+            const matchNum = cleanSchedule.match(/\d+/);
+            if (matchNum) {
+                return parseInt(matchNum[0], 10) === dayNum;
+            }
+            return false;
+        };
+
         const renderStudentActivitiesModule = async (profile) => {
             const pageEl = document.getElementById('activities-page');
             if (!pageEl || !profile) return;
@@ -5776,10 +5865,12 @@ const studentPwa = registerPortalForPwa('student', {
 
             const cleanY = String(currentAcademicYear || profile.academicYear || '').trim().replace(/[^\w-]/g, '_');
             const cleanC = String(profile.class || '').trim().replace(/[^\w-]/g, '_');
+            const weekKey = getWeekPeriodKey(selectedActivityDate);
+            const monthKey = getMonthPeriodKey(selectedActivityDate);
             const prayerDocId = `${cleanY}__${cleanC}__${selectedActivityDate}`;
             const dailyTasksDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__daily`;
-            const weeklyTasksDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__weekly`;
-            const monthlyTasksDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__monthly`;
+            const weeklyTasksDocId = `${cleanY}__${cleanC}__${weekKey}__weekly`;
+            const monthlyTasksDocId = `${cleanY}__${cleanC}__${monthKey}__monthly`;
 
             try {
                 const [
@@ -5792,7 +5883,9 @@ const studentPwa = registerPortalForPwa('student', {
                     taskDefsSnap,
                     dailyCompsSnap,
                     weeklyCompsSnap,
-                    monthlyCompsSnap
+                    monthlyCompsSnap,
+                    legacyWeeklySnap,
+                    legacyMonthlySnap
                 ] = await Promise.all([
                     getDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, profile.id)).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, profile.id)).catch(() => null),
@@ -5803,7 +5896,9 @@ const studentPwa = registerPortalForPwa('student', {
                     getDoc(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions')).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/taskCompletions`, dailyTasksDocId)).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/taskCompletions`, weeklyTasksDocId)).catch(() => null),
-                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, monthlyTasksDocId)).catch(() => null)
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, monthlyTasksDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${cleanY}__${cleanC}__${selectedActivityDate}__weekly`)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, `${cleanY}__${cleanC}__${selectedActivityDate}__monthly`)).catch(() => null)
                 ]);
 
                 // 0. Extract Rubric & Prayer Points Rules
@@ -5901,10 +5996,18 @@ const studentPwa = registerPortalForPwa('student', {
                         { id: 'task_d3', title: 'Class Kit & Books Prepared', cadence: 'daily', points: 5 }
                     ];
 
+                const effectiveWeeklyComps = (weeklyCompsSnap?.exists())
+                    ? (weeklyCompsSnap.data().completions || {})
+                    : (legacyWeeklySnap?.exists() ? (legacyWeeklySnap.data().completions || {}) : {});
+
+                const effectiveMonthlyComps = (monthlyCompsSnap?.exists())
+                    ? (monthlyCompsSnap.data().completions || {})
+                    : (legacyMonthlySnap?.exists() ? (legacyMonthlySnap.data().completions || {}) : {});
+
                 const mergedStudentCompletions = {
                     ...(dailyCompsSnap?.data()?.completions?.[profile.id] || {}),
-                    ...(weeklyCompsSnap?.data()?.completions?.[profile.id] || {}),
-                    ...(monthlyCompsSnap?.data()?.completions?.[profile.id] || {})
+                    ...(effectiveWeeklyComps[profile.id] || {}),
+                    ...(effectiveMonthlyComps[profile.id] || {})
                 };
 
                 // 2. Aggregate Points Calculation
@@ -6261,16 +6364,61 @@ const studentPwa = registerPortalForPwa('student', {
                             const points = Number(t.points) || 5;
                             const taskCadence = t.cadence || 'daily';
 
+                            let isEligibleDay = true;
+                            let scheduleBadge = '';
+                            let statusHint = isDone ? 'Completed' : 'Pending task';
+                            const currentDayName = getDayOfWeekName(selectedActivityDate);
+
+                            if (taskCadence === 'weekly') {
+                                if (t.dayOfWeek) {
+                                    scheduleBadge = `Every ${t.dayOfWeek}`;
+                                    const isScheduledToday = (currentDayName.toLowerCase() === t.dayOfWeek.trim().toLowerCase());
+                                    if (!isScheduledToday) {
+                                        isEligibleDay = false;
+                                        statusHint = isDone
+                                            ? `Completed for this week`
+                                            : `Scheduled for ${t.dayOfWeek} (Locked today)`;
+                                    } else {
+                                        statusHint = isDone ? `Completed for this week` : `Scheduled for today (${t.dayOfWeek})`;
+                                    }
+                                } else {
+                                    scheduleBadge = 'Weekly (Once a week)';
+                                    statusHint = isDone ? 'Completed (This Week)' : 'Pending weekly task';
+                                }
+                            } else if (taskCadence === 'monthly') {
+                                if (t.dayOfMonth) {
+                                    scheduleBadge = `Scheduled: ${t.dayOfMonth}`;
+                                    const isScheduledToday = isMatchingMonthlySchedule(selectedActivityDate, t.dayOfMonth);
+                                    if (!isScheduledToday) {
+                                        isEligibleDay = false;
+                                        statusHint = isDone
+                                            ? `Completed for this month`
+                                            : `Scheduled for ${t.dayOfMonth} (Locked today)`;
+                                    } else {
+                                        statusHint = isDone ? `Completed for this month` : `Scheduled for today (${t.dayOfMonth})`;
+                                    }
+                                } else {
+                                    scheduleBadge = 'Monthly (Once a month)';
+                                    statusHint = isDone ? 'Completed (This Month)' : 'Pending monthly task';
+                                }
+                            } else {
+                                scheduleBadge = 'Daily';
+                                statusHint = isDone ? 'Completed today' : 'Pending daily task';
+                            }
+
+                            const canToggleThisTask = canEdit && isEligibleDay;
+
                             return `
-                                <div class="p-3 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'} flex items-center justify-between gap-3 shadow-2xs transition">
+                                <div class="p-3 sm:p-3.5 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : (isEligibleDay ? 'border-slate-200 bg-white' : 'border-slate-200/60 bg-slate-50/70')} flex items-center justify-between gap-3 shadow-2xs transition">
                                     <div class="flex items-center gap-3 min-w-0">
-                                        <input type="checkbox" class="stu-act-task-toggle w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" data-cadence="${escapeHtml(taskCadence)}" ${isDone ? 'checked' : ''} ${!canEdit ? 'disabled' : ''}>
+                                        <input type="checkbox" class="stu-act-task-toggle w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer ${!canToggleThisTask ? 'opacity-50 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" data-cadence="${escapeHtml(taskCadence)}" ${isDone ? 'checked' : ''} ${!canToggleThisTask ? 'disabled' : ''}>
                                         <div class="min-w-0">
                                             <div class="flex items-center gap-1.5 flex-wrap">
                                                 <span class="text-xs sm:text-sm font-bold text-slate-800 truncate ${isDone ? 'line-through text-slate-500' : ''}">${escapeHtml(t.title)}</span>
                                                 <span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(taskCadence)}</span>
+                                                ${scheduleBadge ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60">${escapeHtml(scheduleBadge)}</span>` : ''}
                                             </div>
-                                            <div class="text-[10px] text-slate-400 font-semibold mt-0.5">${isDone ? 'Completed' : 'Pending task'}</div>
+                                            <div class="text-[10px] ${isDone ? 'text-emerald-700 font-bold' : (isEligibleDay ? 'text-slate-400 font-semibold' : 'text-amber-600 font-bold')} mt-0.5">${escapeHtml(statusHint)}</div>
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-1.5 shrink-0">
@@ -6293,13 +6441,16 @@ const studentPwa = registerPortalForPwa('student', {
                                     chk.disabled = true;
 
                                     try {
-                                        const targetDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__${taskCadence}`;
-                                        let currentTargetSnap = (taskCadence === 'weekly')
-                                            ? weeklyCompsSnap
-                                            : ((taskCadence === 'monthly') ? monthlyCompsSnap : dailyCompsSnap);
+                                        const targetDocId = (taskCadence === 'weekly')
+                                            ? weeklyTasksDocId
+                                            : ((taskCadence === 'monthly') ? monthlyTasksDocId : dailyTasksDocId);
+
+                                        const currentComps = (taskCadence === 'weekly')
+                                            ? effectiveWeeklyComps
+                                            : ((taskCadence === 'monthly') ? effectiveMonthlyComps : (dailyCompsSnap?.data()?.completions || {}));
 
                                         const targetComps = {
-                                            ...(currentTargetSnap?.data()?.completions || {})
+                                            ...currentComps
                                         };
                                         const studentTargetComps = {
                                             ...(targetComps[profile.id] || {})
@@ -6310,7 +6461,9 @@ const studentPwa = registerPortalForPwa('student', {
                                         await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, targetDocId), {
                                             academicYear: cleanY,
                                             class: cleanC,
+                                            period: (taskCadence === 'weekly') ? weekKey : ((taskCadence === 'monthly') ? monthKey : selectedActivityDate),
                                             date: selectedActivityDate,
+                                            cadence: taskCadence,
                                             completions: targetComps,
                                             updatedAt: Date.now()
                                         }, { merge: true });
