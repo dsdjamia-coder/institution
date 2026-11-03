@@ -1195,6 +1195,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       let canAttendance = false;
       let canAcademicPlan = false;
       let canStudentActivity = false;
+      let canClassroomEvaluation = false;
 
       if (isMasterAdmin) {
         canCollection = true;
@@ -1204,6 +1205,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         canAttendance = true;
         canAcademicPlan = true;
         canStudentActivity = true;
+        canClassroomEvaluation = true;
       } else if (isStaffSession) {
         const staffProfile = getCurrentSessionProfile() || {};
         const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
