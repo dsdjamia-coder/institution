@@ -526,7 +526,7 @@ const populateClassDropdowns = () => {
         if (!select) return;
 
         const prev = select.value;
-        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
 
         if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
@@ -548,7 +548,7 @@ const populateClassDropdowns = () => {
         } else if (allowed.length > 1) {
             allOpts.push(`<option value="ALL">All My Classes</option>`);
         }
-        allOpts = allOpts.concat(allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`)).join('');
+        allOpts = allOpts.concat(allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)).join('');
         select.innerHTML = allOpts;
 
         if (prev && (prev === 'ALL' || allowed.some(c => isClassInDutyScope(prev, [c])))) {

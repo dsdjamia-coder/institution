@@ -395,11 +395,23 @@ const getStudentStatusBadgeClass = (status) => ({
     Alumni: 'bg-indigo-100 text-indigo-700 border-indigo-200',
     Graduated: 'bg-indigo-100 text-indigo-700 border-indigo-200'
 }[normalizeStudentStatus(status)] || 'bg-gray-100 text-gray-700 border-gray-200');
-const compareClassLabels = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+const cleanClassInput = (str) => {
+    if (!str) return '';
+    let cleaned = String(str).trim();
+    cleaned = cleaned.replace(/^class\s+/i, '').trim();
+    return cleaned.toUpperCase();
+};
+const compareClassLabels = (a, b) => {
+    const isAAlumni = String(a || '').trim().toUpperCase() === 'ALUMNI';
+    const isBAlumni = String(b || '').trim().toUpperCase() === 'ALUMNI';
+    if (isAAlumni && !isBAlumni) return 1;
+    if (!isAAlumni && isBAlumni) return -1;
+    return String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
+};
 const sortClassLabels = (classList) => [...classList].sort(compareClassLabels);
 const getDefaultClassLadder = () => Array.from({ length: 12 }, (_, index) => String(index + 1));
 const buildDivisionLabels = (baseClass = '', count = 3) => {
-    const normalizedBase = String(baseClass || '').trim().toUpperCase();
+    const normalizedBase = cleanClassInput(baseClass);
     if (!normalizedBase) return [];
     const normalizedCount = Math.max(1, Math.min(10, Number(count) || 0));
     return Array.from({ length: normalizedCount }, (_, index) => `${normalizedBase} ${String.fromCharCode(65 + index)}`);
@@ -4436,7 +4448,9 @@ document.getElementById('skip-issues-upload-btn')?.addEventListener('click', asy
 document.getElementById('add-manual-btn')?.addEventListener('click', async () => {
     if(!requirePermission('students.manage')) return;
     const btn = document.getElementById('add-manual-btn');
-    const cls = (document.getElementById('add-stu-class')?.value || '').toUpperCase().trim();
+    const rawCls = (document.getElementById('add-stu-class')?.value || '').trim();
+    const isAlumniSelected = rawCls.toUpperCase() === 'ALUMNI' || rawCls.toUpperCase() === 'GRADUATED';
+    const cls = isAlumniSelected ? 'Alumni' : cleanClassInput(rawCls);
     const name = (document.getElementById('add-stu-name')?.value || '').toUpperCase().trim();
     const gender = document.getElementById('add-stu-gender')?.value || 'Male';
     if(!cls || !name || !gender) return alert("Class, Name and Gender are mandatory.");
@@ -4457,7 +4471,8 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
         const motherVal = (document.getElementById('add-stu-mother')?.value || '').toUpperCase().trim();
         const motherMobileVal = document.getElementById('add-stu-mother-mobile')?.value?.trim() || '';
         const addressVal = document.getElementById('add-stu-address')?.value?.trim() || '';
-        const statusVal = normalizeStudentStatus(document.getElementById('add-stu-status')?.value || 'Active');
+        const rawStatusVal = document.getElementById('add-stu-status')?.value || 'Active';
+        const statusVal = isAlumniSelected ? 'Alumni' : normalizeStudentStatus(rawStatusVal);
 
         const studentActiveYear = activeAcademicYear || currentAcademicYear;
         const nextStudent = {
@@ -4467,6 +4482,7 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
             name: name,
             gender: gender,
             status: statusVal,
+            isAlumni: isAlumniSelected || statusVal === 'Alumni',
             academicYears: {
                 [studentActiveYear]: {
                     class: cls,
@@ -4515,7 +4531,9 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
         const studentDoc = await addDoc(collection(db, `${BASE_PATH}/students`), nextStudent);
         await syncEnrollmentRecord(studentDoc.id, nextStudent);
         await setDoc(doc(db, `${BASE_PATH}/studentPhotoSubmissions`, studentDoc.id), { photo: photoVal, updatedAt: Date.now() }, { merge: true });
-        await syncActiveAcademicYearClasses([cls]);
+        if (cls !== 'Alumni' && cls !== 'ALUMNI') {
+            await syncActiveAcademicYearClasses([cls]);
+        }
         await logAuditEvent({ category: 'student', action: 'student.create', entityType: 'student', entityId: studentDoc.id, message: `Student added: ${name}.` });
         
         alert("Student Added!");
@@ -4559,13 +4577,59 @@ const saveStudentPortalPermissions = async () => {
 document.getElementById('admin-toggle-student-photo-upload')?.addEventListener('change', saveStudentPortalPermissions);
 document.getElementById('admin-toggle-student-details-edit')?.addEventListener('change', saveStudentPortalPermissions);
 
+// Bi-directional sync between Class and Status for Add Student
+document.getElementById('add-stu-class')?.addEventListener('change', (e) => {
+    if (e.target.value === 'ALUMNI') {
+        const statusEl = document.getElementById('add-stu-status');
+        if (statusEl) statusEl.value = 'Alumni';
+    }
+});
+document.getElementById('add-stu-status')?.addEventListener('change', (e) => {
+    if (e.target.value === 'Alumni') {
+        const classEl = document.getElementById('add-stu-class');
+        if (classEl) classEl.value = 'ALUMNI';
+    }
+});
+
+// Bi-directional sync between Class and Status for Edit Student
+document.getElementById('e-stu-class')?.addEventListener('change', (e) => {
+    if (e.target.value === 'ALUMNI') {
+        const statusEl = document.getElementById('e-stu-status');
+        if (statusEl) statusEl.value = 'Alumni';
+    }
+});
+document.getElementById('e-stu-status')?.addEventListener('change', (e) => {
+    if (e.target.value === 'Alumni') {
+        const classEl = document.getElementById('e-stu-class');
+        if (classEl) classEl.value = 'ALUMNI';
+    }
+});
 
 // --- 3. MANAGE STUDENTS ---
 const populateClassDropdowns = () => {
     classes = getClassesForActiveYear();
     const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
+    const classOptsWithAlumni = opts + `<option value="ALUMNI">Alumni</option>`;
     const dataList = document.getElementById('class-suggestions');
     if (dataList) dataList.innerHTML = opts;
+
+    const addClassSelect = document.getElementById('add-stu-class');
+    if (addClassSelect) {
+        const prevAddVal = addClassSelect.value;
+        addClassSelect.innerHTML = `<option value="">-- Select Class --</option>` + classOptsWithAlumni;
+        if (prevAddVal && (classes.includes(prevAddVal) || prevAddVal === 'ALUMNI')) {
+            addClassSelect.value = prevAddVal;
+        }
+    }
+
+    const editClassSelect = document.getElementById('e-stu-class');
+    if (editClassSelect) {
+        const prevEditVal = editClassSelect.value;
+        editClassSelect.innerHTML = `<option value="">-- Select Class --</option>` + classOptsWithAlumni;
+        if (prevEditVal && (classes.includes(prevEditVal) || prevEditVal === 'ALUMNI')) {
+            editClassSelect.value = prevEditVal;
+        }
+    }
 
     const filterManage = document.getElementById('filter-manage-class'); const prevManageVal = filterManage.value;
     filterManage.innerHTML = `<option value="all">All Classes</option>` + opts + `<option value="ALUMNI">Alumni</option>`;
@@ -4994,7 +5058,30 @@ const openEditStudentModal = (studentId) => {
         editingStudentId = st.id;
         const prof = st.profile || {};
         const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val !== undefined && val !== null ? val : ''; };
-        setVal('e-stu-class', st.class || st.studentClass || prof.class || '');
+
+        const editClassSelect = document.getElementById('e-stu-class');
+        if (editClassSelect) {
+            const classOptsWithAlumni = classes.map(c => `<option value="${c}">${c}</option>`).join('') + `<option value="ALUMNI">Alumni</option>`;
+            editClassSelect.innerHTML = `<option value="">-- Select Class --</option>` + classOptsWithAlumni;
+        }
+
+        let rawCls = st.class || st.studentClass || prof.class || '';
+        let targetCls = cleanClassInput(rawCls);
+        if (targetCls === 'ALUMNI' || targetCls === 'GRADUATED' || normalizeStudentStatus(st.status || prof.status) === 'Alumni') {
+            targetCls = 'ALUMNI';
+        }
+
+        if (editClassSelect && targetCls && targetCls !== 'ALUMNI' && !classes.includes(targetCls)) {
+            const extraOpt = document.createElement('option');
+            extraOpt.value = targetCls;
+            extraOpt.textContent = targetCls;
+            editClassSelect.appendChild(extraOpt);
+        }
+
+        if (editClassSelect) {
+            editClassSelect.value = targetCls;
+        }
+
         setVal('e-stu-gender', st.gender || prof.gender || 'Male');
         setVal('e-stu-name', st.name || prof.name || '');
         setVal('e-stu-adm', st.adm || prof.admNo || prof.adm || '');
@@ -5004,7 +5091,7 @@ const openEditStudentModal = (studentId) => {
         setVal('e-stu-mother-mobile', st.motherMobile || prof.motherMobile || '');
         setVal('e-stu-uid', st.uid || prof.uid || '');
         setVal('e-stu-addr', st.address || prof.address || '');
-        setVal('e-stu-status', normalizeStudentStatus(st.status || prof.status));
+        setVal('e-stu-status', targetCls === 'ALUMNI' ? 'Alumni' : normalizeStudentStatus(st.status || prof.status));
         setVal('e-stu-dob', normalizeToIsoDate(prof.dob || st.dob || ''));
         setVal('e-stu-adm-date', normalizeToIsoDate(prof.admDate || prof.adm_date || st.admDate || st.adm_date || ''));
         setVal('e-stu-adhaar', prof.adhaar || st.adhaar || '');
@@ -5020,7 +5107,9 @@ const openEditStudentModal = (studentId) => {
 document.getElementById('edit-student-update')?.addEventListener('click', async () => {
     if(!requirePermission('students.manage')) return;
     const getVal = (id) => (document.getElementById(id)?.value || '').trim();
-    const updatedClass = getVal('e-stu-class').toUpperCase();
+    const rawClassVal = getVal('e-stu-class');
+    const isAlumniSelected = rawClassVal.toUpperCase() === 'ALUMNI' || rawClassVal.toUpperCase() === 'GRADUATED';
+    const updatedClass = isAlumniSelected ? 'Alumni' : cleanClassInput(rawClassVal);
     const nameVal = getVal('e-stu-name').toUpperCase();
     const genderVal = document.getElementById('e-stu-gender')?.value || 'Male';
     if(!updatedClass || !nameVal || !genderVal) return alert("Class, Name and Gender are mandatory.");
@@ -5030,6 +5119,8 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
     const admDateVal = document.getElementById('e-stu-adm-date')?.value || '';
     const adhaarVal = getVal('e-stu-adhaar');
     const samasthaVal = getVal('e-stu-samastha');
+    const selectedStatus = document.getElementById('e-stu-status')?.value || 'Active';
+    const finalStatus = isAlumniSelected ? 'Alumni' : normalizeStudentStatus(selectedStatus);
 
     const existingStudent = rawStudents.find((student) => student.id === editingStudentId) || {};
     const updatedPayload = { 
@@ -5037,7 +5128,8 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
         class: updatedClass, 
         studentClass: updatedClass, // Save both for compatibility
         gender: document.getElementById('e-stu-gender')?.value || 'Male', 
-        status: normalizeStudentStatus(document.getElementById('e-stu-status')?.value || 'Active'), 
+        status: finalStatus,
+        isAlumni: isAlumniSelected || finalStatus === 'Alumni',
         adm: getVal('e-stu-adm').toUpperCase(), 
         mobile: getVal('e-stu-mob'), 
         father: getVal('e-stu-fat').toUpperCase(), 
@@ -5065,7 +5157,7 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
             mother: getVal('e-stu-mother').toUpperCase(),
             mobile: getVal('e-stu-mob'),
             motherMobile: getVal('e-stu-mother-mobile'),
-            status: normalizeStudentStatus(document.getElementById('e-stu-status')?.value || 'Active')
+            status: finalStatus
         }
     };
     const activeYearForEdit = activeAcademicYear || currentAcademicYear;
@@ -5082,7 +5174,9 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
         await updateDoc(doc(db, `${BASE_PATH}/students`, editingStudentId), updatedPayload);
         await setDoc(doc(db, `${BASE_PATH}/studentPhotoSubmissions`, editingStudentId), { photo: photoVal, updatedAt: Date.now() }, { merge: true });
         await syncEnrollmentRecord(editingStudentId, { ...existingStudent, ...updatedPayload });
-        await syncActiveAcademicYearClasses([updatedClass]);
+        if (updatedClass !== 'Alumni' && updatedClass !== 'ALUMNI') {
+            await syncActiveAcademicYearClasses([updatedClass]);
+        }
         await logAuditEvent({ category: 'student', action: 'student.update', entityType: 'student', entityId: editingStudentId, message: 'Student record updated.' });
         document.getElementById('edit-student-popup').classList.add('hidden');
         renderStudentList();
@@ -6871,7 +6965,7 @@ const renderClassList = () => {
 };
 document.getElementById('create-class-btn').addEventListener('click', async () => {
     if(!requirePermission('classes.manage')) return;
-    const className = document.getElementById('new-class-name-input').value.trim().toUpperCase();
+    const className = cleanClassInput(document.getElementById('new-class-name-input').value);
     if(!className) return alert('Enter a class/division name.');
     if(classes.includes(className)) return alert('This class/division already exists in the active academic year.');
     await syncActiveAcademicYearClasses([className]);
@@ -6887,7 +6981,7 @@ document.getElementById('generate-default-classes-btn')?.addEventListener('click
 });
 document.getElementById('create-divisions-btn')?.addEventListener('click', async () => {
     if(!requirePermission('classes.manage')) return;
-    const baseClass = document.getElementById('division-base-class-input')?.value || '';
+    const baseClass = cleanClassInput(document.getElementById('division-base-class-input')?.value || '');
     const divisionCount = document.getElementById('division-count-input')?.value || 3;
     const labels = buildDivisionLabels(baseClass, divisionCount);
     if (!labels.length) return alert('Enter a valid base class for divisions.');
@@ -6918,7 +7012,7 @@ document.getElementById('class-list-container').addEventListener('click', e => {
 document.getElementById('edit-class-cancel').addEventListener('click', () => document.getElementById('edit-class-popup').classList.add('hidden'));
 document.getElementById('edit-class-update').addEventListener('click', async () => {
     if(!requirePermission('classes.manage')) return;
-    const newName = document.getElementById('edit-class-name').value.trim().toUpperCase();
+    const newName = cleanClassInput(document.getElementById('edit-class-name').value);
     if(newName && newName !== editingClassName) {
         if(!confirm("Rename class?")) return;
         const activeYear = getActiveAcademicYearLabel();

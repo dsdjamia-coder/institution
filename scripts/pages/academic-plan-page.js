@@ -707,7 +707,7 @@ const buildSelectOptionsWithAll = (allowedList, isSuperAdmin, featureLabel = 'Al
     } else if (allowedList.length > 0) {
         opts += `<option value="all">All My Classes (${allowedList.length} Class${allowedList.length > 1 ? 'es' : ''})</option>`;
     }
-    opts += allowedList.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+    opts += allowedList.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     return opts || `<option value="">No Classes Assigned</option>`;
 };
 
@@ -782,7 +782,7 @@ const populateClassDropdowns = () => {
     const modalSubjClass = document.getElementById('modal-subject-class-select');
     if (modalSubjClass) {
         const prev = modalSubjClass.value;
-        modalSubjClass.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        modalSubjClass.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         if (prev && allowed.includes(prev)) {
             modalSubjClass.value = prev;
         } else if (allowed.length > 0) {
@@ -794,7 +794,7 @@ const populateClassDropdowns = () => {
     const modalExamSpecificClass = document.getElementById('modal-new-exam-specific-class');
     if (modalExamSpecificClass) {
         const list = (allClasses && allClasses.length) ? allClasses : allowed;
-        modalExamSpecificClass.innerHTML = list.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        modalExamSpecificClass.innerHTML = list.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     }
 
     // 7. Modal Exam Class Display
@@ -1189,7 +1189,7 @@ const openSubjectModal = (subject = null, targetClass = null) => {
     if (periodsInput) periodsInput.value = subject ? (subject.weeklyPeriods || 5) : 5;
 
     if (classSelect) {
-        classSelect.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        classSelect.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         classSelect.value = editingSubjectClass;
     }
 
@@ -5315,7 +5315,7 @@ const openAddExamNameModal = (fromCard = false) => {
 
     if (specificSel) {
         const allowed = getAllowedClassesForTeacher();
-        specificSel.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">Class ${escapeHtml(c)}</option>`).join('');
+        specificSel.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     }
 
     openModal('modal-add-exam-name');
