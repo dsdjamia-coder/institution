@@ -11,7 +11,9 @@
     worksheet: () => window.AppSession.guardStaffPageAccess?.('worksheet'),
     attendance: () => window.AppSession.guardStaffPageAccess?.('attendance'),
     academicPlan: () => window.AppSession.guardStaffPageAccess?.('academicPlan'),
-    activity: () => window.AppSession.guardStaffPageAccess?.('studentActivity')
+    activity: () => window.AppSession.guardStaffPageAccess?.('studentActivity'),
+    evaluation: () => window.AppSession.guardStaffPageAccess?.('classroomEvaluation'),
+    classroomEvaluation: () => window.AppSession.guardStaffPageAccess?.('classroomEvaluation')
   };
 
   const runGuard = guardMap[guardKey];

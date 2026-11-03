@@ -23,6 +23,7 @@ const cleanUrlsPlugin = (): Plugin => {
         'attendance',
         'academic-plan',
         'activity',
+        'evaluation',
         'collection',
         'official',
         'official-dashboard',
@@ -78,6 +79,7 @@ export default defineConfig({
         attendance: resolve(__dirname, 'attendance.html'),
         academicPlan: resolve(__dirname, 'academic-plan.html'),
         activity: resolve(__dirname, 'activity.html'),
+        evaluation: resolve(__dirname, 'evaluation.html'),
       }
     }
   }

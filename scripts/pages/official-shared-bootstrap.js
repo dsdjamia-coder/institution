@@ -1005,6 +1005,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           academicPlan: profile.canAccessAcademicPlan === true,
           studentActivity: profile.canAccessActivity === true,
           activity: profile.canAccessActivity === true,
+          classroomEvaluation: profile.canAccessEvaluation === true,
+          evaluation: profile.canAccessEvaluation === true,
+          canAccessEvaluation: profile.canAccessEvaluation === true,
           admin: profile.canAccessAdmin === true,
           canAccessAdmin: profile.canAccessAdmin === true,
           actLikeSuperAdmin: profile.actLikeSuperAdmin === true,
@@ -1214,6 +1217,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canAttendance = true;
           canAcademicPlan = true;
           canStudentActivity = true;
+          canClassroomEvaluation = true;
         } else {
           canCollection = staffAccess.collection === true || staffProfile.canCollect === true;
           canResult = staffAccess.result === true || staffProfile.canManageResults === true;
@@ -1221,6 +1225,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canAttendance = staffAccess.attendance === true || staffProfile.canAccessAttendance === true;
           canAcademicPlan = staffAccess.academicPlan === true || staffProfile.canAccessAcademicPlan === true;
           canStudentActivity = staffAccess.studentActivity === true || staffAccess.activity === true || staffProfile.canAccessActivity === true;
+          canClassroomEvaluation = staffAccess.classroomEvaluation === true || staffAccess.evaluation === true || staffProfile.canAccessEvaluation === true;
           canAdmin = staffAccess.admin === true || staffAccess.canAccessAdmin === true || staffProfile.canAccessAdmin === true;
         }
       } else if (userSession?.source === 'directory') {
@@ -1235,12 +1240,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           canAttendance = false;
           canAcademicPlan = false;
           canStudentActivity = false;
+          canClassroomEvaluation = false;
         }
       } else {
         canWorksheet = false;
         canAttendance = false;
         canAcademicPlan = false;
         canStudentActivity = false;
+        canClassroomEvaluation = false;
       }
 
       return {
@@ -1250,7 +1257,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         admin: canAdmin,
         attendance: canAttendance,
         academicPlan: canAcademicPlan,
-        studentActivity: canStudentActivity
+        studentActivity: canStudentActivity,
+        classroomEvaluation: canClassroomEvaluation
       };
     };
 
@@ -1342,6 +1350,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           badgeText: 'Conduct',
           hasAccess: perms.studentActivity,
           href: 'activity.html'
+        },
+        {
+          id: 'classroomEvaluation',
+          title: 'Classroom Evaluation',
+          desc: 'Daily student evaluation, Q&A, reading & impositions',
+          icon: 'fa-chalkboard-user',
+          iconBg: 'bg-rose-50 text-rose-600 border border-rose-200',
+          badgeText: 'Teaching',
+          hasAccess: perms.classroomEvaluation,
+          href: 'evaluation.html'
         }
       ];
 

@@ -449,6 +449,30 @@
                             </label>
                         </div>
                     </div>
+
+                    <!-- Module 8: Classroom Evaluation & Assessment Tracker -->
+                    <div class="card p-5 rounded-2xl border border-slate-200 bg-white hover:border-rose-300 transition-all flex flex-col justify-between" data-module-card="classroomEvaluation">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center text-lg shrink-0">
+                                    <i class="fas fa-chalkboard-user"></i>
+                                </div>
+                                <span id="module-badge-classroomEvaluation" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300">Active</span>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-sm text-slate-900">Classroom Evaluation &amp; Assessment</h3>
+                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">evaluation.html</div>
+                                <p class="text-xs text-slate-600 mt-2 leading-relaxed">Daily student evaluation, oral Q&amp;A, reading assessments, homework tracking, impositions, and monthly participation registers.</p>
+                            </div>
+                        </div>
+                        <div class="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-700">Module Status</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="module-toggle-classroomEvaluation" data-module-key="classroomEvaluation" class="sr-only peer workflow-module-toggle" checked>
+                                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </section>
             
@@ -622,13 +646,25 @@
                                 <input type="checkbox" id="st-can-activity" class="w-4 h-4 mt-0.5 rounded text-amber-600 shrink-0">
                             </label>
 
-                            <!-- 7: Admin Panel -->
+                            <!-- 7: Classroom Evaluation -->
+                            <label class="flex items-start justify-between p-3 rounded-xl bg-white border border-gray-200 hover:border-rose-300 shadow-2xs cursor-pointer transition">
+                                <div class="pr-2">
+                                    <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                        <i class="fas fa-chalkboard-user text-rose-600"></i>
+                                        <span>7. Classroom Evaluation</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Daily Q&amp;A, reading, writing &amp; impositions</p>
+                                </div>
+                                <input type="checkbox" id="st-can-evaluation" class="w-4 h-4 mt-0.5 rounded text-rose-600 shrink-0">
+                            </label>
+
+                            <!-- 8: Admin Panel -->
                             <div class="rounded-xl bg-white border border-gray-200 hover:border-violet-300 shadow-2xs transition p-3">
                                 <label class="flex items-start justify-between cursor-pointer">
                                     <div class="pr-2">
                                         <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                                             <i class="fas fa-user-shield text-violet-600"></i>
-                                            <span>7. Admin Panel</span>
+                                            <span>8. Admin Panel</span>
                                         </div>
                                         <p class="text-[10px] text-slate-500 mt-1">Full system &amp; settings control</p>
                                     </div>
@@ -2518,13 +2554,25 @@
                         <input type="checkbox" id="e-st-can-activity" class="w-4 h-4 mt-0.5 rounded text-amber-600 shrink-0">
                     </label>
 
-                    <!-- 7: Admin Panel -->
+                    <!-- 7: Classroom Evaluation -->
+                    <label class="flex items-start justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-rose-300 shadow-2xs cursor-pointer transition">
+                        <div class="pr-2">
+                            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                <i class="fas fa-chalkboard-user text-rose-600"></i>
+                                <span>7. Classroom Evaluation</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Daily Q&amp;A, reading, writing &amp; impositions</p>
+                        </div>
+                        <input type="checkbox" id="e-st-can-evaluation" class="w-4 h-4 mt-0.5 rounded text-rose-600 shrink-0">
+                    </label>
+
+                    <!-- 8: Admin Panel -->
                     <div class="rounded-xl bg-white border border-gray-200 hover:border-violet-300 shadow-2xs transition p-2.5 sm:col-span-2">
                         <label class="flex items-start justify-between cursor-pointer">
                             <div class="pr-2">
                                 <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                                     <i class="fas fa-user-shield text-violet-600"></i>
-                                    <span>7. Admin Panel</span>
+                                    <span>8. Admin Panel</span>
                                 </div>
                                 <p class="text-[10px] text-slate-500 mt-0.5">Full system &amp; settings control</p>
                             </div>

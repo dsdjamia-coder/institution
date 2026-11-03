@@ -195,6 +195,9 @@ const syncStaffAccessRecord = async (staffRecord = {}) => {
         canAccessAttendance: staffRecord.canAccessAttendance === true,
         canAccessAcademicPlan: staffRecord.canAccessAcademicPlan === true,
         canAccessActivity: staffRecord.canAccessActivity === true,
+        canAccessEvaluation: staffRecord.canAccessEvaluation === true,
+        classroomEvaluation: staffRecord.canAccessEvaluation === true,
+        evaluation: staffRecord.canAccessEvaluation === true,
         canAccessAdmin: staffRecord.canAccessAdmin === true,
         actLikeSuperAdmin: staffRecord.actLikeSuperAdmin === true,
         dutyClasses: Array.isArray(staffRecord.dutyClasses) ? staffRecord.dutyClasses : [],
@@ -230,6 +233,9 @@ const rebuildStaffAccessIndex = async (staffRecords = []) => {
             canAccessAttendance: staffRecord.canAccessAttendance === true,
             canAccessAcademicPlan: staffRecord.canAccessAcademicPlan === true,
             canAccessActivity: staffRecord.canAccessActivity === true,
+            canAccessEvaluation: staffRecord.canAccessEvaluation === true,
+            classroomEvaluation: staffRecord.canAccessEvaluation === true,
+            evaluation: staffRecord.canAccessEvaluation === true,
             canAccessAdmin: staffRecord.canAccessAdmin === true,
             actLikeSuperAdmin: staffRecord.actLikeSuperAdmin === true,
             dutyClasses: Array.isArray(staffRecord.dutyClasses) ? staffRecord.dutyClasses : [],
@@ -1308,7 +1314,8 @@ const DEFAULT_ENABLED_MODULES = {
     academicPlan: true,
     result: true,
     worksheet: true,
-    studentActivity: true
+    studentActivity: true,
+    classroomEvaluation: true
 };
 
 const getEnabledModulesConfig = () => {
@@ -2646,11 +2653,12 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
     const canAccessAttendance = document.getElementById(`${prefix}-can-attendance`)?.checked === true;
     const canAccessAcademicPlan = document.getElementById(`${prefix}-can-academic-plan`)?.checked === true;
     const canAccessActivity = document.getElementById(`${prefix}-can-activity`)?.checked === true;
+    const canAccessEvaluation = document.getElementById(`${prefix}-can-evaluation`)?.checked === true;
     const canAccessAdmin = document.getElementById(`${prefix}-can-access-admin`)?.checked === true;
     const actLikeSuperAdmin = canAccessAdmin && (document.getElementById(`${prefix}-act-like-super-admin`)?.checked === true);
     const displayOrder = Math.max(1, Number(document.getElementById(`${prefix}-display-order`)?.value || 999));
 
-    const hasAnyPortalAccess = canCollect || canAccessWorksheet || canManageResults || canAccessAttendance || canAccessAcademicPlan || canAccessActivity || canAccessAdmin;
+    const hasAnyPortalAccess = canCollect || canAccessWorksheet || canManageResults || canAccessAttendance || canAccessAcademicPlan || canAccessActivity || canAccessEvaluation || canAccessAdmin;
     const passwordInputExists = fieldElements.some((el) => el.dataset.staffFieldKey === 'password');
     const existingStaffForValidation = (prefix === 'e-st' && editingStaffId) ? allStaff.find((st) => st.id === editingStaffId) : null;
     const effectivePassword = values.password || existingStaffForValidation?.password || '';
@@ -2678,6 +2686,7 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
         canAccessAttendance,
         canAccessAcademicPlan,
         canAccessActivity,
+        canAccessEvaluation,
         canAccessAdmin,
         actLikeSuperAdmin,
         displayOrder,
@@ -2695,6 +2704,7 @@ const setupAccessToggleButtons = (prefix) => {
         `${prefix}-can-attendance`,
         `${prefix}-can-academic-plan`,
         `${prefix}-can-activity`,
+        `${prefix}-can-evaluation`,
         `${prefix}-can-access-admin`
     ];
     if (selectAllBtn) {
@@ -2826,8 +2836,9 @@ const renderStaffList = () => {
                         ${staffMember.canAccessAttendance === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300"><i class="fas fa-calendar-check mr-1"></i>Attendance</span>' : ''}
                         ${staffMember.canAccessAcademicPlan === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200"><i class="fas fa-calendar-days mr-1"></i>Academic Plan</span>' : ''}
                         ${staffMember.canAccessActivity === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"><i class="fas fa-award mr-1"></i>Activity Hub</span>' : ''}
+                        ${staffMember.canAccessEvaluation === true ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200"><i class="fas fa-chalkboard-user mr-1"></i>Evaluation</span>' : ''}
                         ${staffMember.canAccessAdmin === true ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200"><i class="fas fa-user-shield mr-1"></i>Admin${staffMember.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
-                        ${(!staffMember.canCollect && !staffMember.canAccessWorksheet && !staffMember.canManageResults && !staffMember.canAccessAttendance && !staffMember.canAccessAcademicPlan && !staffMember.canAccessActivity && !staffMember.canAccessAdmin) ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access</span>' : ''}
+                        ${(!staffMember.canCollect && !staffMember.canAccessWorksheet && !staffMember.canManageResults && !staffMember.canAccessAttendance && !staffMember.canAccessAcademicPlan && !staffMember.canAccessActivity && !staffMember.canAccessEvaluation && !staffMember.canAccessAdmin) ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access</span>' : ''}
                     </div>
                 </div>
 
@@ -2961,8 +2972,9 @@ window.openStaffDetailsModal = (id) => {
                 ${s.canAccessAttendance === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">4. Attendance Register</span>' : ''}
                 ${s.canAccessAcademicPlan === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">5. Academic Planning</span>' : ''}
                 ${s.canAccessActivity === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">6. Activity &amp; Rewards</span>' : ''}
-                ${s.canAccessAdmin === true ? `<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 border border-violet-200">7. Admin Panel${s.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
-                ${(!s.canCollect && !s.canAccessWorksheet && !s.canManageResults && !s.canAccessAttendance && !s.canAccessAcademicPlan && !s.canAccessActivity && !s.canAccessAdmin) ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access (Locked)</span>' : ''}
+                ${s.canAccessEvaluation === true ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-rose-100 text-rose-800 border border-rose-200">7. Classroom Evaluation</span>' : ''}
+                ${s.canAccessAdmin === true ? `<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 border border-violet-200">8. Admin Panel${s.actLikeSuperAdmin ? ' (Super)' : ''}</span>` : ''}
+                ${(!s.canCollect && !s.canAccessWorksheet && !s.canManageResults && !s.canAccessAttendance && !s.canAccessAcademicPlan && !s.canAccessActivity && !s.canAccessEvaluation && !s.canAccessAdmin) ? '<span class="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-lock mr-1"></i>No Portal Access (Locked)</span>' : ''}
             </div>
         </div>
     `;
@@ -3044,6 +3056,9 @@ window.openEditStaff = (id) => {
 
     const activityCheck = document.getElementById('e-st-can-activity');
     if (activityCheck) activityCheck.checked = staffRecord.canAccessActivity === true;
+
+    const evaluationCheck = document.getElementById('e-st-can-evaluation');
+    if (evaluationCheck) evaluationCheck.checked = staffRecord.canAccessEvaluation === true;
 
     const adminCheck = document.getElementById('e-st-can-access-admin');
     if (adminCheck) adminCheck.checked = staffRecord.canAccessAdmin === true;
@@ -12633,6 +12648,9 @@ onAuthStateChanged(auth, async (user) => {
                     attendance: authorizedStaffAdmin.canAccessAttendance === true,
                     academicPlan: authorizedStaffAdmin.canAccessAcademicPlan === true,
                     studentActivity: authorizedStaffAdmin.canAccessActivity === true,
+                    classroomEvaluation: authorizedStaffAdmin.canAccessEvaluation === true,
+                    evaluation: authorizedStaffAdmin.canAccessEvaluation === true,
+                    canAccessEvaluation: authorizedStaffAdmin.canAccessEvaluation === true,
                     admin: true,
                     canAccessAdmin: true,
                     actLikeSuperAdmin: authorizedStaffAdmin.actLikeSuperAdmin === true,

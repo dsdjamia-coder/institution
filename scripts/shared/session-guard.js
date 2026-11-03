@@ -324,7 +324,9 @@
                 result: 'Exam Results',
                 attendance: 'Attendance Register',
                 academicPlan: 'Academic Planning',
-                studentActivity: 'Activity & Rewards'
+                studentActivity: 'Activity & Rewards',
+                classroomEvaluation: 'Classroom Evaluation',
+                evaluation: 'Classroom Evaluation'
             };
 
             if (enabledModules && enabledModules[requiredPage] === false) {
@@ -387,6 +389,11 @@
             }
             if (requiredPage === 'studentActivity' && access && access.studentActivity !== true && access.activity !== true) {
                 setFlash('Access Restricted: Your account does not have Activity & Rewards page access.');
+                window.location.href = 'official.html';
+                return;
+            }
+            if ((requiredPage === 'classroomEvaluation' || requiredPage === 'evaluation') && access && access.classroomEvaluation !== true && access.evaluation !== true && access.canAccessEvaluation !== true) {
+                setFlash('Access Restricted: Your account does not have Classroom Evaluation page access.');
                 window.location.href = 'official.html';
                 return;
             }
