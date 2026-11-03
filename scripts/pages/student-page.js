@@ -105,15 +105,6 @@ const studentPwa = registerPortalForPwa('student', {
             document.querySelectorAll('.student-bottom-nav-btn[data-target]').forEach((btn) => {
                 btn.classList.toggle('active', btn.dataset.target === safeTargetId);
             });
-            document.querySelectorAll('.student-desktop-tab-btn[data-target]').forEach((btn) => {
-                const isActive = (btn.dataset.target === safeTargetId);
-                btn.classList.toggle('active', isActive);
-                btn.classList.toggle('bg-blue-600', isActive);
-                btn.classList.toggle('text-white', isActive);
-                btn.classList.toggle('shadow-2xs', isActive);
-                btn.classList.toggle('text-slate-600', !isActive);
-                btn.classList.toggle('hover:bg-slate-100', !isActive);
-            });
             const isOverflowActive = Array.isArray(window.currentOverflowTabIds) && window.currentOverflowTabIds.includes(safeTargetId);
             const moreBtn = document.getElementById('btn-student-bottom-more');
             if (moreBtn) moreBtn.classList.toggle('active', isOverflowActive);
@@ -246,16 +237,16 @@ const studentPwa = registerPortalForPwa('student', {
                     </button>
                     <div class="flex items-center gap-1.5 shrink-0">
                         ${isActive ? `
-                            <span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-blue-700 bg-blue-100/90 px-2.5 py-1 rounded-full border border-blue-200">
-                                <i class="fas fa-check-circle"></i> Active
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-300 shadow-2xs">
+                                <i class="fas fa-check-circle text-emerald-600 text-xs"></i> Active
                             </span>
                         ` : `
                             <button type="button" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs account-switch-btn cursor-pointer flex items-center gap-1" data-id="${escapeHtml(account.studentId || '')}">
                                 <i class="fas fa-exchange-alt text-[10px]"></i> Switch
                             </button>
                         `}
-                        <button type="button" class="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition account-remove-btn cursor-pointer" data-id="${escapeHtml(account.studentId || '')}" title="Remove Account">
-                            <i class="fas fa-trash-alt text-xs"></i>
+                        <button type="button" class="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition account-remove-btn cursor-pointer flex items-center gap-1 shadow-2xs" data-id="${escapeHtml(account.studentId || '')}" title="Logout this account">
+                            <i class="fas fa-sign-out-alt text-[10px]"></i> Logout
                         </button>
                     </div>
                 </div>`;
@@ -422,7 +413,7 @@ const studentPwa = registerPortalForPwa('student', {
                 switchToStudentAccount(switchBtn.dataset.id);
             }
             if (removeBtn) {
-                if (!confirm('Are you sure you want to remove this account?')) return;
+                if (!confirm('Are you sure you want to log out of this account?')) return;
                 const activeId = window.AppSession?.getStudentId?.() || '';
                 window.AppSession?.logoutStudent(removeBtn.dataset.id, { removeAccount: true });
                 if (activeId === removeBtn.dataset.id) window.location.href = 'index.html?public=1';
@@ -430,8 +421,15 @@ const studentPwa = registerPortalForPwa('student', {
             }
         });
         document.getElementById('account-switcher-logout-btn')?.addEventListener('click', () => {
+            if (!confirm('Are you sure you want to log out of all accounts?')) return;
             closeAccountSwitcher();
-            logoutStudent();
+            const accounts = window.AppSession?.getStudentAccounts?.() || [];
+            accounts.forEach((acc) => {
+                window.AppSession?.logoutStudent(acc.studentId, { removeAccount: true });
+            });
+            window.AppSession?.logoutStudent('', { removeAccount: true });
+            try { localStorage.removeItem('app_student_accounts'); } catch (_) {}
+            window.location.href = 'index.html?public=1';
         });
         document.getElementById('account-switcher-add-btn')?.addEventListener('click', () => {
             closeAccountSwitcher();
@@ -4994,37 +4992,7 @@ const studentPwa = registerPortalForPwa('student', {
                 });
             }
 
-            // 2. Sync Dedicated Desktop / Laptop Horizontal Tabs Bar
-            const desktopContainer = document.getElementById('student-desktop-tabs-container');
-            if (desktopContainer) {
-                const currentVisiblePage = pages.find((p) => !p.classList.contains('hidden'));
-                const activePageId = currentVisiblePage ? currentVisiblePage.id : defaultTabId;
-
-                desktopContainer.innerHTML = activeTabs.map((tab) => {
-                    const isActive = (tab.id === activePageId);
-                    return `
-                        <button type="button" class="student-desktop-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-2 transition cursor-pointer border border-transparent ${isActive ? 'bg-blue-600 text-white shadow-2xs active' : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100'}" data-target="${tab.id}" data-url="${tab.url || ''}">
-                            <i class="${tab.icon}"></i>
-                            <span>${escapeHtml(tab.label)}</span>
-                        </button>
-                    `;
-                }).join('');
-
-                desktopContainer.querySelectorAll('.student-desktop-tab-btn').forEach((btn) => {
-                    if (btn.dataset.target === 'home-page') {
-                        attachAccountGestureListeners(btn);
-                    }
-                    btn.addEventListener('click', () => {
-                        if (btn.dataset.url) {
-                            window.location.href = btn.dataset.url;
-                            return;
-                        }
-                        if (btn.dataset.target) activateStudentTab(btn.dataset.target);
-                    });
-                });
-            }
-
-            // 3. Sync Mobile Bottom Navigation Bar & More Sheet
+            // 2. Sync Mobile Bottom Navigation Bar & More Sheet
             const bottomContainer = document.getElementById('student-bottom-nav-container');
             const moreSheet = document.getElementById('student-more-sheet');
             const moreSheetItems = document.getElementById('student-more-sheet-items');

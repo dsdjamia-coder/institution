@@ -56,7 +56,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     <button type="button" class="text-left flex-grow saved-student-select cursor-pointer" data-id="${account.studentId}">
                         <div class="flex items-center gap-2">
                             <span class="font-bold text-gray-800">${escapeHtml(account.name || 'Student')}</span>
-                            ${isActive ? '<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Active</span>' : ''}
+                            ${isActive ? '<span class="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs"><i class="fas fa-check-circle text-emerald-600"></i> Active</span>' : ''}
                         </div>
                         <div class="text-xs text-gray-500 mt-0.5">${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}</div>
                     </button>
@@ -64,8 +64,8 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         <button type="button" class="text-blue-600 hover:text-blue-800 text-xs font-bold saved-student-select px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 cursor-pointer" data-id="${account.studentId}">
                             ${isActive ? 'Open' : 'Switch'}
                         </button>
-                        <button type="button" class="text-red-500 hover:text-red-700 text-xs font-bold saved-student-remove p-1 hover:bg-red-50 rounded cursor-pointer" data-id="${account.studentId}" title="Remove account">
-                            <i class="fas fa-trash-alt"></i>
+                        <button type="button" class="text-rose-600 hover:text-rose-700 text-xs font-bold saved-student-remove px-2.5 py-1 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1 border border-rose-200 transition shadow-2xs" data-id="${account.studentId}" title="Logout this account">
+                            <i class="fas fa-sign-out-alt text-[10px]"></i> Logout
                         </button>
                     </div>
                 </div>
