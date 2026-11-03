@@ -911,14 +911,22 @@
 
       <div class="p-5 space-y-4 text-xs">
         <div>
-          <label class="block font-bold text-slate-600 mb-1">Prayer Name <span class="text-rose-500">*</span></label>
-          <div class="flex gap-2">
-            <input type="text" id="modal-prayer-name-input" placeholder="e.g. Tahajjud, Duha, Vitr, Rawatib" class="flex-1 p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
-            <button type="button" id="btn-add-custom-prayer-item" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition cursor-pointer">
-              Add
-            </button>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="sm:col-span-2">
+              <label class="block font-bold text-slate-600 mb-1">Prayer Name <span class="text-rose-500">*</span></label>
+              <input type="text" id="modal-prayer-name-input" placeholder="e.g. Tahajjud, Duha, Vitr" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-600 mb-1">Points <span class="text-rose-500">*</span></label>
+              <div class="flex gap-2">
+                <input type="number" id="modal-prayer-points-input" value="5" min="1" max="100" class="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 outline-none focus:border-amber-500">
+                <button type="button" id="btn-add-custom-prayer-item" class="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition cursor-pointer">
+                  Add
+                </button>
+              </div>
+            </div>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">Default 5 Fard prayers are always active. Add optional Sunnah prayers here.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Default 5 Fard prayers are always active. Add optional Sunnah prayers with specific individual points here.</p>
         </div>
 
         <div>
@@ -1210,7 +1218,7 @@
           </div>
           <div>
             <h3 class="font-black text-sm text-slate-800">Prayer Points Rules</h3>
-            <p class="text-[10px] text-amber-700 font-bold">Applies to all 5 Fard &amp; Sunnah prayers automatically</p>
+            <p class="text-[10px] text-amber-700 font-bold">Applies to all 5 Fard prayers automatically</p>
           </div>
         </div>
         <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer" data-modal="modal-prayer-points-config">
@@ -1220,8 +1228,8 @@
 
       <div class="p-5 space-y-3.5 text-xs">
         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-          <span class="text-[11px] font-bold text-slate-700">Unified Prayer Rules:</span>
-          <p class="text-[10px] text-slate-500">Configure points for each prayer status once. Supports positive marks, zero, or minus/penalty marks (e.g., -5 for Qaza). These rules automatically govern all prayers across the institution.</p>
+          <span class="text-[11px] font-bold text-slate-700">Unified Fard Prayer Rules:</span>
+          <p class="text-[10px] text-slate-500">Configure points for each prayer status once. Supports positive marks, zero, or minus/penalty marks (e.g., -5 for Qaza). These rules automatically govern all 5 Fard prayers across the institution.</p>
         </div>
 
         <div class="space-y-2.5">
@@ -1247,14 +1255,6 @@
               <div class="text-[10px] text-rose-700">Supports negative penalty marks (e.g. -5, -10, or 0)</div>
             </div>
             <input type="number" id="modal-prayer-pts-qaza" value="0" min="-100" max="100" class="w-20 p-2 border border-rose-300 bg-white rounded-xl font-black text-center text-rose-900 outline-none">
-          </div>
-
-          <div class="flex items-center justify-between p-2.5 border border-amber-200 bg-amber-50/50 rounded-xl">
-            <div>
-              <div class="font-black text-amber-900">Sunnah Prayers Completed</div>
-              <div class="text-[10px] text-amber-700">Bonus points awarded per completed Sunnah prayer</div>
-            </div>
-            <input type="number" id="modal-prayer-pts-sunnah" value="5" min="-100" max="100" class="w-20 p-2 border border-amber-300 bg-white rounded-xl font-black text-center text-amber-900 outline-none">
           </div>
         </div>
 

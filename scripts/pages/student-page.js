@@ -5025,10 +5025,13 @@ const studentPwa = registerPortalForPwa('student', {
                 };
 
                 // Update Metric Cards
+                const totalAbsent = absCount + leaveCount;
                 const rateEl = document.getElementById('stu-att-rate');
                 const rateBadge = document.getElementById('stu-att-rate-badge');
                 const totalEl = document.getElementById('stu-att-total-days');
                 const presEl = document.getElementById('stu-att-present-days');
+                const totalAbsEl = document.getElementById('stu-att-total-absent-days');
+                const absBreakdownEl = document.getElementById('stu-att-absent-breakdown');
                 const absEl = document.getElementById('stu-att-absent-days');
                 const leaveEl = document.getElementById('stu-att-leave-days');
 
@@ -5050,6 +5053,8 @@ const studentPwa = registerPortalForPwa('student', {
                 }
                 if (totalEl) totalEl.textContent = workingCount;
                 if (presEl) presEl.textContent = presCount;
+                if (totalAbsEl) totalAbsEl.textContent = totalAbsent;
+                if (absBreakdownEl) absBreakdownEl.textContent = `Absent: ${absCount}, Leave: ${leaveCount}`;
                 if (absEl) absEl.textContent = absCount;
                 if (leaveEl) leaveEl.textContent = `${leaveCount} Lv`;
 
@@ -5596,11 +5601,15 @@ const studentPwa = registerPortalForPwa('student', {
         };
 
         // ----------------------------------------------------
-        // ----------------------------------------------------
         // MODULE: PERSONALIZED ACTIVITIES, REWARDS & STREAKS
         // ----------------------------------------------------
+        let selectedActivityDate = '';
+        let selectedTaskCadence = 'all';
+        let activityControlsInitialized = false;
+
         const studentActivitiesState = {
             savingPrayer: false,
+            savingSunnah: false,
             savingTask: false
         };
 
@@ -5608,36 +5617,80 @@ const studentPwa = registerPortalForPwa('student', {
             const pageEl = document.getElementById('activities-page');
             if (!pageEl || !profile) return;
 
+            const todayDate = getTodayDateKey();
+            if (!selectedActivityDate) selectedActivityDate = todayDate;
+
             const heroName = document.getElementById('stu-act-hero-name');
             if (heroName) heroName.textContent = `${escapeHtml(profile.name || 'Student')} Achievements`;
 
-            const todayDate = getTodayDateKey();
+            // Sync Date Navigator Controls
+            const datePicker = document.getElementById('stu-act-date-picker');
+            if (datePicker) {
+                datePicker.value = selectedActivityDate;
+                datePicker.max = todayDate;
+            }
+
             const dateBadge = document.getElementById('stu-act-streak-date');
-            if (dateBadge) dateBadge.textContent = `Today (${formatDateDisplay(todayDate)})`;
+            if (dateBadge) {
+                dateBadge.textContent = (selectedActivityDate === todayDate)
+                    ? `Today (${formatDateDisplay(todayDate)})`
+                    : formatDateDisplay(selectedActivityDate);
+            }
 
             const cleanY = String(currentAcademicYear || profile.academicYear || '').trim().replace(/[^\w-]/g, '_');
             const cleanC = String(profile.class || '').trim().replace(/[^\w-]/g, '_');
-            const prayerDocId = `${cleanY}__${cleanC}__${todayDate}`;
-            const tasksDocId = `${cleanY}__${cleanC}__${todayDate}__daily`;
+            const prayerDocId = `${cleanY}__${cleanC}__${selectedActivityDate}`;
+            const dailyTasksDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__daily`;
+            const weeklyTasksDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__weekly`;
+            const monthlyTasksDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__monthly`;
 
             try {
-                const [customBadgesSnap, bonusSnap, prayerSnap, actConfigSnap, taskDefsSnap, taskCompsSnap] = await Promise.all([
+                const [
+                    customBadgesSnap,
+                    bonusSnap,
+                    prayerSnap,
+                    rubricSnap,
+                    sunnahSnap,
+                    actConfigSnap,
+                    taskDefsSnap,
+                    dailyCompsSnap,
+                    weeklyCompsSnap,
+                    monthlyCompsSnap
+                ] = await Promise.all([
                     getDoc(doc(db, `${BASE_PATH}/studentCustomBadges`, profile.id)).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/studentBonusPoints`, profile.id)).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/rewardSettings`, cleanY)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers')).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig')).catch(() => null),
                     getDoc(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions')).catch(() => null),
-                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, tasksDocId)).catch(() => null)
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, dailyTasksDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, weeklyTasksDocId)).catch(() => null),
+                    getDoc(doc(db, `${BASE_PATH}/taskCompletions`, monthlyTasksDocId)).catch(() => null)
                 ]);
 
-                // 0. Check Self-Logging Permission for Student's Class
+                // 0. Extract Rubric & Prayer Points Rules
+                const rubricData = rubricSnap?.exists() ? (rubricSnap.data().points || {}) : {};
+                const jamaahPts = Number(rubricData.jamaah ?? 15);
+                const adaaPts = Number(rubricData.adaa ?? 10);
+                const qazaPts = Number(rubricData.qaza ?? 0);
+
+                // 1. Evaluate Date Scope & Self-Logging Permissions
+                const isToday = (selectedActivityDate === todayDate);
+                const isPast = (selectedActivityDate < todayDate);
+                const isFuture = (selectedActivityDate > todayDate);
+
                 const actConfigData = actConfigSnap?.exists() ? actConfigSnap.data() : {};
-                const isSelfLoggingAllowed = Boolean(actConfigData?.studentSelfLoggingByClass?.[profile.class]);
+                const isClassSelfLoggingAllowed = Boolean(actConfigData?.studentSelfLoggingByClass?.[profile.class]);
+                const isPastDateLoggingAllowed = Boolean(actConfigData?.studentPastDateLoggingByClass?.[profile.class]);
+
+                // Students can edit if their class is enabled AND either it is today or past date logging is allowed
+                const canEdit = isClassSelfLoggingAllowed && (isToday || (isPast && isPastDateLoggingAllowed)) && !isFuture;
 
                 // Update Status Banner
                 const statusBanner = document.getElementById('stu-act-logging-status-banner');
                 if (statusBanner) {
-                    if (isSelfLoggingAllowed) {
+                    if (canEdit && isToday) {
                         statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center justify-between gap-2';
                         statusBanner.innerHTML = `
                             <span class="flex items-center gap-2">
@@ -5645,6 +5698,33 @@ const studentPwa = registerPortalForPwa('student', {
                                 <span>Self-Logging Unlocked: You can record your daily prayers and tasks for today.</span>
                             </span>
                             <span class="px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded-full text-[10px] uppercase tracking-wider font-extrabold">Active</span>
+                        `;
+                    } else if (canEdit && isPast) {
+                        statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold flex items-center justify-between gap-2';
+                        statusBanner.innerHTML = `
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-clock-rotate-left text-indigo-600"></i>
+                                <span>Past Date Logging: Editing permitted for previous date (${formatDateDisplay(selectedActivityDate)}).</span>
+                            </span>
+                            <span class="px-2 py-0.5 bg-indigo-200/60 text-indigo-900 rounded-full text-[10px] uppercase tracking-wider font-extrabold">Unlocked</span>
+                        `;
+                    } else if (isPast) {
+                        statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold flex items-center justify-between gap-2';
+                        statusBanner.innerHTML = `
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-lock text-amber-500"></i>
+                                <span>Past Date Record (Read-Only): Self-logging is locked for past dates. Teachers update previous records.</span>
+                            </span>
+                            <span class="px-2 py-0.5 bg-amber-200/70 text-amber-900 rounded-full text-[10px] uppercase tracking-wider font-extrabold">Locked</span>
+                        `;
+                    } else if (isFuture) {
+                        statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-xs font-bold flex items-center justify-between gap-2';
+                        statusBanner.innerHTML = `
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-calendar text-slate-400"></i>
+                                <span>Future Date: Future activities cannot be logged in advance.</span>
+                            </span>
+                            <span class="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] uppercase tracking-wider font-extrabold">Read Only</span>
                         `;
                     } else {
                         statusBanner.className = 'p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-xs font-bold flex items-center justify-between gap-2';
@@ -5658,52 +5738,80 @@ const studentPwa = registerPortalForPwa('student', {
                     }
                 }
 
-                const customBadgesList = customBadgesSnap?.exists() && Array.isArray(customBadgesSnap.data().badges)
+                // Custom Badges & Bonus Points
+                const customBadgesList = (customBadgesSnap?.exists() && Array.isArray(customBadgesSnap.data().badges))
                     ? customBadgesSnap.data().badges
                     : [];
 
-                const bonusPointsList = bonusSnap?.exists() && Array.isArray(bonusSnap.data().pointsList)
+                const bonusPointsList = (bonusSnap?.exists() && Array.isArray(bonusSnap.data().pointsList))
                     ? bonusSnap.data().pointsList
                     : [];
 
+                // Prayer Records & Active Custom Sunnah Prayers
                 const prayerDoc = prayerSnap?.exists() ? prayerSnap.data() : null;
                 const studentPrayerRecord = prayerDoc?.records?.[profile.id] || {};
 
-                // Task definitions & today's completions
-                const rawTasks = taskDefsSnap?.exists() && Array.isArray(taskDefsSnap.data().tasks)
+                const customPrayersList = (sunnahSnap?.exists() && Array.isArray(sunnahSnap.data().list))
+                    ? sunnahSnap.data().list
+                    : [];
+
+                // Routine Tasks Definitions & Multi-Cadence Completions
+                const rawTasks = (taskDefsSnap?.exists() && Array.isArray(taskDefsSnap.data().tasks))
                     ? taskDefsSnap.data().tasks
                     : [
                         { id: 'task_d1', title: 'Morning Adhkar & Duas', cadence: 'daily', points: 5 },
                         { id: 'task_d2', title: 'Uniform & Personal Cleanliness', cadence: 'daily', points: 5 },
                         { id: 'task_d3', title: 'Class Kit & Books Prepared', cadence: 'daily', points: 5 }
                     ];
-                const dailyTasksList = rawTasks.filter(t => t.cadence === 'daily' || !t.cadence);
 
-                const taskCompsDoc = taskCompsSnap?.exists() ? taskCompsSnap.data() : null;
-                const studentTaskCompletions = taskCompsDoc?.completions?.[profile.id] || {};
+                const mergedStudentCompletions = {
+                    ...(dailyCompsSnap?.data()?.completions?.[profile.id] || {}),
+                    ...(weeklyCompsSnap?.data()?.completions?.[profile.id] || {}),
+                    ...(monthlyCompsSnap?.data()?.completions?.[profile.id] || {})
+                };
 
-                // 1. Calculate Aggregate Points
+                // 2. Aggregate Points Calculation
                 const attendancePts = (studentAttendanceStats.presentDays || 0) * 5;
                 const bonusPts = bonusPointsList.reduce((acc, b) => acc + (Number(b.points) || 0), 0);
 
-                let prayerCompletedCount = 0;
+                // 5 Fard Prayers Points (Supports Positive, Zero, or Negative Qaza Penalties)
+                let fardPrayerPts = 0;
+                let fardCompletedCount = 0;
                 ['subh', 'zuhr', 'asr', 'maghrib', 'isha'].forEach((pKey) => {
                     const st = studentPrayerRecord[pKey];
-                    if (st === 'jamaah' || st === 'adaa') prayerCompletedCount++;
+                    if (st === 'jamaah' || st === 'J') {
+                        fardPrayerPts += jamaahPts;
+                        fardCompletedCount++;
+                    } else if (st === 'adaa' || st === 'A') {
+                        fardPrayerPts += adaaPts;
+                        fardCompletedCount++;
+                    } else if (st === 'qaza' || st === 'Q') {
+                        fardPrayerPts += qazaPts;
+                    }
                 });
-                const prayerPts = prayerCompletedCount * 10;
 
-                // Daily tasks points
+                // Sunnah Prayers Points
+                let sunnahPrayerPts = 0;
+                let sunnahCompletedCount = 0;
+                customPrayersList.forEach((p) => {
+                    const st = studentPrayerRecord[p.id] || studentPrayerRecord[p.name?.toLowerCase()] || studentPrayerRecord[p.name];
+                    if (st === 'performed' || st === 'done' || st === 'jamaah' || st === 'J' || st === 'adaa' || st === 'A') {
+                        sunnahPrayerPts += Number(p.points || 5);
+                        sunnahCompletedCount++;
+                    }
+                });
+
+                // Task Completion Points
                 let taskPoints = 0;
                 let taskCompletedCount = 0;
-                dailyTasksList.forEach(task => {
-                    if (studentTaskCompletions[task.id]) {
+                rawTasks.forEach((task) => {
+                    if (mergedStudentCompletions[task.id]) {
                         taskPoints += (Number(task.points) || 5);
                         taskCompletedCount++;
                     }
                 });
 
-                const totalPoints = attendancePts + bonusPts + prayerPts + taskPoints;
+                const totalPoints = attendancePts + bonusPts + fardPrayerPts + sunnahPrayerPts + taskPoints;
 
                 // Update Points and Tier Badge
                 const ptsEl = document.getElementById('stu-act-total-points');
@@ -5717,10 +5825,8 @@ const studentPwa = registerPortalForPwa('student', {
                     else tierEl.textContent = 'Star Student';
                 }
 
-                // 2. Aggregate Badges
+                // 3. Aggregate Badges Showcase
                 const earnedBadges = [];
-
-                // Milestone Badges
                 if (studentAttendanceStats.rate >= 85) {
                     earnedBadges.push({ title: 'Attendance Star', icon: 'fas fa-shield-check', color: 'teal', note: '85%+ Attendance Record' });
                 }
@@ -5730,8 +5836,11 @@ const studentPwa = registerPortalForPwa('student', {
                 if (bonusPts > 0) {
                     earnedBadges.push({ title: 'Exemplary Adab', icon: 'fas fa-heart', color: 'rose', note: 'Virtuous Student Conduct' });
                 }
-                if (prayerCompletedCount >= 3) {
+                if (fardCompletedCount >= 3) {
                     earnedBadges.push({ title: 'Prayer Champion', icon: 'fas fa-hands-praying', color: 'indigo', note: 'Consistent Daily Prayers' });
+                }
+                if (sunnahCompletedCount >= 1) {
+                    earnedBadges.push({ title: 'Sunnah Devotee', icon: 'fas fa-sun', color: 'amber', note: 'Extra Sunnah Performed' });
                 }
                 if (taskCompletedCount >= 2) {
                     earnedBadges.push({ title: 'Daily Diligence', icon: 'fas fa-clipboard-check', color: 'emerald', note: 'Routine Habits Completed' });
@@ -5778,8 +5887,13 @@ const studentPwa = registerPortalForPwa('student', {
                     `).join('');
                 }
 
-                // 3. Render Routine Daily Prayers Checklist
+                // 4. Render 5 Fard Prayers Checklist (With Point Values & Touch-Friendly Mobile Buttons)
                 const prayersContainer = document.getElementById('stu-act-prayers-container');
+                const fardStatusPill = document.getElementById('stu-act-fard-status-pill');
+                if (fardStatusPill) {
+                    fardStatusPill.textContent = `${fardCompletedCount}/5 Performed`;
+                }
+
                 if (prayersContainer) {
                     const PRAYERS_LIST = [
                         { key: 'subh', name: 'Subh / Fajr', label: 'Dawn' },
@@ -5791,37 +5905,44 @@ const studentPwa = registerPortalForPwa('student', {
 
                     prayersContainer.innerHTML = PRAYERS_LIST.map((p) => {
                         const rawStatus = studentPrayerRecord[p.key] || 'none';
+                        const isJ = (rawStatus === 'jamaah' || rawStatus === 'J');
+                        const isA = (rawStatus === 'adaa' || rawStatus === 'A');
+                        const isQ = (rawStatus === 'qaza' || rawStatus === 'Q');
+
                         let statusText = 'Pending';
                         let pillClass = 'bg-slate-100 text-slate-600 border-slate-200';
                         let iconClass = 'fas fa-circle-dot text-slate-400';
 
-                        if (rawStatus === 'jamaah') {
-                            statusText = 'In Jama\'ah';
+                        if (isJ) {
+                            statusText = `In Jama'ah (+${jamaahPts} pts)`;
                             pillClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
                             iconClass = 'fas fa-check-double text-emerald-600';
-                        } else if (rawStatus === 'adaa') {
-                            statusText = 'On Time (Ada\'a)';
+                        } else if (isA) {
+                            statusText = `On Time (+${adaaPts} pts)`;
                             pillClass = 'bg-blue-100 text-blue-800 border-blue-300';
                             iconClass = 'fas fa-check text-blue-600';
-                        } else if (rawStatus === 'qaza') {
-                            statusText = 'Made Up (Qaza)';
-                            pillClass = 'bg-amber-100 text-amber-800 border-amber-300';
+                        } else if (isQ) {
+                            statusText = `Made Up (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)`;
+                            pillClass = qazaPts < 0 ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300';
                             iconClass = 'fas fa-clock-rotate-left text-amber-600';
                         }
 
-                        const actionButtonsHtml = isSelfLoggingAllowed ? `
-                            <div class="mt-2 pt-2 border-t border-slate-100 flex flex-wrap gap-1">
-                                <button type="button" class="btn-stu-log-prayer flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg transition ${rawStatus === 'jamaah' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-emerald-50 text-slate-700'}" data-prayer="${p.key}" data-status="jamaah" title="Mark Jama'ah">
-                                    Jama'ah
+                        const actionButtonsHtml = canEdit ? `
+                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
+                                <button type="button" class="btn-stu-log-prayer flex-1 py-2 sm:py-1.5 px-2.5 sm:px-2 min-h-[38px] sm:min-h-[32px] text-xs sm:text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isJ ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-emerald-50 text-slate-700'}" data-prayer="${p.key}" data-status="jamaah" title="Mark Jama'ah (+${jamaahPts} pts)">
+                                    <span>Jama'ah</span>
+                                    <span class="text-[9px] opacity-80">(+${jamaahPts})</span>
                                 </button>
-                                <button type="button" class="btn-stu-log-prayer flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg transition ${rawStatus === 'adaa' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-blue-50 text-slate-700'}" data-prayer="${p.key}" data-status="adaa" title="Mark Ada'a">
-                                    Ada'a
+                                <button type="button" class="btn-stu-log-prayer flex-1 py-2 sm:py-1.5 px-2.5 sm:px-2 min-h-[38px] sm:min-h-[32px] text-xs sm:text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isA ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-blue-50 text-slate-700'}" data-prayer="${p.key}" data-status="adaa" title="Mark Ada'a (+${adaaPts} pts)">
+                                    <span>Ada'a</span>
+                                    <span class="text-[9px] opacity-80">(+${adaaPts})</span>
                                 </button>
-                                <button type="button" class="btn-stu-log-prayer flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg transition ${rawStatus === 'qaza' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-amber-50 text-slate-700'}" data-prayer="${p.key}" data-status="qaza" title="Mark Qaza">
-                                    Qaza
+                                <button type="button" class="btn-stu-log-prayer flex-1 py-2 sm:py-1.5 px-2.5 sm:px-2 min-h-[38px] sm:min-h-[32px] text-xs sm:text-[11px] font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${isQ ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-rose-50 text-slate-700'}" data-prayer="${p.key}" data-status="qaza" title="Mark Qaza (${qazaPts > 0 ? '+' : ''}${qazaPts} pts)">
+                                    <span>Qaza</span>
+                                    <span class="text-[9px] opacity-80">(${qazaPts > 0 ? '+' : ''}${qazaPts})</span>
                                 </button>
                                 ${rawStatus !== 'none' ? `
-                                    <button type="button" class="btn-stu-log-prayer p-1 text-[10px] font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" data-prayer="${p.key}" data-status="none" title="Reset / Clear">
+                                    <button type="button" class="btn-stu-log-prayer py-2 sm:py-1.5 px-2 min-h-[38px] sm:min-h-[32px] text-xs font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-prayer="${p.key}" data-status="none" title="Reset / Clear">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 ` : ''}
@@ -5829,12 +5950,12 @@ const studentPwa = registerPortalForPwa('student', {
                         ` : '';
 
                         return `
-                            <div class="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[72px] sm:min-h-[90px] shadow-2xs">
+                            <div class="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200 bg-white flex flex-col justify-between min-h-[85px] sm:min-h-[105px] shadow-2xs">
                                 <div>
                                     <div class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">${p.label}</div>
                                     <div class="font-black text-xs sm:text-sm text-slate-800 mt-0.5">${p.name}</div>
                                 </div>
-                                <div class="mt-1.5 sm:mt-2 flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-extrabold border ${pillClass} self-start">
+                                <div class="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold border ${pillClass} self-start">
                                     <i class="${iconClass}"></i>
                                     <span>${statusText}</span>
                                 </div>
@@ -5843,7 +5964,7 @@ const studentPwa = registerPortalForPwa('student', {
                         `;
                     }).join('');
 
-                    if (isSelfLoggingAllowed) {
+                    if (canEdit) {
                         prayersContainer.querySelectorAll('.btn-stu-log-prayer').forEach((btn) => {
                             btn.addEventListener('click', async () => {
                                 const targetPrayer = btn.getAttribute('data-prayer');
@@ -5861,7 +5982,7 @@ const studentPwa = registerPortalForPwa('student', {
                                     await setDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId), {
                                         academicYear: cleanY,
                                         class: cleanC,
-                                        date: todayDate,
+                                        date: selectedActivityDate,
                                         records: allRecords,
                                         updatedAt: Date.now()
                                     }, { merge: true });
@@ -5878,36 +5999,145 @@ const studentPwa = registerPortalForPwa('student', {
                     }
                 }
 
-                // 4. Render Daily Tasks & Activities
+                // 5. Render Dedicated Extra Sunnah Prayers Section
+                const sunnahContainer = document.getElementById('stu-act-sunnah-container');
+                const sunnahCountEl = document.getElementById('stu-act-sunnah-count');
+                const sunnahEmptyEl = document.getElementById('stu-act-sunnah-empty');
+
+                if (sunnahCountEl) {
+                    sunnahCountEl.textContent = `${sunnahCompletedCount}/${customPrayersList.length} Completed`;
+                }
+
+                if (sunnahContainer) {
+                    if (customPrayersList.length === 0) {
+                        sunnahContainer.innerHTML = '';
+                        if (sunnahEmptyEl) sunnahEmptyEl.classList.remove('hidden');
+                    } else {
+                        if (sunnahEmptyEl) sunnahEmptyEl.classList.add('hidden');
+
+                        sunnahContainer.innerHTML = customPrayersList.map((p) => {
+                            const rawStatus = studentPrayerRecord[p.id] || studentPrayerRecord[p.name?.toLowerCase()] || studentPrayerRecord[p.name];
+                            const isDone = (rawStatus === 'performed' || rawStatus === 'done' || rawStatus === 'jamaah' || rawStatus === 'J' || rawStatus === 'adaa' || rawStatus === 'A');
+                            const pts = Number(p.points || 5);
+
+                            const sunnahActionHtml = canEdit ? `
+                                <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5">
+                                    <button type="button" class="btn-stu-log-sunnah flex-1 py-2 sm:py-1.5 px-3 min-h-[38px] sm:min-h-[32px] text-xs font-black rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${isDone ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200'}" data-sunnah-id="${escapeHtml(p.id)}" data-performed="${isDone ? '0' : '1'}">
+                                        <i class="${isDone ? 'fas fa-check-circle' : 'fas fa-plus-circle'}"></i>
+                                        <span>${isDone ? 'Completed' : 'Mark Performed'} (+${pts} pts)</span>
+                                    </button>
+                                    ${isDone ? `
+                                        <button type="button" class="btn-stu-log-sunnah py-2 sm:py-1.5 px-2 min-h-[38px] sm:min-h-[32px] text-xs font-bold rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" data-sunnah-id="${escapeHtml(p.id)}" data-performed="0" title="Reset Sunnah">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            ` : '';
+
+                            return `
+                                <div class="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${isDone ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-white'} flex flex-col justify-between min-h-[90px] shadow-2xs transition">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div class="text-[9px] sm:text-[10px] font-extrabold text-amber-700 uppercase tracking-wider">Sunnah Prayer</div>
+                                            <div class="font-black text-xs sm:text-sm text-slate-900 mt-0.5">${escapeHtml(p.name)}</div>
+                                        </div>
+                                        <span class="text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full ${isDone ? 'bg-amber-200 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 border border-slate-200'}">
+                                            +${pts} pts
+                                        </span>
+                                    </div>
+                                    <div class="mt-2 flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-extrabold self-start ${isDone ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
+                                        <i class="${isDone ? 'fas fa-check-double text-amber-600' : 'fas fa-circle-dot text-slate-400'}"></i>
+                                        <span>${isDone ? 'Completed Today' : 'Pending Routine'}</span>
+                                    </div>
+                                    ${sunnahActionHtml}
+                                </div>
+                            `;
+                        }).join('');
+
+                        if (canEdit) {
+                            sunnahContainer.querySelectorAll('.btn-stu-log-sunnah').forEach((btn) => {
+                                btn.addEventListener('click', async () => {
+                                    const sunnahId = btn.getAttribute('data-sunnah-id');
+                                    const shouldMark = (btn.getAttribute('data-performed') === '1');
+                                    if (!sunnahId || studentActivitiesState.savingSunnah) return;
+
+                                    studentActivitiesState.savingSunnah = true;
+                                    btn.disabled = true;
+
+                                    try {
+                                        const updatedPrayerRecord = {
+                                            ...studentPrayerRecord,
+                                            [sunnahId]: shouldMark ? 'performed' : 'none'
+                                        };
+                                        const allRecords = prayerDoc?.records || {};
+                                        allRecords[profile.id] = updatedPrayerRecord;
+
+                                        await setDoc(doc(db, `${BASE_PATH}/ibadah`, prayerDocId), {
+                                            academicYear: cleanY,
+                                            class: cleanC,
+                                            date: selectedActivityDate,
+                                            records: allRecords,
+                                            updatedAt: Date.now()
+                                        }, { merge: true });
+
+                                        await renderStudentActivitiesModule(profile);
+                                    } catch (sErr) {
+                                        console.error('Failed to log sunnah prayer:', sErr);
+                                        alert('Failed to save sunnah update: ' + (sErr?.message || sErr));
+                                    } finally {
+                                        studentActivitiesState.savingSunnah = false;
+                                    }
+                                });
+                            });
+                        }
+                    }
+                }
+
+                // 6. Render Assigned Tasks (Filtered by Cadence: All, Daily, Weekly, Monthly)
                 const tasksContainer = document.getElementById('stu-act-tasks-container');
                 const tasksCountEl = document.getElementById('stu-act-tasks-count');
                 const tasksEmptyEl = document.getElementById('stu-act-tasks-empty');
 
+                // Filter tasks based on selected cadence
+                const filteredTasks = rawTasks.filter((t) => {
+                    if (selectedTaskCadence === 'all') return true;
+                    const cad = t.cadence || 'daily';
+                    return (cad === selectedTaskCadence);
+                });
+
                 if (tasksCountEl) {
-                    tasksCountEl.textContent = `${taskCompletedCount}/${dailyTasksList.length} Done`;
+                    tasksCountEl.textContent = `${taskCompletedCount}/${rawTasks.length} Completed`;
                 }
 
                 if (tasksContainer) {
-                    if (dailyTasksList.length === 0) {
+                    if (filteredTasks.length === 0) {
                         tasksContainer.innerHTML = '';
-                        if (tasksEmptyEl) tasksEmptyEl.classList.remove('hidden');
+                        if (tasksEmptyEl) {
+                            tasksEmptyEl.classList.remove('hidden');
+                            tasksEmptyEl.querySelector('p').textContent = `No ${selectedTaskCadence === 'all' ? 'routine' : selectedTaskCadence} activity tasks assigned.`;
+                        }
                     } else {
                         if (tasksEmptyEl) tasksEmptyEl.classList.add('hidden');
-                        tasksContainer.innerHTML = dailyTasksList.map((t) => {
-                            const isDone = Boolean(studentTaskCompletions[t.id]);
+
+                        tasksContainer.innerHTML = filteredTasks.map((t) => {
+                            const isDone = Boolean(mergedStudentCompletions[t.id]);
                             const points = Number(t.points) || 5;
+                            const taskCadence = t.cadence || 'daily';
 
                             return `
-                                <div class="p-2.5 sm:p-3 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'} flex items-center justify-between gap-3 shadow-2xs transition">
-                                    <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                                        <input type="checkbox" class="stu-act-task-toggle w-4 h-4 sm:w-5 sm:h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer ${!isSelfLoggingAllowed ? 'opacity-60 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" ${isDone ? 'checked' : ''} ${!isSelfLoggingAllowed ? 'disabled' : ''}>
+                                <div class="p-3 rounded-xl border ${isDone ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'} flex items-center justify-between gap-3 shadow-2xs transition">
+                                    <div class="flex items-center gap-3 min-w-0">
+                                        <input type="checkbox" class="stu-act-task-toggle w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}" data-task-id="${escapeHtml(t.id)}" data-cadence="${escapeHtml(taskCadence)}" ${isDone ? 'checked' : ''} ${!canEdit ? 'disabled' : ''}>
                                         <div class="min-w-0">
-                                            <div class="text-xs sm:text-sm font-bold text-slate-800 truncate ${isDone ? 'line-through text-slate-500' : ''}">${escapeHtml(t.title)}</div>
-                                            <div class="text-[10px] text-slate-400 font-semibold">${isDone ? 'Completed today' : 'Pending routine task'}</div>
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="text-xs sm:text-sm font-bold text-slate-800 truncate ${isDone ? 'line-through text-slate-500' : ''}">${escapeHtml(t.title)}</span>
+                                                <span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(taskCadence)}</span>
+                                            </div>
+                                            <div class="text-[10px] text-slate-400 font-semibold mt-0.5">${isDone ? 'Completed' : 'Pending task'}</div>
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-1.5 shrink-0">
-                                        <span class="text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+                                        <span class="text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
                                             +${points} pts
                                         </span>
                                     </div>
@@ -5915,25 +6145,36 @@ const studentPwa = registerPortalForPwa('student', {
                             `;
                         }).join('');
 
-                        if (isSelfLoggingAllowed) {
+                        if (canEdit) {
                             tasksContainer.querySelectorAll('.stu-act-task-toggle').forEach((chk) => {
                                 chk.addEventListener('change', async () => {
                                     const taskId = chk.getAttribute('data-task-id');
+                                    const taskCadence = chk.getAttribute('data-cadence') || 'daily';
                                     if (!taskId || studentActivitiesState.savingTask) return;
 
                                     studentActivitiesState.savingTask = true;
                                     chk.disabled = true;
 
                                     try {
-                                        const updatedComps = { ...studentTaskCompletions, [taskId]: chk.checked };
-                                        const allComps = taskCompsDoc?.completions || {};
-                                        allComps[profile.id] = updatedComps;
+                                        const targetDocId = `${cleanY}__${cleanC}__${selectedActivityDate}__${taskCadence}`;
+                                        let currentTargetSnap = (taskCadence === 'weekly')
+                                            ? weeklyCompsSnap
+                                            : ((taskCadence === 'monthly') ? monthlyCompsSnap : dailyCompsSnap);
 
-                                        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, tasksDocId), {
+                                        const targetComps = {
+                                            ...(currentTargetSnap?.data()?.completions || {})
+                                        };
+                                        const studentTargetComps = {
+                                            ...(targetComps[profile.id] || {})
+                                        };
+                                        studentTargetComps[taskId] = chk.checked;
+                                        targetComps[profile.id] = studentTargetComps;
+
+                                        await setDoc(doc(db, `${BASE_PATH}/taskCompletions`, targetDocId), {
                                             academicYear: cleanY,
                                             class: cleanC,
-                                            date: todayDate,
-                                            completions: allComps,
+                                            date: selectedActivityDate,
+                                            completions: targetComps,
                                             updatedAt: Date.now()
                                         }, { merge: true });
 
@@ -5949,6 +6190,61 @@ const studentPwa = registerPortalForPwa('student', {
                             });
                         }
                     }
+                }
+
+                // 7. Wire UI Controls Once (Date Navigation & Cadence Filter Pills)
+                if (!activityControlsInitialized) {
+                    activityControlsInitialized = true;
+
+                    // Date Picker Input
+                    document.getElementById('stu-act-date-picker')?.addEventListener('change', (e) => {
+                        const val = e.target.value;
+                        if (val && val !== selectedActivityDate) {
+                            selectedActivityDate = val;
+                            renderStudentActivitiesModule(studentProfile);
+                        }
+                    });
+
+                    // Prev Day Button
+                    document.getElementById('btn-act-prev-day')?.addEventListener('click', () => {
+                        const cur = selectedActivityDate || getTodayDateKey();
+                        const d = new Date(cur + 'T12:00:00');
+                        d.setDate(d.getDate() - 1);
+                        selectedActivityDate = d.toISOString().split('T')[0];
+                        renderStudentActivitiesModule(studentProfile);
+                    });
+
+                    // Next Day Button
+                    document.getElementById('btn-act-next-day')?.addEventListener('click', () => {
+                        const cur = selectedActivityDate || getTodayDateKey();
+                        const d = new Date(cur + 'T12:00:00');
+                        d.setDate(d.getDate() + 1);
+                        selectedActivityDate = d.toISOString().split('T')[0];
+                        renderStudentActivitiesModule(studentProfile);
+                    });
+
+                    // Today Button
+                    document.getElementById('btn-act-today')?.addEventListener('click', () => {
+                        selectedActivityDate = getTodayDateKey();
+                        renderStudentActivitiesModule(studentProfile);
+                    });
+
+                    // Cadence Filter Pills
+                    document.querySelectorAll('.btn-stu-task-cadence').forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            const targetCad = btn.getAttribute('data-cadence') || 'all';
+                            selectedTaskCadence = targetCad;
+
+                            document.querySelectorAll('.btn-stu-task-cadence').forEach((b) => {
+                                const isMatch = (b.getAttribute('data-cadence') === targetCad);
+                                b.className = isMatch
+                                    ? 'btn-stu-task-cadence px-3 py-1 rounded-xl text-xs font-extrabold transition bg-amber-500 text-white shadow-2xs cursor-pointer'
+                                    : 'btn-stu-task-cadence px-3 py-1 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer';
+                            });
+
+                            renderStudentActivitiesModule(studentProfile);
+                        });
+                    });
                 }
 
             } catch (err) {

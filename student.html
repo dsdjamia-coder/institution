@@ -421,13 +421,11 @@
 
                     <!-- Absent & Leave Days -->
                     <div class="p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-rose-200 bg-rose-50/50 flex flex-col justify-between">
-                        <div class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-rose-700">Absent / Leave</div>
+                        <div class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-rose-700">Days Absent</div>
                         <div class="text-xl sm:text-3xl font-black text-rose-900 mt-0.5 sm:mt-1 font-mono">
-                            <span id="stu-att-absent-days">0</span>
-                            <span class="text-xs text-rose-400 font-bold">/</span>
-                            <span class="text-xs sm:text-sm text-amber-700 font-bold" id="stu-att-leave-days">0 Lv</span>
+                            <span id="stu-att-total-absent-days">0</span>
                         </div>
-                        <div class="mt-1.5 sm:mt-2 text-[9px] sm:text-[10px] font-bold text-rose-600">Missed / Excused</div>
+                        <div class="mt-1.5 sm:mt-2 text-[9px] sm:text-[10px] font-bold text-rose-600" id="stu-att-absent-breakdown">Total missed / excused</div>
                     </div>
                 </div>
 
@@ -591,17 +589,57 @@
                     </div>
                 </div>
 
-                <!-- Daily Habits & Streak Checklist -->
+                <!-- Date Navigator Bar -->
+                <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-2.5 sm:p-3 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-1.5 sm:gap-2">
+                        <button type="button" id="btn-act-prev-day" class="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Previous Day">
+                            <i class="fas fa-chevron-left"></i> <span class="hidden sm:inline">Prev</span>
+                        </button>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs font-bold">
+                            <i class="fas fa-calendar-day text-amber-600"></i>
+                            <input type="date" id="stu-act-date-picker" class="bg-transparent border-none font-black text-slate-800 outline-none cursor-pointer text-xs">
+                        </div>
+                        <button type="button" id="btn-act-next-day" class="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Next Day">
+                            <span class="hidden sm:inline">Next</span> <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="btn-act-today" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs transition shadow-2xs cursor-pointer">
+                            Today
+                        </button>
+                        <span class="text-xs text-slate-500 font-bold" id="stu-act-streak-date">Today</span>
+                    </div>
+                </div>
+
+                <!-- Daily Habits & Streak Checklist (5 Fard Prayers) -->
                 <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
                     <div class="p-3 sm:p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
                         <div class="flex items-center gap-2">
                             <i class="fas fa-hands-praying text-amber-600 text-xs"></i>
-                            <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800">Routine Habits &amp; Daily Prayers</h3>
+                            <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800">5 Daily Fard Prayers</h3>
                         </div>
-                        <span class="text-xs text-slate-500 font-bold" id="stu-act-streak-date">Today</span>
+                        <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" id="stu-act-fard-status-pill">Routine Prayers</span>
                     </div>
                     <div id="stu-act-prayers-container" class="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-2.5">
                         <!-- Prayer Status Cards Injected by JS (Subh, Zuhr, Asr, Maghrib, Isha) -->
+                    </div>
+                </div>
+
+                <!-- Dedicated Extra Sunnah Prayers Section -->
+                <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <div class="p-3 sm:p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-sun text-amber-500 text-xs"></i>
+                            <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800">Extra Sunnah Prayers</h3>
+                        </div>
+                        <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" id="stu-act-sunnah-count">0 Active</span>
+                    </div>
+                    <div id="stu-act-sunnah-container" class="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5">
+                        <!-- Dynamic Sunnah Cards Injected by JS -->
+                    </div>
+                    <div id="stu-act-sunnah-empty" class="p-6 text-center text-slate-400 font-bold text-xs hidden">
+                        <i class="fas fa-hands-praying text-2xl mb-1 text-slate-300"></i>
+                        <p>No extra Sunnah prayers active for this date.</p>
                     </div>
                 </div>
 
@@ -614,6 +652,23 @@
                         </div>
                         <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" id="stu-act-tasks-count">Daily Targets</span>
                     </div>
+
+                    <!-- Cadence Filter Pills -->
+                    <div class="p-2.5 sm:p-3 bg-white border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
+                        <button type="button" class="btn-stu-task-cadence px-3 py-1 rounded-xl text-xs font-extrabold transition bg-amber-500 text-white shadow-2xs cursor-pointer" data-cadence="all">
+                            All Tasks
+                        </button>
+                        <button type="button" class="btn-stu-task-cadence px-3 py-1 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer" data-cadence="daily">
+                            Daily
+                        </button>
+                        <button type="button" class="btn-stu-task-cadence px-3 py-1 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer" data-cadence="weekly">
+                            Weekly
+                        </button>
+                        <button type="button" class="btn-stu-task-cadence px-3 py-1 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer" data-cadence="monthly">
+                            Monthly
+                        </button>
+                    </div>
+
                     <div id="stu-act-tasks-container" class="p-3 sm:p-4 space-y-2 sm:space-y-2.5">
                         <!-- Task items injected by JS -->
                     </div>

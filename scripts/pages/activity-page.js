@@ -1277,9 +1277,12 @@ const renderCustomPrayersListInModal = () => {
 
     container.innerHTML = customPrayersList.map(p => `
         <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-            <span class="font-bold text-slate-800">${escapeHtml(p.name)}</span>
+            <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-800">${escapeHtml(p.name)}</span>
+                <span class="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-200">+${Number(p.points || 5)} pts</span>
+            </div>
             <div class="flex items-center gap-1">
-                <button type="button" class="btn-edit-custom-prayer p-1 text-amber-600 hover:bg-amber-50 rounded font-bold cursor-pointer" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Edit Name">
+                <button type="button" class="btn-edit-custom-prayer p-1 text-amber-600 hover:bg-amber-50 rounded font-bold cursor-pointer" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-points="${Number(p.points || 5)}" title="Edit Prayer">
                     <i class="fas fa-edit"></i>
                 </button>
                 <button type="button" class="btn-remove-custom-prayer p-1 text-rose-600 hover:bg-rose-50 rounded font-bold cursor-pointer" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Remove Prayer">
@@ -1430,12 +1433,10 @@ const openPrayerPointsConfigModal = () => {
     const inJ = document.getElementById('modal-prayer-pts-jamaah');
     const inA = document.getElementById('modal-prayer-pts-adaa');
     const inQ = document.getElementById('modal-prayer-pts-qaza');
-    const inS = document.getElementById('modal-prayer-pts-sunnah');
 
     if (inJ) inJ.value = currentRewardsRubric.jamaah ?? 15;
     if (inA) inA.value = currentRewardsRubric.adaa ?? 10;
     if (inQ) inQ.value = currentRewardsRubric.qaza ?? 0;
-    if (inS) inS.value = currentRewardsRubric.sunnah ?? 5;
 
     openModal('modal-prayer-points-config');
 };
@@ -1444,19 +1445,16 @@ const savePrayerPointsConfig = async () => {
     const inJ = document.getElementById('modal-prayer-pts-jamaah');
     const inA = document.getElementById('modal-prayer-pts-adaa');
     const inQ = document.getElementById('modal-prayer-pts-qaza');
-    const inS = document.getElementById('modal-prayer-pts-sunnah');
 
     const jamaah = inJ ? Number(inJ.value) : (currentRewardsRubric.jamaah ?? 15);
     const adaa = inA ? Number(inA.value) : (currentRewardsRubric.adaa ?? 10);
     const qaza = inQ ? Number(inQ.value) : (currentRewardsRubric.qaza ?? 0);
-    const sunnah = inS ? Number(inS.value) : (currentRewardsRubric.sunnah ?? 5);
 
     currentRewardsRubric = {
         ...currentRewardsRubric,
         jamaah,
         adaa,
-        qaza,
-        sunnah
+        qaza
     };
 
     try {
@@ -1532,12 +1530,17 @@ const saveRewardsRubric = async () => {
 
 // --- Student Self-Logging Class Permissions ---
 let cachedSelfLoggingByClass = {};
+let cachedPastDateLoggingByClass = {};
 
 const openStudentSelfLoggingModal = async () => {
     try {
         const snap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'));
-        cachedSelfLoggingByClass = snap.exists() && typeof snap.data().studentSelfLoggingByClass === 'object'
-            ? { ...snap.data().studentSelfLoggingByClass }
+        const actData = snap.exists() ? snap.data() : {};
+        cachedSelfLoggingByClass = (actData && typeof actData.studentSelfLoggingByClass === 'object')
+            ? { ...actData.studentSelfLoggingByClass }
+            : {};
+        cachedPastDateLoggingByClass = (actData && typeof actData.studentPastDateLoggingByClass === 'object')
+            ? { ...actData.studentPastDateLoggingByClass }
             : {};
     } catch (e) {
         console.warn('Could not load activity config:', e);
@@ -1569,23 +1572,35 @@ const openStudentSelfLoggingModal = async () => {
         } else {
             container.innerHTML = targetClasses.map(cName => {
                 const isChecked = cachedSelfLoggingByClass[cName] === true;
+                const isPastChecked = cachedPastDateLoggingByClass[cName] === true;
                 return `
-                    <div class="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 transition select-none">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-xs">
-                                ${escapeHtml(cName)}
-                            </div>
-                            <div>
-                                <div class="font-extrabold text-xs text-slate-900">Class ${escapeHtml(cName)}</div>
-                                <div class="text-[10px] text-slate-500 font-semibold self-logging-status-lbl-${escapeHtml(cName)}">
-                                    ${isChecked ? '<span class="text-emerald-700 font-bold">Self-Logging Allowed</span>' : '<span class="text-slate-400 font-bold">Locked (Teacher only)</span>'}
+                    <div class="p-3 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 transition space-y-2.5">
+                        <div class="flex items-center justify-between select-none">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-xs">
+                                    ${escapeHtml(cName)}
+                                </div>
+                                <div>
+                                    <div class="font-extrabold text-xs text-slate-900">Class ${escapeHtml(cName)}</div>
+                                    <div class="text-[10px] text-slate-500 font-semibold self-logging-status-lbl-${escapeHtml(cName)}">
+                                        ${isChecked ? '<span class="text-emerald-700 font-bold">Self-Logging Allowed</span>' : '<span class="text-slate-400 font-bold">Locked (Teacher only)</span>'}
+                                    </div>
                                 </div>
                             </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" class="sr-only peer self-logging-class-toggle" data-class="${escapeHtml(cName)}" ${isChecked ? 'checked' : ''}>
+                                <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer self-logging-class-toggle" data-class="${escapeHtml(cName)}" ${isChecked ? 'checked' : ''}>
-                            <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                            <span class="text-slate-600 font-semibold flex items-center gap-1.5">
+                                <i class="fas fa-calendar-days text-slate-400"></i> Allow Past Date Logging
+                            </span>
+                            <label class="flex items-center gap-1.5 cursor-pointer">
+                                <input type="checkbox" class="self-logging-past-toggle w-3.5 h-3.5 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer" data-class="${escapeHtml(cName)}" ${isPastChecked ? 'checked' : ''}>
+                                <span class="text-[10px] font-bold ${isPastChecked ? 'text-indigo-700 font-extrabold' : 'text-slate-400'}">Allowed</span>
+                            </label>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -1605,7 +1620,10 @@ const saveStudentSelfLoggingConfig = async () => {
 
     try {
         const toggles = document.querySelectorAll('.self-logging-class-toggle');
+        const pastToggles = document.querySelectorAll('.self-logging-past-toggle');
         const updatedSelfLogging = { ...cachedSelfLoggingByClass };
+        const updatedPastLogging = { ...cachedPastDateLoggingByClass };
+
         toggles.forEach(toggle => {
             const cName = toggle.dataset.class;
             if (cName) {
@@ -1613,13 +1631,22 @@ const saveStudentSelfLoggingConfig = async () => {
             }
         });
 
+        pastToggles.forEach(toggle => {
+            const cName = toggle.dataset.class;
+            if (cName) {
+                updatedPastLogging[cName] = Boolean(toggle.checked);
+            }
+        });
+
         await setDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'), {
             studentSelfLoggingByClass: updatedSelfLogging,
+            studentPastDateLoggingByClass: updatedPastLogging,
             updatedAt: Date.now(),
             updatedBy: currentUserKey || currentStaffName
         }, { merge: true });
 
         cachedSelfLoggingByClass = updatedSelfLogging;
+        cachedPastDateLoggingByClass = updatedPastLogging;
         closeModal('modal-student-self-logging');
         showToast('Student self-logging permissions saved!', 'success');
     } catch (err) {
@@ -2346,11 +2373,13 @@ const setupEventListeners = () => {
 
     document.getElementById('btn-add-custom-prayer-item')?.addEventListener('click', async () => {
         const nameInput = document.getElementById('modal-prayer-name-input');
+        const pointsInput = document.getElementById('modal-prayer-points-input');
         const name = nameInput?.value.trim();
+        const points = Number(pointsInput?.value) || 5;
         if (!name) return alert('Please enter prayer name.');
 
         const id = `prayer_${Date.now()}`;
-        const updated = [...customPrayersList, { id, name }];
+        const updated = [...customPrayersList, { id, name, points }];
 
         try {
             await setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
@@ -2360,9 +2389,10 @@ const setupEventListeners = () => {
 
             customPrayersList = updated;
             if (nameInput) nameInput.value = '';
+            if (pointsInput) pointsInput.value = '5';
             renderCustomPrayersListInModal();
             loadPrayerRoster();
-            showToast(`Sunnah prayer "${name}" added!`, 'success');
+            showToast(`Sunnah prayer "${name}" (+${points} pts) added!`, 'success');
         } catch (err) {
             alert('Failed to add custom prayer: ' + err.message);
         }
@@ -2374,12 +2404,16 @@ const setupEventListeners = () => {
         if (btnEdit) {
             const id = btnEdit.dataset.id;
             const curName = btnEdit.dataset.name;
+            const curPoints = btnEdit.dataset.points || '5';
             const newName = prompt('Edit Sunnah prayer name:', curName);
             if (newName === null) return;
             const clean = newName.trim();
             if (!clean) return alert('Prayer name cannot be blank.');
+            const newPtsStr = prompt('Edit points for ' + clean + ':', curPoints);
+            if (newPtsStr === null) return;
+            const cleanPts = Number(newPtsStr) || 5;
 
-            const updated = customPrayersList.map(p => p.id === id ? { ...p, name: clean } : p);
+            const updated = customPrayersList.map(p => p.id === id ? { ...p, name: clean, points: cleanPts } : p);
             setDoc(doc(db, `${BASE_PATH}/prayerSettings`, 'customPrayers'), {
                 list: updated,
                 updatedAt: Date.now()
@@ -2387,7 +2421,7 @@ const setupEventListeners = () => {
                 customPrayersList = updated;
                 renderCustomPrayersListInModal();
                 loadPrayerRoster();
-                showToast(`Sunnah prayer renamed to "${clean}"!`, 'success');
+                showToast(`Sunnah prayer updated to "${clean}" (+${cleanPts} pts)!`, 'success');
             });
             return;
         }
