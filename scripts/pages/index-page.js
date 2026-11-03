@@ -47,16 +47,30 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         const renderSavedStudents = () => {
             const list = document.getElementById('saved-student-list');
             const accounts = window.AppSession?.getStudentAccounts?.() || [];
+            const activeId = window.AppSession?.getStudentId?.() || '';
             if (!list) return;
-            list.innerHTML = accounts.length ? accounts.map((account) => `
-                <div class="border border-gray-200 rounded-lg p-2 flex items-center justify-between gap-2">
-                    <button class="text-left flex-grow saved-student-select" data-id="${account.studentId}">
-                        <div class="font-bold text-gray-800">${escapeHtml(account.name || 'Student')}</div>
-                        <div class="text-xs text-gray-500">${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}</div>
+            list.innerHTML = accounts.length ? accounts.map((account) => {
+                const isActive = (account.studentId === activeId);
+                return `
+                <div class="border ${isActive ? 'border-blue-300 bg-blue-50/60 shadow-xs' : 'border-gray-200 bg-white'} rounded-xl p-2.5 flex items-center justify-between gap-2 transition hover:border-blue-300">
+                    <button type="button" class="text-left flex-grow saved-student-select cursor-pointer" data-id="${account.studentId}">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-gray-800">${escapeHtml(account.name || 'Student')}</span>
+                            ${isActive ? '<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Active</span>' : ''}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5">${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}</div>
                     </button>
-                    <button class="text-red-600 text-xs font-bold saved-student-remove" data-id="${account.studentId}">Remove</button>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" class="text-blue-600 hover:text-blue-800 text-xs font-bold saved-student-select px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 cursor-pointer" data-id="${account.studentId}">
+                            ${isActive ? 'Open' : 'Switch'}
+                        </button>
+                        <button type="button" class="text-red-500 hover:text-red-700 text-xs font-bold saved-student-remove p-1 hover:bg-red-50 rounded cursor-pointer" data-id="${account.studentId}" title="Remove account">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
                 </div>
-            `).join('') : '<p class="text-sm text-gray-500">No saved student accounts.</p>';
+            `;
+            }).join('') : '<p class="text-sm text-gray-500">No saved student accounts.</p>';
         };
         const openSavedStudentModal = () => {
             renderSavedStudents();
@@ -70,17 +84,13 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             if (sessionNotice) showLoginMessage(sessionNotice);
         };
         window.openLogin = () => {
-            if (window.AppSession?.hasStudentSession?.()) {
-                window.location.href = 'student.html';
-                return;
-            }
             if (window.AppSession?.hasStaffSession?.() || window.AppSession?.hasAdminSession?.()) {
                 window.location.href = 'official.html';
                 return;
             }
             const accounts = window.AppSession?.getStudentAccounts?.() || [];
             const forceAdd = new URLSearchParams(window.location.search).get('addStudent') === '1';
-            if (!forceAdd && accounts.length > 0) {
+            if (!forceAdd && (accounts.length > 0 || window.AppSession?.hasStudentSession?.())) {
                 openSavedStudentModal();
                 return;
             }
@@ -1142,10 +1152,3 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         }
 
         init();
-
-        if (window.AppSession?.hasStudentSession?.()) {
-            document.querySelectorAll('.login-btn-nav, .main-login-btn').forEach((btn) => {
-                btn.innerHTML = '<i class="fas fa-arrow-left mr-1"></i> Student Portal';
-                btn.title = 'Return to Student Portal';
-            });
-        }

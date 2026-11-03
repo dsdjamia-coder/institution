@@ -197,79 +197,206 @@ const studentPwa = registerPortalForPwa('student', {
 
         const accountSwitcher = document.getElementById('student-account-switcher');
         const accountList = document.getElementById('student-account-list');
+        const quickSwitchPill = document.getElementById('student-quick-switch-pill');
+        const quickSwitchText = document.getElementById('student-quick-switch-text');
+        let quickSwitchTimer = null;
+
+        const showQuickAccountSwitchFeedback = (studentName = '') => {
+            if (!quickSwitchPill || !quickSwitchText) return;
+            quickSwitchText.textContent = `Switched to ${studentName || 'Student'}`;
+            quickSwitchPill.classList.remove('opacity-0', '-translate-y-4');
+            quickSwitchPill.classList.add('opacity-100', 'translate-y-0');
+            if (quickSwitchTimer) clearTimeout(quickSwitchTimer);
+            quickSwitchTimer = setTimeout(() => {
+                quickSwitchPill.classList.remove('opacity-100', 'translate-y-0');
+                quickSwitchPill.classList.add('opacity-0', '-translate-y-4');
+            }, 2000);
+        };
+
         const renderAccountSwitcher = () => {
             const accounts = window.AppSession?.getStudentAccounts?.() || [];
-            const activeId = window.AppSession?.getStudentId?.();
+            const activeId = window.AppSession?.getStudentId?.() || '';
+            if (!accountList) return;
             accountList.innerHTML = accounts.length ? accounts.map((account) => {
-                const isActive = account.studentId === activeId;
-                return `<div class="rounded-xl border ${isActive ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200 bg-white'} px-3 py-2.5 flex items-center justify-between gap-2 transition">
-                    <button class="text-left flex-grow account-switch-btn" data-id="${account.studentId}">
-                        <div class="font-semibold ${isActive ? 'text-blue-700' : 'text-slate-800'}">${escapeHtml(account.name || 'Student')}</div>
-                        <div class="text-xs ${isActive ? 'text-blue-600' : 'text-slate-500'}">${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}</div>
+                const isActive = String(account.studentId) === String(activeId);
+                return `
+                <div class="rounded-2xl border ${isActive ? 'border-blue-300 bg-blue-50/70 shadow-xs ring-1 ring-blue-300/40' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'} p-3 flex items-center justify-between gap-2.5 transition">
+                    <button type="button" class="text-left flex-grow flex items-center gap-2.5 account-switch-btn cursor-pointer min-w-0" data-id="${escapeHtml(account.studentId || '')}">
+                        <div class="w-9 h-9 rounded-xl ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'} flex items-center justify-center font-black text-sm shrink-0">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-extrabold text-sm truncate ${isActive ? 'text-blue-900' : 'text-slate-800'}">${escapeHtml(account.name || 'Student')}</div>
+                            <div class="text-[11px] font-semibold truncate ${isActive ? 'text-blue-700' : 'text-slate-500'}">Class: ${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}</div>
+                        </div>
                     </button>
-                    <div class="flex items-center gap-1.5">
-                        ${isActive ? '<span class="text-[10px] font-bold uppercase tracking-wide text-blue-700 bg-blue-100 px-2 py-1 rounded-full">Active</span>' : ''}
-                        <button class="text-red-600 hover:text-red-700 text-xs font-bold account-remove-btn" data-id="${account.studentId}">Remove</button>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        ${isActive ? `
+                            <span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-blue-700 bg-blue-100/90 px-2.5 py-1 rounded-full border border-blue-200">
+                                <i class="fas fa-check-circle"></i> Active
+                            </span>
+                        ` : `
+                            <button type="button" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs account-switch-btn cursor-pointer flex items-center gap-1" data-id="${escapeHtml(account.studentId || '')}">
+                                <i class="fas fa-exchange-alt text-[10px]"></i> Switch
+                            </button>
+                        `}
+                        <button type="button" class="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition account-remove-btn cursor-pointer" data-id="${escapeHtml(account.studentId || '')}" title="Remove Account">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
                     </div>
                 </div>`;
-            }).join('') : '<p class="text-sm text-gray-500">No saved accounts.</p>';
+            }).join('') : '<p class="text-sm text-gray-500 text-center py-4 font-semibold">No saved accounts found.</p>';
         };
+
+        const openAccountSwitcher = () => {
+            renderAccountSwitcher();
+            if (accountSwitcher) {
+                accountSwitcher.classList.remove('hidden');
+                accountSwitcher.classList.add('flex');
+            }
+        };
+
+        const closeAccountSwitcher = () => {
+            if (accountSwitcher) {
+                accountSwitcher.classList.add('hidden');
+                accountSwitcher.classList.remove('flex');
+            }
+        };
+
         const switchToStudentAccount = (targetStudentId = '') => {
             if (!targetStudentId) return false;
+            const accounts = window.AppSession?.getStudentAccounts?.() || [];
+            const target = accounts.find((acc) => String(acc.studentId) === String(targetStudentId));
             const switched = window.AppSession?.switchStudent?.(targetStudentId);
             if (!switched) return false;
-            window.location.reload();
+            if (target?.name) {
+                showQuickAccountSwitchFeedback(target.name);
+            }
+            setTimeout(() => {
+                window.location.reload();
+            }, 350);
             return true;
         };
-        const handleQuickProfileSwitch = () => {
+
+        const handleDoubleTapAccountAction = () => {
             const accounts = window.AppSession?.getStudentAccounts?.() || [];
-            const activeId = window.AppSession?.getStudentId?.();
+            const activeId = window.AppSession?.getStudentId?.() || '';
             if (accounts.length === 2) {
-                const target = accounts.find((account) => account.studentId !== activeId);
-                if (target?.studentId && switchToStudentAccount(target.studentId)) return true;
+                const target = accounts.find((account) => String(account.studentId) !== String(activeId));
+                if (target?.studentId) {
+                    switchToStudentAccount(target.studentId);
+                    return true;
+                }
             }
+            openAccountSwitcher();
             return false;
         };
-        const openAccountSwitcher = ({ forceList = false } = {}) => {
-            const accounts = window.AppSession?.getStudentAccounts?.() || [];
-            if (!forceList && accounts.length === 2 && handleQuickProfileSwitch()) return;
-            renderAccountSwitcher();
-            accountSwitcher.classList.remove('hidden');
-            accountSwitcher.classList.add('flex');
-        };
-        const closeAccountSwitcher = () => {
-            accountSwitcher.classList.add('hidden');
-            accountSwitcher.classList.remove('flex');
-        };
-        let longPressTimer = null;
-        const bindLongPress = (element) => {
-            if (!element) return;
-            element.addEventListener('pointerdown', () => {
-                longPressTimer = setTimeout(() => openAccountSwitcher({ forceList: true }), 650);
+
+        const attachAccountGestureListeners = (element) => {
+            if (!element || element._hasAccountGestures) return;
+            element._hasAccountGestures = true;
+
+            // Desktop Mouse Gestures
+            let mouseHoldTimer = null;
+            element.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                mouseHoldTimer = setTimeout(() => {
+                    mouseHoldTimer = null;
+                    openAccountSwitcher();
+                }, 500);
             });
-            ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
-                element.addEventListener(eventName, () => {
-                    if (longPressTimer) clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                });
+            const cancelMouseHold = () => {
+                if (mouseHoldTimer) {
+                    clearTimeout(mouseHoldTimer);
+                    mouseHoldTimer = null;
+                }
+            };
+            element.addEventListener('mouseup', cancelMouseHold);
+            element.addEventListener('mouseleave', cancelMouseHold);
+
+            element.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                cancelMouseHold();
+                handleDoubleTapAccountAction();
             });
-        };
-        const bindProfileDoubleTap = (element) => {
-            if (!element) return;
-            element.addEventListener('dblclick', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!handleQuickProfileSwitch()) {
-                    openAccountSwitcher({ forceList: true });
+
+            // Mobile Touch Gestures (Double-tap & Long-press hold 500ms)
+            let touchHoldTimer = null;
+            let lastTapTimestamp = 0;
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let holdActivated = false;
+
+            element.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 1) return;
+                holdActivated = false;
+                const touch = e.touches[0];
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+
+                touchHoldTimer = setTimeout(() => {
+                    touchHoldTimer = null;
+                    holdActivated = true;
+                    if (navigator.vibrate) {
+                        try { navigator.vibrate(40); } catch (err) {}
+                    }
+                    openAccountSwitcher();
+                }, 500);
+            }, { passive: true });
+
+            element.addEventListener('touchmove', (e) => {
+                if (!touchHoldTimer) return;
+                const touch = e.touches[0];
+                const deltaX = Math.abs(touch.clientX - touchStartX);
+                const deltaY = Math.abs(touch.clientY - touchStartY);
+                if (deltaX > 10 || deltaY > 10) {
+                    clearTimeout(touchHoldTimer);
+                    touchHoldTimer = null;
+                }
+            }, { passive: true });
+
+            element.addEventListener('touchend', (e) => {
+                if (touchHoldTimer) {
+                    clearTimeout(touchHoldTimer);
+                    touchHoldTimer = null;
+                }
+                if (holdActivated) {
+                    e.preventDefault();
+                    return;
+                }
+                const currentTime = Date.now();
+                const tapGap = currentTime - lastTapTimestamp;
+                if (tapGap > 0 && tapGap < 320) {
+                    lastTapTimestamp = 0;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDoubleTapAccountAction();
+                } else {
+                    lastTapTimestamp = currentTime;
+                }
+            });
+
+            element.addEventListener('touchcancel', () => {
+                if (touchHoldTimer) {
+                    clearTimeout(touchHoldTimer);
+                    touchHoldTimer = null;
                 }
             });
         };
+
         const profileTabLink = document.querySelector('.tab-link[data-target="home-page"]');
         const bottomProfileBtn = document.getElementById('bottom-profile-btn');
-        bindLongPress(profileTabLink);
-        bindLongPress(bottomProfileBtn);
-        bindProfileDoubleTap(profileTabLink);
-        bindProfileDoubleTap(bottomProfileBtn);
+        const dashAvatarEl = document.getElementById('dash-avatar');
+        const photoWrapEl = document.getElementById('student-profile-photo-wrap');
+        const profileNavHome = document.getElementById('student-nav-home');
+
+        attachAccountGestureListeners(profileTabLink);
+        attachAccountGestureListeners(bottomProfileBtn);
+        attachAccountGestureListeners(dashAvatarEl);
+        attachAccountGestureListeners(photoWrapEl);
+        attachAccountGestureListeners(profileNavHome);
+
         document.getElementById('close-account-switcher')?.addEventListener('click', closeAccountSwitcher);
         accountSwitcher?.addEventListener('click', (e) => {
             if (e.target === accountSwitcher) closeAccountSwitcher();
@@ -284,12 +411,16 @@ const studentPwa = registerPortalForPwa('student', {
                 if (!confirm('Are you sure you want to remove this account?')) return;
                 const activeId = window.AppSession?.getStudentId?.() || '';
                 window.AppSession?.logoutStudent(removeBtn.dataset.id, { removeAccount: true });
-                if (activeId === removeBtn.dataset.id) window.location.href = 'index.html';
+                if (activeId === removeBtn.dataset.id) window.location.href = 'index.html?public=1';
                 else renderAccountSwitcher();
             }
         });
-        document.getElementById('account-switcher-logout-btn')?.addEventListener('click', () => logoutStudent());
+        document.getElementById('account-switcher-logout-btn')?.addEventListener('click', () => {
+            closeAccountSwitcher();
+            logoutStudent();
+        });
         document.getElementById('account-switcher-add-btn')?.addEventListener('click', () => {
+            closeAccountSwitcher();
             window.location.href = 'index.html?addStudent=1';
         });
 
@@ -4907,6 +5038,9 @@ const studentPwa = registerPortalForPwa('student', {
 
                 // Bind Bottom Nav Buttons
                 bottomContainer.querySelectorAll('.student-bottom-nav-btn').forEach((btn) => {
+                    if (btn.dataset.target === 'home-page') {
+                        attachAccountGestureListeners(btn);
+                    }
                     btn.addEventListener('click', () => {
                         if (btn.dataset.action === 'open-more') {
                             if (moreSheet) {
@@ -4925,6 +5059,9 @@ const studentPwa = registerPortalForPwa('student', {
 
                 // Bind More Sheet Items
                 moreSheetItems?.querySelectorAll('.student-more-tile').forEach((tile) => {
+                    if (tile.dataset.target === 'home-page') {
+                        attachAccountGestureListeners(tile);
+                    }
                     tile.addEventListener('click', () => {
                         if (moreSheet) {
                             moreSheet.classList.add('hidden');
