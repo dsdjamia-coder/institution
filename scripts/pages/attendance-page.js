@@ -18,6 +18,7 @@ let currentAcademicYear = '';
 let availableAcademicYears = [];
 let academicYearRecords = []; // Full year objects from settings/academicYears
 let allStudents = [];
+let configuredClasses = [];
 let allClasses = [];
 let calendarConfig = {
     weekendDays: [5], // Default: Friday (index 5)
@@ -400,6 +401,32 @@ const setupFirestoreListeners = () => {
         }
     });
 
+    const refreshAllClasses = () => {
+        const classSet = new Set();
+        (configuredClasses || []).forEach(c => {
+            const str = String(c?.id || c?.name || c || '').trim();
+            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+        });
+        const activeYr = (academicYearRecords || []).find(y => (y.label || y.id) === currentAcademicYear) || academicYearRecords[0];
+        if (activeYr && Array.isArray(activeYr.classes)) {
+            activeYr.classes.forEach(c => {
+                const str = String(c || '').trim();
+                if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+            });
+        }
+        if (classSet.size === 0) {
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach(c => classSet.add(c));
+        }
+        (allStudents || []).forEach(s => {
+            const str = String(s.class || '').trim();
+            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+        });
+
+        allClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        populateClassDropdowns();
+        populateHolidayClassesCheckboxes();
+    };
+
     // 2. Settings Academic Years
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const data = snap.exists() ? snap.data() : {};
@@ -416,6 +443,16 @@ const setupFirestoreListeners = () => {
 
         populateAcademicYearDropdowns();
         renderSessionScheduleUI();
+        refreshAllClasses();
+    });
+
+    // 2B. Settings Classes
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            configuredClasses = Array.isArray(data.list) ? data.list : (Array.isArray(data.classes) ? data.classes : []);
+        }
+        refreshAllClasses();
     });
 
     // 3. Staff Roster
@@ -458,16 +495,7 @@ const setupFirestoreListeners = () => {
     // 4. Students Roster
     onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
         allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        const classSet = new Set(
-            allStudents
-                .map(s => String(s.class || '').trim())
-                .filter(c => c && c.toLowerCase() !== 'alumni')
-        );
-        allClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-        populateClassDropdowns();
-        populateHolidayClassesCheckboxes();
+        refreshAllClasses();
         loadDailyAttendanceRoster();
     });
 

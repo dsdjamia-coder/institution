@@ -139,7 +139,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
 
     const getAlumniGraduatedYear = (student = {}) => {
-      return String(student.graduatedYear || student.academicYear || 'General Alumni').trim();
+      return String(student.passedOutYear || student.graduatedYear || student.academicYear || 'General Alumni').trim();
     };
 
     const extractStudentPhoto = (obj = {}) => {
@@ -1372,9 +1372,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         }
       ];
 
-      const modules = allPossibleModules.filter((m) => m.id === 'admin' || enabledModules[m.id] !== false);
+      const modules = allPossibleModules
+        .filter((m) => m.id === 'admin' || enabledModules[m.id] !== false)
+        .filter((m) => isMasterAdmin || m.hasAccess);
 
-      const moduleCardsHtml = modules.map((m) => {
+      const moduleCardsHtml = modules.length > 0 ? modules.map((m) => {
         if (m.hasAccess) {
           const clickAction = `data-navigate-url="${m.href}"`;
           return `
@@ -1418,7 +1420,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               </div>
             </div>`;
         }
-      }).join('');
+      }).join('') : `
+        <div class="col-span-full p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+          <i class="fas fa-user-lock text-3xl text-slate-400 mb-2 block"></i>
+          <h4 class="text-sm font-extrabold text-slate-800">No Authorized Modules Assigned</h4>
+          <p class="text-xs text-slate-500 mt-1">Contact your Super Administrator to grant module permissions to your account.</p>
+        </div>`;
 
       const dashContainer = document.getElementById('official-tab-dashboard');
       if (!dashContainer) return;

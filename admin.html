@@ -2161,6 +2161,70 @@
                                 <span id="count-backup-audit" class="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">--</span>
                             </div>
                         </label>
+
+                        <!-- 10: Attendance -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-calendar-check"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-blue-900">Attendance Registers</span>
+                                </div>
+                                <input type="checkbox" class="backup-category-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer" data-category="attendance" checked>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Daily session attendance records and weekend schedule settings.</p>
+                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span class="text-[10px] text-slate-400 font-medium">Live Database:</span>
+                                <span id="count-backup-attendance" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">--</span>
+                            </div>
+                        </label>
+
+                        <!-- 11: Academic Plan -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-calendar-days"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-blue-900">Academic Curriculum &amp; Timetable</span>
+                                </div>
+                                <input type="checkbox" class="backup-category-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer" data-category="academicPlan" checked>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Subjects, routine timetables, year plan portions, syllabus tracking logs, and exam timetables.</p>
+                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span class="text-[10px] text-slate-400 font-medium">Live Database:</span>
+                                <span id="count-backup-academicPlan" class="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">--</span>
+                            </div>
+                        </label>
+
+                        <!-- 12: Student Activities & Rewards -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-award"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-blue-900">Activities &amp; Rewards</span>
+                                </div>
+                                <input type="checkbox" class="backup-category-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer" data-category="activities" checked>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">House competitions, routine tasks, ibadah daily prayers, bonus points, and badge awards.</p>
+                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span class="text-[10px] text-slate-400 font-medium">Live Database:</span>
+                                <span id="count-backup-activities" class="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">--</span>
+                            </div>
+                        </label>
+
+                        <!-- 13: Classroom Evaluation & Impositions -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-chalkboard-user"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-blue-900">Classroom Evaluation &amp; Impositions</span>
+                                </div>
+                                <input type="checkbox" class="backup-category-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer" data-category="evaluation" checked>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Daily student evaluation, oral Q&amp;A, reading assessments, and impositions registers.</p>
+                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span class="text-[10px] text-slate-400 font-medium">Live Database:</span>
+                                <span id="count-backup-evaluation" class="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">--</span>
+                            </div>
+                        </label>
                     </div>
 
                     <!-- Master Action Controls -->
@@ -2362,6 +2426,54 @@
                                 <input type="checkbox" class="purge-category-cb w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" data-category="audit">
                             </div>
                             <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Historical activity logs and administrative history (records a checkpoint on purge).</p>
+                        </label>
+
+                        <!-- Category 9: Attendance Registers -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-calendar-check"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-rose-900">Attendance Registers</span>
+                                </div>
+                                <input type="checkbox" class="purge-category-cb w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" data-category="attendance">
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Daily session attendance records and weekend schedule settings.</p>
+                        </label>
+
+                        <!-- Category 10: Academic Curriculum & Timetable -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-calendar-days"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-rose-900">Academic Curriculum &amp; Timetable</span>
+                                </div>
+                                <input type="checkbox" class="purge-category-cb w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" data-category="academicPlan">
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Subjects, routine timetables, year plan portions, syllabus tracking logs, and exam timetables.</p>
+                        </label>
+
+                        <!-- Category 11: Activities & Rewards -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-award"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-rose-900">Activities &amp; Rewards</span>
+                                </div>
+                                <input type="checkbox" class="purge-category-cb w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" data-category="activities">
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">House competitions, routine tasks, ibadah daily prayers, bonus points, and badge awards.</p>
+                        </label>
+
+                        <!-- Category 12: Classroom Evaluation & Impositions -->
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/20 transition cursor-pointer select-none group">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs shrink-0"><i class="fas fa-chalkboard-user"></i></span>
+                                    <span class="text-xs font-bold text-slate-800 group-hover:text-rose-900">Classroom Evaluation &amp; Impositions</span>
+                                </div>
+                                <input type="checkbox" class="purge-category-cb w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" data-category="evaluation">
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">Daily student evaluation, oral Q&amp;A, reading assessments, and impositions registers.</p>
                         </label>
                     </div>
 

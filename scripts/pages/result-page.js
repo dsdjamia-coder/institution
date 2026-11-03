@@ -13,6 +13,7 @@ let currentStaffDoc = null;
 let teacherAssignedClasses = [];
 
 let students = [];
+let configuredClasses = [];
 let classes = [];
 let resultSchemas = [];
 let examResultsCache = [];
@@ -971,6 +972,34 @@ function initializeDataListeners() {
         }
     }, 120);
 
+    const refreshResultClasses = () => {
+        const classSet = new Set();
+        (configuredClasses || []).forEach(c => {
+            const str = String(c?.id || c?.name || c || '').trim();
+            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+        });
+        const activeYr = (availableAcademicYears || []).find(y => {
+            const lbl = (typeof y === 'object' && y !== null) ? (y.label || y.id || y.name || '') : String(y || '');
+            return lbl.trim() === currentAcademicYear;
+        }) || availableAcademicYears[0];
+        if (activeYr && typeof activeYr === 'object' && Array.isArray(activeYr.classes)) {
+            activeYr.classes.forEach(c => {
+                const str = String(c || '').trim();
+                if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+            });
+        }
+        if (classSet.size === 0) {
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach(c => classSet.add(c));
+        }
+        (students || []).forEach(s => {
+            const str = String(s.class || '').trim();
+            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+        });
+
+        classes = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        scheduleRefresh();
+    };
+
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const payload = snap.exists() ? snap.data() : {};
         if (payload.currentYear) {
@@ -999,8 +1028,17 @@ function initializeDataListeners() {
         if (typeof renderSnapshotPanelUI === 'function') {
             renderSnapshotPanelUI();
         }
-        scheduleRefresh();
+        refreshResultClasses();
     });
+
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            configuredClasses = Array.isArray(data.list) ? data.list : (Array.isArray(data.classes) ? data.classes : []);
+        }
+        refreshResultClasses();
+    });
+
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
         const conf = snap.exists() ? (snap.data() || {}) : {};
         institutionConfig = conf;
@@ -1035,10 +1073,7 @@ function initializeDataListeners() {
 
     onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
         students = snap.docs.map(d => ({id: d.id, ...d.data()}));
-        classes = [...new Set(students.map(s => s.class).filter(Boolean))]
-            .filter((c) => String(c).trim().toLowerCase() !== 'alumni')
-            .sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
-        scheduleRefresh();
+        refreshResultClasses();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/resultSchemas`), (snap) => {
@@ -2784,9 +2819,21 @@ const loadMarksTable = () => {
     const rawFiltered = students.filter(s => s.class === className && (s.academicYear === currentAcademicYear || !s.academicYear));
     entryStudents = sortStudentList(rawFiltered, sortMode, genderMode);
 
-    if(!currentExamSchema || entryStudents.length === 0) {
+    if(!currentExamSchema) {
         cont.classList.add('hidden');
-        alert("No students found in this class or exam not valid.");
+        alert("Exam configuration or schema not valid.");
+        return;
+    }
+
+    if (entryStudents.length === 0) {
+        document.getElementById('entry-table-title').textContent = `Class: ${className}`;
+        document.getElementById('entry-table-subtitle').textContent = `Exam: ${currentExamContext?.label || currentExamSchema.name}`;
+        const studentCountBadge = document.getElementById('entry-student-count-badge');
+        if (studentCountBadge) studentCountBadge.textContent = '0 Students';
+
+        document.getElementById('marks-table-head').innerHTML = `<tr><th class="p-3 text-center bg-slate-100 text-slate-600 font-bold text-xs border-b border-slate-200">Information</th></tr>`;
+        document.getElementById('marks-table-body').innerHTML = `<tr><td class="p-10 text-center text-slate-400 font-bold bg-white"><i class="fas fa-users-slash text-2xl mb-2 text-slate-300 block"></i>No active students registered in Class ${escapeHtml(className)} for academic session ${escapeHtml(currentAcademicYear)}.</td></tr>`;
+        cont.classList.remove('hidden');
         return;
     }
 
@@ -5307,6 +5354,7 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
                 class: 'Alumni',
                 status: 'alumni',
                 isAlumni: true,
+                passedOutYear: departureYear,
                 graduatedYear: departureYear,
                 finalClass: fromClass,
                 academicYear: targetAcademicYear,

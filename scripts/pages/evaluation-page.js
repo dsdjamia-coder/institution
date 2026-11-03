@@ -646,12 +646,16 @@ const fetchStudentsAndClasses = async () => {
             console.warn('Could not load settings/classes', e);
         }
 
+        if (classesSet.size === 0) {
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach((c) => classesSet.add(c));
+        }
+
         allStudents = list;
         allClasses = Array.from(classesSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
         populateClassDropdown();
         if (selectedClass) {
-            renderLiveStudents();
+            renderLiveClassroomBoard();
             populateImpositionStudentSelect();
         }
     }, (err) => {

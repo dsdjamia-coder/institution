@@ -514,6 +514,16 @@ const getStudentsForYear = (targetYearLabel) => {
                 _historicalYear: target,
                 _isHistoricalView: target !== activeLabel
             };
+        } else if (normalizeStudentStatus(student.status) === 'Alumni' || student.isAlumni === true || String(student.class || '').toUpperCase() === 'ALUMNI') {
+            // Institutional Alumni are unified globally with their passedOutYear field
+            return {
+                ...student,
+                _historicalYear: target,
+                _isHistoricalView: target !== activeLabel,
+                class: 'Alumni',
+                studentClass: 'Alumni',
+                status: 'Alumni'
+            };
         }
         return null;
     }).filter(Boolean);
@@ -823,6 +833,155 @@ const BACKUP_CATEGORIES_CONFIG = {
             onProgress?.('Restoring audit logs...');
             await restoreCollectionFromPayload('auditLogs', list);
         }
+    },
+    attendance: {
+        key: 'attendance',
+        label: 'Attendance Registers',
+        icon: 'fa-calendar-check',
+        colorClass: 'bg-emerald-100 text-emerald-700',
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        description: 'Daily session attendance registers and calendar off-day configurations',
+        getItemCount: (payload) => {
+            const list = payload?.collections?.attendance || payload?.attendance;
+            return Array.isArray(list) ? list.length : 0;
+        },
+        hasData: (payload) => {
+            const list = payload?.collections?.attendance || payload?.attendance;
+            const settings = payload?.settings?.attendanceSettings || payload?.attendanceSettings;
+            return (Array.isArray(list) && list.length > 0) || Boolean(settings);
+        },
+        restore: async (payload, onProgress) => {
+            const list = payload?.collections?.attendance || payload?.attendance || [];
+            const settings = payload?.settings?.attendanceSettings || payload?.attendanceSettings;
+            if (Array.isArray(list) && list.length > 0) {
+                onProgress?.('Restoring attendance registers...');
+                await restoreCollectionFromPayload('attendance', list);
+            }
+            if (settings && typeof settings === 'object') {
+                onProgress?.('Restoring attendance settings...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceSettings'), settings, { merge: true });
+            }
+        }
+    },
+    academicPlan: {
+        key: 'academicPlan',
+        label: 'Academic Curriculum & Timetable',
+        icon: 'fa-calendar-days',
+        colorClass: 'bg-indigo-100 text-indigo-700',
+        badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        description: 'Class subjects, routine master timetables, syllabus year plans, and exam schedules',
+        getItemCount: (payload) => {
+            const sub = payload?.collections?.classSubjects || payload?.classSubjects || [];
+            const tt = payload?.collections?.timetables || payload?.timetables || [];
+            const yp = payload?.collections?.yearPlans || payload?.yearPlans || [];
+            const logs = payload?.collections?.syllabusDailyLogs || payload?.syllabusDailyLogs || [];
+            const examTt = payload?.collections?.examTimetables || payload?.examTimetables || [];
+            return (Array.isArray(sub) ? sub.length : 0) +
+                   (Array.isArray(tt) ? tt.length : 0) +
+                   (Array.isArray(yp) ? yp.length : 0) +
+                   (Array.isArray(logs) ? logs.length : 0) +
+                   (Array.isArray(examTt) ? examTt.length : 0);
+        },
+        hasData: (payload) => {
+            const cols = ['classSubjects', 'timetables', 'yearPlans', 'syllabusDailyLogs', 'examTimetables'];
+            return cols.some(c => {
+                const list = payload?.collections?.[c] || payload?.[c];
+                return Array.isArray(list) && list.length > 0;
+            });
+        },
+        restore: async (payload, onProgress) => {
+            const cols = ['classSubjects', 'timetables', 'yearPlans', 'syllabusDailyLogs', 'examTimetables'];
+            for (const col of cols) {
+                const list = payload?.collections?.[col] || payload?.[col] || [];
+                if (Array.isArray(list) && list.length > 0) {
+                    onProgress?.(`Restoring academic ${col}...`);
+                    await restoreCollectionFromPayload(col, list);
+                }
+            }
+        }
+    },
+    activities: {
+        key: 'activities',
+        label: 'Activities & Rewards',
+        icon: 'fa-award',
+        colorClass: 'bg-amber-100 text-amber-700',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        description: 'House points, routine tasks, ibadah tracking, custom badges, and bonus scores',
+        getItemCount: (payload) => {
+            const acts = payload?.collections?.activities || payload?.activities || [];
+            const ib = payload?.collections?.ibadah || payload?.ibadah || [];
+            const tc = payload?.collections?.taskCompletions || payload?.taskCompletions || [];
+            const badges = payload?.collections?.studentCustomBadges || payload?.studentCustomBadges || [];
+            const pts = payload?.collections?.studentBonusPoints || payload?.studentBonusPoints || [];
+            return (Array.isArray(acts) ? acts.length : 0) +
+                   (Array.isArray(ib) ? ib.length : 0) +
+                   (Array.isArray(tc) ? tc.length : 0) +
+                   (Array.isArray(badges) ? badges.length : 0) +
+                   (Array.isArray(pts) ? pts.length : 0);
+        },
+        hasData: (payload) => {
+            const cols = ['activities', 'ibadah', 'taskCompletions', 'studentCustomBadges', 'studentBonusPoints'];
+            const hasCols = cols.some(c => {
+                const list = payload?.collections?.[c] || payload?.[c];
+                return Array.isArray(list) && list.length > 0;
+            });
+            const rSettings = payload?.settings?.rewardSettings || payload?.rewardSettings;
+            const pSettings = payload?.settings?.prayerSettings || payload?.prayerSettings;
+            return hasCols || Boolean(rSettings) || Boolean(pSettings);
+        },
+        restore: async (payload, onProgress) => {
+            const cols = ['activities', 'ibadah', 'taskCompletions', 'studentCustomBadges', 'studentBonusPoints'];
+            for (const col of cols) {
+                const list = payload?.collections?.[col] || payload?.[col] || [];
+                if (Array.isArray(list) && list.length > 0) {
+                    onProgress?.(`Restoring ${col}...`);
+                    await restoreCollectionFromPayload(col, list);
+                }
+            }
+            const rSettings = payload?.settings?.rewardSettings || payload?.rewardSettings;
+            if (rSettings && typeof rSettings === 'object') {
+                onProgress?.('Restoring reward settings...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'rewardSettings'), rSettings, { merge: true });
+            }
+            const pSettings = payload?.settings?.prayerSettings || payload?.prayerSettings;
+            if (pSettings && typeof pSettings === 'object') {
+                onProgress?.('Restoring prayer settings...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'prayerSettings'), pSettings, { merge: true });
+            }
+        }
+    },
+    evaluation: {
+        key: 'evaluation',
+        label: 'Classroom Evaluation & Impositions',
+        icon: 'fa-chalkboard-user',
+        colorClass: 'bg-rose-100 text-rose-700',
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+        description: 'Daily student evaluation, oral/reading assessments, impositions, and worksheets',
+        getItemCount: (payload) => {
+            const ev = payload?.collections?.evaluations || payload?.evaluations || [];
+            const imp = payload?.collections?.impositions || payload?.impositions || [];
+            const ws = payload?.collections?.worksheets || payload?.worksheets || [];
+            return (Array.isArray(ev) ? ev.length : 0) +
+                   (Array.isArray(imp) ? imp.length : 0) +
+                   (Array.isArray(ws) ? ws.length : 0);
+        },
+        hasData: (payload) => {
+            const cols = ['evaluations', 'impositions', 'worksheets'];
+            return cols.some(c => {
+                const list = payload?.collections?.[c] || payload?.[c];
+                return Array.isArray(list) && list.length > 0;
+            });
+        },
+        restore: async (payload, onProgress) => {
+            const cols = ['evaluations', 'impositions', 'worksheets'];
+            for (const col of cols) {
+                const list = payload?.collections?.[col] || payload?.[col] || [];
+                if (Array.isArray(list) && list.length > 0) {
+                    onProgress?.(`Restoring ${col}...`);
+                    await restoreCollectionFromPayload(col, list);
+                }
+            }
+        }
     }
 };
 
@@ -874,7 +1033,28 @@ const buildBackupPayload = async (targetCategories = null) => {
         contentSnap,
         adminAuthSnap,
         academicYearsSnap,
-        resultCenterSnap
+        resultCenterSnap,
+        // Attendance
+        attendanceSnap,
+        attendanceSettingsSnap,
+        // Academic Plan
+        classSubjectsSnap,
+        timetablesSnap,
+        yearPlansSnap,
+        syllabusDailyLogsSnap,
+        examTimetablesSnap,
+        // Activities
+        activitiesSnap,
+        ibadahSnap,
+        taskCompletionsSnap,
+        studentCustomBadgesSnap,
+        studentBonusPointsSnap,
+        rewardSettingsSnap,
+        prayerSettingsSnap,
+        // Evaluation
+        evaluationsSnap,
+        impositionsSnap,
+        worksheetsSnap
     ] = await Promise.all([
         wants('students') ? getDocs(collection(db, `${BASE_PATH}/students`)) : Promise.resolve({ docs: [] }),
         wants('staff') ? getDocs(collection(db, `${BASE_PATH}/staff`)) : Promise.resolve({ docs: [] }),
@@ -888,7 +1068,28 @@ const buildBackupPayload = async (targetCategories = null) => {
         wants('website') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'content')) : Promise.resolve({ exists: () => false }),
         wants('staff') ? getDoc(getAdminAuthRef()) : Promise.resolve({ exists: () => false }),
         wants('years') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears')) : Promise.resolve({ exists: () => false }),
-        wants('results') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter')) : Promise.resolve({ exists: () => false })
+        wants('results') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter')) : Promise.resolve({ exists: () => false }),
+        // Attendance
+        wants('attendance') ? getDocs(collection(db, `${BASE_PATH}/attendance`)) : Promise.resolve({ docs: [] }),
+        wants('attendance') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceSettings')) : Promise.resolve({ exists: () => false }),
+        // Academic Plan
+        wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/classSubjects`)) : Promise.resolve({ docs: [] }),
+        wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/timetables`)) : Promise.resolve({ docs: [] }),
+        wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/yearPlans`)) : Promise.resolve({ docs: [] }),
+        wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/syllabusDailyLogs`)) : Promise.resolve({ docs: [] }),
+        wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/examTimetables`)) : Promise.resolve({ docs: [] }),
+        // Activities
+        wants('activities') ? getDocs(collection(db, `${BASE_PATH}/activities`)) : Promise.resolve({ docs: [] }),
+        wants('activities') ? getDocs(collection(db, `${BASE_PATH}/ibadah`)) : Promise.resolve({ docs: [] }),
+        wants('activities') ? getDocs(collection(db, `${BASE_PATH}/taskCompletions`)) : Promise.resolve({ docs: [] }),
+        wants('activities') ? getDocs(collection(db, `${BASE_PATH}/studentCustomBadges`)) : Promise.resolve({ docs: [] }),
+        wants('activities') ? getDocs(collection(db, `${BASE_PATH}/studentBonusPoints`)) : Promise.resolve({ docs: [] }),
+        wants('activities') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'rewardSettings')) : Promise.resolve({ exists: () => false }),
+        wants('activities') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'prayerSettings')) : Promise.resolve({ exists: () => false }),
+        // Evaluation
+        wants('evaluation') ? getDocs(collection(db, `${BASE_PATH}/evaluations`)) : Promise.resolve({ docs: [] }),
+        wants('evaluation') ? getDocs(collection(db, `${BASE_PATH}/impositions`)) : Promise.resolve({ docs: [] }),
+        wants('evaluation') ? getDocs(collection(db, `${BASE_PATH}/worksheets`)) : Promise.resolve({ docs: [] })
     ]);
 
     const collections = {};
@@ -902,6 +1103,26 @@ const buildBackupPayload = async (targetCategories = null) => {
     }
     if (wants('website')) collections.publicDirectory = publicDirSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     if (wants('audit')) collections.auditLogs = auditSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('attendance')) collections.attendance = attendanceSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (wants('academicPlan')) {
+        collections.classSubjects = classSubjectsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.timetables = timetablesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.yearPlans = yearPlansSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.syllabusDailyLogs = syllabusDailyLogsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.examTimetables = examTimetablesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    if (wants('activities')) {
+        collections.activities = activitiesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.ibadah = ibadahSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.taskCompletions = taskCompletionsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.studentCustomBadges = studentCustomBadgesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.studentBonusPoints = studentBonusPointsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    if (wants('evaluation')) {
+        collections.evaluations = evaluationsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.impositions = impositionsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        collections.worksheets = worksheetsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
 
     const settings = {};
     if (wants('config') && configSnap.exists()) settings.config = configSnap.data();
@@ -909,6 +1130,11 @@ const buildBackupPayload = async (targetCategories = null) => {
     if (wants('staff') && adminAuthSnap.exists()) settings.adminAuth = adminAuthSnap.data();
     if (wants('years') && academicYearsSnap.exists()) settings.academicYears = academicYearsSnap.data();
     if (wants('results') && resultCenterSnap.exists()) settings.resultCenter = resultCenterSnap.data();
+    if (wants('attendance') && attendanceSettingsSnap.exists()) settings.attendanceSettings = attendanceSettingsSnap.data();
+    if (wants('activities')) {
+        if (rewardSettingsSnap.exists()) settings.rewardSettings = rewardSettingsSnap.data();
+        if (prayerSettingsSnap.exists()) settings.prayerSettings = prayerSettingsSnap.data();
+    }
 
     return {
         exportedAt: new Date().toISOString(),
@@ -1749,6 +1975,17 @@ const persistAcademicYears = async () => {
         currentYear: activeAcademicYear || currentAcademicYear,
         years: academicYears
     }, { merge: true });
+
+    const activeRecord = getActiveAcademicYearRecord();
+    const activeClasses = (activeRecord && Array.isArray(activeRecord.classes) && activeRecord.classes.length)
+        ? activeRecord.classes
+        : getDefaultClassLadder();
+
+    await setDoc(doc(db, `${BASE_PATH}/settings`, 'classes'), {
+        classes: activeClasses,
+        list: activeClasses,
+        updatedAt: Date.now()
+    }, { merge: true }).catch((err) => console.warn('Could not mirror settings/classes:', err));
 };
 
 const refreshAcademicYearScopedData = (forceActive = false) => {
@@ -4605,6 +4842,8 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
             gender: gender,
             status: statusVal,
             isAlumni: isAlumniSelected || statusVal === 'Alumni',
+            passedOutYear: (isAlumniSelected || statusVal === 'Alumni') ? studentActiveYear : '',
+            graduatedYear: (isAlumniSelected || statusVal === 'Alumni') ? studentActiveYear : '',
             academicYears: {
                 [studentActiveYear]: {
                     class: cls,
@@ -5114,7 +5353,13 @@ const renderStudentList = () => {
             </td>
             <td class="p-3 font-mono text-gray-500 font-medium">${escapeHtml(s.adm || '-')}</td>
             <td class="p-3 font-bold text-gray-900">${escapeHtml(s.name || '-')}</td>
-            <td class="p-3 text-gray-600"><div>${escapeHtml(s.class || '--')} (${escapeHtml(s.gender || '--')})</div><div class="mt-1 inline-flex px-2 py-0.5 rounded-full border text-xs font-bold ${getStudentStatusBadgeClass(status)}">${escapeHtml(status)}</div></td>
+            <td class="p-3 text-gray-600">
+                <div>${escapeHtml(s.class || '--')} (${escapeHtml(s.gender || '--')})</div>
+                <div class="mt-1 flex flex-wrap items-center gap-1">
+                    <span class="inline-flex px-2 py-0.5 rounded-full border text-xs font-bold ${getStudentStatusBadgeClass(status)}">${escapeHtml(status)}</span>
+                    ${(status === 'Alumni' || s.isAlumni || s.passedOutYear) ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-[10px] font-bold text-indigo-700" title="Graduation / Pass-out Year"><i class="fas fa-graduation-cap mr-1"></i>${escapeHtml(s.passedOutYear || s.graduatedYear || 'Alumni')}</span>` : ''}
+                </div>
+            </td>
             <td class="p-3 text-gray-500">${escapeHtml(s.mobile || '-')}</td>
             <td class="p-3 text-right">
                 ${actionButtons}
@@ -5252,6 +5497,8 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
         gender: document.getElementById('e-stu-gender')?.value || 'Male', 
         status: finalStatus,
         isAlumni: isAlumniSelected || finalStatus === 'Alumni',
+        passedOutYear: (isAlumniSelected || finalStatus === 'Alumni') ? (existingStudent.passedOutYear || existingStudent.graduatedYear || activeAcademicYear || currentAcademicYear) : '',
+        graduatedYear: (isAlumniSelected || finalStatus === 'Alumni') ? (existingStudent.graduatedYear || existingStudent.passedOutYear || activeAcademicYear || currentAcademicYear) : '',
         adm: getVal('e-stu-adm').toUpperCase(), 
         mobile: getVal('e-stu-mob'), 
         father: getVal('e-stu-fat').toUpperCase(), 
@@ -9055,6 +9302,7 @@ document.getElementById('run-auto-promotion-btn').addEventListener('click', asyn
             class: 'Alumni',
             status: 'Alumni',
             isAlumni: true,
+            passedOutYear: departureYear,
             graduatedYear: departureYear,
             finalClass: student.class,
             academicYear: targetYear,
@@ -11459,6 +11707,57 @@ async function fetchExamResultsAndSchemasCount() {
     }
 }
 
+let extraModulesCountCache = {
+    attendance: null,
+    academicPlan: null,
+    activities: null,
+    evaluation: null
+};
+let lastExtraModulesCountFetch = 0;
+
+async function fetchExtraModulesCounts() {
+    try {
+        lastExtraModulesCountFetch = Date.now();
+        const [
+            attSnap,
+            csSnap, ttSnap, ypSnap, logSnap, exttSnap,
+            actSnap, ibSnap, tcSnap, bdgSnap, ptsSnap,
+            evSnap, impSnap, wsSnap
+        ] = await Promise.all([
+            getDocs(collection(db, `${BASE_PATH}/attendance`)),
+            getDocs(collection(db, `${BASE_PATH}/classSubjects`)),
+            getDocs(collection(db, `${BASE_PATH}/timetables`)),
+            getDocs(collection(db, `${BASE_PATH}/yearPlans`)),
+            getDocs(collection(db, `${BASE_PATH}/syllabusDailyLogs`)),
+            getDocs(collection(db, `${BASE_PATH}/examTimetables`)),
+            getDocs(collection(db, `${BASE_PATH}/activities`)),
+            getDocs(collection(db, `${BASE_PATH}/ibadah`)),
+            getDocs(collection(db, `${BASE_PATH}/taskCompletions`)),
+            getDocs(collection(db, `${BASE_PATH}/studentCustomBadges`)),
+            getDocs(collection(db, `${BASE_PATH}/studentBonusPoints`)),
+            getDocs(collection(db, `${BASE_PATH}/evaluations`)),
+            getDocs(collection(db, `${BASE_PATH}/impositions`)),
+            getDocs(collection(db, `${BASE_PATH}/worksheets`))
+        ]);
+
+        extraModulesCountCache.attendance = attSnap.size || 0;
+        extraModulesCountCache.academicPlan = (csSnap.size || 0) + (ttSnap.size || 0) + (ypSnap.size || 0) + (logSnap.size || 0) + (exttSnap.size || 0);
+        extraModulesCountCache.activities = (actSnap.size || 0) + (ibSnap.size || 0) + (tcSnap.size || 0) + (bdgSnap.size || 0) + (ptsSnap.size || 0);
+        extraModulesCountCache.evaluation = (evSnap.size || 0) + (impSnap.size || 0) + (wsSnap.size || 0);
+
+        const setEl = (id, count) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = `${count} records`;
+        };
+        setEl('count-backup-attendance', extraModulesCountCache.attendance);
+        setEl('count-backup-academicPlan', extraModulesCountCache.academicPlan);
+        setEl('count-backup-activities', extraModulesCountCache.activities);
+        setEl('count-backup-evaluation', extraModulesCountCache.evaluation);
+    } catch (e) {
+        console.warn('Failed to fetch extra modules counts:', e);
+    }
+}
+
 function renderBackupCategoryCounts() {
     const setBadge = (id, count) => {
         const el = document.getElementById(id);
@@ -11497,6 +11796,22 @@ function renderBackupCategoryCounts() {
     if (configEl) configEl.textContent = `${feeItems?.length || 0} fee items`;
 
     setBadge('count-backup-audit', auditLogs?.length ?? 0);
+
+    if (extraModulesCountCache.attendance !== null) {
+        setBadge('count-backup-attendance', extraModulesCountCache.attendance);
+    }
+    if (extraModulesCountCache.academicPlan !== null) {
+        setBadge('count-backup-academicPlan', extraModulesCountCache.academicPlan);
+    }
+    if (extraModulesCountCache.activities !== null) {
+        setBadge('count-backup-activities', extraModulesCountCache.activities);
+    }
+    if (extraModulesCountCache.evaluation !== null) {
+        setBadge('count-backup-evaluation', extraModulesCountCache.evaluation);
+    }
+    if (Date.now() - lastExtraModulesCountFetch > 15000) {
+        fetchExtraModulesCounts();
+    }
 }
 
 const getSelectedBackupCategories = () => {
@@ -11817,6 +12132,26 @@ const PURGE_CATEGORY_META = {
         label: 'Audit Trail Logs',
         badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
         description: 'Audit logs (checkpoint retained)'
+    },
+    attendance: {
+        label: 'Attendance Registers',
+        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        description: 'Daily session attendance records and weekend schedule settings'
+    },
+    academicPlan: {
+        label: 'Academic Curriculum & Timetable',
+        badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+        description: 'Class subjects, routine timetables, year plan portions, syllabus logs, and exam schedules'
+    },
+    activities: {
+        label: 'Activities & Rewards',
+        badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+        description: 'House points, tasks, ibadah daily prayers, custom badges, and bonus scores'
+    },
+    evaluation: {
+        label: 'Classroom Evaluation & Impositions',
+        badgeClass: 'bg-rose-100 text-rose-800 border-rose-200',
+        description: 'Daily evaluations, student oral/reading scores, impositions, and worksheets'
     }
 };
 
@@ -12220,6 +12555,59 @@ document.getElementById('purge-confirm-execute-btn')?.addEventListener('click', 
                     const purgedLogs = await batchDeleteCollection(`${BASE_PATH}/auditLogs`);
                     auditLogs = [];
                     appendPurgeProgressLog(`Purged ${purgedLogs} past audit records.`, true);
+                    break;
+                }
+
+                case 'attendance': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging attendance registers...');
+                    appendPurgeProgressLog('Purging attendance collection...');
+                    const purgedAttendance = await batchDeleteCollection(`${BASE_PATH}/attendance`);
+                    try {
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceSettings'));
+                    } catch (e) {
+                        console.warn('Attendance settings purge notice:', e);
+                    }
+                    appendPurgeProgressLog(`Purged ${purgedAttendance} attendance registers.`, true);
+                    break;
+                }
+
+                case 'academicPlan': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging academic curriculum and timetables...');
+                    appendPurgeProgressLog('Purging class subjects, timetables, and year plans...');
+                    const p1 = await batchDeleteCollection(`${BASE_PATH}/classSubjects`);
+                    const p2 = await batchDeleteCollection(`${BASE_PATH}/timetables`);
+                    const p3 = await batchDeleteCollection(`${BASE_PATH}/yearPlans`);
+                    const p4 = await batchDeleteCollection(`${BASE_PATH}/syllabusDailyLogs`);
+                    const p5 = await batchDeleteCollection(`${BASE_PATH}/examTimetables`);
+                    appendPurgeProgressLog(`Purged ${p1 + p2 + p3 + p4 + p5} academic curriculum and timetable records.`, true);
+                    break;
+                }
+
+                case 'activities': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging activities and rewards...');
+                    appendPurgeProgressLog('Purging activities, ibadah, and task records...');
+                    const p1 = await batchDeleteCollection(`${BASE_PATH}/activities`);
+                    const p2 = await batchDeleteCollection(`${BASE_PATH}/ibadah`);
+                    const p3 = await batchDeleteCollection(`${BASE_PATH}/taskCompletions`);
+                    const p4 = await batchDeleteCollection(`${BASE_PATH}/studentCustomBadges`);
+                    const p5 = await batchDeleteCollection(`${BASE_PATH}/studentBonusPoints`);
+                    try {
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'rewardSettings'));
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'prayerSettings'));
+                    } catch (e) {
+                        console.warn('Reward settings purge notice:', e);
+                    }
+                    appendPurgeProgressLog(`Purged ${p1 + p2 + p3 + p4 + p5} activity records and reset settings.`, true);
+                    break;
+                }
+
+                case 'evaluation': {
+                    updatePurgeProgressState(currentBasePct + 5, 'Purging classroom evaluations and impositions...');
+                    appendPurgeProgressLog('Purging evaluations, impositions, and worksheets...');
+                    const p1 = await batchDeleteCollection(`${BASE_PATH}/evaluations`);
+                    const p2 = await batchDeleteCollection(`${BASE_PATH}/impositions`);
+                    const p3 = await batchDeleteCollection(`${BASE_PATH}/worksheets`);
+                    appendPurgeProgressLog(`Purged ${p1 + p2 + p3} evaluation records and registers.`, true);
                     break;
                 }
 
