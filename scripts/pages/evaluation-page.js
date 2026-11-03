@@ -22,7 +22,14 @@ let allClasses = [];
 let selectedClass = '';
 let selectedYear = '2025-2026';
 let selectedDate = new Date().toISOString().split('T')[0];
-let selectedSubject = 'General';
+let selectedSubject = '';
+
+// Timetable & Subjects State
+const ALL_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+let classCurriculumSubjects = []; // [ { id, name, code, teacher } ]
+let classCustomSubjects = []; // [ 'Subject 1', 'Subject 2' ]
+let todaysScheduledPeriods = []; // [ { periodNum, label, subjectName, startTime, endTime } ]
+let currentClassTimetableDoc = null;
 
 // Daily Evaluation Data
 let currentDailyEvalDocId = '';
@@ -43,10 +50,9 @@ let currentLiveFilter = 'least-turns'; // 'least-turns' | 'not-today' | 'evaluat
 let currentLiveSearch = '';
 let currentImpositionFilter = 'pending'; // 'pending' | 'due-today' | 'cleared' | 'all'
 
-// Settings
-let configuredSubjects = ['General', 'Arabic', 'Fiqh', 'Quran', 'Thafseer', 'Hadees', 'English', 'Mathematics'];
-let evaluationConfig = {
-    autoAwardActivityPoints: true,
+// Class Evaluation Settings (Default OFF for Activity Points Integration)
+let classEvaluationSettings = {
+    autoAwardActivityPoints: false,
     activityPointsBonus: 5
 };
 
@@ -113,7 +119,20 @@ const getStaffAssignedClasses = (staffDoc = null, staffAccess = null) => {
     return Array.from(classesSet).map((c) => c.trim()).filter(Boolean);
 };
 
-// Sidebar collapse logic
+// --- Doc ID Helpers Matching Academic Plan & Timetable Standard ---
+const getClassSubjectsDocId = (year, classLabel) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}__${cleanC}`;
+};
+
+const getTimetableDocId = (year, classLabel) => {
+    const cleanY = String(year || currentAcademicYear).trim().replace(/[^\w-]/g, '_');
+    const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+    return `${cleanY}__${cleanC}`;
+};
+
+// --- Sidebar Collapse & Expansion (Identical to Activity & Rewards) ---
 const isDesktop = () => window.innerWidth >= 1024;
 
 const setSidebarCollapsed = (collapsed) => {
@@ -157,6 +176,14 @@ const initSidebarState = () => {
     } catch (_) {
         setSidebarCollapsed(false);
     }
+};
+
+// Live Clock Ticker
+const updateLiveClock = () => {
+    const clockEl = document.getElementById('live-clock-display');
+    if (!clockEl) return;
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
 // Confirmation Dialog helper
@@ -212,6 +239,8 @@ const switchTab = (tabId) => {
         renderMonthlyRegister();
     } else if (tabId === 'tab-impositions') {
         renderImpositionsList();
+    } else if (tabId === 'tab-settings') {
+        renderSettingsView();
     }
 };
 
@@ -237,50 +266,232 @@ const loadAcademicYears = async () => {
     if (yearSelect) {
         yearSelect.innerHTML = availableAcademicYears.map((yr) => `<option value="${escapeHtml(yr)}" ${yr === selectedYear ? 'selected' : ''}>${escapeHtml(yr)}</option>`).join('');
     }
+
+    const yearBadge = document.getElementById('header-active-year');
+    if (yearBadge) {
+        yearBadge.textContent = selectedYear;
+    }
 };
 
-const loadConfiguredSubjects = async () => {
+// --- Class Subjects & Timetable Engine ---
+const loadClassSubjectsAndTimetable = async () => {
+    if (!selectedClass || !selectedYear) return;
+
+    const cleanC = String(selectedClass).trim().replace(/[^\w-]/g, '_');
+    const ttDocId = getTimetableDocId(selectedYear, selectedClass);
+    const subjDocId = getClassSubjectsDocId(selectedYear, selectedClass);
+
     try {
-        const snap = await getDoc(doc(db, BASE_PATH, 'settings', 'evaluationConfig'));
-        if (snap.exists()) {
-            const d = snap.data();
-            if (Array.isArray(d.subjects) && d.subjects.length > 0) {
-                configuredSubjects = d.subjects;
-            }
-            if (typeof d.autoAwardActivityPoints === 'boolean') {
-                evaluationConfig.autoAwardActivityPoints = d.autoAwardActivityPoints;
-            }
-            if (typeof d.activityPointsBonus === 'number') {
-                evaluationConfig.activityPointsBonus = d.activityPointsBonus;
-            }
+        const [ttSnap, subjSnap, classSettingsSnap] = await Promise.all([
+            getDoc(doc(db, `${BASE_PATH}/timetables`, ttDocId)).catch(() => null),
+            getDoc(doc(db, `${BASE_PATH}/classSubjects`, subjDocId)).catch(() => null),
+            getDoc(doc(db, `${BASE_PATH}/settings`, `evaluationConfig_${cleanC}`)).catch(() => null)
+        ]);
+
+        // 1. Class Curriculum Subjects
+        const subjsSet = new Set();
+        const subjsList = [];
+
+        if (subjSnap && subjSnap.exists() && Array.isArray(subjSnap.data().subjects)) {
+            subjSnap.data().subjects.forEach((s) => {
+                const sName = String(s.name || s.title || s).trim();
+                if (sName && !subjsSet.has(sName.toLowerCase())) {
+                    subjsSet.add(sName.toLowerCase());
+                    subjsList.push({ id: s.id || sName, name: sName, code: s.code || '' });
+                }
+            });
         }
-    } catch (e) {
-        console.warn('Evaluation config load warning:', e);
+
+        // 2. Class Routine Timetable Matrix
+        currentClassTimetableDoc = ttSnap && ttSnap.exists() ? ttSnap.data() : null;
+        if (currentClassTimetableDoc?.matrix) {
+            Object.values(currentClassTimetableDoc.matrix).forEach((cell) => {
+                const sName = String(cell.subjectName || '').trim();
+                if (sName && !cell.isBreak && !cell.isNoExam && !subjsSet.has(sName.toLowerCase())) {
+                    subjsSet.add(sName.toLowerCase());
+                    subjsList.push({ id: cell.subjectId || sName, name: sName, code: cell.subjectCode || '' });
+                }
+            });
+        }
+
+        classCurriculumSubjects = subjsList;
+
+        // 3. Class-Scoped Settings (Custom evaluation subjects & default-off activity points)
+        if (classSettingsSnap && classSettingsSnap.exists()) {
+            const csData = classSettingsSnap.data();
+            classCustomSubjects = Array.isArray(csData.customSubjects) ? csData.customSubjects : [];
+            classEvaluationSettings.autoAwardActivityPoints = csData.autoAwardActivityPoints === true; // Default OFF
+            classEvaluationSettings.activityPointsBonus = typeof csData.activityPointsBonus === 'number' ? csData.activityPointsBonus : 5;
+        } else {
+            classCustomSubjects = [];
+            classEvaluationSettings.autoAwardActivityPoints = false; // Default OFF
+            classEvaluationSettings.activityPointsBonus = 5;
+        }
+
+        // 4. Resolve Today's Scheduled Periods according to selectedDate
+        resolveTodaysTimetablePeriods();
+
+        // 5. Populate Subject Dropdown & Quick Period Pills
+        renderSubjectDropdownAndPills();
+        renderSettingsView();
+
+    } catch (err) {
+        console.warn('Error loading class subjects and timetable:', err);
+    }
+};
+
+const resolveTodaysTimetablePeriods = () => {
+    todaysScheduledPeriods = [];
+    if (!selectedDate || !currentClassTimetableDoc) return;
+
+    const parts = selectedDate.split('-');
+    const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const weekdayName = ALL_WEEKDAYS[dateObj.getDay()];
+
+    const matrix = currentClassTimetableDoc.matrix || {};
+    const slots = Array.isArray(currentClassTimetableDoc.slots) ? currentClassTimetableDoc.slots : [];
+
+    // Find all period slots for this day
+    const periods = [];
+    slots.forEach((slot, index) => {
+        if (slot.isBreak) return;
+        const slotKey = slot.slotId || `period_${index + 1}`;
+        const slotNum = slot.slotNum || (index + 1);
+
+        // Timetable matrix key formats: "Day_slotKey" or "Day_periodNum"
+        const cellData = matrix[`${weekdayName}_${slotKey}`] || matrix[`${weekdayName}_${slotNum}`];
+        if (cellData && cellData.subjectName && !cellData.isBreak && !cellData.isNoExam) {
+            periods.push({
+                slotNum,
+                slotLabel: slot.label || `Period ${slotNum}`,
+                subjectName: cellData.subjectName,
+                startTime: slot.startTime || '',
+                endTime: slot.endTime || '',
+                teacher: cellData.teacher || ''
+            });
+        }
+    });
+
+    todaysScheduledPeriods = periods;
+};
+
+const renderSubjectDropdownAndPills = () => {
+    const subSelect = document.getElementById('eval-subject-select');
+    const pillsContainer = document.getElementById('timetable-period-pills');
+    const dayLabelEl = document.getElementById('tt-day-label');
+
+    const parts = selectedDate.split('-');
+    const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const weekdayName = ALL_WEEKDAYS[dateObj.getDay()];
+
+    if (dayLabelEl) {
+        dayLabelEl.textContent = `${weekdayName}'s Timetable:`;
     }
 
-    renderSubjectDropdown();
-    renderSubjectSettings();
+    // Render Timetable Period Pills
+    if (pillsContainer) {
+        if (todaysScheduledPeriods.length > 0) {
+            pillsContainer.innerHTML = todaysScheduledPeriods.map((p) => {
+                const isSelected = selectedSubject && selectedSubject.toLowerCase() === p.subjectName.toLowerCase();
+                return `
+                    <button type="button" class="btn-period-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-extrabold text-xs transition shadow-2xs cursor-pointer ${isSelected ? 'bg-rose-600 text-white ring-2 ring-rose-600/30' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'}" data-subject="${escapeHtml(p.subjectName)}" title="${escapeHtml(p.slotLabel)}: ${escapeHtml(p.subjectName)} (${escapeHtml(p.startTime)} - ${escapeHtml(p.endTime)})">
+                        <span class="text-[10px] font-mono opacity-80">${escapeHtml(p.slotLabel)}:</span>
+                        <span>${escapeHtml(p.subjectName)}</span>
+                    </button>
+                `;
+            }).join('');
+        } else {
+            pillsContainer.innerHTML = `
+                <span class="text-[11px] font-semibold text-slate-400 italic">No scheduled timetable periods for ${escapeHtml(weekdayName)}. Select subject from dropdown below.</span>
+            `;
+        }
+    }
+
+    // Default subject selection if current subject is empty or not in class subjects
+    const scheduledNames = todaysScheduledPeriods.map((p) => p.subjectName);
+    const curriculumNames = classCurriculumSubjects.map((s) => s.name);
+    const allAvailable = Array.from(new Set([...scheduledNames, ...curriculumNames, ...classCustomSubjects]));
+
+    if (!selectedSubject || !allAvailable.some((s) => s.toLowerCase() === selectedSubject.toLowerCase())) {
+        selectedSubject = scheduledNames[0] || curriculumNames[0] || classCustomSubjects[0] || 'General';
+    }
+
+    // Populate Subject Dropdown
+    if (subSelect) {
+        let optHtml = '';
+
+        if (todaysScheduledPeriods.length > 0) {
+            optHtml += `<optgroup label="Today's Timetable (${weekdayName})">`;
+            todaysScheduledPeriods.forEach((p) => {
+                optHtml += `<option value="${escapeHtml(p.subjectName)}" ${p.subjectName.toLowerCase() === selectedSubject.toLowerCase() ? 'selected' : ''}>${escapeHtml(p.slotLabel)}: ${escapeHtml(p.subjectName)}</option>`;
+            });
+            optHtml += `</optgroup>`;
+        }
+
+        if (classCurriculumSubjects.length > 0) {
+            optHtml += `<optgroup label="Class Curriculum Subjects">`;
+            classCurriculumSubjects.forEach((s) => {
+                optHtml += `<option value="${escapeHtml(s.name)}" ${s.name.toLowerCase() === selectedSubject.toLowerCase() ? 'selected' : ''}>${escapeHtml(s.name)}</option>`;
+            });
+            optHtml += `</optgroup>`;
+        }
+
+        if (classCustomSubjects.length > 0) {
+            optHtml += `<optgroup label="Custom Subjects (This Class)">`;
+            classCustomSubjects.forEach((cs) => {
+                optHtml += `<option value="${escapeHtml(cs)}" ${cs.toLowerCase() === selectedSubject.toLowerCase() ? 'selected' : ''}>${escapeHtml(cs)}</option>`;
+            });
+            optHtml += `</optgroup>`;
+        }
+
+        if (!optHtml) {
+            optHtml = `<option value="General">General / All</option>`;
+        }
+
+        subSelect.innerHTML = optHtml;
+    }
 };
 
-const renderSubjectDropdown = () => {
-    const subSelect = document.getElementById('eval-subject-select');
-    if (!subSelect) return;
-    subSelect.innerHTML = configuredSubjects.map((s) => `<option value="${escapeHtml(s)}" ${s === selectedSubject ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
-};
+const renderSettingsView = () => {
+    const classLabelEl = document.getElementById('settings-class-label');
+    if (classLabelEl) {
+        classLabelEl.textContent = selectedClass ? `Class: ${selectedClass}` : 'Selected Class';
+    }
 
-const renderSubjectSettings = () => {
-    const tagsCont = document.getElementById('settings-subject-tags');
-    if (tagsCont) {
-        tagsCont.innerHTML = configuredSubjects.map((s) => `
-            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
-                <span>${escapeHtml(s)}</span>
-                ${s !== 'General' ? `<button type="button" class="btn-remove-subject text-slate-400 hover:text-rose-600 cursor-pointer ml-1" data-subject="${escapeHtml(s)}"><i class="fas fa-times"></i></button>` : ''}
-            </span>
-        `).join('');
+    const currTags = document.getElementById('settings-curriculum-tags');
+    if (currTags) {
+        if (classCurriculumSubjects.length > 0) {
+            currTags.innerHTML = classCurriculumSubjects.map((s) => `
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
+                    <i class="fas fa-book text-slate-400 text-[10px]"></i>
+                    <span>${escapeHtml(s.name)}</span>
+                </span>
+            `).join('');
+        } else {
+            currTags.innerHTML = `<span class="text-xs text-slate-400 italic">No curriculum subjects found in Academic Plan for this class.</span>`;
+        }
+    }
+
+    const customTags = document.getElementById('settings-custom-subject-tags');
+    if (customTags) {
+        if (classCustomSubjects.length > 0) {
+            customTags.innerHTML = classCustomSubjects.map((cs) => `
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-900">
+                    <span>${escapeHtml(cs)}</span>
+                    <button type="button" class="btn-remove-custom-subject text-rose-400 hover:text-rose-700 cursor-pointer ml-1" data-subject="${escapeHtml(cs)}">
+                        <i class="fas fa-times text-[10px]"></i>
+                    </button>
+                </span>
+            `).join('');
+        } else {
+            customTags.innerHTML = `<span class="text-xs text-slate-400 italic">No custom evaluation subjects added for this class.</span>`;
+        }
     }
 
     const togglePts = document.getElementById('toggle-award-activity-points');
-    if (togglePts) togglePts.checked = evaluationConfig.autoAwardActivityPoints !== false;
+    if (togglePts) {
+        togglePts.checked = classEvaluationSettings.autoAwardActivityPoints === true;
+    }
 };
 
 // --- Students & Classes Fetching ---
@@ -316,7 +527,7 @@ const populateClassDropdown = () => {
     }
 
     if (allowed.length === 0) {
-        allowed = allClasses; // Fallback if no specific duty class set
+        allowed = allClasses;
     }
 
     classSelect.innerHTML = allowed.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -324,20 +535,37 @@ const populateClassDropdown = () => {
     if (allowed.length > 0) {
         selectedClass = allowed[0];
         classSelect.value = selectedClass;
-        updateHeaderClassPill();
-        setupDailyEvaluationListener();
-        setupImpositionsListener();
-        fetchMonthlyEvaluations();
+        onClassOrDateChanged();
     } else {
         classSelect.innerHTML = '<option value="">No classes found</option>';
     }
 };
 
-const updateHeaderClassPill = () => {
-    const pill = document.getElementById('header-class-pill');
-    if (pill) {
-        pill.textContent = selectedClass ? `Class: ${selectedClass}` : 'All Classes';
+const populateImpositionStudentSelect = (preselectedStudentId = '') => {
+    const impSelect = document.getElementById('imp-student-select');
+    if (!impSelect) return;
+
+    const classStudents = allStudents.filter((s) => String(s.class).trim().toLowerCase() === String(selectedClass).trim().toLowerCase())
+        .sort((a, b) => String(a.admNo || '').localeCompare(String(b.admNo || ''), undefined, { numeric: true }));
+
+    if (classStudents.length === 0) {
+        impSelect.innerHTML = '<option value="">No students in class</option>';
+        return;
     }
+
+    impSelect.innerHTML = classStudents.map((s) => `
+        <option value="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name)}" data-adm="${escapeHtml(s.admNo || '')}" ${s.id === preselectedStudentId ? 'selected' : ''}>
+            ${escapeHtml(s.name)} (Adm: ${escapeHtml(s.admNo || '-')})
+        </option>
+    `).join('');
+};
+
+const onClassOrDateChanged = async () => {
+    await loadClassSubjectsAndTimetable();
+    setupDailyEvaluationListener();
+    setupImpositionsListener();
+    fetchMonthlyEvaluations();
+    populateImpositionStudentSelect();
 };
 
 // --- Firestore Listeners ---
@@ -402,7 +630,6 @@ const fetchMonthlyEvaluations = async () => {
     selectedAnalyticsMonth = monthPrefix;
 
     try {
-        // Query daily evaluation docs for this year and class
         const colRef = collection(db, BASE_PATH, 'evaluations');
         const q = query(
             colRef,
@@ -475,8 +702,8 @@ const renderLiveClassroomBoard = () => {
     // Filter by search
     let list = classStudents;
     if (currentLiveSearch) {
-        const query = currentLiveSearch.toLowerCase();
-        list = list.filter((s) => (s.name && s.name.toLowerCase().includes(query)) || (s.admNo && String(s.admNo).toLowerCase().includes(query)));
+        const q = currentLiveSearch.toLowerCase();
+        list = list.filter((s) => (s.name && s.name.toLowerCase().includes(q)) || (s.admNo && String(s.admNo).toLowerCase().includes(q)));
     }
 
     // Sort / Filter according to Participation Fairness
@@ -603,7 +830,7 @@ const renderLiveClassroomBoard = () => {
                     
                     <!-- Q&A Action Row -->
                     <div class="grid grid-cols-3 gap-1.5">
-                        <button type="button" class="btn-eval-action flex items-center justify-center gap-1 py-2 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black transition shadow-2xs active:scale-95 cursor-pointer" data-action="answered" data-student-id="${student.id}" title="Answered Correctly (+5 Pts)">
+                        <button type="button" class="btn-eval-action flex items-center justify-center gap-1 py-2 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black transition shadow-2xs active:scale-95 cursor-pointer" data-action="answered" data-student-id="${student.id}" title="Answered Correctly">
                             <i class="fas fa-circle-check text-xs"></i>
                             <span>Answered</span>
                         </button>
@@ -1100,7 +1327,6 @@ const setupSessionAndStaff = async () => {
         isSuperAdmin = session.actLikeSuperAdmin === true || session.role === 'super_admin';
     }
 
-    // Try finding staff document in Firestore to resolve exact duty classes
     if (session?.email) {
         try {
             const emailNorm = String(session.email).trim().toLowerCase();
@@ -1115,48 +1341,31 @@ const setupSessionAndStaff = async () => {
 
     teacherAssignedClasses = getStaffAssignedClasses(currentStaffDoc, staffAccess);
 
-    // Update UI Elements with staff details
-    const staffNameEl = document.getElementById('sidebar-staff-name');
-    const staffRoleEl = document.getElementById('sidebar-staff-role');
-    const topUserEl = document.getElementById('top-user-name');
-    const dropNameEl = document.getElementById('dropdown-user-name');
-    const dropRoleEl = document.getElementById('dropdown-user-role');
+    const staffNameEl = document.getElementById('header-user-name');
+    const staffRoleEl = document.getElementById('header-user-role');
 
     if (staffNameEl) staffNameEl.textContent = currentStaffName;
     if (staffRoleEl) staffRoleEl.textContent = isSuperAdmin ? 'Super Admin' : currentStaffRole;
-    if (topUserEl) topUserEl.textContent = currentStaffName;
-    if (dropNameEl) dropNameEl.textContent = currentStaffName;
-    if (dropRoleEl) dropRoleEl.textContent = isSuperAdmin ? 'Super Admin' : currentStaffRole;
 };
 
 // --- DOM Event Bindings ---
 const initEventBindings = () => {
     // Sidebar Toggles
-    document.getElementById('btn-toggle-sidebar')?.addEventListener('click', toggleSidebarState);
-    document.getElementById('btn-close-drawer')?.addEventListener('click', () => setSidebarCollapsed(true));
+    document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
+    document.getElementById('evaluation-mobile-menu-btn')?.addEventListener('click', () => setSidebarCollapsed(false));
     document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
 
     // Tab Links
     document.querySelectorAll('.drawer-link[data-tab]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             const tabId = btn.getAttribute('data-tab');
             if (tabId) switchTab(tabId);
         });
     });
 
-    // Profile Dropdown
-    const userMenuBtn = document.getElementById('btn-user-profile-menu');
-    const profileDropdown = document.getElementById('profile-dropdown-menu');
-    userMenuBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        profileDropdown?.classList.toggle('hidden');
-    });
-    document.addEventListener('click', () => {
-        profileDropdown?.classList.add('hidden');
-    });
-
-    // Logout
-    document.getElementById('btn-logout-evaluation')?.addEventListener('click', async () => {
+    // Sidebar Logout Button
+    document.getElementById('sidebar-logout-btn')?.addEventListener('click', async () => {
         await window.AppSession?.clearAll({ purgeClientData: true });
         await signOut(auth);
         window.location.href = 'official.html';
@@ -1165,17 +1374,14 @@ const initEventBindings = () => {
     // Class & Year Change
     document.getElementById('eval-class-select')?.addEventListener('change', (e) => {
         selectedClass = e.target.value;
-        updateHeaderClassPill();
-        setupDailyEvaluationListener();
-        setupImpositionsListener();
-        fetchMonthlyEvaluations();
+        onClassOrDateChanged();
     });
 
     document.getElementById('eval-year-select')?.addEventListener('change', (e) => {
         selectedYear = e.target.value;
-        setupDailyEvaluationListener();
-        setupImpositionsListener();
-        fetchMonthlyEvaluations();
+        const yearBadge = document.getElementById('header-active-year');
+        if (yearBadge) yearBadge.textContent = selectedYear;
+        onClassOrDateChanged();
     });
 
     // Date Change
@@ -1184,14 +1390,48 @@ const initEventBindings = () => {
         dateInput.value = selectedDate;
         dateInput.addEventListener('change', (e) => {
             selectedDate = e.target.value || getTodayDateString();
+            resolveTodaysTimetablePeriods();
+            renderSubjectDropdownAndPills();
             setupDailyEvaluationListener();
             fetchMonthlyEvaluations();
         });
     }
 
-    // Subject Change
+    // Subject Change from Dropdown
     document.getElementById('eval-subject-select')?.addEventListener('change', (e) => {
         selectedSubject = e.target.value;
+        // Highlight active pill if matched
+        document.querySelectorAll('.btn-period-pill').forEach((pill) => {
+            if (pill.getAttribute('data-subject')?.toLowerCase() === selectedSubject.toLowerCase()) {
+                pill.classList.remove('bg-slate-100', 'text-slate-800');
+                pill.classList.add('bg-rose-600', 'text-white');
+            } else {
+                pill.classList.remove('bg-rose-600', 'text-white');
+                pill.classList.add('bg-slate-100', 'text-slate-800');
+            }
+        });
+    });
+
+    // Subject Change from Timetable Period Pills (Quick-Bar)
+    document.getElementById('timetable-period-pills')?.addEventListener('click', (e) => {
+        const pill = e.target.closest('.btn-period-pill');
+        if (pill) {
+            const subj = pill.getAttribute('data-subject');
+            if (subj) {
+                selectedSubject = subj;
+                const subSelect = document.getElementById('eval-subject-select');
+                if (subSelect) subSelect.value = subj;
+
+                document.querySelectorAll('.btn-period-pill').forEach((p) => {
+                    p.classList.remove('bg-rose-600', 'text-white');
+                    p.classList.add('bg-slate-100', 'text-slate-800');
+                });
+                pill.classList.remove('bg-slate-100', 'text-slate-800');
+                pill.classList.add('bg-rose-600', 'text-white');
+
+                showToast(`Subject set to: ${subj}`, 'info');
+            }
+        }
     });
 
     // Live Board Filter Buttons
@@ -1251,17 +1491,11 @@ const initEventBindings = () => {
             const impBtn = e.target.closest('.btn-assign-imp');
             if (impBtn) {
                 const studentId = impBtn.getAttribute('data-student-id');
-                const name = impBtn.getAttribute('data-name');
-                const adm = impBtn.getAttribute('data-adm');
+                populateImpositionStudentSelect(studentId);
 
-                document.getElementById('imp-student-id').value = studentId;
-                document.getElementById('imp-student-name').value = name;
-                document.getElementById('imp-student-adm').value = adm;
-                document.getElementById('modal-imposition-student-info').textContent = `${name} (Adm: ${adm || '-'})`;
                 document.getElementById('imp-subject').value = selectedSubject || 'General';
                 document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
 
-                // Due date tomorrow by default
                 const tom = new Date();
                 tom.setDate(tom.getDate() + 1);
                 document.getElementById('imp-due-date').value = tom.toISOString().split('T')[0];
@@ -1301,23 +1535,16 @@ const initEventBindings = () => {
                     writingStatus: status
                 });
 
-                // If not written, prompt imposition modal
                 if (status === 'not_written_imposition' || status === 'incomplete_due_tomorrow') {
-                    const student = allStudents.find((s) => s.id === studentId);
-                    if (student) {
-                        document.getElementById('imp-student-id').value = student.id;
-                        document.getElementById('imp-student-name').value = student.name;
-                        document.getElementById('imp-student-adm').value = student.admNo || '';
-                        document.getElementById('modal-imposition-student-info').textContent = `${student.name} (Adm: ${student.admNo || '-'})`;
-                        document.getElementById('imp-subject').value = selectedSubject || 'General';
-                        document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
-                        const tom = new Date();
-                        tom.setDate(tom.getDate() + 1);
-                        document.getElementById('imp-due-date').value = tom.toISOString().split('T')[0];
-                        document.getElementById('imp-title').value = status === 'not_written_imposition' ? 'Write lesson exercises 3 times' : 'Complete unfinished notebook exercises';
-                        document.getElementById('imp-remark').value = status === 'not_written_imposition' ? 'Did not bring completed notebook' : 'Incomplete written work';
-                        openModal('modal-assign-imposition');
-                    }
+                    populateImpositionStudentSelect(studentId);
+                    document.getElementById('imp-subject').value = selectedSubject || 'General';
+                    document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
+                    const tom = new Date();
+                    tom.setDate(tom.getDate() + 1);
+                    document.getElementById('imp-due-date').value = tom.toISOString().split('T')[0];
+                    document.getElementById('imp-title').value = status === 'not_written_imposition' ? 'Write lesson exercises 3 times' : 'Complete unfinished notebook exercises';
+                    document.getElementById('imp-remark').value = status === 'not_written_imposition' ? 'Did not bring completed notebook' : 'Incomplete written work';
+                    openModal('modal-assign-imposition');
                 }
             }
         });
@@ -1334,15 +1561,23 @@ const initEventBindings = () => {
         });
     });
 
-    // Save Imposition Button
+    // Save Imposition Button (Reads selected student from dropdown!)
     document.getElementById('btn-save-imposition')?.addEventListener('click', () => {
-        const studentId = document.getElementById('imp-student-id').value;
-        const studentName = document.getElementById('imp-student-name').value;
-        const admNo = document.getElementById('imp-student-adm').value;
+        const impSelect = document.getElementById('imp-student-select');
+        const selectedOpt = impSelect?.options[impSelect.selectedIndex];
+        const studentId = impSelect?.value;
+        const studentName = selectedOpt?.getAttribute('data-name') || selectedOpt?.textContent || '';
+        const admNo = selectedOpt?.getAttribute('data-adm') || '';
+
         const subject = document.getElementById('imp-subject').value;
         const taskTitle = document.getElementById('imp-title').value.trim();
         const dueDate = document.getElementById('imp-due-date').value;
         const teacherRemark = document.getElementById('imp-remark').value.trim();
+
+        if (!studentId) {
+            alert('Please select a student from the dropdown.');
+            return;
+        }
 
         if (!taskTitle) {
             alert('Please enter a description for the imposition / task.');
@@ -1360,18 +1595,9 @@ const initEventBindings = () => {
         });
     });
 
-    // Open Add Imposition Button
+    // Open Add Imposition Button from Tab 2
     document.getElementById('btn-open-add-imposition')?.addEventListener('click', () => {
-        const classStudents = allStudents.filter((s) => String(s.class).trim().toLowerCase() === String(selectedClass).trim().toLowerCase());
-        if (classStudents.length === 0) {
-            alert('No students found in current class.');
-            return;
-        }
-        const student = classStudents[0];
-        document.getElementById('imp-student-id').value = student.id;
-        document.getElementById('imp-student-name').value = student.name;
-        document.getElementById('imp-student-adm').value = student.admNo || '';
-        document.getElementById('modal-imposition-student-info').textContent = `${student.name} (Adm: ${student.admNo || '-'})`;
+        populateImpositionStudentSelect();
         document.getElementById('imp-subject').value = selectedSubject || 'General';
         document.getElementById('imp-assigned-date').value = selectedDate || getTodayDateString();
         const tom = new Date();
@@ -1449,45 +1675,48 @@ const initEventBindings = () => {
         window.print();
     });
 
-    // Settings Add Subject
+    // Settings Add Custom Subject (Scoped to Selected Class)
     document.getElementById('btn-add-subject')?.addEventListener('click', () => {
         const inp = document.getElementById('input-new-subject');
         const val = inp?.value.trim();
-        if (val && !configuredSubjects.includes(val)) {
-            configuredSubjects.push(val);
+        if (val && !classCustomSubjects.includes(val)) {
+            classCustomSubjects.push(val);
             inp.value = '';
-            renderSubjectDropdown();
-            renderSubjectSettings();
+            renderSubjectDropdownAndPills();
+            renderSettingsView();
         }
     });
 
-    // Settings Remove Subject Delegation
-    document.getElementById('settings-subject-tags')?.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('.btn-remove-subject');
+    // Settings Remove Custom Subject Delegation
+    document.getElementById('settings-custom-subject-tags')?.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.btn-remove-custom-subject');
         if (removeBtn) {
             const sub = removeBtn.getAttribute('data-subject');
-            if (sub && sub !== 'General') {
-                configuredSubjects = configuredSubjects.filter((s) => s !== sub);
-                renderSubjectDropdown();
-                renderSubjectSettings();
+            if (sub) {
+                classCustomSubjects = classCustomSubjects.filter((s) => s !== sub);
+                renderSubjectDropdownAndPills();
+                renderSettingsView();
             }
         }
     });
 
-    // Save Settings
+    // Save Class Settings (Scoped to Selected Class!)
     document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
+        if (!selectedClass) return;
+        const cleanC = String(selectedClass).trim().replace(/[^\w-]/g, '_');
         const togglePts = document.getElementById('toggle-award-activity-points');
-        evaluationConfig.autoAwardActivityPoints = togglePts ? togglePts.checked : true;
+        classEvaluationSettings.autoAwardActivityPoints = togglePts ? togglePts.checked : false;
 
         try {
-            await setDoc(doc(db, BASE_PATH, 'settings', 'evaluationConfig'), {
-                subjects: configuredSubjects,
-                autoAwardActivityPoints: evaluationConfig.autoAwardActivityPoints,
-                activityPointsBonus: evaluationConfig.activityPointsBonus,
+            await setDoc(doc(db, `${BASE_PATH}/settings`, `evaluationConfig_${cleanC}`), {
+                class: selectedClass,
+                customSubjects: classCustomSubjects,
+                autoAwardActivityPoints: classEvaluationSettings.autoAwardActivityPoints,
+                activityPointsBonus: classEvaluationSettings.activityPointsBonus,
                 updatedAt: Date.now()
             }, { merge: true });
 
-            showToast('Subject and rubric configuration saved!', 'success');
+            showToast(`Evaluation settings for Class ${selectedClass} saved!`, 'success');
         } catch (err) {
             console.error('Error saving evaluation settings:', err);
             showToast('Failed to save settings', 'error');
@@ -1498,10 +1727,11 @@ const initEventBindings = () => {
 // --- Initialization Lifecycle ---
 const initEvaluationModule = async () => {
     initSidebarState();
+    updateLiveClock();
+    setInterval(updateLiveClock, 1000);
     await applyInstitutionBranding();
     await setupSessionAndStaff();
     await loadAcademicYears();
-    await loadConfiguredSubjects();
     populateAnalyticsMonths();
     initEventBindings();
     await fetchStudentsAndClasses();
