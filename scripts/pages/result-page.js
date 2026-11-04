@@ -774,8 +774,17 @@ const setSidebarCollapsed = (collapsed) => {
     const overlay = document.getElementById('drawer-overlay');
     if (!appEl) return;
 
-    appEl.classList.toggle('sidebar-collapsed', collapsed);
-    localStorage.setItem('result_sidebar_collapsed', collapsed ? 'true' : 'false');
+    if (collapsed) {
+        appEl.classList.add('sidebar-collapsed');
+    } else {
+        appEl.classList.remove('sidebar-collapsed');
+    }
+
+    if (isDesktop()) {
+        try {
+            localStorage.setItem('result_sidebar_collapsed', collapsed ? 'true' : 'false');
+        } catch (_) {}
+    }
 
     if (!isDesktop() && overlay) {
         if (!collapsed) {
@@ -790,8 +799,8 @@ const setSidebarCollapsed = (collapsed) => {
 
 const toggleSidebarState = () => {
     const appEl = document.getElementById('result-app');
-    const isCollapsed = appEl?.classList.contains('sidebar-collapsed');
-    setSidebarCollapsed(!isCollapsed);
+    if (!appEl) return;
+    setSidebarCollapsed(!appEl.classList.contains('sidebar-collapsed'));
 };
 
 const initSidebarState = () => {
@@ -802,26 +811,19 @@ const initSidebarState = () => {
             overlay.classList.add('opacity-0', 'hidden');
         }
     } else {
-        const stored = localStorage.getItem('result_sidebar_collapsed');
-        setSidebarCollapsed(stored === 'true');
+        let isCollapsed = false;
+        try {
+            const stored = localStorage.getItem('result_sidebar_collapsed');
+            if (stored !== null) {
+                isCollapsed = stored === 'true';
+            }
+        } catch (_) {}
+        setSidebarCollapsed(isCollapsed);
     }
-};
-
-const startLiveClock = () => {
-    const el = document.getElementById('live-clock-display');
-    const tick = () => {
-        if (el) {
-            const now = new Date();
-            el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
-    };
-    tick();
-    setInterval(tick, 1000);
 };
 
 // Initial invocation
 initSidebarState();
-startLiveClock();
 
 // --- Mobile More Actions Bottom Sheet ---
 const moreSheet = document.getElementById('result-more-sheet');
@@ -850,14 +852,22 @@ moreSheet?.addEventListener('click', (e) => {
     }
 });
 
-document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
+document.getElementById('sidebar-collapse-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSidebarState();
+});
 document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
 
 window.addEventListener('resize', () => {
     if (isDesktop()) {
         closeMoreSheet();
-        const stored = localStorage.getItem('result_sidebar_collapsed');
-        setSidebarCollapsed(stored === 'true');
+        let isCollapsed = false;
+        try {
+            const stored = localStorage.getItem('result_sidebar_collapsed');
+            if (stored !== null) isCollapsed = stored === 'true';
+        } catch (_) {}
+        setSidebarCollapsed(isCollapsed);
     } else {
         setSidebarCollapsed(true);
     }
@@ -7321,13 +7331,11 @@ const setupModalObserver = () => {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         initSidebarState();
-        startLiveClock();
         setupModalObserver();
         bootstrapSessionAccess();
     }, { once: true });
 } else {
     initSidebarState();
-    startLiveClock();
     setupModalObserver();
     bootstrapSessionAccess();
 }

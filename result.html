@@ -36,21 +36,10 @@
     body[data-page-type="result"] {
       background-color: #f8fafc;
       overflow-x: hidden;
-      width: 100%;
-      max-width: 100vw;
-    }
-    #result-app {
-      width: 100%;
-      max-width: 100vw;
-      overflow-x: hidden;
-    }
-    .result-main-wrapper {
-      min-width: 0;
-      max-width: 100%;
-      overflow-x: hidden;
     }
     #side-drawer {
       transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow-x: hidden;
     }
 
     /* Top Sticky Header Glassmorphism */
@@ -58,6 +47,7 @@
       backdrop-filter: blur(12px);
       background-color: rgba(255, 255, 255, 0.92);
       border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+      transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     /* Collapsible Navigation Styling */
@@ -102,20 +92,20 @@
         transform: translateX(0) !important;
       }
       #result-app:not(.sidebar-collapsed) #side-drawer {
-        width: 16rem; /* 256px */
+        width: 16rem !important; /* 256px */
       }
       #result-app.sidebar-collapsed #side-drawer {
-        width: 4.5rem; /* 72px */
+        width: 4.5rem !important; /* 72px */
       }
       #result-app:not(.sidebar-collapsed) .result-main-wrapper,
       #result-app:not(.sidebar-collapsed) .result-sticky-header {
-        margin-left: 16rem;
+        margin-left: 16rem !important;
         width: calc(100% - 16rem) !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
       #result-app.sidebar-collapsed .result-main-wrapper,
       #result-app.sidebar-collapsed .result-sticky-header {
-        margin-left: 4.5rem;
+        margin-left: 4.5rem !important;
         width: calc(100% - 4.5rem) !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
@@ -319,13 +309,8 @@
                     </div>
                 </div>
 
-                <!-- Right Side: Academic Year Badge & Live Clock -->
-                <div class="flex items-center gap-3">
-                    <div class="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-500">
-                        <i class="fas fa-clock text-indigo-600"></i>
-                        <span id="live-clock-display">--:-- --</span>
-                    </div>
-
+                <!-- Right Side: Academic Year Badge -->
+                <div class="flex items-center gap-2">
                     <div class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-900 shadow-xs">
                         <i class="fas fa-calendar-alt text-indigo-600"></i>
                         <span id="header-active-year">Loading Session...</span>
@@ -345,8 +330,8 @@
                     <i class="fas fa-square-poll-vertical text-indigo-600 text-lg shrink-0"></i>
                     <span class="font-bold text-base text-gray-800 truncate">Result Menu</span>
                 </div>
-                <button id="sidebar-collapse-btn" class="text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition flex items-center justify-center shrink-0 cursor-pointer" title="Collapse / Expand sidebar">
-                    <i id="sidebar-toggle-icon" class="fas fa-angles-left text-base transition-transform duration-300"></i>
+                <button id="sidebar-collapse-btn" type="button" class="text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition flex items-center justify-center shrink-0 cursor-pointer" title="Collapse / Expand sidebar">
+                    <i id="sidebar-toggle-icon" class="fas fa-angles-left text-base transition-transform duration-300 pointer-events-none"></i>
                 </button>
             </div>
 
@@ -415,7 +400,7 @@
         </aside>
 
         <!-- Main Content Area -->
-        <div class="result-main-wrapper min-w-0 max-w-full overflow-hidden transition-all duration-300">
+        <div class="result-main-wrapper transition-all duration-300">
             <main id="app" class="w-full min-w-0 max-w-full px-4 sm:px-6 lg:px-8 py-4">
         <div id="result-fatal-error" class="hidden container mt-4">
             <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm font-semibold">
