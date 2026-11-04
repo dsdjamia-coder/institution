@@ -2048,27 +2048,33 @@ body.worksheet-fullscreen-mode #official-tab-export {
     }
 }
 
-/* Result Page Full-Width Layout Across All Tabs on Desktop & Laptop */
-body[data-page-type="result"] header,
-body.collection-shell[data-page-type="result"] header,
-html[data-session-guard="result"] header {
-    max-width: 99vw !important;
-    width: 99vw !important;
-    margin: 10px auto !important;
-}
-
+/* Result Page Container Layout with Collapsible Desktop Sidebar */
+#result-app main,
+#result-app #app,
 body[data-page-type="result"] main,
-body.collection-shell[data-page-type="result"] main,
 html[data-session-guard="result"] body main,
 html[data-session-guard="result"] #app,
 body[data-page-type="result"] #app {
-    max-width: 99vw !important;
-    width: 99vw !important;
-    margin: 0 auto 10px auto !important;
-    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
     flex-grow: 1;
 }
 
+#result-app header,
+body[data-page-type="result"] header,
+body.collection-shell[data-page-type="result"] header,
+html[data-session-guard="result"] header {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+}
+
+#result-app #page-content,
+#result-app .page-content,
 body[data-page-type="result"] #page-content,
 body[data-page-type="result"] .page-content,
 html[data-session-guard="result"] #page-content,
