@@ -185,7 +185,7 @@ const closeModal = (modalId) => {
 // --- Navigation Tabs ---
 const activateTab = (targetTabId) => {
     const drawerLinks = document.querySelectorAll('.drawer-link');
-    const mobileLinks = document.querySelectorAll('.mobile-dropdown-link');
+    const bottomLinks = document.querySelectorAll('.bottom-nav-link[data-tab]');
     const tabContents = document.querySelectorAll('.tab-content');
 
     drawerLinks.forEach(link => {
@@ -193,10 +193,20 @@ const activateTab = (targetTabId) => {
         link.classList.toggle('active', isActive);
     });
 
-    mobileLinks.forEach(link => {
+    bottomLinks.forEach(link => {
         const isActive = link.dataset.tab === targetTabId;
         link.classList.toggle('active', isActive);
     });
+
+    const isOverflowActive = targetTabId === 'tab-calendar';
+    const moreBtn = document.getElementById('btn-attendance-more');
+    if (moreBtn) moreBtn.classList.toggle('active', isOverflowActive);
+
+    const moreSheet = document.getElementById('attendance-more-sheet');
+    if (moreSheet) {
+        moreSheet.classList.add('hidden');
+        moreSheet.classList.remove('flex');
+    }
 
     tabContents.forEach(content => {
         if (content.id === targetTabId) {
@@ -205,12 +215,6 @@ const activateTab = (targetTabId) => {
             content.classList.add('hidden');
         }
     });
-
-    // Close mobile dropdown if open
-    const mobileDropdown = document.getElementById('mobile-nav-dropdown');
-    if (mobileDropdown) {
-        mobileDropdown.classList.add('hidden');
-    }
 
     if (!isDesktop()) {
         setSidebarCollapsed(true);
@@ -233,7 +237,7 @@ const activateTab = (targetTabId) => {
 };
 
 const setupNavigationTabs = () => {
-    const allNavLinks = document.querySelectorAll('.drawer-link, .mobile-dropdown-link');
+    const allNavLinks = document.querySelectorAll('.drawer-link, .bottom-nav-link[data-tab], .attendance-more-tile[data-tab]');
     allNavLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -248,6 +252,28 @@ const setupNavigationTabs = () => {
                 }
             }
         });
+    });
+
+    // More Sheet open/close
+    const moreSheet = document.getElementById('attendance-more-sheet');
+    document.getElementById('btn-attendance-more')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (moreSheet) {
+            moreSheet.classList.remove('hidden');
+            moreSheet.classList.add('flex');
+        }
+    });
+    document.getElementById('btn-close-attendance-more')?.addEventListener('click', () => {
+        if (moreSheet) {
+            moreSheet.classList.add('hidden');
+            moreSheet.classList.remove('flex');
+        }
+    });
+    moreSheet?.addEventListener('click', (e) => {
+        if (e.target === moreSheet) {
+            moreSheet.classList.add('hidden');
+            moreSheet.classList.remove('flex');
+        }
     });
 
     // Always default to Daily Attendance tab on clean page load
@@ -2119,9 +2145,11 @@ const setupEventListeners = () => {
 
 
     // 7. Sign Out
-    document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
+    const handleLogout = () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
-    });
+    };
+    document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('mobile-more-logout-btn')?.addEventListener('click', handleLogout);
 };
 
 // Run initialization on DOM Ready

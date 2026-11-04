@@ -181,7 +181,15 @@
       background-color: #f1f5f9;
     }
 
+    .activity-bottom-nav {
+      display: none;
+    }
+
     @media (min-width: 1024px) {
+      #activity-bottom-nav,
+      #activity-more-sheet {
+        display: none !important;
+      }
       #activity-app.has-desktop-sidebar #side-drawer {
         transform: translateX(0) !important;
       }
@@ -233,16 +241,78 @@
     }
 
     @media (max-width: 1023px) {
-      #activity-app.sidebar-collapsed #side-drawer {
-        transform: translateX(-100%) !important;
-      }
-      #activity-app:not(.sidebar-collapsed) #side-drawer {
-        transform: translateX(0) !important;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+      /* Mobile: Hide side drawer, overlay, and header hamburger button */
+      #side-drawer,
+      #drawer-overlay,
+      #activity-mobile-menu-btn {
+        display: none !important;
       }
       .activity-main-wrapper, .attendance-sticky-header {
         margin-left: 0 !important;
         width: 100% !important;
+      }
+      .activity-main-wrapper {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+      .activity-bottom-nav {
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        z-index: 40;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        align-items: center;
+        gap: 4px;
+        padding: 5px 4px 6px;
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.97);
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(16px);
+      }
+      .bottom-nav-link {
+        position: relative;
+        min-width: 0;
+        min-height: 48px;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        color: #64748b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        font-size: 10px;
+        font-weight: 700;
+        text-align: center;
+        transition: all 0.2s ease;
+        padding: 4px 2px;
+        text-decoration: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bottom-nav-link i {
+        font-size: 16px;
+        line-height: 1;
+        transition: all 0.2s ease;
+      }
+      .bottom-nav-link span {
+        line-height: 1.1;
+        white-space: nowrap;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .bottom-nav-link.active {
+        background: #f59e0b !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+      }
+      .bottom-nav-link.active i,
+      .bottom-nav-link.active span {
+        color: #ffffff !important;
+        font-weight: 800;
       }
     }
 
@@ -1468,6 +1538,68 @@
         </button>
         <button type="button" class="btn-close-modal py-2.5 px-4 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer" data-modal="modal-student-self-logging">
           Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MOBILE BOTTOM NAVIGATION (Phones only)     -->
+  <!-- ========================================== -->
+  <nav id="activity-bottom-nav" class="activity-bottom-nav" aria-label="Mobile Navigation">
+    <button type="button" class="bottom-nav-link active" data-tab="tab-dashboard" aria-label="Overview Dashboard">
+      <i class="fas fa-gauge-high"></i>
+      <span>Dashboard</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-task-setup" aria-label="Manage Activities">
+      <i class="fas fa-plus-circle"></i>
+      <span>Activities</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-tasks" aria-label="Activity Pointing Matrix">
+      <i class="fas fa-list-check"></i>
+      <span>Pointing</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-prayer" aria-label="Prayer Tracker">
+      <i class="fas fa-hands-praying"></i>
+      <span>Prayer</span>
+    </button>
+    <button type="button" id="btn-activity-more" class="bottom-nav-link" aria-label="More Options">
+      <i class="fas fa-ellipsis"></i>
+      <span>More</span>
+    </button>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- MOBILE MORE ACTIONS BOTTOM SHEET (matching student.html design) -->
+  <!-- ========================================== -->
+  <div id="activity-more-sheet" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-200">
+    <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 animate-[slideUp_.2s_ease-out] space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
+          <i class="fas fa-grid text-amber-500"></i> More Portal Features
+        </h3>
+        <button type="button" id="btn-close-activity-more" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition border-none cursor-pointer" aria-label="Close More Menu">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+      <div id="activity-more-sheet-items" class="grid grid-cols-2 gap-2.5">
+        <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer activity-more-tile" data-tab="tab-rewards">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-500 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-trophy"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Rewards &amp; Points</span>
+        </button>
+        <a href="official.html" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer text-decoration-none">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-th-large"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Official Hub</span>
+        </a>
+        <button type="button" id="mobile-more-logout-btn" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer col-span-2">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-rose-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-power-off"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Sign Out</span>
         </button>
       </div>
     </div>

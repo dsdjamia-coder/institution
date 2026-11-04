@@ -875,45 +875,30 @@
   </nav>
 
   <!-- ========================================== -->
-  <!-- MOBILE MORE ACTIONS BOTTOM SHEET           -->
+  <!-- MOBILE MORE ACTIONS BOTTOM SHEET (matching student.html design) -->
   <!-- ========================================== -->
-  <div id="evaluation-more-sheet" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center">
-    <div id="evaluation-more-backdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"></div>
-    <div class="relative z-10 w-full max-w-sm mx-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-5 overflow-hidden animate-in slide-in-from-bottom duration-200">
-      <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-3 sm:hidden"></div>
-      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-xs font-bold">
-            <i class="fas fa-ellipsis"></i>
-          </div>
-          <h3 class="font-extrabold text-slate-900 text-sm">More Options</h3>
-        </div>
-        <button id="btn-close-more-sheet" type="button" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer" aria-label="Close More Menu">
-          <i class="fas fa-times text-sm"></i>
+  <div id="evaluation-more-sheet" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-200">
+    <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 animate-[slideUp_.2s_ease-out] space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
+          <i class="fas fa-grid text-rose-600"></i> More Portal Features
+        </h3>
+        <button type="button" id="btn-close-more-sheet" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition border-none cursor-pointer" aria-label="Close More Menu">
+          <i class="fas fa-times text-xs"></i>
         </button>
       </div>
-
-      <div class="space-y-2">
-        <a href="official.html" class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs transition">
-          <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-sm">
+      <div id="evaluation-more-sheet-items" class="grid grid-cols-2 gap-2.5">
+        <a href="official.html" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer text-decoration-none">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
             <i class="fas fa-th-large"></i>
           </div>
-          <div class="min-w-0 text-left">
-            <div class="font-bold text-slate-900 text-xs">Official Hub</div>
-            <div class="text-[10px] text-slate-500 font-medium">Return to institution portal</div>
-          </div>
-          <i class="fas fa-chevron-right ml-auto text-slate-400 text-xs"></i>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Official Hub</span>
         </a>
-
-        <button id="mobile-more-logout-btn" type="button" class="w-full flex items-center gap-3 p-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs transition cursor-pointer text-left">
-          <div class="w-9 h-9 rounded-xl bg-rose-200/80 text-rose-700 flex items-center justify-center shrink-0 text-sm">
+        <button type="button" id="mobile-more-logout-btn" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-rose-600 text-base sm:text-lg group-hover:scale-110 transition">
             <i class="fas fa-power-off"></i>
           </div>
-          <div class="min-w-0 text-left">
-            <div class="font-bold text-rose-900 text-xs">Sign Out</div>
-            <div class="text-[10px] text-rose-600 font-medium">Safely end this session</div>
-          </div>
-          <i class="fas fa-chevron-right ml-auto text-rose-400 text-xs"></i>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Sign Out</span>
         </button>
       </div>
     </div>

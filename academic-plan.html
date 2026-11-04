@@ -74,7 +74,15 @@
       color: #ffffff !important;
     }
 
+    .academic-bottom-nav {
+      display: none;
+    }
+
     @media (min-width: 1024px) {
+      #academic-bottom-nav,
+      #academic-more-sheet {
+        display: none !important;
+      }
       #academic-app.has-desktop-sidebar #side-drawer {
         transform: translateX(0) !important;
       }
@@ -126,16 +134,78 @@
     }
 
     @media (max-width: 1023px) {
-      #academic-app.sidebar-collapsed #side-drawer {
-        transform: translateX(-100%) !important;
-      }
-      #academic-app:not(.sidebar-collapsed) #side-drawer {
-        transform: translateX(0) !important;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+      /* Mobile: Hide side drawer, overlay, and header hamburger button */
+      #side-drawer,
+      #drawer-overlay,
+      #academic-mobile-menu-btn {
+        display: none !important;
       }
       .academic-main-wrapper, .attendance-sticky-header {
         margin-left: 0 !important;
         width: 100% !important;
+      }
+      .academic-main-wrapper {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+      .academic-bottom-nav {
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        z-index: 40;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        align-items: center;
+        gap: 4px;
+        padding: 5px 4px 6px;
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.97);
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(16px);
+      }
+      .bottom-nav-link {
+        position: relative;
+        min-width: 0;
+        min-height: 48px;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        color: #64748b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        font-size: 10px;
+        font-weight: 700;
+        text-align: center;
+        transition: all 0.2s ease;
+        padding: 4px 2px;
+        text-decoration: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bottom-nav-link i {
+        font-size: 16px;
+        line-height: 1;
+        transition: all 0.2s ease;
+      }
+      .bottom-nav-link span {
+        line-height: 1.1;
+        white-space: nowrap;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .bottom-nav-link.active {
+        background: #4f46e5 !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+      }
+      .bottom-nav-link.active i,
+      .bottom-nav-link.active span {
+        color: #ffffff !important;
+        font-weight: 800;
       }
     }
 
@@ -2064,6 +2134,74 @@
       </div>
       <div class="p-4 flex items-center justify-center bg-black/60 overflow-auto flex-1 min-h-[300px]">
         <img id="st-preview-modal-img" src="" alt="Attached photo" class="max-w-full max-h-[75vh] object-contain rounded-xl shadow-lg border border-slate-800">
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MOBILE BOTTOM NAVIGATION (Phones only)     -->
+  <!-- ========================================== -->
+  <nav id="academic-bottom-nav" class="academic-bottom-nav" aria-label="Mobile Navigation">
+    <button type="button" class="bottom-nav-link active" data-tab="tab-subjects" aria-label="Class Subjects">
+      <i class="fas fa-book-open"></i>
+      <span>Subjects</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-timetable" aria-label="Class Timetable">
+      <i class="fas fa-calendar-days"></i>
+      <span>Timetable</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-yearplan" aria-label="Academic Year Plan">
+      <i class="fas fa-calendar-week"></i>
+      <span>Year Plan</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-syllabus-tracker" aria-label="Syllabus Tracker">
+      <i class="fas fa-list-check"></i>
+      <span>Syllabus</span>
+    </button>
+    <button type="button" id="btn-academic-more" class="bottom-nav-link" aria-label="More Options">
+      <i class="fas fa-ellipsis"></i>
+      <span>More</span>
+    </button>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- MOBILE MORE ACTIONS BOTTOM SHEET (matching student.html design) -->
+  <!-- ========================================== -->
+  <div id="academic-more-sheet" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-200">
+    <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 animate-[slideUp_.2s_ease-out] space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
+          <i class="fas fa-grid text-indigo-600"></i> More Portal Features
+        </h3>
+        <button type="button" id="btn-close-academic-more" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition border-none cursor-pointer" aria-label="Close More Menu">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+      <div id="academic-more-sheet-items" class="grid grid-cols-2 gap-2.5">
+        <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer academic-more-tile" data-tab="tab-exam-schedule">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-indigo-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-file-pen"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Exam Timetable</span>
+        </button>
+        <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer academic-more-tile" data-tab="tab-master-timetable">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-indigo-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-table-cells"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Master Timetable</span>
+        </button>
+        <a href="official.html" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer text-decoration-none">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-th-large"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Official Hub</span>
+        </a>
+        <button type="button" id="mobile-more-logout-btn" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-rose-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-power-off"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Sign Out</span>
+        </button>
       </div>
     </div>
   </div>

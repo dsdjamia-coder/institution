@@ -1623,7 +1623,9 @@ const initEventBindings = () => {
         openMoreSheet();
     });
     document.getElementById('btn-close-more-sheet')?.addEventListener('click', closeMoreSheet);
-    document.getElementById('evaluation-more-backdrop')?.addEventListener('click', closeMoreSheet);
+    moreSheet?.addEventListener('click', (e) => {
+        if (e.target === moreSheet) closeMoreSheet();
+    });
 
     // Logout Handling (Sidebar Desktop & More Mobile Sheet)
     const handleLogout = async () => {

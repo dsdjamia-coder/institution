@@ -212,12 +212,28 @@ const closeModal = (modalId) => {
 // --- Navigation Tabs ---
 const activateTab = (targetTabId) => {
     const drawerLinks = document.querySelectorAll('.drawer-link');
+    const bottomLinks = document.querySelectorAll('.bottom-nav-link[data-tab]');
     const tabContents = document.querySelectorAll('.tab-content');
 
     drawerLinks.forEach(link => {
         const isActive = link.dataset.tab === targetTabId;
         link.classList.toggle('active', isActive);
     });
+
+    bottomLinks.forEach(link => {
+        const isActive = link.dataset.tab === targetTabId;
+        link.classList.toggle('active', isActive);
+    });
+
+    const isOverflowActive = targetTabId === 'tab-rewards';
+    const moreBtn = document.getElementById('btn-activity-more');
+    if (moreBtn) moreBtn.classList.toggle('active', isOverflowActive);
+
+    const moreSheet = document.getElementById('activity-more-sheet');
+    if (moreSheet) {
+        moreSheet.classList.add('hidden');
+        moreSheet.classList.remove('flex');
+    }
 
     tabContents.forEach(content => {
         if (content.id === targetTabId) {
@@ -246,8 +262,8 @@ const activateTab = (targetTabId) => {
 };
 
 const initTabNavigation = () => {
-    const drawerLinks = document.querySelectorAll('.drawer-link');
-    drawerLinks.forEach(link => {
+    const navLinks = document.querySelectorAll('.drawer-link, .bottom-nav-link[data-tab], .activity-more-tile[data-tab]');
+    navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const tabId = link.dataset.tab;
@@ -261,6 +277,28 @@ const initTabNavigation = () => {
                 }
             }
         });
+    });
+
+    // More Sheet open/close
+    const moreSheet = document.getElementById('activity-more-sheet');
+    document.getElementById('btn-activity-more')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (moreSheet) {
+            moreSheet.classList.remove('hidden');
+            moreSheet.classList.add('flex');
+        }
+    });
+    document.getElementById('btn-close-activity-more')?.addEventListener('click', () => {
+        if (moreSheet) {
+            moreSheet.classList.add('hidden');
+            moreSheet.classList.remove('flex');
+        }
+    });
+    moreSheet?.addEventListener('click', (e) => {
+        if (e.target === moreSheet) {
+            moreSheet.classList.add('hidden');
+            moreSheet.classList.remove('flex');
+        }
     });
 
     // Quick navigation buttons from dashboard or cards
@@ -2967,9 +3005,11 @@ const setupEventListeners = () => {
     });
 
     // 7. Sign Out
-    document.getElementById('sidebar-logout-btn')?.addEventListener('click', () => {
+    const handleLogout = () => {
         window.AppSession?.clearAll?.({ redirectUrl: 'index.html' });
-    });
+    };
+    document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('mobile-more-logout-btn')?.addEventListener('click', handleLogout);
 };
 
 // Run initialization on DOM Ready
