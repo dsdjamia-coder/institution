@@ -137,26 +137,65 @@ const writeTabPrefsToCloud = async (prefs = {}) => {
 };
 
 
-// Hamburger Menu Logic
-const mobileToggle = document.getElementById('mobile-menu-btn');
-const navMenu = document.querySelector('.nav-menu');
-const toggleIcon = mobileToggle.querySelector('i.fas.fa-bars') || mobileToggle.querySelector('i');
-const setMobileMenuState = (isOpen) => {
-    navMenu.classList.toggle('active', isOpen);
-    mobileToggle.classList.toggle('active-toggle', isOpen);
-    mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+// ---- Sidebar / Drawer (admin-style collapsible) ----
+const collectionOverlay = document.getElementById('drawer-overlay');
+
+const isCollectionDesktop = () => window.innerWidth >= 1024;
+
+const setCollectionSidebarCollapsed = (collapsed) => {
+    const app = document.getElementById('collection-app');
+    if (!app) return;
+    app.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('collection_sidebar_collapsed', collapsed ? 'true' : 'false');
+    if (!isCollectionDesktop() && collectionOverlay) {
+        if (!collapsed) {
+            collectionOverlay.classList.remove('hidden');
+            setTimeout(() => collectionOverlay.classList.remove('opacity-0'), 10);
+        } else {
+            collectionOverlay.classList.add('opacity-0');
+            setTimeout(() => collectionOverlay.classList.add('hidden'), 300);
+        }
+    }
 };
 
-mobileToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setMobileMenuState(!navMenu.classList.contains('active'));
-});
+const toggleCollectionSidebarState = () => {
+    const app = document.getElementById('collection-app');
+    const isCollapsed = app?.classList.contains('sidebar-collapsed');
+    setCollectionSidebarCollapsed(!isCollapsed);
+};
 
-document.addEventListener('click', (e) => {
-    if (!navMenu.contains(e.target) && !mobileToggle.contains(e.target)) {
-        setMobileMenuState(false);
+const initCollectionSidebarState = () => {
+    if (!isCollectionDesktop()) {
+        setCollectionSidebarCollapsed(true);
+    } else {
+        const stored = localStorage.getItem('collection_sidebar_collapsed');
+        setCollectionSidebarCollapsed(stored === 'true');
+    }
+};
+
+const setMobileMenuState = (isOpen) => {
+    setCollectionSidebarCollapsed(!isOpen);
+};
+
+document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
+    toggleCollectionSidebarState();
+});
+document.getElementById('collection-mobile-menu-btn')?.addEventListener('click', () => {
+    setCollectionSidebarCollapsed(false);
+});
+document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
+    setCollectionSidebarCollapsed(false);
+});
+collectionOverlay?.addEventListener('click', () => setCollectionSidebarCollapsed(true));
+
+window.addEventListener('resize', () => {
+    if (isCollectionDesktop() && collectionOverlay && !collectionOverlay.classList.contains('hidden')) {
+        collectionOverlay.classList.add('opacity-0');
+        collectionOverlay.classList.add('hidden');
     }
 });
+
+initCollectionSidebarState();
 
 // TABS LOGIC (Main Tab & Sub-Tab Hierarchy)
 const MAIN_TAB_GROUPS = {
@@ -173,7 +212,7 @@ const defaultTabId = 'dashboard-page';
 const linkItems = links.map((link) => ({
     link,
     target: link.dataset.target,
-    listItem: link.closest('li'),
+    listItem: link.closest('li') || link,
     isBottomNav: link.dataset.bottomNav === 'true'
 }));
 const getToggleableLinks = () => linkItems.filter((item) => item.target && !item.isBottomNav && !NON_TOGGLE_TAB_TARGETS.has(item.target));
@@ -792,9 +831,8 @@ document.getElementById('open-profile-btn')?.addEventListener('click', (e) => {
     document.getElementById('my-profile-popup').classList.remove('hidden');
     document.getElementById('my-profile-popup').classList.add('flex');
 
-    // Close Mobile Menu if Open
-    const navMenu = document.querySelector('.nav-menu');
-    if(navMenu) navMenu.classList.remove('active');
+    // Close Mobile Menu / Sidebar if Open
+    setMobileMenuState(false);
 });
 
 document.getElementById('logout-btn')?.addEventListener('click', () => {
