@@ -741,95 +741,206 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 
-document.getElementById('logout-btn')?.addEventListener('click', () => {
+// --- User Logout Handling ---
+const handleLogout = () => {
     signOut(auth).then(async () => {
-        await window.AppSession?.clearAll({ purgeClientData: true });
+        await window.AppSession?.clearAll?.({ purgeClientData: true });
         window.location.replace('index.html'); 
     });
+};
+
+document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout);
+document.getElementById('mobile-logout-btn')?.addEventListener('click', handleLogout);
+
+// --- Sidebar Management (Attendance / Admin Style) ---
+const isDesktop = () => window.innerWidth >= 1024;
+
+const setSidebarCollapsed = (collapsed) => {
+    const appEl = document.getElementById('result-app');
+    const overlay = document.getElementById('drawer-overlay');
+    if (!appEl) return;
+
+    appEl.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('result_sidebar_collapsed', collapsed ? 'true' : 'false');
+
+    if (!isDesktop() && overlay) {
+        if (!collapsed) {
+            overlay.classList.remove('hidden');
+            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+        } else {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+        }
+    }
+};
+
+const toggleSidebarState = () => {
+    const appEl = document.getElementById('result-app');
+    const isCollapsed = appEl?.classList.contains('sidebar-collapsed');
+    setSidebarCollapsed(!isCollapsed);
+};
+
+const initSidebarState = () => {
+    const overlay = document.getElementById('drawer-overlay');
+    if (!isDesktop()) {
+        setSidebarCollapsed(true);
+        if (overlay) {
+            overlay.classList.add('opacity-0', 'hidden');
+        }
+    } else {
+        const stored = localStorage.getItem('result_sidebar_collapsed');
+        setSidebarCollapsed(stored === 'true');
+    }
+};
+
+const startLiveClock = () => {
+    const el = document.getElementById('live-clock-display');
+    const tick = () => {
+        if (el) {
+            const now = new Date();
+            el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+    };
+    tick();
+    setInterval(tick, 1000);
+};
+
+// Initial invocation
+initSidebarState();
+startLiveClock();
+
+// --- Mobile Navigation Dropdown Management ---
+const mobileMenuBtn = document.getElementById('result-mobile-menu-btn');
+const mobileDropdown = document.getElementById('mobile-nav-dropdown');
+
+const closeMobileNavDropdown = () => {
+    if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
+        mobileDropdown.classList.add('hidden');
+    }
+};
+
+mobileMenuBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (mobileDropdown) {
+        mobileDropdown.classList.toggle('hidden');
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
+        if (!mobileDropdown.contains(e.target) && !mobileMenuBtn?.contains(e.target)) {
+            closeMobileNavDropdown();
+        }
+    }
+});
+
+document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
+document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
+
+window.addEventListener('resize', () => {
+    if (isDesktop()) {
+        closeMobileNavDropdown();
+        const stored = localStorage.getItem('result_sidebar_collapsed');
+        setSidebarCollapsed(stored === 'true');
+    } else {
+        setSidebarCollapsed(true);
+    }
 });
 
 // --- Tab Logic ---
-const tabs = document.querySelectorAll('.tab-link');
 const pages = document.querySelectorAll('.page-content');
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const navMenu = document.querySelector('.nav-menu');
-
-mobileMenuBtn.addEventListener('click', () => {
-    navMenu.classList.toggle('active');
-    mobileMenuBtn.classList.toggle('active-toggle');
-});
 
 const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     if (!tabEl) return;
-    tabs.forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.settings-nav-link').forEach((link) => {
-        link.classList.remove('active');
-        link.style.background = '';
-        link.style.color = '';
-        link.style.fontWeight = '';
+    const targetId = tabEl.dataset.target;
+    const targetSubtab = tabEl.dataset.subtab;
+    const targetHref = tabEl.getAttribute('href');
+
+    // Sync active class on all matching links across drawer and mobile dropdown
+    document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach((link) => {
+        const isMatch = (targetId && link.dataset.target === targetId && (!targetSubtab || link.dataset.subtab === targetSubtab)) ||
+                        (targetHref && link.getAttribute('href') === targetHref);
+        link.classList.toggle('active', !!isMatch);
     });
+
+    document.querySelectorAll('.settings-nav-link').forEach((link) => {
+        if (targetSubtab && link.dataset.subtab === targetSubtab) {
+            link.classList.add('active');
+        } else if (!targetSubtab) {
+            link.classList.remove('active');
+            link.style.background = '';
+            link.style.color = '';
+            link.style.fontWeight = '';
+        }
+    });
+
     pages.forEach(p => p.classList.add('hidden'));
-    tabEl.classList.add('active');
-    const targetPage = document.getElementById(tabEl.dataset.target);
-    if(targetPage) targetPage.classList.remove('hidden');
+    const targetPage = targetId ? document.getElementById(targetId) : null;
+    if (targetPage) targetPage.classList.remove('hidden');
+
+    closeMobileNavDropdown();
 
     // Reset viewport scroll to top cleanly and ensure scroll lock is removed
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.body.classList.remove('modal-scroll-lock');
 
     // Trigger panel refresh when snapshot-page is activated
-    if (tabEl.dataset.target === 'snapshot-page') {
+    if (targetId === 'snapshot-page') {
         if (typeof renderSnapshotPanelUI === 'function') {
             renderSnapshotPanelUI();
         }
-    } else if (tabEl.dataset.target === 'published-page' || tabEl.dataset.target === 'draft-page') {
+    } else if (targetId === 'published-page' || targetId === 'draft-page') {
         if (typeof renderPublishedDraftTables === 'function') {
             renderPublishedDraftTables();
         }
-    } else if (tabEl.dataset.target === 'dashboard-page') {
+    } else if (targetId === 'dashboard-page') {
         if (typeof updateDashboard === 'function') {
             updateDashboard();
         }
-    } else if (tabEl.dataset.target === 'report-cards-page') {
+    } else if (targetId === 'report-cards-page') {
         populateReportYears();
         populateDropdowns();
         renderExamSelectOptions(document.getElementById('report-exam-select'), document.getElementById('report-class-select')?.value || '', document.getElementById('report-academic-year')?.value || currentAcademicYear, '-- Choose Exam --', true);
         updateReportPreview();
-    } else if (tabEl.dataset.target === 'promotion-page') {
+    } else if (targetId === 'promotion-page') {
         if (typeof renderPromotionCandidatesUI === 'function') {
             renderPromotionCandidatesUI();
+        }
+    } else if (targetId === 'settings-page' && targetSubtab) {
+        if (typeof activateSettingsSubpanel === 'function') {
+            activateSettingsSubpanel(targetSubtab);
         }
     }
 
     // Toggle full-width layout body class specifically for Marks Entry tab
-    if (tabEl.dataset.target === 'marks-page') {
+    if (targetId === 'marks-page') {
         document.body.classList.add('marks-entry-active');
         updateMarksDownloadAndUploadState();
     } else {
         document.body.classList.remove('marks-entry-active');
     }
 
-    if (updateHash && tabEl.getAttribute('href')?.startsWith('#')) {
-        const nextHash = tabEl.getAttribute('href');
-        if (window.location.hash !== nextHash) history.pushState({}, '', nextHash);
+    if (updateHash && targetHref?.startsWith('#')) {
+        if (window.location.hash !== targetHref) history.pushState({}, '', targetHref);
     }
 };
-tabs.forEach(tab => {
+
+document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach((tab) => {
     tab.addEventListener('click', (e) => {
-        if(tab.id === 'logout-btn') return;
-        if(tab.getAttribute('href') && !tab.getAttribute('href').startsWith('#')) return;
+        if (tab.id === 'logout-btn' || tab.id === 'sidebar-logout-btn' || tab.id === 'mobile-logout-btn') return;
+        const href = tab.getAttribute('href');
+        if (href && !href.startsWith('#')) return;
 
         e.preventDefault();
         activateResultTab(tab);
-        
-        navMenu.classList.remove('active');
-        mobileMenuBtn.classList.remove('active-toggle');
     });
 });
+
 window.addEventListener('hashchange', () => {
     const hash = window.location.hash;
     if (hash === '#snapshot' || hash === '#snapshot-export' || hash === '#settings-snapshot') {
-        const snapTab = document.querySelector('.tab-link[data-target="snapshot-page"]');
+        const snapTab = document.querySelector('[data-target="snapshot-page"]');
         if (snapTab) {
             activateResultTab(snapTab, { updateHash: false });
             if (hash !== '#snapshot') history.replaceState({}, '', '#snapshot');
@@ -837,7 +948,7 @@ window.addEventListener('hashchange', () => {
         }
     }
     if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
-        const promoTab = document.querySelector('.tab-link[data-target="promotion-page"]');
+        const promoTab = document.querySelector('[data-target="promotion-page"]');
         if (promoTab) {
             activateResultTab(promoTab, { updateHash: false });
             if (hash !== '#promotion') history.replaceState({}, '', '#promotion');
@@ -847,7 +958,7 @@ window.addEventListener('hashchange', () => {
     if (hash === '#settings' || hash === '#settings-page') {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             if (typeof activateSettingsSubpanel === 'function') {
@@ -857,7 +968,7 @@ window.addEventListener('hashchange', () => {
             return;
         }
     }
-    const tab = Array.from(tabs).find((entry) => entry.getAttribute('href') === hash);
+    const tab = Array.from(document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link')).find((entry) => entry.getAttribute('href') === hash);
     if (tab) {
         activateResultTab(tab, { updateHash: false });
         return;
@@ -866,7 +977,7 @@ window.addEventListener('hashchange', () => {
     if (settingsLink) {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             if (typeof activateSettingsSubpanel === 'function') {
@@ -879,13 +990,13 @@ window.addEventListener('hashchange', () => {
 if (window.location.hash) {
     const hash = window.location.hash;
     if (hash === '#snapshot' || hash === '#snapshot-export' || hash === '#settings-snapshot') {
-        const snapTab = document.querySelector('.tab-link[data-target="snapshot-page"]');
+        const snapTab = document.querySelector('[data-target="snapshot-page"]');
         if (snapTab) {
             activateResultTab(snapTab, { updateHash: false });
             if (hash !== '#snapshot') history.replaceState({}, '', '#snapshot');
         }
     } else if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
-        const promoTab = document.querySelector('.tab-link[data-target="promotion-page"]');
+        const promoTab = document.querySelector('[data-target="promotion-page"]');
         if (promoTab) {
             activateResultTab(promoTab, { updateHash: false });
             if (hash !== '#promotion') history.replaceState({}, '', '#promotion');
@@ -893,7 +1004,7 @@ if (window.location.hash) {
     } else if (hash === '#settings' || hash === '#settings-page') {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             if (typeof activateSettingsSubpanel === 'function') {
@@ -902,7 +1013,7 @@ if (window.location.hash) {
             }
         }
     } else {
-        const initialTab = Array.from(tabs).find((entry) => entry.getAttribute('href') === hash);
+        const initialTab = Array.from(document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link')).find((entry) => entry.getAttribute('href') === hash);
         if (initialTab) {
             activateResultTab(initialTab, { updateHash: false });
         } else {
@@ -910,7 +1021,7 @@ if (window.location.hash) {
             if (settingsLink) {
                 const settingsPage = document.getElementById('settings-page');
                 if (settingsPage) {
-                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
                     pages.forEach(p => p.classList.add('hidden'));
                     settingsPage.classList.remove('hidden');
                     if (typeof activateSettingsSubpanel === 'function') {
@@ -2392,11 +2503,20 @@ const renderPublishedDraftTables = () => {
 };
 
 // --- Exam Setup Logic ---
+const getDefaultPassMarkForTotal = (total) => {
+    const t = Number(total);
+    if (t === 50) return 18;
+    if (t === 100) return 35;
+    if (t === 75) return 27;
+    if (t === 25) return 9;
+    if (t > 0) return Math.ceil(t * 0.35);
+    return 35;
+};
+
 const getAvailableSubjectTotals = (selectedVal) => {
     const scales = getEffectiveGradeScales();
-    const totals = new Set(Object.keys(scales).map(Number).filter((n) => Number.isFinite(n) && n > 0));
-    totals.add(100);
-    totals.add(50);
+    const totals = new Set([100, 50]);
+    Object.keys(scales).map(Number).filter((n) => Number.isFinite(n) && n > 0).forEach((n) => totals.add(n));
     if (selectedVal && Number.isFinite(Number(selectedVal)) && Number(selectedVal) > 0) {
         totals.add(Number(selectedVal));
     }
@@ -2415,11 +2535,14 @@ const buildSubjectRowHtml = (row = {}) => {
     const rowMax = Number(row.maxMarks ?? 100);
     const availableTotals = getAvailableSubjectTotals(rowMax);
     const optionsHtml = availableTotals.map((val) => `<option value="${val}" ${val === rowMax ? 'selected' : ''}>${val}</option>`).join('');
+    const rowPass = (row.passMarks !== undefined && row.passMarks !== null && row.passMarks !== '')
+        ? Number(row.passMarks)
+        : getDefaultPassMarkForTotal(rowMax);
     return `
     <tr class="subject-row border-t">
         <td class="p-2"><input type="text" class="subject-name-input w-full p-2 border rounded" value="${escapeHtml(row.name || '')}" placeholder="Subject name"></td>
         <td class="p-2"><select class="subject-total-input w-full p-2 border rounded">${optionsHtml}</select></td>
-        <td class="p-2"><input type="number" class="subject-pass-input w-full p-2 border rounded" value="${escapeHtml(String(row.passMarks ?? 35))}" min="0"></td>
+        <td class="p-2"><input type="number" class="subject-pass-input w-full p-2 border rounded" value="${escapeHtml(String(rowPass))}" min="0"></td>
         <td class="p-2"><button type="button" class="subject-remove-row text-red-600 font-bold">✕</button></td>
     </tr>
 `;
@@ -4337,6 +4460,23 @@ document.getElementById('subject-rows-body')?.addEventListener('click', (event) 
     const btn = event.target.closest('.subject-remove-row');
     if (!btn) return;
     btn.closest('tr')?.remove();
+});
+document.getElementById('subject-rows-body')?.addEventListener('change', (event) => {
+    const totalSelect = event.target.closest('.subject-total-input');
+    if (!totalSelect) return;
+    const rowEl = totalSelect.closest('.subject-row');
+    if (!rowEl) return;
+    const passInput = rowEl.querySelector('.subject-pass-input');
+    if (passInput) {
+        const newTotal = Number(totalSelect.value || 100);
+        passInput.value = getDefaultPassMarkForTotal(newTotal);
+    }
+});
+document.getElementById('exam-max')?.addEventListener('change', (e) => {
+    const passEl = document.getElementById('exam-pass');
+    if (passEl) {
+        passEl.value = getDefaultPassMarkForTotal(e.target.value);
+    }
 });
 document.getElementById('save-subject-schema-btn')?.addEventListener('click', async () => {
     if (!hasResultAccess) return alert('You do not have access to save schema.');
@@ -7066,7 +7206,7 @@ document.querySelectorAll('.settings-nav-link').forEach((link) => {
         // Switch main page to settings-page
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             document.body.classList.remove('marks-entry-active');
@@ -7085,8 +7225,7 @@ document.querySelectorAll('.settings-nav-link').forEach((link) => {
         }
         
         // Close menu
-        navMenu.classList.remove('active');
-        mobileMenuBtn?.classList.remove('active-toggle');
+        closeMobileNavDropdown();
     });
 });
 
@@ -7100,12 +7239,6 @@ document.querySelectorAll('.settings-subtab-btn').forEach((btn) => {
 
 // Click outside handlers for modals, header dropdown menu and kebab menus
 document.addEventListener('click', (e) => {
-    if (navMenu && navMenu.classList.contains('active')) {
-        if (!navMenu.contains(e.target) && !mobileMenuBtn?.contains(e.target)) {
-            navMenu.classList.remove('active');
-            mobileMenuBtn?.classList.remove('active-toggle');
-        }
-    }
     if (!e.target.closest('.result-row-menu-toggle') && !e.target.closest('.result-row-menu')) {
         document.querySelectorAll('.result-row-menu').forEach((menu) => menu.classList.add('hidden'));
     }
@@ -7131,10 +7264,7 @@ document.addEventListener('keydown', (e) => {
             modal.style.display = 'none';
         });
         document.body.classList.remove('modal-scroll-lock');
-        if (navMenu && navMenu.classList.contains('active')) {
-            navMenu.classList.remove('active');
-            mobileMenuBtn?.classList.remove('active-toggle');
-        }
+        closeMobileNavDropdown();
     }
 });
 
@@ -7167,10 +7297,14 @@ const setupModalObserver = () => {
 // Initialize Session and Live Data Stream safely after full module evaluation
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+        initSidebarState();
+        startLiveClock();
         setupModalObserver();
         bootstrapSessionAccess();
     }, { once: true });
 } else {
+    initSidebarState();
+    startLiveClock();
     setupModalObserver();
     bootstrapSessionAccess();
 }

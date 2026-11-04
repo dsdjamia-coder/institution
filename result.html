@@ -23,88 +23,200 @@
     
     <link rel="stylesheet" href="styles/main.css">
     <style>
-        /* Result Full-Width Layout Across All Tabs on Desktop & Laptop */
-        body[data-page-type="result"] header,
-        body.collection-shell[data-page-type="result"] header,
-        html[data-session-guard="result"] header {
-            max-width: 99vw !important;
-            width: 99vw !important;
-            margin: 10px auto !important;
-        }
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-        body[data-page-type="result"] main,
-        body.collection-shell[data-page-type="result"] main,
-        html[data-session-guard="result"] body main,
-        html[data-session-guard="result"] #app,
-        body[data-page-type="result"] #app {
-            max-width: 99vw !important;
-            width: 99vw !important;
-            margin: 0 auto 10px auto !important;
-            padding: 0 !important;
-            flex-grow: 1;
-        }
+    /* Transitions & Focus */
+    .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 200ms; }
 
-        body[data-page-type="result"] #page-content,
-        body[data-page-type="result"] .page-content,
-        html[data-session-guard="result"] #page-content,
-        html[data-session-guard="result"] .page-content {
-            max-width: 100% !important;
-            width: 100% !important;
-        }
+    /* Top Sticky Header Glassmorphism */
+    .result-sticky-header {
+      backdrop-filter: blur(12px);
+      background-color: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    }
 
-        /* Attendance Override Indicator */
-        .attendance-working[data-overridden="true"] {
-            background-color: #fffbeb !important;
-            border-color: #f59e0b !important;
-            color: #78350f !important;
-            font-weight: 700;
-        }
+    /* Collapsible Navigation Styling */
+    .drawer-heading {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+      color: #94a3b8;
+      padding: 0.5rem 1rem 0.25rem;
+      white-space: nowrap;
+    }
+    .drawer-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 0.875rem;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #475569;
+      border-radius: 12px;
+      margin: 2px 8px;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .drawer-link:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .drawer-link.active {
+      background: #0f172a !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    }
+    .drawer-link.active i {
+      color: #818cf8 !important;
+    }
 
-        /* Professional Toggle Switch for Direct Promotion */
-        .promotion-toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 38px;
-            height: 22px;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-        .promotion-toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-            position: absolute;
-        }
-        .promotion-toggle-slider {
-            position: absolute;
-            inset: 0;
-            background-color: #cbd5e1;
-            border-radius: 9999px;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid #94a3b8;
-        }
-        .promotion-toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 2px;
-            bottom: 2px;
-            background-color: #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .promotion-toggle-switch input:checked + .promotion-toggle-slider {
-            background-color: #d97706; /* amber-600 */
-            border-color: #b45309; /* amber-700 */
-        }
-        .promotion-toggle-switch input:checked + .promotion-toggle-slider:before {
-            transform: translateX(16px);
-        }
+    /* Desktop Collapsible Sidebar */
+    @media (min-width: 1024px) {
+      #result-app.has-desktop-sidebar #side-drawer {
+        transform: translateX(0) !important;
+      }
+      #result-app:not(.sidebar-collapsed) #side-drawer {
+        width: 16rem; /* 256px */
+      }
+      #result-app.sidebar-collapsed #side-drawer {
+        width: 4.5rem; /* 72px */
+      }
+      #result-app:not(.sidebar-collapsed) .result-main-wrapper,
+      #result-app:not(.sidebar-collapsed) .result-sticky-header {
+        margin-left: 16rem;
+        width: calc(100% - 16rem) !important;
+      }
+      #result-app.sidebar-collapsed .result-main-wrapper,
+      #result-app.sidebar-collapsed .result-sticky-header {
+        margin-left: 4.5rem;
+        width: calc(100% - 4.5rem) !important;
+      }
+      #result-app.sidebar-collapsed #side-drawer .nav-text,
+      #result-app.sidebar-collapsed #side-drawer .drawer-heading,
+      #result-app.sidebar-collapsed #side-drawer .drawer-header-title,
+      #result-app.sidebar-collapsed #side-drawer .sidebar-btn-label {
+        display: none !important;
+      }
+      #result-app.sidebar-collapsed #side-drawer > div:first-child {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+      #result-app.sidebar-collapsed #side-drawer .drawer-link {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        margin: 4px 6px;
+      }
+      #result-app.sidebar-collapsed #side-drawer .drawer-link i {
+        font-size: 1.15rem;
+        margin: 0 auto;
+      }
+      #result-app.sidebar-collapsed #side-drawer .sidebar-footer-btn {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+      #result-app.sidebar-collapsed #sidebar-toggle-icon {
+        transform: rotate(180deg);
+      }
+    }
+
+    /* Mobile Navigation Dropdown Link Styles */
+    .mobile-dropdown-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .mobile-dropdown-link:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .mobile-dropdown-link.active {
+      background: #0f172a !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    }
+    .mobile-dropdown-link.active i {
+      color: #818cf8 !important;
+    }
+
+    /* Mobile Drawer -> Hidden on Mobile in favor of Top Dropdown */
+    @media (max-width: 1023px) {
+      #side-drawer, #drawer-overlay {
+        display: none !important;
+      }
+      .result-main-wrapper, .result-sticky-header {
+        margin-left: 0 !important;
+        width: 100% !important;
+      }
+    }
+
+    /* Attendance Override Indicator */
+    .attendance-working[data-overridden="true"] {
+        background-color: #fffbeb !important;
+        border-color: #f59e0b !important;
+        color: #78350f !important;
+        font-weight: 700;
+    }
+
+    /* Professional Toggle Switch for Direct Promotion */
+    .promotion-toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 38px;
+        height: 22px;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .promotion-toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        position: absolute;
+    }
+    .promotion-toggle-slider {
+        position: absolute;
+        inset: 0;
+        background-color: #cbd5e1;
+        border-radius: 9999px;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid #94a3b8;
+    }
+    .promotion-toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 2px;
+        bottom: 2px;
+        background-color: #ffffff;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .promotion-toggle-switch input:checked + .promotion-toggle-slider {
+        background-color: #d97706; /* amber-600 */
+        border-color: #b45309; /* amber-700 */
+    }
+    .promotion-toggle-switch input:checked + .promotion-toggle-slider:before {
+        transform: translateX(16px);
+    }
     </style>
 </head>
-<body class="antialiased text-gray-800 collection-shell" data-page-type="result">
+<body class="antialiased min-h-screen text-gray-800 bg-slate-50" data-page-type="result">
     <div id="loading-screen">
         <div class="loader-wrapper">
             <div class="logo-container">
@@ -114,90 +226,204 @@
             <div class="loading-text">Initializing...</div>
         </div>
     </div>
-    
-    <!-- Header -->
-    <header>
-        <div class="nav-container">
-            <div class="header-logo-box">
-                <img id="header-logo" src="assets/images/logo.png" alt="Logo" onerror="this.style.display='none'">
-            </div>
-            
-            <div class="header-center-box">
-                <div class="text-[10px] sm:text-[11px] font-extrabold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
-                    <i class="fas fa-square-poll-vertical"></i>
-                    <span>Result Management</span>
-                    <span class="text-slate-300">•</span>
-                    <span id="header-active-year" class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md font-bold text-[10px] border border-indigo-200">Loading Year...</span>
-                </div>
-                <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Institution Name</h1>
-                <p id="header-subtitle" class="hidden text-xs text-slate-500 font-medium"><span id="header-regno"></span> <span id="header-sep" class="mx-1 hidden">|</span> <span id="header-place"></span></p>
-            </div>
 
-            <div class="flex items-center gap-2">
-                <div id="header-user-badge" class="hidden sm:flex items-center gap-2 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl text-xs">
-                    <i class="fas fa-user-check text-indigo-600"></i>
-                    <div class="text-left">
-                        <div id="header-user-name" class="font-bold text-slate-800 leading-tight text-[11px] max-w-[130px] truncate">Staff</div>
-                        <div id="header-user-role" class="text-[9px] text-indigo-600 font-semibold leading-tight">Result Operator</div>
+    <div id="result-app" class="min-h-screen has-desktop-sidebar">
+
+        <!-- Top Sticky Header -->
+        <div class="sticky top-0 z-30 result-sticky-header">
+            <header class="w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <!-- Mobile Menu Toggle Button & Left-Anchored Dropdown -->
+                    <div class="relative lg:hidden">
+                        <button id="result-mobile-menu-btn" type="button" class="text-slate-700 hover:text-indigo-600 p-2 -ml-1 rounded-xl hover:bg-slate-100 transition flex items-center justify-center focus:outline-none cursor-pointer" aria-label="Toggle Navigation Menu">
+                            <i class="fas fa-bars text-lg"></i>
+                        </button>
+
+                        <!-- Compact Dropdown Anchored Under Hamburger Button -->
+                        <div id="mobile-nav-dropdown" class="hidden absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 p-2 space-y-1">
+                            <div class="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">Results Workflow</div>
+                            <a href="#dashboard" class="mobile-dropdown-link tab-link active" data-target="dashboard-page">
+                                <i class="fas fa-chart-pie w-4 text-center shrink-0"></i>
+                                <span class="truncate">Overview</span>
+                            </a>
+                            <a href="#marks" class="mobile-dropdown-link tab-link" data-target="marks-page">
+                                <i class="fas fa-pen-to-square w-4 text-center shrink-0"></i>
+                                <span class="truncate">Marks Entry</span>
+                            </a>
+                            <a href="#draft" class="mobile-dropdown-link tab-link" data-target="draft-page">
+                                <i class="fas fa-file-lines w-4 text-center shrink-0"></i>
+                                <span class="truncate">Draft Review</span>
+                            </a>
+
+                            <div data-role-scope="admin-only" class="pt-1.5 mt-1 border-t border-slate-100 space-y-1">
+                                <div class="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">Records &amp; Reports</div>
+                                <a href="#published" class="mobile-dropdown-link tab-link" data-target="published-page">
+                                    <i class="fas fa-circle-check w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Published Results</span>
+                                </a>
+                                <a href="#report-cards" class="mobile-dropdown-link tab-link" data-target="report-cards-page">
+                                    <i class="fas fa-id-card w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Report Cards</span>
+                                </a>
+                                <a href="#promotion" class="mobile-dropdown-link tab-link" data-target="promotion-page">
+                                    <i class="fas fa-graduation-cap w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Class Promotion</span>
+                                </a>
+                                <a href="#snapshot" class="mobile-dropdown-link tab-link" data-target="snapshot-page">
+                                    <i class="fas fa-file-export w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Snapshot Export</span>
+                                </a>
+                            </div>
+
+                            <div class="pt-1.5 mt-1 border-t border-slate-100 space-y-1">
+                                <div class="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">Settings &amp; Setup</div>
+                                <a href="#settings-publish" class="mobile-dropdown-link settings-nav-link" data-target="settings-page" data-subtab="subpanel-publish" data-role-scope="admin-only">
+                                    <i class="fas fa-bullhorn w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Publish Controls</span>
+                                </a>
+                                <a href="#settings-subjects" class="mobile-dropdown-link settings-nav-link" data-target="settings-page" data-subtab="subpanel-subjects">
+                                    <i class="fas fa-book w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Subjects &amp; Exams</span>
+                                </a>
+                                <a href="#settings-grades" class="mobile-dropdown-link settings-nav-link" data-target="settings-page" data-subtab="subpanel-grades">
+                                    <i class="fas fa-list-check w-4 text-center shrink-0"></i>
+                                    <span class="truncate">Grade Rules</span>
+                                </a>
+                            </div>
+
+                            <div class="pt-1.5 mt-1 border-t border-slate-100 space-y-1">
+                                <a href="official.html" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 transition">
+                                    <i class="fas fa-th-large w-4 text-center text-indigo-600 shrink-0"></i>
+                                    <span>Official Hub</span>
+                                </a>
+                                <button id="mobile-logout-btn" type="button" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 transition cursor-pointer">
+                                    <i class="fas fa-sign-out-alt w-4 text-center text-rose-600 shrink-0"></i>
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-9 h-9 rounded-xl overflow-hidden bg-indigo-50 border border-indigo-200 flex items-center justify-center shrink-0">
+                        <img id="header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
+                    </div>
+
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-square-poll-vertical text-indigo-600"></i> Result Management
+                            </span>
+                            <span class="text-slate-300">•</span>
+                            <span id="header-active-year" class="bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-indigo-300">Loading Session...</span>
+                        </div>
+                        <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Institution Name</h1>
+                        <p id="header-subtitle" class="hidden text-xs text-slate-500 font-medium"><span id="header-regno"></span> <span id="header-sep" class="mx-1 hidden">|</span> <span id="header-place"></span></p>
                     </div>
                 </div>
-                <button class="mobile-toggle" id="mobile-menu-btn" type="button">
-                    <div class="menu-icon-wrapper">
-                        <i class="fas fa-bars icon-bars"></i>
-                        <i class="fas fa-times icon-close"></i>
+
+                <!-- Right Side: User Profile & Live Clock -->
+                <div class="flex items-center gap-3">
+                    <div class="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <i class="fas fa-clock text-indigo-600"></i>
+                        <span id="live-clock-display">--:-- --</span>
                     </div>
+
+                    <div id="header-user-badge" class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs">
+                        <div class="w-7 h-7 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center font-bold text-xs shrink-0">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <div class="text-left hidden sm:block">
+                            <div id="header-user-name" class="font-bold text-slate-900 leading-tight text-xs max-w-[120px] truncate">Staff</div>
+                            <div id="header-user-role" class="text-[10px] text-indigo-700 font-semibold leading-tight">Result Operator</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+        </div>
+
+        <!-- Mobile Drawer Overlay -->
+        <div id="drawer-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 hidden opacity-0 transition-opacity duration-300"></div>
+
+        <!-- Side Drawer Navigation -->
+        <aside id="side-drawer" class="fixed top-0 left-0 h-full w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
+            <!-- Drawer Top Bar -->
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 h-16 shrink-0">
+                <div class="drawer-header-title flex items-center gap-2 overflow-hidden">
+                    <i class="fas fa-square-poll-vertical text-indigo-600 text-lg shrink-0"></i>
+                    <span class="font-bold text-base text-gray-800 truncate">Result Menu</span>
+                </div>
+                <button id="sidebar-collapse-btn" class="text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition flex items-center justify-center shrink-0 cursor-pointer" title="Collapse / Expand sidebar">
+                    <i id="sidebar-toggle-icon" class="fas fa-angles-left text-base transition-transform duration-300"></i>
                 </button>
             </div>
-            
-            <ul class="nav-menu">
-                <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-xl shadow-sm mb-2 text-center">
-                    <div class="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Logged in as</div>
-                    <div id="staff-name-display" class="text-indigo-900 font-extrabold truncate text-sm">Loading...</div>
-                    <div id="staff-role-badge" class="text-[11px] text-indigo-600 font-semibold mt-0.5">Result Operator</div>
-                </div>
-                
-                <!-- Category 1: Results Workflow -->
-                <li class="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-3 pt-1 flex items-center justify-between">
-                    <span>Results Workflow</span>
-                    <i class="fas fa-tasks text-slate-300"></i>
-                </li>
-                <li><a href="#dashboard" class="nav-link tab-link active" data-target="dashboard-page"><i class="fas fa-chart-pie text-lg w-6"></i> Overview</a></li>
-                <li><a href="#marks" class="nav-link tab-link" data-target="marks-page"><i class="fas fa-pen-to-square text-lg w-6"></i> Marks Entry</a></li>
-                <li><a href="#draft" class="nav-link tab-link" data-target="draft-page"><i class="fas fa-file-lines text-lg w-6"></i> Draft Review</a></li>
-                
-                <!-- Category 2: Records & Reports (Admin only) -->
-                <li data-role-scope="admin-only" class="mt-2 border-t border-slate-100 pt-2 text-[10px] uppercase tracking-wider text-slate-400 font-bold px-3 flex items-center justify-between">
-                    <span>Records & Reports</span>
-                    <i class="fas fa-folder-open text-slate-300"></i>
-                </li>
-                <li data-role-scope="admin-only"><a href="#published" class="nav-link tab-link" data-target="published-page"><i class="fas fa-circle-check text-lg w-6"></i> Published Results</a></li>
-                <li data-role-scope="admin-only"><a href="#report-cards" class="nav-link tab-link" data-target="report-cards-page"><i class="fas fa-id-card text-lg w-6"></i> Report Cards</a></li>
-                <li data-role-scope="admin-only"><a href="#promotion" class="nav-link tab-link" data-target="promotion-page"><i class="fas fa-graduation-cap text-lg w-6"></i> Class Promotion</a></li>
-                <li data-role-scope="admin-only"><a href="#snapshot" class="nav-link tab-link" data-target="snapshot-page"><i class="fas fa-file-export text-lg w-6"></i> Snapshot Export</a></li>
-                
-                <!-- Category 3: Settings & Setup -->
-                <li class="mt-2 border-t border-slate-100 pt-2">
-                    <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-3 pb-1 flex items-center justify-between">
-                        <span>Settings & Setup</span>
-                        <i class="fas fa-sliders-h text-slate-300"></i>
-                    </div>
-                    <ul class="space-y-1 mt-1 border-l-2 border-indigo-100 ml-3 pl-1">
-                        <li data-role-scope="admin-only"><a href="#settings-publish" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-publish"><i class="fas fa-bullhorn text-sm w-5 text-indigo-500"></i> Publish Controls</a></li>
-                        <li><a href="#settings-subjects" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-subjects"><i class="fas fa-book text-sm w-5 text-indigo-500"></i> Subjects & Exams</a></li>
-                        <li><a href="#settings-grades" class="nav-link settings-nav-link text-xs font-semibold py-1.5" data-target="settings-page" data-subtab="subpanel-grades"><i class="fas fa-list-check text-sm w-5 text-indigo-500"></i> Grade Rules</a></li>
-                        <li data-role-scope="admin-only"><a href="#promotion" class="nav-link tab-link text-xs font-semibold py-1.5" data-target="promotion-page"><i class="fas fa-graduation-cap text-sm w-5 text-indigo-500"></i> Class Promotion</a></li>
-                    </ul>
-                </li>
-                
-                <!-- Category 4: Portals & Session -->
-                <li class="mt-2 border-t border-gray-100 pt-2 text-[10px] uppercase tracking-wider text-slate-400 font-bold px-3">Portals</li>
-                <li><a href="official.html" class="nav-link font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors"><i class="fas fa-th-large text-lg w-6 text-indigo-600"></i> Back to Official Portal</a></li>
-                <li><button id="logout-btn" class="login-btn-nav btn-danger w-full mt-2"><i class="fas fa-sign-out-alt"></i> Logout</button></li>
-            </ul>
-        </div>
-    </header>
 
-    <main id="app" class="w-full max-w-none">
+            <!-- Navigation Links -->
+            <nav class="flex-grow py-3 space-y-1 overflow-y-auto">
+                <div class="drawer-heading">Results Workflow</div>
+                <a href="#dashboard" class="drawer-link tab-link active" data-target="dashboard-page" title="Overview">
+                    <i class="fas fa-chart-pie w-5 text-center shrink-0"></i>
+                    <span class="nav-text truncate">Overview</span>
+                </a>
+                <a href="#marks" class="drawer-link tab-link" data-target="marks-page" title="Marks Entry">
+                    <i class="fas fa-pen-to-square w-5 text-center shrink-0"></i>
+                    <span class="nav-text truncate">Marks Entry</span>
+                </a>
+                <a href="#draft" class="drawer-link tab-link" data-target="draft-page" title="Draft Review">
+                    <i class="fas fa-file-lines w-5 text-center shrink-0"></i>
+                    <span class="nav-text truncate">Draft Review</span>
+                </a>
+
+                <div data-role-scope="admin-only" class="space-y-1">
+                    <div class="drawer-heading">Records &amp; Reports</div>
+                    <a href="#published" class="drawer-link tab-link" data-target="published-page" title="Published Results">
+                        <i class="fas fa-circle-check w-5 text-center shrink-0"></i>
+                        <span class="nav-text truncate">Published Results</span>
+                    </a>
+                    <a href="#report-cards" class="drawer-link tab-link" data-target="report-cards-page" title="Report Cards">
+                        <i class="fas fa-id-card w-5 text-center shrink-0"></i>
+                        <span class="nav-text truncate">Report Cards</span>
+                    </a>
+                    <a href="#promotion" class="drawer-link tab-link" data-target="promotion-page" title="Class Promotion">
+                        <i class="fas fa-graduation-cap w-5 text-center shrink-0"></i>
+                        <span class="nav-text truncate">Class Promotion</span>
+                    </a>
+                    <a href="#snapshot" class="drawer-link tab-link" data-target="snapshot-page" title="Snapshot Export">
+                        <i class="fas fa-file-export w-5 text-center shrink-0"></i>
+                        <span class="nav-text truncate">Snapshot Export</span>
+                    </a>
+                </div>
+
+                <div class="drawer-heading">Settings &amp; Setup</div>
+                <a href="#settings-publish" class="drawer-link settings-nav-link" data-target="settings-page" data-subtab="subpanel-publish" data-role-scope="admin-only" title="Publish Controls">
+                    <i class="fas fa-bullhorn w-5 text-center shrink-0"></i>
+                    <span class="nav-text truncate">Publish Controls</span>
+                </a>
+                <a href="#settings-subjects" class="drawer-link settings-nav-link" data-target="settings-page" data-subtab="subpanel-subjects" title="Subjects &amp; Exams">
+                    <i class="fas fa-book w-5 text-center shrink-0"></i>
+                    <span class="nav-text truncate">Subjects &amp; Exams</span>
+                </a>
+                <a href="#settings-grades" class="drawer-link settings-nav-link" data-target="settings-page" data-subtab="subpanel-grades" title="Grade Rules">
+                    <i class="fas fa-list-check w-5 text-center shrink-0"></i>
+                    <span class="nav-text truncate">Grade Rules</span>
+                </a>
+            </nav>
+
+            <!-- Sidebar Footer -->
+            <div class="p-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2 shrink-0">
+                <a href="official.html" class="sidebar-footer-btn bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-xl font-bold transition text-xs" title="Official Hub">
+                    <i class="fas fa-th-large text-indigo-600 shrink-0"></i>
+                    <span class="sidebar-btn-label truncate">Official Hub</span>
+                </a>
+                <button id="sidebar-logout-btn" type="button" class="sidebar-footer-btn bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-xl font-bold transition text-xs cursor-pointer" title="Sign Out">
+                    <i class="fas fa-sign-out-alt shrink-0"></i>
+                    <span class="sidebar-btn-label truncate">Sign Out</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="result-main-wrapper transition-all duration-300">
+            <main id="app" class="w-full px-4 sm:px-6 lg:px-8 py-4">
         <div id="result-fatal-error" class="hidden container mt-4">
             <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm font-semibold">
                 Something went wrong while loading Result Management. Please refresh and try again.
@@ -1382,6 +1608,7 @@
 
         </div>
     </main>
+    </div> <!-- /.result-main-wrapper -->
 
     <!-- Modals -->
     <div id="exam-modal" class="modal-overlay hidden">
@@ -1635,6 +1862,8 @@
             </div>
         </div>
     </div>
+
+    </div> <!-- /#result-app -->
 
     <!-- Scripts -->
     <script src="scripts/shared/hub-navigation.js"></script>
