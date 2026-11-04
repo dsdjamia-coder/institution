@@ -512,9 +512,15 @@ const restoreSessionContext = async () => {
 };
 
 const setupRealtimeListeners = () => {
-    // 0. Config & Module Enablement
+    // 0. Config & Module Enablement & Branding
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
-        const conf = snap.exists() ? snap.data() : {};
+        const conf = snap.exists() ? (snap.data() || {}) : {};
+        institutionConfig = {
+            ...institutionConfig,
+            ...conf,
+            appName: conf.appName || conf.name || institutionConfig.appName || institutionConfig.name || '',
+            name: conf.appName || conf.name || institutionConfig.name || institutionConfig.appName || ''
+        };
         if (conf.enabledModules && typeof conf.enabledModules === 'object') {
             try {
                 localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
@@ -525,6 +531,12 @@ const setupRealtimeListeners = () => {
                 return;
             }
         }
+        applyInstitutionBranding(institutionConfig, {
+            defaultAppName: 'Academic Plan',
+            logoIds: ['header-logo'],
+            updateDocumentTitle: true,
+            documentTitleSuffix: 'Academic Planning'
+        });
     });
 
     // 0b. Session Control (Lockdown / Force Logout)
@@ -539,15 +551,22 @@ const setupRealtimeListeners = () => {
         }
     });
 
-    // 1. Institution Branding & Settings
+    // 1. Institution Branding & Settings (backward compatibility)
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'institution'), (snap) => {
         if (snap.exists()) {
-            institutionConfig = snap.data();
-            applyInstitutionBranding(institutionConfig);
-            const titleEl = document.getElementById('header-title');
-            if (titleEl && institutionConfig.name) {
-                titleEl.textContent = institutionConfig.name;
-            }
+            const instData = snap.data() || {};
+            institutionConfig = {
+                ...institutionConfig,
+                ...instData,
+                appName: instData.appName || instData.name || institutionConfig.appName || institutionConfig.name || '',
+                name: instData.name || instData.appName || institutionConfig.name || institutionConfig.appName || ''
+            };
+            applyInstitutionBranding(institutionConfig, {
+                defaultAppName: 'Academic Plan',
+                logoIds: ['header-logo'],
+                updateDocumentTitle: true,
+                documentTitleSuffix: 'Academic Planning'
+            });
         }
     });
 

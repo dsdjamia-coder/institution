@@ -1960,7 +1960,12 @@ const initEvaluationModule = async () => {
     initSidebarState();
     updateLiveClock();
     setInterval(updateLiveClock, 1000);
-    await applyInstitutionBranding();
+    applyInstitutionBranding(institutionConfig, {
+        defaultAppName: 'Classroom Evaluation',
+        logoIds: ['header-logo'],
+        updateDocumentTitle: true,
+        documentTitleSuffix: 'Classroom Evaluation'
+    });
     await setupSessionAndStaff();
     await loadAcademicYears();
     populateAnalyticsMonths();
@@ -1968,7 +1973,13 @@ const initEvaluationModule = async () => {
     await fetchStudentsAndClasses();
 
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
-        const conf = snap.exists() ? snap.data() : {};
+        const conf = snap.exists() ? (snap.data() || {}) : {};
+        institutionConfig = {
+            ...institutionConfig,
+            ...conf,
+            appName: conf.appName || conf.name || institutionConfig.appName || institutionConfig.name || '',
+            name: conf.appName || conf.name || institutionConfig.name || institutionConfig.appName || ''
+        };
         if (conf.enabledModules && typeof conf.enabledModules === 'object') {
             try {
                 localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
@@ -1977,7 +1988,32 @@ const initEvaluationModule = async () => {
             if (!isEvaluationEnabled) {
                 sessionStorage.setItem('app_session_flash', 'Module Disabled: The Classroom Evaluation module is currently disabled by institution administration.');
                 window.location.href = 'official.html';
+                return;
             }
+        }
+        applyInstitutionBranding(institutionConfig, {
+            defaultAppName: 'Classroom Evaluation',
+            logoIds: ['header-logo'],
+            updateDocumentTitle: true,
+            documentTitleSuffix: 'Classroom Evaluation'
+        });
+    });
+
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'institution'), (snap) => {
+        if (snap.exists()) {
+            const instData = snap.data() || {};
+            institutionConfig = {
+                ...institutionConfig,
+                ...instData,
+                appName: instData.appName || instData.name || institutionConfig.appName || institutionConfig.name || '',
+                name: instData.name || instData.appName || institutionConfig.name || institutionConfig.appName || ''
+            };
+            applyInstitutionBranding(institutionConfig, {
+                defaultAppName: 'Classroom Evaluation',
+                logoIds: ['header-logo'],
+                updateDocumentTitle: true,
+                documentTitleSuffix: 'Classroom Evaluation'
+            });
         }
     });
 

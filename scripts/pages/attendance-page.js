@@ -368,7 +368,8 @@ const setupFirestoreListeners = () => {
     // 1. Settings Config
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), (snap) => {
         const conf = snap.exists() ? (snap.data() || {}) : {};
-        institutionConfig = conf;
+        const mergedConf = { ...conf, appName: conf.appName || conf.name || 'Attendance Register' };
+        institutionConfig = mergedConf;
         if (conf.enabledModules && typeof conf.enabledModules === 'object') {
             try {
                 localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
@@ -379,7 +380,7 @@ const setupFirestoreListeners = () => {
                 return;
             }
         }
-        applyInstitutionBranding(conf, {
+        applyInstitutionBranding(mergedConf, {
             defaultAppName: 'Attendance Register',
             logoIds: ['header-logo'],
             updateDocumentTitle: true,
