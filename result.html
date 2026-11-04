@@ -88,12 +88,12 @@
       color: #0f172a;
     }
     .drawer-link.active {
-      background: #0f172a !important;
+      background: #4f46e5 !important;
       color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25) !important;
     }
     .drawer-link.active i {
-      color: #818cf8 !important;
+      color: #ffffff !important;
     }
 
     /* Desktop Collapsible Sidebar */
@@ -168,12 +168,12 @@
       color: #0f172a;
     }
     .mobile-dropdown-link.active {
-      background: #0f172a !important;
+      background: #4f46e5 !important;
       color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25) !important;
     }
     .mobile-dropdown-link.active i {
-      color: #818cf8 !important;
+      color: #ffffff !important;
     }
 
     /* Mobile Drawer -> Hidden on Mobile in favor of Top Dropdown */
@@ -253,8 +253,7 @@
     <div id="result-app" class="min-h-screen has-desktop-sidebar">
 
         <!-- Top Sticky Header -->
-        <div class="sticky top-0 z-30 result-sticky-header">
-            <header class="w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between h-16">
+        <header class="app-sticky-header result-sticky-header sticky top-0 z-30 w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between h-16">
                 <div class="flex items-center gap-3">
                     <!-- Mobile Menu Toggle Button & Left-Anchored Dropdown -->
                     <div class="relative lg:hidden">
@@ -362,7 +361,6 @@
                     </div>
                 </div>
             </header>
-        </div>
 
         <!-- Mobile Drawer Overlay -->
         <div id="drawer-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 hidden opacity-0 transition-opacity duration-300"></div>

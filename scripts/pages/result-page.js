@@ -614,7 +614,12 @@ function grantResultAccess(accessInfo) {
     const headerUserRole = document.getElementById('header-user-role');
     if (headerUserRole) headerUserRole.textContent = roleBadgeText;
     const headerActiveYear = document.getElementById('header-active-year');
-    if (headerActiveYear) headerActiveYear.textContent = currentAcademicYear || 'Academic Year';
+    if (headerActiveYear) {
+        headerActiveYear.textContent = currentAcademicYear || 'Academic Year';
+        try {
+            if (currentAcademicYear) localStorage.setItem('app_active_academic_year', currentAcademicYear);
+        } catch (_) {}
+    }
 
     // Teacher assigned banner in Overview
     const banner = document.getElementById('teacher-assigned-banner');
@@ -1053,7 +1058,12 @@ if (window.location.hash) {
 function initializeDataListeners() {
     const syncHeaderDisplays = () => {
         const yearEl = document.getElementById('header-active-year');
-        if (yearEl) yearEl.textContent = currentAcademicYear || 'All Years';
+        if (yearEl) {
+            yearEl.textContent = currentAcademicYear || 'All Years';
+            try {
+                if (currentAcademicYear) localStorage.setItem('app_active_academic_year', currentAcademicYear);
+            } catch (_) {}
+        }
         const yearBadge = document.getElementById('academic-year-badge');
         if (yearBadge) yearBadge.textContent = currentAcademicYear || 'All Years';
     };

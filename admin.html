@@ -38,21 +38,47 @@
 
     <div id="admin-app" class="min-h-screen pb-16 has-desktop-sidebar">
         
-        <div class="sticky top-0 z-30 card shadow-sm rounded-none border-b border-gray-200 bg-white admin-sticky-header">
-            <header class="w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between h-16">
-                <div class="flex items-center gap-3">
-                    <button id="admin-mobile-menu-btn" type="button" class="lg:hidden text-gray-700 hover:text-blue-600 p-2 -ml-1 rounded-lg hover:bg-gray-100 transition flex items-center justify-center focus:outline-none" aria-label="Open Navigation Menu">
-                        <i class="fas fa-bars text-lg"></i>
-                    </button>
-                    <img id="admin-header-logo" src="assets/images/logo.png" alt="Logo" class="w-8 h-8 rounded-md shadow-sm" onerror="this.style.display='none'">
-                    <div>
-                        <h1 id="app-name-header" class="text-base sm:text-lg font-bold text-gray-900 leading-tight">Admin Dashboard</h1>
-                        <p id="app-subtitle-header" class="text-[10px] sm:text-xs text-gray-500 font-medium hidden sm:block">Institute Management</p>
+        <!-- Top Sticky Header Bar -->
+        <header class="app-sticky-header admin-sticky-header sticky top-0 z-30 w-full px-3 sm:px-6 py-3 flex items-center justify-between h-16">
+            <div class="flex items-center gap-3 min-w-0">
+                <button id="admin-mobile-menu-btn" type="button" class="lg:hidden text-gray-700 hover:text-blue-600 p-2 -ml-1 rounded-xl hover:bg-gray-100 transition flex items-center justify-center focus:outline-none cursor-pointer" aria-label="Open Navigation Menu">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+
+                <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center bg-blue-50 border border-blue-200 shrink-0 shadow-2xs">
+                    <img id="admin-header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-blue-700">
+                            <i class="fas fa-sliders text-blue-600"></i> Admin Console
+                        </span>
+                        <span class="text-slate-300">•</span>
+                        <span id="header-active-year" class="bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-blue-300">Loading Session...</span>
+                    </div>
+                    <h1 id="app-name-header" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight truncate">Admin Dashboard</h1>
+                    <span id="header-title" class="hidden">Admin Dashboard</span>
+                </div>
+            </div>
+
+            <!-- Right Side: User Profile & Live Clock -->
+            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+                <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-700 border border-slate-200">
+                    <i class="fas fa-clock text-blue-600"></i>
+                    <span id="live-clock-display">--:-- --</span>
+                </div>
+
+                <div id="header-user-badge" class="flex items-center gap-2 bg-blue-50 border border-blue-200 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs">
+                    <div class="w-7 h-7 rounded-full bg-blue-200 text-blue-800 flex items-center justify-center font-bold text-xs shrink-0">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="text-left hidden sm:block">
+                        <div id="staff-name-display" class="font-bold text-slate-900 leading-tight text-xs max-w-[120px] truncate">Administrator</div>
+                        <div id="staff-role-badge" class="text-[10px] text-blue-700 font-semibold leading-tight">Master Admin</div>
                     </div>
                 </div>
-                <div class="flex items-center gap-2"></div>
-            </header>
-        </div>
+            </div>
+        </header>
 
         <div id="drawer-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 hidden opacity-0 transition-opacity duration-300"></div>
         <aside id="side-drawer" class="fixed top-0 left-0 h-full w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">

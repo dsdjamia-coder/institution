@@ -1699,48 +1699,63 @@
 <body class="antialiased text-gray-800 collection-shell" data-page-type="worksheet">
 
   <div id="official-app" class="h-screen flex flex-col">
-    <header class="no-print shrink-0">
-      <div class="nav-container">
-        <div class="header-branding-box">
-          <div class="header-logo-box">
-            <img id="header-logo" src="assets/images/logo.png" alt="Logo" onerror="this.style.display='none'">
+    <header class="app-sticky-header no-print sticky top-0 z-30 w-full px-3 sm:px-6 py-3 flex items-center justify-between h-16">
+      <div class="flex items-center gap-3 min-w-0">
+        <!-- Logo -->
+        <div class="w-9 h-9 rounded-xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0 shadow-2xs">
+          <img id="header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-teal-700">
+              <i class="fas fa-file-excel text-teal-600"></i> Class Worksheet &amp; Registers
+            </span>
+            <span class="text-slate-300">•</span>
+            <span id="header-active-year" class="bg-teal-100 text-teal-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-teal-300">Loading Session...</span>
           </div>
-          <div>
-            <div class="text-[10px] sm:text-[11px] font-extrabold text-teal-700 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fas fa-file-excel text-teal-600"></i>
-              <span>Class Worksheet & Registers</span>
-            </div>
-            <h1 id="header-title" class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">Official Portal</h1>
-            <p id="header-subtitle" class="text-xs text-slate-500 font-bold"><span id="official-user-line">--</span></p>
+          <h1 id="header-title" class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight truncate">Official Portal</h1>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+        <!-- Live Clock -->
+        <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-700 border border-slate-200">
+          <i class="fas fa-clock text-teal-600"></i>
+          <span id="live-clock-display">--:-- --</span>
+        </div>
+
+        <!-- User Badge -->
+        <div id="header-user-badge" class="flex items-center gap-2 bg-teal-50 border border-teal-200 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs">
+          <div class="w-7 h-7 rounded-full bg-teal-200 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fas fa-user-check"></i>
+          </div>
+          <div class="hidden sm:block text-left">
+            <div id="staff-name-display" class="font-bold text-slate-900 leading-tight text-xs max-w-[120px] truncate">Staff</div>
+            <div id="staff-role-badge" class="text-[10px] text-teal-700 font-semibold leading-tight">Official Portal</div>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <!-- Hamburger Menu Toggle Button -->
-          <button class="mobile-toggle" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
+        <!-- Hamburger Menu Toggle Button & Dropdown -->
+        <div class="relative">
+          <button class="mobile-toggle p-2 rounded-xl hover:bg-slate-100 text-slate-700 hover:text-teal-600 transition flex items-center justify-center focus:outline-none cursor-pointer" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
             <div class="menu-icon-wrapper">
-              <i class="fas fa-bars icon-bars"></i>
-              <i class="fas fa-times icon-close"></i>
+              <i class="fas fa-bars icon-bars text-lg"></i>
+              <i class="fas fa-times icon-close text-lg"></i>
             </div>
           </button>
-        </div>
 
-        <!-- Dropdown Menu -->
-        <ul class="nav-menu" aria-label="Official navigation">
-          <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl shadow-xs mb-2 text-center">
-            <div class="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Logged in as</div>
-            <div id="staff-name-display" class="text-blue-900 font-extrabold truncate text-sm">--</div>
-            <div id="staff-role-display" class="text-[11px] text-blue-600 font-semibold truncate">Official Portal</div>
-          </div>
-          <li><a href="#summary" class="nav-link tab-link active" data-tab="summary"><i class="fas fa-chart-pie text-lg w-6 text-emerald-600"></i> <span>Dashboard (Class Summary)</span></a></li>
-          <li><a href="#students" class="nav-link tab-link" data-tab="students"><i class="fas fa-users text-lg w-6 text-blue-600"></i> <span>Students Register</span></a></li>
-          <li><a href="#alumni" class="nav-link tab-link text-amber-700" data-tab="alumni"><i class="fas fa-user-graduate text-lg w-6 text-amber-600"></i> <span>Alumni Register</span></a></li>
-          <li><a href="#staff" class="nav-link tab-link" data-tab="staff"><i class="fas fa-chalkboard-teacher text-lg w-6 text-indigo-600"></i> <span>Staff Directory</span></a></li>
-          <li><a href="#export" class="nav-link tab-link font-bold text-teal-700" data-tab="export"><i class="fas fa-file-excel text-lg w-6 text-teal-600"></i> <span>Class Worksheet</span></a></li>
-          <div class="border-t border-slate-200 my-1"></div>
-          <li><a href="official.html" class="nav-link font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200"><i class="fas fa-th-large text-lg w-6 text-blue-600"></i> <span>Official Hub</span></a></li>
-          <li><button id="official-logout-btn" class="login-btn-nav btn-danger !w-full"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></button></li>
-        </ul>
+          <!-- Dropdown Menu -->
+          <ul class="nav-menu" aria-label="Official navigation">
+            <li><a href="#summary" class="nav-link tab-link active" data-tab="summary"><i class="fas fa-chart-pie text-lg w-6 text-emerald-600"></i> <span>Dashboard (Class Summary)</span></a></li>
+            <li><a href="#students" class="nav-link tab-link" data-tab="students"><i class="fas fa-users text-lg w-6 text-blue-600"></i> <span>Students Register</span></a></li>
+            <li><a href="#alumni" class="nav-link tab-link text-amber-700" data-tab="alumni"><i class="fas fa-user-graduate text-lg w-6 text-amber-600"></i> <span>Alumni Register</span></a></li>
+            <li><a href="#staff" class="nav-link tab-link" data-tab="staff"><i class="fas fa-chalkboard-teacher text-lg w-6 text-indigo-600"></i> <span>Staff Directory</span></a></li>
+            <li><a href="#export" class="nav-link tab-link font-bold text-teal-700" data-tab="export"><i class="fas fa-file-excel text-lg w-6 text-teal-600"></i> <span>Class Worksheet</span></a></li>
+            <div class="border-t border-slate-200 my-1"></div>
+            <li><a href="official.html" class="nav-link font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200"><i class="fas fa-th-large text-lg w-6 text-blue-600"></i> <span>Official Hub</span></a></li>
+            <li><button id="official-logout-btn" class="login-btn-nav btn-danger !w-full"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></button></li>
+          </ul>
+        </div>
       </div>
     </header>
 

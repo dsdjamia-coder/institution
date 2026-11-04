@@ -5404,6 +5404,9 @@ onAuthStateChanged(auth, async (user) => {
         const payload = snap.exists() ? snap.data() : {};
         academicYearSettings = Array.isArray(payload.years) ? payload.years : [];
         currentWorkingAcademicYear = payload.currentYear || currentWorkingAcademicYear || '';
+        try {
+            if (currentWorkingAcademicYear) localStorage.setItem('app_active_academic_year', currentWorkingAcademicYear);
+        } catch (_) {}
         const yearBadge = document.getElementById('header-active-year');
         if (yearBadge) {
             yearBadge.textContent = currentWorkingAcademicYear || 'Active Session';

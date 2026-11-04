@@ -880,13 +880,20 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }
       const institutionName = resolveInstitutionName(conf) || 'Official Portal';
       const effectiveLogo = rememberInstitutionLogo(conf.logoUrl || '') || 'assets/images/logo.png';
+      try {
+        localStorage.setItem('app_inst_branding', JSON.stringify({
+          appName: institutionName,
+          logoUrl: effectiveLogo
+        }));
+      } catch (_) {}
       ['header-logo', 'official-login-modal-logo'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         el.src = effectiveLogo;
         el.onerror = () => { el.onerror = null; el.src = 'assets/images/logo.png'; };
       });
-      document.getElementById('header-title').textContent = institutionName;
+      const titleEl = document.getElementById('header-title');
+      if (titleEl) titleEl.textContent = institutionName;
     };
 
     const hashCredentialValue = async (rawValue = '') => {
@@ -7400,6 +7407,12 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       activeAcademicYearId = activeYearObj ? activeYearObj.id : currentYearVal;
       if (activeAcademicYearId) {
+        try {
+          const yearLabel = activeYearObj?.name || activeYearObj?.label || activeAcademicYearId;
+          localStorage.setItem('app_active_academic_year', yearLabel);
+          const headerYear = document.getElementById('header-active-year');
+          if (headerYear) headerYear.textContent = yearLabel;
+        } catch (_) {}
         academicYears.forEach((y) => {
           y.isActive = y.id === activeAcademicYearId;
         });
