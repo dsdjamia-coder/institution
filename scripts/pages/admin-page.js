@@ -847,19 +847,19 @@ const BACKUP_CATEGORIES_CONFIG = {
         },
         hasData: (payload) => {
             const list = payload?.collections?.attendance || payload?.attendance;
-            const settings = payload?.settings?.attendanceSettings || payload?.attendanceSettings;
+            const settings = payload?.settings?.attendanceConfig || payload?.settings?.attendanceSettings || payload?.attendanceConfig || payload?.attendanceSettings;
             return (Array.isArray(list) && list.length > 0) || Boolean(settings);
         },
         restore: async (payload, onProgress) => {
             const list = payload?.collections?.attendance || payload?.attendance || [];
-            const settings = payload?.settings?.attendanceSettings || payload?.attendanceSettings;
+            const settings = payload?.settings?.attendanceConfig || payload?.settings?.attendanceSettings || payload?.attendanceConfig || payload?.attendanceSettings;
             if (Array.isArray(list) && list.length > 0) {
                 onProgress?.('Restoring attendance registers...');
                 await restoreCollectionFromPayload('attendance', list);
             }
             if (settings && typeof settings === 'object') {
-                onProgress?.('Restoring attendance settings...');
-                await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceSettings'), settings, { merge: true });
+                onProgress?.('Restoring attendance configuration...');
+                await setDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'), settings, { merge: true });
             }
         }
     },
@@ -1071,7 +1071,7 @@ const buildBackupPayload = async (targetCategories = null) => {
         wants('results') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter')) : Promise.resolve({ exists: () => false }),
         // Attendance
         wants('attendance') ? getDocs(collection(db, `${BASE_PATH}/attendance`)) : Promise.resolve({ docs: [] }),
-        wants('attendance') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceSettings')) : Promise.resolve({ exists: () => false }),
+        wants('attendance') ? getDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig')) : Promise.resolve({ exists: () => false }),
         // Academic Plan
         wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/classSubjects`)) : Promise.resolve({ docs: [] }),
         wants('academicPlan') ? getDocs(collection(db, `${BASE_PATH}/timetables`)) : Promise.resolve({ docs: [] }),
@@ -1130,7 +1130,7 @@ const buildBackupPayload = async (targetCategories = null) => {
     if (wants('staff') && adminAuthSnap.exists()) settings.adminAuth = adminAuthSnap.data();
     if (wants('years') && academicYearsSnap.exists()) settings.academicYears = academicYearsSnap.data();
     if (wants('results') && resultCenterSnap.exists()) settings.resultCenter = resultCenterSnap.data();
-    if (wants('attendance') && attendanceSettingsSnap.exists()) settings.attendanceSettings = attendanceSettingsSnap.data();
+    if (wants('attendance') && attendanceSettingsSnap.exists()) settings.attendanceConfig = attendanceSettingsSnap.data();
     if (wants('activities')) {
         if (rewardSettingsSnap.exists()) settings.rewardSettings = rewardSettingsSnap.data();
         if (prayerSettingsSnap.exists()) settings.prayerSettings = prayerSettingsSnap.data();
@@ -4992,10 +4992,18 @@ const populateClassDropdowns = () => {
         }
     }
 
-    const filterManage = document.getElementById('filter-manage-class'); const prevManageVal = filterManage.value;
-    filterManage.innerHTML = `<option value="all">All Classes</option>` + opts + `<option value="ALUMNI">Alumni</option>`;
-    if(prevManageVal === 'all' || prevManageVal === 'ALUMNI' || prevManageVal === 'GRADUATED' || classes.includes(prevManageVal)) {
-        filterManage.value = (prevManageVal === 'GRADUATED') ? 'ALUMNI' : prevManageVal;
+    const filterManage = document.getElementById('filter-manage-class');
+    if (filterManage) {
+        const prevManageVal = filterManage.value;
+        const defaultClass = classes[0] || '';
+        filterManage.innerHTML = opts + `<option value="ALUMNI">Alumni</option><option value="all">All Classes</option>`;
+        if (prevManageVal && (classes.includes(prevManageVal) || prevManageVal === 'ALUMNI' || prevManageVal === 'all' || prevManageVal === 'GRADUATED')) {
+            filterManage.value = (prevManageVal === 'GRADUATED') ? 'ALUMNI' : prevManageVal;
+        } else if (defaultClass) {
+            filterManage.value = defaultClass;
+        } else {
+            filterManage.value = 'all';
+        }
     }
 
     const filterConc = document.getElementById('filter-conc-class'); const prevConcVal = filterConc.value;
@@ -5240,15 +5248,65 @@ const downloadStudentPhotoAsPng = (photoSource, studentName) => {
     img.src = photoSource;
 };
 
+let studentManagePage = 1;
+let studentManagePageSize = 25;
+
+const updateStudentPaginationUI = (totalCount = 0, startIdx = 0, endIdx = 0, totalPages = 1) => {
+    const topBar = document.getElementById('student-pagination-top');
+    const bottomBar = document.getElementById('student-pagination-bottom');
+    if (!topBar || !bottomBar) return;
+
+    if (totalCount === 0) {
+        topBar.classList.add('hidden');
+        bottomBar.classList.add('hidden');
+        return;
+    }
+
+    topBar.classList.remove('hidden');
+    bottomBar.classList.remove('hidden');
+
+    const topInfo = document.getElementById('student-pagination-info-top');
+    const bottomInfo = document.getElementById('student-pagination-info-bottom');
+    const topPageNum = document.getElementById('student-page-number-display');
+    const bottomPageNum = document.getElementById('student-page-number-display-bottom');
+    const sizeSelect = document.getElementById('student-page-size-select');
+
+    if (sizeSelect && sizeSelect.value !== String(studentManagePageSize)) {
+        sizeSelect.value = String(studentManagePageSize);
+    }
+
+    const rangeStrTop = `Showing ${totalCount ? startIdx + 1 : 0}–${endIdx} of ${totalCount}`;
+    const rangeStrBottom = `Showing rows ${totalCount ? startIdx + 1 : 0} to ${endIdx} of ${totalCount} students`;
+    const pageStr = `Page ${studentManagePage} / ${totalPages || 1}`;
+
+    if (topInfo) topInfo.textContent = rangeStrTop;
+    if (bottomInfo) bottomInfo.textContent = rangeStrBottom;
+    if (topPageNum) topPageNum.textContent = pageStr;
+    if (bottomPageNum) bottomPageNum.textContent = pageStr;
+
+    const isPrevDisabled = studentManagePage <= 1;
+    const isNextDisabled = studentManagePage >= totalPages;
+
+    const prevTop = document.getElementById('student-prev-page-btn');
+    const prevBottom = document.getElementById('student-prev-page-btn-bottom');
+    const nextTop = document.getElementById('student-next-page-btn');
+    const nextBottom = document.getElementById('student-next-page-btn-bottom');
+
+    if (prevTop) prevTop.disabled = isPrevDisabled;
+    if (prevBottom) prevBottom.disabled = isPrevDisabled;
+    if (nextTop) nextTop.disabled = isNextDisabled;
+    if (nextBottom) nextBottom.disabled = isNextDisabled;
+};
+
 const renderStudentList = () => {
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     const isActiveYear = selectedYear === getActiveAcademicYearLabel();
 
-    const fCls = document.getElementById('filter-manage-class').value;
-    const fGen = document.getElementById('filter-manage-gender').value;
-    const fStatus = document.getElementById('filter-manage-status').value;
-    const sortType = document.getElementById('sort-manage-students').value;
-    const sTerm = document.getElementById('search-student-input').value.toLowerCase();
+    const fCls = document.getElementById('filter-manage-class')?.value || 'all';
+    const fGen = document.getElementById('filter-manage-gender')?.value || 'all';
+    const fStatus = document.getElementById('filter-manage-status')?.value || 'all';
+    const sortType = document.getElementById('sort-manage-students')?.value || 'name-asc';
+    const sTerm = document.getElementById('search-student-input')?.value?.toLowerCase().trim() || '';
     const cont = document.getElementById('student-list-container');
     const emptyState = document.getElementById('student-list-empty-state');
     const archiveBanner = document.getElementById('historical-archive-banner');
@@ -5269,7 +5327,8 @@ const renderStudentList = () => {
         }
     }
 
-    emptyState.classList.add('hidden'); cont.classList.remove('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
+    if (cont) cont.classList.remove('hidden');
 
     const yearStudents = getStudentsForYear(selectedYear);
 
@@ -5289,7 +5348,11 @@ const renderStudentList = () => {
         return match;
     });
 
-    if(fil.length === 0) { cont.innerHTML = '<p class="text-gray-500 p-4 text-center font-medium">No students found.</p>'; return; }
+    if(fil.length === 0) {
+        if (cont) cont.innerHTML = '<p class="text-gray-500 p-4 text-center font-medium">No students found.</p>';
+        updateStudentPaginationUI(0, 0, 0, 1);
+        return;
+    }
 
     const compareByAdmission = (a, b) => {
         const admA = a.adm ? a.adm.toString().trim() : ""; const admB = b.adm ? b.adm.toString().trim() : "";
@@ -5311,13 +5374,27 @@ const renderStudentList = () => {
         fil.sort(compareByAdmission);
     }
 
+    const totalCount = fil.length;
+    const effectivePageSize = studentManagePageSize > 0 ? studentManagePageSize : totalCount;
+    const totalPages = effectivePageSize > 0 ? Math.ceil(totalCount / effectivePageSize) : 1;
+
+    if (studentManagePage > totalPages) studentManagePage = totalPages || 1;
+    if (studentManagePage < 1) studentManagePage = 1;
+
+    const startIdx = studentManagePageSize > 0 ? (studentManagePage - 1) * studentManagePageSize : 0;
+    const endIdx = studentManagePageSize > 0 ? Math.min(startIdx + studentManagePageSize, totalCount) : totalCount;
+    const pagedStudents = studentManagePageSize > 0 ? fil.slice(startIdx, endIdx) : fil;
+
+    updateStudentPaginationUI(totalCount, startIdx, endIdx, totalPages);
+
     let html = `
     <table class="w-full text-sm text-left whitespace-nowrap">
         <thead class="table-header">
             <tr><th class="p-3 w-16 text-center">Sl. No</th><th class="p-3 w-16">Photo</th><th class="p-3">Adm.No</th><th class="p-3">Name</th><th class="p-3">Class, Gender & Status</th><th class="p-3">Mobile</th><th class="p-3 text-right">Actions</th></tr>
         </thead><tbody class="divide-y divide-gray-200">`;
 
-    fil.forEach((s, i) => {
+    pagedStudents.forEach((s, i) => {
+        const rowNumber = startIdx + i + 1;
         const status = normalizeStudentStatus(s.status);
         const stuPhoto = s.photo || s.profile?.photo || '';
         let actionButtons = '';
@@ -5338,7 +5415,7 @@ const renderStudentList = () => {
 
         html += `
         <tr class="hover:bg-gray-50 bg-white">
-            <td class="p-3 text-center font-bold text-gray-400">${i + 1}</td>
+            <td class="p-3 text-center font-bold text-gray-400">${rowNumber}</td>
             <td class="p-3">
                 <div class="relative inline-block">
                     <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 shadow-inner">
@@ -5366,27 +5443,60 @@ const renderStudentList = () => {
             </td>
         </tr>`;
     });
-    cont.innerHTML = html + `</tbody></table>`;
+    if (cont) cont.innerHTML = html + `</tbody></table>`;
 };
 document.getElementById('filter-manage-academic-year')?.addEventListener('change', () => {
+    studentManagePage = 1;
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     const yearClasses = getClassesForYear(selectedYear);
     const opts = yearClasses.map(c => `<option value="${c}">${c}</option>`).join('');
     const filterManage = document.getElementById('filter-manage-class');
     if (filterManage) {
         const prev = filterManage.value;
-        filterManage.innerHTML = `<option value="all">All Classes</option>` + opts + `<option value="ALUMNI">Alumni</option>`;
-        if (prev === 'all' || prev === 'ALUMNI' || prev === 'GRADUATED' || yearClasses.includes(prev)) {
+        const defaultClass = yearClasses[0] || '';
+        filterManage.innerHTML = opts + `<option value="ALUMNI">Alumni</option><option value="all">All Classes</option>`;
+        if (prev && (yearClasses.includes(prev) || prev === 'ALUMNI' || prev === 'all' || prev === 'GRADUATED')) {
             filterManage.value = (prev === 'GRADUATED') ? 'ALUMNI' : prev;
+        } else if (defaultClass) {
+            filterManage.value = defaultClass;
+        } else {
+            filterManage.value = 'all';
         }
     }
     renderStudentList();
 });
-document.getElementById('filter-manage-class').addEventListener('change', renderStudentList);
-document.getElementById('filter-manage-gender').addEventListener('change', renderStudentList);
-document.getElementById('filter-manage-status').addEventListener('change', renderStudentList);
-document.getElementById('search-student-input').addEventListener('input', renderStudentList);
-document.getElementById('sort-manage-students').addEventListener('change', renderStudentList);
+document.getElementById('filter-manage-class')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
+document.getElementById('filter-manage-gender')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
+document.getElementById('filter-manage-status')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
+document.getElementById('search-student-input')?.addEventListener('input', () => { studentManagePage = 1; renderStudentList(); });
+document.getElementById('sort-manage-students')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
+
+document.getElementById('student-page-size-select')?.addEventListener('change', (e) => {
+    studentManagePageSize = parseInt(e.target.value, 10);
+    if (isNaN(studentManagePageSize)) studentManagePageSize = 25;
+    studentManagePage = 1;
+    renderStudentList();
+});
+document.getElementById('student-prev-page-btn')?.addEventListener('click', () => {
+    if (studentManagePage > 1) {
+        studentManagePage--;
+        renderStudentList();
+    }
+});
+document.getElementById('student-prev-page-btn-bottom')?.addEventListener('click', () => {
+    if (studentManagePage > 1) {
+        studentManagePage--;
+        renderStudentList();
+    }
+});
+document.getElementById('student-next-page-btn')?.addEventListener('click', () => {
+    studentManagePage++;
+    renderStudentList();
+});
+document.getElementById('student-next-page-btn-bottom')?.addEventListener('click', () => {
+    studentManagePage++;
+    renderStudentList();
+});
 
 document.getElementById('student-list-container').addEventListener('click', e => {
     const downloadPhotoBtn = e.target.closest('.download-student-photo-btn');
@@ -12563,6 +12673,7 @@ document.getElementById('purge-confirm-execute-btn')?.addEventListener('click', 
                     appendPurgeProgressLog('Purging attendance collection...');
                     const purgedAttendance = await batchDeleteCollection(`${BASE_PATH}/attendance`);
                     try {
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceConfig'));
                         await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'attendanceSettings'));
                     } catch (e) {
                         console.warn('Attendance settings purge notice:', e);
@@ -12579,6 +12690,12 @@ document.getElementById('purge-confirm-execute-btn')?.addEventListener('click', 
                     const p3 = await batchDeleteCollection(`${BASE_PATH}/yearPlans`);
                     const p4 = await batchDeleteCollection(`${BASE_PATH}/syllabusDailyLogs`);
                     const p5 = await batchDeleteCollection(`${BASE_PATH}/examTimetables`);
+                    try {
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'timetableStructure'));
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'yearPlanConfig'));
+                    } catch (e) {
+                        console.warn('Timetable / yearPlan settings purge notice:', e);
+                    }
                     appendPurgeProgressLog(`Purged ${p1 + p2 + p3 + p4 + p5} academic curriculum and timetable records.`, true);
                     break;
                 }
@@ -12591,13 +12708,17 @@ document.getElementById('purge-confirm-execute-btn')?.addEventListener('click', 
                     const p3 = await batchDeleteCollection(`${BASE_PATH}/taskCompletions`);
                     const p4 = await batchDeleteCollection(`${BASE_PATH}/studentCustomBadges`);
                     const p5 = await batchDeleteCollection(`${BASE_PATH}/studentBonusPoints`);
+                    const p6 = await batchDeleteCollection(`${BASE_PATH}/rewardSettings`);
+                    const p7 = await batchDeleteCollection(`${BASE_PATH}/prayerSettings`);
                     try {
                         await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'rewardSettings'));
                         await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'prayerSettings'));
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'activityConfig'));
+                        await deleteDoc(doc(db, `${BASE_PATH}/settings`, 'taskDefinitions'));
                     } catch (e) {
                         console.warn('Reward settings purge notice:', e);
                     }
-                    appendPurgeProgressLog(`Purged ${p1 + p2 + p3 + p4 + p5} activity records and reset settings.`, true);
+                    appendPurgeProgressLog(`Purged ${p1 + p2 + p3 + p4 + p5 + p6 + p7} activity records and reset settings.`, true);
                     break;
                 }
 

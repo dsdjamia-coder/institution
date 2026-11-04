@@ -211,6 +211,39 @@ if (document.readyState === 'loading') {
 
 export const normalizePhone = (value = '') => value.toString().replace(/\D/g, '');
 
+export const normalizeStudentEntity = (raw = {}) => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const id = String(raw.id || '').trim();
+    const adm = String(raw.adm || raw.admNo || raw.admissionNo || raw.admissionNumber || id).trim();
+    const rollNo = String(raw.rollNo ?? raw.roll ?? '').trim();
+    const name = String(raw.name || raw.studentName || '').trim();
+    const studentClass = String(raw.class || raw.className || raw.studentClass || '').trim();
+    const mobile = String(raw.mobile || raw.phone || raw.contact || raw.guardianPhone || '').trim();
+    const father = String(raw.father || raw.guardian || raw.parentName || '').trim();
+    const passedOutYear = String(raw.passedOutYear || raw.graduatedYear || '').trim();
+    const isAlumni = raw.isAlumni === true || raw.status === 'Alumni' || studentClass.toUpperCase() === 'ALUMNI' || studentClass.toUpperCase() === 'GRADUATED';
+    const status = isAlumni ? 'Alumni' : (raw.status || 'Active');
+    return {
+        ...raw,
+        id,
+        adm,
+        admNo: adm,
+        admissionNo: adm,
+        rollNo,
+        roll: rollNo,
+        name,
+        class: studentClass,
+        studentClass,
+        className: studentClass,
+        mobile,
+        phone: mobile,
+        father,
+        passedOutYear,
+        isAlumni,
+        status
+    };
+};
+
 export const fitTextToContainer = (elementId, minFontSize = 12) => {
     const el = document.getElementById(elementId);
     if (!el || !el.parentElement) return;

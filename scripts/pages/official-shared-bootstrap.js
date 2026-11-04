@@ -7277,7 +7277,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         authConfigSnap,
         pageAccessSnap,
         academicYearsSnap,
-        feeItemsSnap,
         paymentsSnap,
         examsSnap,
         marksSnap
@@ -7291,19 +7290,20 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         getDoc(doc(db, `${BASE_PATH}/settings`, 'categoryAuthConfig')),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'pageAccess')),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears')),
-        getDocs(collection(db, `${BASE_PATH}/feeItems`)).catch(() => ({ docs: [] })),
         getDocs(collection(db, `${BASE_PATH}/payments`)).catch(() => ({ docs: [] })),
-        getDocs(collection(db, `${BASE_PATH}/exams`)).catch(() => ({ docs: [] })),
-        getDocs(collection(db, `${BASE_PATH}/marks`)).catch(() => ({ docs: [] }))
+        getDocs(collection(db, `${BASE_PATH}/resultSchemas`)).catch(() => ({ docs: [] })),
+        getDocs(collection(db, `${BASE_PATH}/examResults`)).catch(() => ({ docs: [] }))
       ]);
       allStudents = studentsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       allStaff = staffSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       syncLiveStaffSession();
       studentGroups = groupsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       directoryEntries = dirSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      allFeeItems = feeItemsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      const configData = configSnap.exists() ? (configSnap.data() || {}) : {};
+      const rawFeeItems = Array.isArray(configData.feeItems) ? configData.feeItems : [];
+      allFeeItems = rawFeeItems.map((fi) => ({ id: fi.key || fi.id, name: fi.name || fi.label, ...fi }));
       allPayments = paymentsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      allExams = examsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      allExams = examsSnap.docs.map((docSnap) => ({ id: docSnap.id, name: docSnap.data().classLabel || docSnap.id, ...docSnap.data() }));
       allMarks = {};
       marksSnap.docs.forEach((docSnap) => {
         allMarks[docSnap.id] = docSnap.data();
