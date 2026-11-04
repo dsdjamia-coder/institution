@@ -764,6 +764,7 @@ const handleLogout = () => {
 document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
 document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout);
 document.getElementById('mobile-logout-btn')?.addEventListener('click', handleLogout);
+document.getElementById('mobile-more-logout-btn')?.addEventListener('click', handleLogout);
 
 // --- Sidebar Management (Attendance / Admin Style) ---
 const isDesktop = () => window.innerWidth >= 1024;
@@ -822,28 +823,30 @@ const startLiveClock = () => {
 initSidebarState();
 startLiveClock();
 
-// --- Mobile Navigation Dropdown Management ---
-const mobileMenuBtn = document.getElementById('result-mobile-menu-btn');
-const mobileDropdown = document.getElementById('mobile-nav-dropdown');
-
-const closeMobileNavDropdown = () => {
-    if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
-        mobileDropdown.classList.add('hidden');
+// --- Mobile More Actions Bottom Sheet ---
+const moreSheet = document.getElementById('result-more-sheet');
+const closeMoreSheet = () => {
+    if (moreSheet) {
+        moreSheet.classList.add('hidden');
+        moreSheet.classList.remove('flex');
     }
 };
 
-mobileMenuBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (mobileDropdown) {
-        mobileDropdown.classList.toggle('hidden');
+document.getElementById('btn-result-more')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (moreSheet) {
+        moreSheet.classList.remove('hidden');
+        moreSheet.classList.add('flex');
     }
 });
 
-document.addEventListener('click', (e) => {
-    if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
-        if (!mobileDropdown.contains(e.target) && !mobileMenuBtn?.contains(e.target)) {
-            closeMobileNavDropdown();
-        }
+document.getElementById('btn-close-result-more')?.addEventListener('click', () => {
+    closeMoreSheet();
+});
+
+moreSheet?.addEventListener('click', (e) => {
+    if (e.target === moreSheet) {
+        closeMoreSheet();
     }
 });
 
@@ -852,7 +855,7 @@ document.getElementById('drawer-overlay')?.addEventListener('click', () => setSi
 
 window.addEventListener('resize', () => {
     if (isDesktop()) {
-        closeMobileNavDropdown();
+        closeMoreSheet();
         const stored = localStorage.getItem('result_sidebar_collapsed');
         setSidebarCollapsed(stored === 'true');
     } else {
@@ -869,12 +872,17 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     const targetSubtab = tabEl.dataset.subtab;
     const targetHref = tabEl.getAttribute('href');
 
-    // Sync active class on all matching links across drawer and mobile dropdown
-    document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach((link) => {
+    // Sync active class on all matching links across drawer, bottom nav, and more sheet
+    document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach((link) => {
         const isMatch = (targetId && link.dataset.target === targetId && (!targetSubtab || link.dataset.subtab === targetSubtab)) ||
                         (targetHref && link.getAttribute('href') === targetHref);
         link.classList.toggle('active', !!isMatch);
     });
+
+    // Overflow tabs highlight the "More" button on bottom nav
+    const isOverflowActive = ['report-cards-page', 'promotion-page', 'snapshot-page', 'settings-page'].includes(targetId);
+    const moreBtn = document.getElementById('btn-result-more');
+    if (moreBtn) moreBtn.classList.toggle('active', isOverflowActive);
 
     document.querySelectorAll('.settings-nav-link').forEach((link) => {
         if (targetSubtab && link.dataset.subtab === targetSubtab) {
@@ -891,7 +899,7 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     const targetPage = targetId ? document.getElementById(targetId) : null;
     if (targetPage) targetPage.classList.remove('hidden');
 
-    closeMobileNavDropdown();
+    closeMoreSheet();
 
     // Reset viewport scroll to top cleanly and ensure scroll lock is removed
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -941,9 +949,9 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     }
 };
 
-document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach((tab) => {
+document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach((tab) => {
     tab.addEventListener('click', (e) => {
-        if (tab.id === 'logout-btn' || tab.id === 'sidebar-logout-btn' || tab.id === 'mobile-logout-btn') return;
+        if (tab.id === 'logout-btn' || tab.id === 'sidebar-logout-btn' || tab.id === 'mobile-logout-btn' || tab.id === 'mobile-more-logout-btn') return;
         const href = tab.getAttribute('href');
         if (href && !href.startsWith('#')) return;
 
@@ -973,7 +981,7 @@ window.addEventListener('hashchange', () => {
     if (hash === '#settings' || hash === '#settings-page') {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             if (typeof activateSettingsSubpanel === 'function') {
@@ -983,7 +991,7 @@ window.addEventListener('hashchange', () => {
             return;
         }
     }
-    const tab = Array.from(document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link')).find((entry) => entry.getAttribute('href') === hash);
+    const tab = Array.from(document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]')).find((entry) => entry.getAttribute('href') === hash);
     if (tab) {
         activateResultTab(tab, { updateHash: false });
         return;
@@ -992,7 +1000,7 @@ window.addEventListener('hashchange', () => {
     if (settingsLink) {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             if (typeof activateSettingsSubpanel === 'function') {
@@ -1019,7 +1027,7 @@ if (window.location.hash) {
     } else if (hash === '#settings' || hash === '#settings-page') {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             if (typeof activateSettingsSubpanel === 'function') {
@@ -1028,7 +1036,7 @@ if (window.location.hash) {
             }
         }
     } else {
-        const initialTab = Array.from(document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link')).find((entry) => entry.getAttribute('href') === hash);
+        const initialTab = Array.from(document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]')).find((entry) => entry.getAttribute('href') === hash);
         if (initialTab) {
             activateResultTab(initialTab, { updateHash: false });
         } else {
@@ -1036,7 +1044,7 @@ if (window.location.hash) {
             if (settingsLink) {
                 const settingsPage = document.getElementById('settings-page');
                 if (settingsPage) {
-                    document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach(t => t.classList.remove('active'));
                     pages.forEach(p => p.classList.add('hidden'));
                     settingsPage.classList.remove('hidden');
                     if (typeof activateSettingsSubpanel === 'function') {
@@ -7221,7 +7229,7 @@ document.querySelectorAll('.settings-nav-link').forEach((link) => {
         // Switch main page to settings-page
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage) {
-            document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target], .result-more-tile[data-target]').forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.add('hidden'));
             settingsPage.classList.remove('hidden');
             document.body.classList.remove('marks-entry-active');
@@ -7239,8 +7247,8 @@ document.querySelectorAll('.settings-nav-link').forEach((link) => {
             }
         }
         
-        // Close menu
-        closeMobileNavDropdown();
+        // Close sheet
+        closeMoreSheet();
     });
 });
 
@@ -7279,7 +7287,7 @@ document.addEventListener('keydown', (e) => {
             modal.style.display = 'none';
         });
         document.body.classList.remove('modal-scroll-lock');
-        closeMobileNavDropdown();
+        closeMoreSheet();
     }
 });
 
