@@ -6,6 +6,13 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-c
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
 // --- State Variables ---
 let isSuperAdmin = false;
 let currentStaffName = 'Staff Member';
@@ -432,21 +439,18 @@ const initTabNavigation = () => {
             const tabId = link.dataset.tab;
             if (tabId) {
                 activateTab(tabId);
-                const hash = link.getAttribute('href');
-                if (hash && window.location.hash !== hash) {
-                    history.pushState(null, '', hash);
+                // Maintain clean URL without lingering hash fragments
+                if (window.location.hash) {
+                    try {
+                        history.replaceState(null, '', window.location.pathname + window.location.search);
+                    } catch (_) {}
                 }
             }
         });
     });
 
-    const hash = window.location.hash;
-    if (hash === '#timetable') activateTab('tab-timetable');
-    else if (hash === '#year-plan' || hash === '#yearplan') activateTab('tab-yearplan');
-    else if (hash === '#syllabus-tracker') activateTab('tab-syllabus-tracker');
-    else if (hash === '#exam-schedule') activateTab('tab-exam-schedule');
-    else if (hash === '#master-timetable') activateTab('tab-master-timetable');
-    else activateTab('tab-subjects');
+    // Always default to Class Subjects tab on clean page load
+    activateTab('tab-subjects');
 };
 
 // --- Clock Display ---

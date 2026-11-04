@@ -4225,6 +4225,17 @@
 
     <script src="scripts/shared/hub-navigation.js"></script>
     <script type="module" src="scripts/pages/admin-page.js"></script>
+    <script>
+        // Global safety failsafe to ensure auth-loader is never stuck on refresh
+        setTimeout(() => {
+            const loader = document.getElementById('auth-loader');
+            const app = document.getElementById('admin-app');
+            if (loader && loader.style.display !== 'none') {
+                loader.style.display = 'none';
+                if (app) app.style.display = 'block';
+            }
+        }, 800);
+    </script>
 
 </body>
 </html>

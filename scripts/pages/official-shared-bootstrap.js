@@ -4,6 +4,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     import { BASE_PATH, applyCachedInstitutionLogo, escapeHtml, rememberInstitutionLogo, sanitizeUrl } from '../shared/app-common.js';
     import { registerPortalForPwa } from '../shared/pwa-install.js';
 
+    // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+    if (typeof window !== 'undefined' && window.location && window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+    }
+
     let allStudents = [];
     let allStaff = [];
     let studentGroups = [];

@@ -11,6 +11,13 @@ hardenExternalLinks();
 enableSmartSelectWindowing(document, { visibleCount: 6 });
 applyCachedInstitutionLogo(['admin-header-logo', 'admin-loader-logo']);
 
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
 let isStaffAdminSession = false;
 let staffAdminRecord = null;
 
@@ -2237,9 +2244,11 @@ const activateAdminPage = (targetId, options = {}) => {
         if (typeof updateBackupSelectionUI === 'function') updateBackupSelectionUI();
     }
 
-    if(pushHistory) {
-        const nextHash = `#${targetId}`;
-        if(window.location.hash !== nextHash) history.pushState({ adminTab: targetId }, '', nextHash);
+    // Maintain clean URL without lingering hash fragments
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     if (!isDesktop()) toggleDrawer(false);
@@ -2251,40 +2260,32 @@ document.querySelectorAll('.nav-link').forEach(link => {
         e.preventDefault();
         if(e.currentTarget.hasAttribute('target')) { window.open(e.currentTarget.href, '_blank'); return; }
         const targetId = e.currentTarget.getAttribute('href').substring(1);
-        activateAdminPage(targetId, { pushHistory: true });
+        activateAdminPage(targetId, { pushHistory: false });
     });
 });
 
 document.querySelectorAll('.admin-quick-action').forEach((button) => {
-    button.addEventListener('click', () => activateAdminPage(button.dataset.targetPage, { pushHistory: true }));
+    button.addEventListener('click', () => activateAdminPage(button.dataset.targetPage, { pushHistory: false }));
 });
 
 window.addEventListener('hashchange', () => {
-    if (isResultOperatorSession) {
-        enforceResultOperatorModeUI();
-        renderResultManagement();
-        syncDrawerForResultManagement('results');
-        return;
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
     }
-    const targetId = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
-    activateAdminPage(targetId, { pushHistory: false, suppressDeniedAlert: true });
+    activateAdminPage('dashboard', { pushHistory: false, suppressDeniedAlert: true });
 });
 window.addEventListener('popstate', () => {
-    if (isResultOperatorSession) {
-        enforceResultOperatorModeUI();
-        renderResultManagement();
-        syncDrawerForResultManagement('results');
-        return;
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
     }
-    const targetId = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
-    activateAdminPage(targetId, { pushHistory: false, suppressDeniedAlert: true });
+    activateAdminPage('dashboard', { pushHistory: false, suppressDeniedAlert: true });
 });
 document.getElementById('admin-public-btn')?.addEventListener('click', () => window.logoutAdmin());
-if (window.location.hash === '#results') {
-    activateAdminPage('results', { pushHistory: false, suppressDeniedAlert: true });
-} else {
-    activateAdminPage((window.location.hash || '#dashboard').replace('#', '') || 'dashboard', { pushHistory: false, suppressDeniedAlert: true });
-}
+activateAdminPage('dashboard', { pushHistory: false, suppressDeniedAlert: true });
 
 // --- ADMIN PHOTO WIDGET HANDLING ---
 let adminInteractiveCropper = null;

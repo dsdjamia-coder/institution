@@ -1,4 +1,11 @@
 (function () {
+    // Clean URL Guard: Strip any lingering hash fragment on load/refresh so the page starts cleanly at base .html
+    if (typeof window !== 'undefined' && window.location && window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+    }
+
     const DEFAULT_SESSION_MAX_AGE_MS = 1000 * 60 * 15;
     const DEFAULT_SESSION_IDLE_MAX_AGE_MS = 1000 * 60 * 10;
     const ROLE_SESSION_POLICY = {

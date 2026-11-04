@@ -1892,14 +1892,15 @@
     <script src="scripts/shared/hub-navigation.js"></script>
     <script type="module" src="scripts/pages/result-page.js"></script>
     <script>
-        // Failsafe dismiss loading screen if any delay occurs
+        // Global safety failsafe to ensure loading screen is never stuck
         setTimeout(() => {
             const loader = document.getElementById('loading-screen');
             if (loader && loader.style.display !== 'none') {
+                loader.style.pointerEvents = 'none';
                 loader.style.opacity = '0';
-                setTimeout(() => { loader.style.display = 'none'; }, 300);
+                setTimeout(() => { loader.style.display = 'none'; }, 200);
             }
-        }, 2500);
+        }, 600);
     </script>
 
 </body>

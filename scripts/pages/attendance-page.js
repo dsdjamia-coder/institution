@@ -5,6 +5,13 @@ import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
 // --- State Variables ---
 let isSuperAdmin = false;
 let currentStaffName = 'Staff Member';
@@ -233,27 +240,18 @@ const setupNavigationTabs = () => {
             const targetTabId = link.dataset.tab;
             if (targetTabId) {
                 activateTab(targetTabId);
-                const hash = link.getAttribute('href');
-                if (hash) {
-                    history.replaceState(null, '', hash);
+                // Maintain clean URL without lingering hash fragments
+                if (window.location.hash) {
+                    try {
+                        history.replaceState(null, '', window.location.pathname + window.location.search);
+                    } catch (_) {}
                 }
             }
         });
     });
 
-    // Initial tab based on URL hash
-    const currentHash = window.location.hash;
-    if (currentHash === '#monthly') {
-        activateTab('tab-monthly');
-    } else if (currentHash === '#analytics') {
-        activateTab('tab-analytics');
-    } else if (currentHash === '#session') {
-        activateTab('tab-session');
-    } else if (currentHash === '#calendar') {
-        activateTab('tab-calendar');
-    } else {
-        activateTab('tab-daily');
-    }
+    // Always default to Daily Attendance tab on clean page load
+    activateTab('tab-daily');
 };
 
 

@@ -4,6 +4,13 @@ import { db, auth } from '../../config/firebase-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
 // --- State Variables ---
 let isSuperAdmin = false;
 let currentStaffName = 'Staff Member';
@@ -246,9 +253,11 @@ const initTabNavigation = () => {
             const tabId = link.dataset.tab;
             if (tabId) {
                 activateTab(tabId);
-                const hash = link.getAttribute('href');
-                if (hash && window.location.hash !== hash) {
-                    history.pushState(null, '', hash);
+                // Maintain clean URL without lingering hash fragments
+                if (window.location.hash) {
+                    try {
+                        history.replaceState(null, '', window.location.pathname + window.location.search);
+                    } catch (_) {}
                 }
             }
         });
@@ -261,9 +270,10 @@ const initTabNavigation = () => {
             const target = quickNav.dataset.target;
             if (target) {
                 activateTab(target);
-                const hash = target.replace('tab-', '#');
-                if (hash && window.location.hash !== hash) {
-                    history.pushState(null, '', hash);
+                if (window.location.hash) {
+                    try {
+                        history.replaceState(null, '', window.location.pathname + window.location.search);
+                    } catch (_) {}
                 }
             }
             return;
@@ -287,12 +297,8 @@ const initTabNavigation = () => {
         }
     });
 
-    const hash = window.location.hash;
-    if (hash === '#task-setup') activateTab('tab-task-setup');
-    else if (hash === '#tasks') activateTab('tab-tasks');
-    else if (hash === '#prayer') activateTab('tab-prayer');
-    else if (hash === '#rewards') activateTab('tab-rewards');
-    else activateTab('tab-dashboard');
+    // Always default to Dashboard tab on clean page load
+    activateTab('tab-dashboard');
 };
 
 // --- Clock Display ---

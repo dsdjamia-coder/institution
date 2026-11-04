@@ -36,17 +36,28 @@ let currentDraftFilter = 'all';
 let currentPublishedFilter = 'all';
 let viewingResultId = '';
 
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
 const dismissLoadingScreen = () => {
     document.getElementById('result-fatal-error')?.classList.add('hidden');
     const loader = document.getElementById('loading-screen');
     if (!loader || loader.style.display === 'none') return;
+    loader.style.pointerEvents = 'none';
     loader.style.opacity = '0';
     setTimeout(() => { loader.style.display = 'none'; }, 200);
 };
 
-window.addEventListener('load', () => {
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
     dismissLoadingScreen();
-});
+} else {
+    window.addEventListener('DOMContentLoaded', dismissLoadingScreen, { once: true });
+    window.addEventListener('load', dismissLoadingScreen, { once: true });
+}
 
 const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
 const isClassInDutyScope = (clsName = '', dutyList = []) => {
@@ -688,6 +699,7 @@ const bootstrapSessionAccess = () => {
                 label: window.AppSession?.getStaffName?.() || (isFullAdmin ? 'ADMINISTRATOR' : 'RESULT OPERATOR'),
                 staffDoc: sessionStaffAccess
             });
+            dismissLoadingScreen();
         }
     }
 };
@@ -921,8 +933,11 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
         document.body.classList.remove('marks-entry-active');
     }
 
-    if (updateHash && targetHref?.startsWith('#')) {
-        if (window.location.hash !== targetHref) history.pushState({}, '', targetHref);
+    // Maintain clean URL without lingering hash fragments
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
     }
 };
 

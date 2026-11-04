@@ -13,6 +13,13 @@ import { initCollectionSettingsModule } from './collection/settings-module.js';
 import { initMasterLedgerModule, updateMasterLedgerData } from './collection/master-ledger-module.js';
 import { initSharedFeeModal, openFeeEntryEditModal } from './collection/shared-fee-modal.js';
 
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
+
 // --- GLOBAL STATE (Initialized early to prevent Temporal Dead Zone ReferenceErrors) ---
 let isCurrentAdmin = false;
 let currentUserEmail = '';
@@ -260,11 +267,11 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         }
     }
 
-    if (updateHash) {
-        const nextHash = activeLink.getAttribute('href');
-        if (nextHash && window.location.hash !== nextHash) {
-            history.pushState({ collectionTab: safeTargetId }, '', nextHash);
-        }
+    // Maintain clean URL without lingering hash fragments
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
     }
 
     setMobileMenuState(false);
@@ -279,18 +286,28 @@ links.forEach(link => {
     link.addEventListener('click', (e) => {
         if (!link.dataset.target) return;
         e.preventDefault();
-        activateTab(link.dataset.target);
+        activateTab(link.dataset.target, { updateHash: false });
     });
 });
 
 window.addEventListener('hashchange', () => {
-    activateTab(getTargetFromHash(window.location.hash), { updateHash: false });
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+    }
+    activateTab(defaultTabId, { updateHash: false });
 });
 window.addEventListener('popstate', () => {
-    activateTab(getTargetFromHash(window.location.hash), { updateHash: false });
+    if (window.location.hash) {
+        try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+    }
+    activateTab(defaultTabId, { updateHash: false });
 });
 
-activateTab(getTargetFromHash(window.location.hash), { updateHash: false });
+activateTab(defaultTabId, { updateHash: false });
 applyTabVisibilityPreferences();
 readTabPrefsFromCloud().then((cloudPrefs) => {
     if (!cloudPrefs) return;
