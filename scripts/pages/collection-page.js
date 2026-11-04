@@ -146,7 +146,9 @@ const setCollectionSidebarCollapsed = (collapsed) => {
     const app = document.getElementById('collection-app');
     if (!app) return;
     app.classList.toggle('sidebar-collapsed', collapsed);
-    localStorage.setItem('collection_sidebar_collapsed', collapsed ? 'true' : 'false');
+    if (isCollectionDesktop()) {
+        localStorage.setItem('collection_sidebar_collapsed', collapsed ? 'true' : 'false');
+    }
     if (!isCollectionDesktop() && collectionOverlay) {
         if (!collapsed) {
             collectionOverlay.classList.remove('hidden');
@@ -169,12 +171,15 @@ const initCollectionSidebarState = () => {
         setCollectionSidebarCollapsed(true);
     } else {
         const stored = localStorage.getItem('collection_sidebar_collapsed');
+        // Default to expanded (false) on desktop unless explicitly set to 'true'
         setCollectionSidebarCollapsed(stored === 'true');
     }
 };
 
 const setMobileMenuState = (isOpen) => {
-    setCollectionSidebarCollapsed(!isOpen);
+    if (!isCollectionDesktop()) {
+        setCollectionSidebarCollapsed(!isOpen);
+    }
 };
 
 document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
@@ -797,8 +802,8 @@ document.getElementById('tab-settings-save-btn')?.addEventListener('click', () =
     document.getElementById('tab-settings-popup')?.classList.add('hidden');
 });
 
-document.getElementById('open-profile-btn')?.addEventListener('click', (e) => {
-    e.preventDefault();
+const openProfileHandler = (e) => {
+    if (e) e.preventDefault();
     const searchKey = getCollectorKey();
     const myData = allStaff.find(s => normalizeEmail(s.email) === searchKey || String(s.loginId || '').toLowerCase() === searchKey || normalizeEmail(s.name) === searchKey);
     const staffAccess = window.AppSession?.getStaffAccess?.();
@@ -833,7 +838,10 @@ document.getElementById('open-profile-btn')?.addEventListener('click', (e) => {
 
     // Close Mobile Menu / Sidebar if Open
     setMobileMenuState(false);
-});
+};
+
+document.getElementById('open-profile-btn')?.addEventListener('click', openProfileHandler);
+document.getElementById('header-user-badge')?.addEventListener('click', openProfileHandler);
 
 document.getElementById('logout-btn')?.addEventListener('click', () => {
     signOut(auth).then(async () => {
