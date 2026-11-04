@@ -182,8 +182,42 @@ const setMobileMenuState = (isOpen) => {
     }
 };
 
-document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
+const collectionMoreSheet = document.getElementById('collection-more-sheet');
+
+const closeCollectionMoreSheet = () => {
+    if (collectionMoreSheet) {
+        collectionMoreSheet.classList.add('hidden');
+        collectionMoreSheet.classList.remove('flex');
+    }
+};
+
+const openCollectionMoreSheet = () => {
+    if (collectionMoreSheet) {
+        collectionMoreSheet.classList.remove('hidden');
+        collectionMoreSheet.classList.add('flex');
+    }
+};
+
+document.getElementById('sidebar-collapse-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     toggleCollectionSidebarState();
+});
+document.getElementById('btn-collection-more')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openCollectionMoreSheet();
+});
+document.getElementById('btn-close-collection-more')?.addEventListener('click', () => {
+    closeCollectionMoreSheet();
+});
+collectionMoreSheet?.addEventListener('click', (e) => {
+    if (e.target === collectionMoreSheet) {
+        closeCollectionMoreSheet();
+    }
+});
+document.getElementById('mobile-more-logout-btn')?.addEventListener('click', () => {
+    closeCollectionMoreSheet();
+    document.getElementById('logout-btn')?.click();
 });
 document.getElementById('collection-mobile-menu-btn')?.addEventListener('click', () => {
     setCollectionSidebarCollapsed(false);
@@ -194,9 +228,20 @@ document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
 collectionOverlay?.addEventListener('click', () => setCollectionSidebarCollapsed(true));
 
 window.addEventListener('resize', () => {
-    if (isCollectionDesktop() && collectionOverlay && !collectionOverlay.classList.contains('hidden')) {
-        collectionOverlay.classList.add('opacity-0');
-        collectionOverlay.classList.add('hidden');
+    if (isCollectionDesktop()) {
+        closeCollectionMoreSheet();
+        if (collectionOverlay && !collectionOverlay.classList.contains('hidden')) {
+            collectionOverlay.classList.add('opacity-0');
+            collectionOverlay.classList.add('hidden');
+        }
+        let isCollapsed = false;
+        try {
+            const stored = localStorage.getItem('collection_sidebar_collapsed');
+            if (stored !== null) isCollapsed = stored === 'true';
+        } catch (_) {}
+        setCollectionSidebarCollapsed(isCollapsed);
+    } else {
+        setCollectionSidebarCollapsed(true);
     }
 });
 
@@ -220,7 +265,7 @@ const linkItems = links.map((link) => ({
     listItem: link.closest('li') || link,
     isBottomNav: link.dataset.bottomNav === 'true'
 }));
-const getToggleableLinks = () => linkItems.filter((item) => item.target && !item.isBottomNav && !NON_TOGGLE_TAB_TARGETS.has(item.target));
+const getToggleableLinks = () => linkItems.filter((item) => item.target && !item.isBottomNav && !item.link.classList.contains('collection-more-tile') && !NON_TOGGLE_TAB_TARGETS.has(item.target));
 
 const isSubTabAllowedAndVisible = (targetId) => {
     if (targetId === 'collector-wise-monthly-page' && !isCurrentAdmin) return false;
@@ -289,6 +334,25 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         link.classList.toggle('active', isActive);
         link.setAttribute('aria-current', isActive ? 'page' : 'false');
     });
+
+    document.querySelectorAll('.collection-more-tile').forEach(tile => {
+        const isActive = tile.dataset.target === safeTargetId;
+        tile.classList.toggle('active', isActive);
+    });
+
+    const OVERFLOW_COLLECTION_TABS = new Set([
+        'monthly-collected-page',
+        'fee-page',
+        'master-ledger-page',
+        'bulk-upload-page',
+        'donation-page',
+        'conc-group-page',
+        'collector-wise-monthly-page'
+    ]);
+    const isOverflowActive = OVERFLOW_COLLECTION_TABS.has(safeTargetId);
+    document.getElementById('btn-collection-more')?.classList.toggle('active', isOverflowActive);
+
+    closeCollectionMoreSheet();
 
     pages.forEach(page => {
         page.classList.toggle('hidden', page.id !== safeTargetId);
@@ -5351,6 +5415,10 @@ onAuthStateChanged(auth, async (user) => {
         const payload = snap.exists() ? snap.data() : {};
         academicYearSettings = Array.isArray(payload.years) ? payload.years : [];
         currentWorkingAcademicYear = payload.currentYear || currentWorkingAcademicYear || '';
+        const yearHeaderEl = document.getElementById('header-active-year');
+        if (yearHeaderEl) {
+            yearHeaderEl.textContent = currentWorkingAcademicYear || 'Loading Session...';
+        }
         applyCurrentYearStudentScope();
         populateClassDropdowns();
         populateFeeStatusAcademicYears();
