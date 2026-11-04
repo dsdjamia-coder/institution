@@ -74,7 +74,15 @@
       color: #ffffff !important;
     }
 
+    .evaluation-bottom-nav {
+      display: none;
+    }
+
     @media (min-width: 1024px) {
+      #evaluation-bottom-nav,
+      #evaluation-more-sheet {
+        display: none !important;
+      }
       #evaluation-app.has-desktop-sidebar #side-drawer {
         transform: translateX(0) !important;
       }
@@ -126,16 +134,82 @@
     }
 
     @media (max-width: 1023px) {
-      #evaluation-app.sidebar-collapsed #side-drawer {
-        transform: translateX(-100%) !important;
-      }
-      #evaluation-app:not(.sidebar-collapsed) #side-drawer {
-        transform: translateX(0) !important;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+      /* Mobile: Hide side drawer, overlay, and header hamburger button */
+      #side-drawer,
+      #drawer-overlay,
+      #evaluation-mobile-menu-btn {
+        display: none !important;
       }
       .evaluation-main-wrapper, .attendance-sticky-header {
         margin-left: 0 !important;
         width: 100% !important;
+      }
+      .evaluation-main-wrapper {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+      .evaluation-bottom-nav {
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        z-index: 40;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        align-items: center;
+        gap: 4px;
+        padding: 5px 4px 6px;
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.97);
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(16px);
+      }
+      .bottom-nav-link {
+        position: relative;
+        min-width: 0;
+        min-height: 48px;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        color: #64748b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        font-size: 10px;
+        font-weight: 700;
+        text-align: center;
+        transition: all 0.2s ease;
+        padding: 4px 2px;
+        text-decoration: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bottom-nav-link i {
+        font-size: 16px;
+        line-height: 1;
+        transition: all 0.2s ease;
+      }
+      .bottom-nav-link span {
+        line-height: 1.1;
+        white-space: nowrap;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .bottom-nav-link.active {
+        background: #e11d48 !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px rgba(225, 29, 72, 0.35);
+      }
+      .bottom-nav-link.active i,
+      .bottom-nav-link.active span {
+        color: #ffffff !important;
+        font-weight: 800;
+      }
+      .bottom-nav-link.active #bottom-pending-badge {
+        background: #ffffff !important;
+        color: #e11d48 !important;
       }
     }
 
@@ -767,6 +841,80 @@
       <div class="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
         <button type="button" class="btn-close-modal px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs cursor-pointer" data-modal="modal-confirm-action">Cancel</button>
         <button type="button" id="btn-confirm-action-ok" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs transition shadow-sm cursor-pointer">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MOBILE BOTTOM NAVIGATION (Phones only)     -->
+  <!-- ========================================== -->
+  <nav id="evaluation-bottom-nav" class="evaluation-bottom-nav" aria-label="Mobile Navigation">
+    <button type="button" class="bottom-nav-link active" data-tab="tab-live" aria-label="Live Classroom Evaluation">
+      <i class="fas fa-users-viewfinder"></i>
+      <span>Live Board</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-impositions" aria-label="Pending Tasks and Impositions">
+      <div class="relative inline-flex items-center justify-center">
+        <i class="fas fa-list-check"></i>
+        <span id="bottom-pending-badge" class="absolute -top-1.5 -right-2 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-rose-600 text-white hidden">0</span>
+      </div>
+      <span>Pending</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-analytics" aria-label="Monthly Register and Reports">
+      <i class="fas fa-chart-pie"></i>
+      <span>Register</span>
+    </button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-settings" aria-label="Subjects and Rubrics Setup">
+      <i class="fas fa-sliders"></i>
+      <span>Setup</span>
+    </button>
+    <button type="button" id="btn-evaluation-more" class="bottom-nav-link" aria-label="More Options">
+      <i class="fas fa-ellipsis"></i>
+      <span>More</span>
+    </button>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- MOBILE MORE ACTIONS BOTTOM SHEET           -->
+  <!-- ========================================== -->
+  <div id="evaluation-more-sheet" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center">
+    <div id="evaluation-more-backdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"></div>
+    <div class="relative z-10 w-full max-w-sm mx-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-5 overflow-hidden animate-in slide-in-from-bottom duration-200">
+      <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-3 sm:hidden"></div>
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-xs font-bold">
+            <i class="fas fa-ellipsis"></i>
+          </div>
+          <h3 class="font-extrabold text-slate-900 text-sm">More Options</h3>
+        </div>
+        <button id="btn-close-more-sheet" type="button" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer" aria-label="Close More Menu">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <a href="official.html" class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs transition">
+          <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-sm">
+            <i class="fas fa-th-large"></i>
+          </div>
+          <div class="min-w-0 text-left">
+            <div class="font-bold text-slate-900 text-xs">Official Hub</div>
+            <div class="text-[10px] text-slate-500 font-medium">Return to institution portal</div>
+          </div>
+          <i class="fas fa-chevron-right ml-auto text-slate-400 text-xs"></i>
+        </a>
+
+        <button id="mobile-more-logout-btn" type="button" class="w-full flex items-center gap-3 p-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs transition cursor-pointer text-left">
+          <div class="w-9 h-9 rounded-xl bg-rose-200/80 text-rose-700 flex items-center justify-center shrink-0 text-sm">
+            <i class="fas fa-power-off"></i>
+          </div>
+          <div class="min-w-0 text-left">
+            <div class="font-bold text-rose-900 text-xs">Sign Out</div>
+            <div class="text-[10px] text-rose-600 font-medium">Safely end this session</div>
+          </div>
+          <i class="fas fa-chevron-right ml-auto text-rose-400 text-xs"></i>
+        </button>
       </div>
     </div>
   </div>

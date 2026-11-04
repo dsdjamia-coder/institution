@@ -250,6 +250,20 @@ const switchTab = (tabId) => {
         }
     });
 
+    document.querySelectorAll('.bottom-nav-link[data-tab]').forEach((btn) => {
+        if (btn.getAttribute('data-tab') === tabId) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    const moreSheet = document.getElementById('evaluation-more-sheet');
+    if (moreSheet) {
+        moreSheet.classList.add('hidden');
+        moreSheet.classList.remove('flex');
+    }
+
     if (!isDesktop()) {
         setSidebarCollapsed(true);
     }
@@ -1283,14 +1297,16 @@ const renderImpositionsList = () => {
     if (countPendingEl) countPendingEl.textContent = activePending.length;
 
     const drawerBadge = document.getElementById('drawer-pending-badge');
-    if (drawerBadge) {
+    const bottomBadge = document.getElementById('bottom-pending-badge');
+    [drawerBadge, bottomBadge].forEach((badge) => {
+        if (!badge) return;
         if (activePending.length > 0) {
-            drawerBadge.textContent = activePending.length;
-            drawerBadge.classList.remove('hidden');
+            badge.textContent = activePending.length;
+            badge.classList.remove('hidden');
         } else {
-            drawerBadge.classList.add('hidden');
+            badge.classList.add('hidden');
         }
-    }
+    });
 
     const todayStr = getTodayDateString();
 
@@ -1580,8 +1596,8 @@ const initEventBindings = () => {
     document.getElementById('evaluation-mobile-menu-btn')?.addEventListener('click', () => setSidebarCollapsed(false));
     document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
 
-    // Tab Links
-    document.querySelectorAll('.drawer-link[data-tab]').forEach((btn) => {
+    // Desktop Drawer & Mobile Bottom Nav Tab Links
+    document.querySelectorAll('.drawer-link[data-tab], .bottom-nav-link[data-tab]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             const tabId = btn.getAttribute('data-tab');
@@ -1589,12 +1605,34 @@ const initEventBindings = () => {
         });
     });
 
-    // Sidebar Logout Button
-    document.getElementById('sidebar-logout-btn')?.addEventListener('click', async () => {
+    // Mobile More Actions Bottom Sheet Controls
+    const moreSheet = document.getElementById('evaluation-more-sheet');
+    const openMoreSheet = () => {
+        if (!moreSheet) return;
+        moreSheet.classList.remove('hidden');
+        moreSheet.classList.add('flex');
+    };
+    const closeMoreSheet = () => {
+        if (!moreSheet) return;
+        moreSheet.classList.add('hidden');
+        moreSheet.classList.remove('flex');
+    };
+
+    document.getElementById('btn-evaluation-more')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openMoreSheet();
+    });
+    document.getElementById('btn-close-more-sheet')?.addEventListener('click', closeMoreSheet);
+    document.getElementById('evaluation-more-backdrop')?.addEventListener('click', closeMoreSheet);
+
+    // Logout Handling (Sidebar Desktop & More Mobile Sheet)
+    const handleLogout = async () => {
         await window.AppSession?.clearAll({ purgeClientData: true });
         await signOut(auth);
         window.location.href = 'official.html';
-    });
+    };
+    document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('mobile-more-logout-btn')?.addEventListener('click', handleLogout);
 
     // Class & Year Change
     document.getElementById('eval-class-select')?.addEventListener('change', (e) => {
