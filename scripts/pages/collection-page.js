@@ -137,24 +137,106 @@ const writeTabPrefsToCloud = async (prefs = {}) => {
 };
 
 
-// Hamburger Menu Logic
-const mobileToggle = document.getElementById('mobile-menu-btn');
-const navMenu = document.querySelector('.nav-menu');
-const toggleIcon = mobileToggle.querySelector('i.fas.fa-bars') || mobileToggle.querySelector('i');
-const setMobileMenuState = (isOpen) => {
-    navMenu.classList.toggle('active', isOpen);
-    mobileToggle.classList.toggle('active-toggle', isOpen);
-    mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+// --- Sidebar Management (Unified Drawer Style) ---
+const isDesktop = () => window.innerWidth >= 1024;
+
+const setSidebarCollapsed = (collapsed) => {
+    const appEl = document.getElementById('collection-app');
+    const overlay = document.getElementById('drawer-overlay');
+    if (!appEl) return;
+
+    appEl.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('collection_sidebar_collapsed', collapsed ? 'true' : 'false');
+
+    if (!isDesktop() && overlay) {
+        if (!collapsed) {
+            overlay.classList.remove('hidden');
+            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+        } else {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+        }
+    }
 };
 
-mobileToggle.addEventListener('click', (e) => {
+const toggleSidebarState = () => {
+    const appEl = document.getElementById('collection-app');
+    const isCollapsed = appEl?.classList.contains('sidebar-collapsed');
+    setSidebarCollapsed(!isCollapsed);
+};
+
+const initSidebarState = () => {
+    const overlay = document.getElementById('drawer-overlay');
+    if (!isDesktop()) {
+        setSidebarCollapsed(true);
+        if (overlay) {
+            overlay.classList.add('opacity-0', 'hidden');
+        }
+    } else {
+        const stored = localStorage.getItem('collection_sidebar_collapsed');
+        setSidebarCollapsed(stored === 'true');
+    }
+};
+
+const startLiveClock = () => {
+    const el = document.getElementById('live-clock-display');
+    const tick = () => {
+        if (el) {
+            const now = new Date();
+            el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+    };
+    tick();
+    setInterval(tick, 1000);
+};
+
+// Initial invocation
+initSidebarState();
+startLiveClock();
+
+// --- Mobile Navigation Dropdown Management ---
+const mobileMenuBtn = document.getElementById('collection-mobile-menu-btn') || document.getElementById('mobile-menu-btn');
+const mobileDropdown = document.getElementById('mobile-nav-dropdown');
+
+const closeMobileNavDropdown = () => {
+    if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
+        mobileDropdown.classList.add('hidden');
+    }
+};
+
+const setMobileMenuState = (isOpen) => {
+    if (isOpen) {
+        mobileDropdown?.classList.remove('hidden');
+    } else {
+        closeMobileNavDropdown();
+    }
+};
+
+mobileMenuBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
-    setMobileMenuState(!navMenu.classList.contains('active'));
+    if (mobileDropdown) {
+        mobileDropdown.classList.toggle('hidden');
+    }
 });
 
 document.addEventListener('click', (e) => {
-    if (!navMenu.contains(e.target) && !mobileToggle.contains(e.target)) {
-        setMobileMenuState(false);
+    if (mobileDropdown && !mobileDropdown.classList.contains('hidden')) {
+        if (!mobileDropdown.contains(e.target) && !mobileMenuBtn?.contains(e.target)) {
+            closeMobileNavDropdown();
+        }
+    }
+});
+
+document.getElementById('sidebar-collapse-btn')?.addEventListener('click', toggleSidebarState);
+document.getElementById('drawer-overlay')?.addEventListener('click', () => setSidebarCollapsed(true));
+
+window.addEventListener('resize', () => {
+    if (isDesktop()) {
+        closeMobileNavDropdown();
+        const stored = localStorage.getItem('collection_sidebar_collapsed');
+        setSidebarCollapsed(stored === 'true');
+    } else {
+        setSidebarCollapsed(true);
     }
 });
 
@@ -187,21 +269,25 @@ const isSubTabAllowedAndVisible = (targetId) => {
 
 const applyTabVisibilityPreferences = () => {
     const prefs = readTabPrefsFromLocal();
-    getToggleableLinks().forEach(({ target, listItem }) => {
+    getToggleableLinks().forEach(({ target, link, listItem }) => {
         if (target === 'collector-wise-monthly-page' && !isCurrentAdmin) {
-            listItem?.classList.add('hidden');
+            (listItem || link).classList.add('hidden');
             return;
         }
         const isVisible = prefs[target] !== false;
-        listItem?.classList.toggle('hidden', !isVisible);
+        (listItem || link).classList.toggle('hidden', !isVisible);
     });
 
-    // Hide entire Main Group section in side menu if all its sub-tabs are hidden
+    const colTabMobile = document.getElementById('collector-wise-monthly-tab-mobile');
+    if (colTabMobile) colTabMobile.classList.toggle('hidden', !isCurrentAdmin);
+
+    // Hide entire Main Group section in side drawer & mobile dropdown if all its sub-tabs are hidden
     Object.entries(MAIN_TAB_GROUPS).forEach(([groupKey, targets]) => {
         if (groupKey === 'dashboard') return;
         const hasAnyVisible = targets.some((t) => isSubTabAllowedAndVisible(t));
-        const menuGroupLi = document.querySelector(`.nav-group-static[data-menu-group="${groupKey}"]`);
-        menuGroupLi?.classList.toggle('hidden', !hasAnyVisible);
+        document.querySelectorAll(`[data-menu-group="${groupKey}"]`).forEach(el => {
+            el.classList.toggle('hidden', !hasAnyVisible);
+        });
     });
 
     const currentTarget = getTargetFromHash(window.location.hash);
@@ -253,8 +339,8 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
     const mainApp = document.getElementById('app');
     if (mainApp) {
         if (safeTargetId === 'master-ledger-page' || safeTargetId === 'fee-page') {
-            mainApp.style.maxWidth = '99vw';
-            mainApp.style.width = '99vw';
+            mainApp.style.maxWidth = '100%';
+            mainApp.style.width = '100%';
             mainApp.style.padding = '12px 10px';
             document.body.classList.add('ledger-fullwidth');
             if (safeTargetId === 'master-ledger-page') syncMasterLedgerState();
@@ -274,7 +360,7 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         } catch (_) {}
     }
 
-    setMobileMenuState(false);
+    closeMobileNavDropdown();
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     if (safeTargetId === 'conc-group-page' && typeof renderConcessionGroupOverview === 'function') {
         renderConcessionGroupOverview();
@@ -738,12 +824,15 @@ const renderTabSettings = () => {
     }).join('');
 };
 
-document.getElementById('open-tab-settings-btn')?.addEventListener('click', (e) => {
+const handleOpenTabSettings = (e) => {
     e.preventDefault();
     renderTabSettings();
     document.getElementById('tab-settings-popup')?.classList.remove('hidden');
     document.getElementById('tab-settings-popup')?.classList.add('flex');
-    setMobileMenuState(false);
+    closeMobileNavDropdown();
+};
+document.querySelectorAll('.open-tab-settings-btn, #open-tab-settings-btn').forEach(btn => {
+    btn.addEventListener('click', handleOpenTabSettings);
 });
 
 document.getElementById('tab-settings-save-btn')?.addEventListener('click', () => {
@@ -758,7 +847,7 @@ document.getElementById('tab-settings-save-btn')?.addEventListener('click', () =
     document.getElementById('tab-settings-popup')?.classList.add('hidden');
 });
 
-document.getElementById('open-profile-btn')?.addEventListener('click', (e) => {
+const handleOpenProfile = (e) => {
     e.preventDefault();
     const searchKey = getCollectorKey();
     const myData = allStaff.find(s => normalizeEmail(s.email) === searchKey || String(s.loginId || '').toLowerCase() === searchKey || normalizeEmail(s.name) === searchKey);
@@ -789,19 +878,22 @@ document.getElementById('open-profile-btn')?.addEventListener('click', (e) => {
         document.getElementById('my-prof-addr').textContent = "System Administrator Account";
         document.getElementById('my-prof-img').src = "assets/images/logo.png";
     }
-    document.getElementById('my-profile-popup').classList.remove('hidden');
-    document.getElementById('my-profile-popup').classList.add('flex');
-
-    // Close Mobile Menu if Open
-    const navMenu = document.querySelector('.nav-menu');
-    if(navMenu) navMenu.classList.remove('active');
+    document.getElementById('my-profile-popup')?.classList.remove('hidden');
+    document.getElementById('my-profile-popup')?.classList.add('flex');
+    closeMobileNavDropdown();
+};
+document.querySelectorAll('.open-profile-btn, #open-profile-btn').forEach(btn => {
+    btn.addEventListener('click', handleOpenProfile);
 });
 
-document.getElementById('logout-btn')?.addEventListener('click', () => {
+const handleLogout = () => {
     signOut(auth).then(async () => {
         await window.AppSession?.clearAll({ purgeClientData: true });
         window.location.href = 'index.html';
     });
+};
+document.querySelectorAll('#logout-btn, #sidebar-logout-btn, #mobile-logout-btn').forEach(btn => {
+    btn.addEventListener('click', handleLogout);
 });
 
 // --- HELPER FUNCTIONS ---
@@ -5155,10 +5247,17 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     const displayEl = document.getElementById('staff-name-display');
+    const roleBadge = document.getElementById('staff-role-badge');
     setResultPageNavVisibility(isCurrentAdmin || staffAccess?.result === true);
     document.getElementById('collector-wise-monthly-tab')?.classList.toggle('hidden', !isCurrentAdmin);
+    document.getElementById('collector-wise-monthly-tab-mobile')?.classList.toggle('hidden', !isCurrentAdmin);
     applyTabVisibilityPreferences();
-    if (isCurrentAdmin) { displayEl.textContent = "ADMINISTRATOR"; }
+    if (isCurrentAdmin) {
+        if (displayEl) displayEl.textContent = "ADMINISTRATOR";
+        if (roleBadge) roleBadge.textContent = "Administrator";
+    } else {
+        if (roleBadge) roleBadge.textContent = "Collector";
+    }
 
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -5305,6 +5404,10 @@ onAuthStateChanged(auth, async (user) => {
         const payload = snap.exists() ? snap.data() : {};
         academicYearSettings = Array.isArray(payload.years) ? payload.years : [];
         currentWorkingAcademicYear = payload.currentYear || currentWorkingAcademicYear || '';
+        const yearBadge = document.getElementById('header-active-year');
+        if (yearBadge) {
+            yearBadge.textContent = currentWorkingAcademicYear || 'Active Session';
+        }
         applyCurrentYearStudentScope();
         populateClassDropdowns();
         populateFeeStatusAcademicYears();
