@@ -3,6 +3,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     import { db, auth } from '../../config/firebase-config.js';
     import { BASE_PATH, applyCachedInstitutionLogo, escapeHtml, rememberInstitutionLogo, sanitizeUrl } from '../shared/app-common.js';
     import { registerPortalForPwa } from '../shared/pwa-install.js';
+    import { UniversalShell } from '../shared/universal-shell.js';
 
     // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
     if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -1084,6 +1085,15 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         const active = btn.dataset.tab === target;
         btn.classList.toggle('active', active);
         btn.classList.toggle('text-indigo-700', active);
+      });
+      document.querySelectorAll('#side-drawer .drawer-link').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === target);
+      });
+      document.querySelectorAll('.universal-bottom-nav-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === target);
+      });
+      document.querySelectorAll('#mobile-nav-drawer .tab-link').forEach((link) => {
+        link.classList.toggle('active', link.dataset.tab === target);
       });
       setMobileMenuState(false);
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -7486,6 +7496,61 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         } else {
           dropdownAvatarBox.innerHTML = `<span class="text-xs font-black text-indigo-700">${escapeHtml(initialChar)}</span>`;
         }
+      }
+
+      if (isWorksheetPage) {
+        const WORKSHEET_AVAILABLE_TABS = [
+          { id: 'summary', label: 'Summary', icon: 'fa-chart-pie' },
+          { id: 'students', label: 'Students', icon: 'fa-users' },
+          { id: 'alumni', label: 'Alumni', icon: 'fa-user-graduate' },
+          { id: 'staff', label: 'Staff', icon: 'fa-chalkboard-teacher' },
+          { id: 'export', label: 'Worksheet', icon: 'fa-file-excel' }
+        ];
+        const DEFAULT_WORKSHEET_BOTTOM_TABS = ['summary', 'students', 'alumni', 'staff', 'export'];
+        UniversalShell.setup({
+          pageKey: 'worksheet',
+          availableTabs: WORKSHEET_AVAILABLE_TABS,
+          defaultBottomTabs: DEFAULT_WORKSHEET_BOTTOM_TABS,
+          onTabSelect: (tabId) => switchOfficialTab(tabId)
+        });
+
+        const setSidebarCollapsed = (collapsed) => {
+          const appEl = document.getElementById('official-app');
+          if (!appEl) return;
+          appEl.classList.toggle('sidebar-collapsed', collapsed);
+          try {
+            localStorage.setItem('worksheet_sidebar_collapsed', collapsed ? 'true' : 'false');
+          } catch (_) {}
+        };
+
+        const initSidebarState = () => {
+          try {
+            const saved = localStorage.getItem('worksheet_sidebar_collapsed');
+            if (saved !== null) {
+              setSidebarCollapsed(saved === 'true');
+            } else {
+              setSidebarCollapsed(window.innerWidth < 1024);
+            }
+          } catch (_) {
+            setSidebarCollapsed(window.innerWidth < 1024);
+          }
+        };
+
+        document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
+          const appEl = document.getElementById('official-app');
+          if (appEl) {
+            setSidebarCollapsed(!appEl.classList.contains('sidebar-collapsed'));
+          }
+        });
+
+        document.querySelectorAll('#side-drawer .drawer-link[data-tab]').forEach((link) => {
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchOfficialTab(link.dataset.tab);
+          });
+        });
+
+        initSidebarState();
       }
 
       renderAll();

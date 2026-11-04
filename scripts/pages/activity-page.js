@@ -3,6 +3,7 @@ import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, 
 import { db, auth } from '../../config/firebase-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
+import { UniversalShell } from '../shared/universal-shell.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
 if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -209,6 +210,17 @@ const closeModal = (modalId) => {
     }
 };
 
+// --- Available Tabs & Bottom Nav Definition ---
+const ACTIVITY_AVAILABLE_TABS = [
+    { id: 'tab-dashboard', label: 'Dashboard', icon: 'fa-gauge-high' },
+    { id: 'tab-task-setup', label: 'Activities', icon: 'fa-plus-circle' },
+    { id: 'tab-tasks', label: 'Pointing', icon: 'fa-list-check' },
+    { id: 'tab-prayer', label: 'Prayers', icon: 'fa-hands-praying' },
+    { id: 'tab-rewards', label: 'Rewards', icon: 'fa-trophy' }
+];
+
+const DEFAULT_ACTIVITY_BOTTOM_TABS = ['tab-dashboard', 'tab-task-setup', 'tab-tasks', 'tab-prayer', 'tab-rewards'];
+
 // --- Navigation Tabs ---
 const activateTab = (targetTabId) => {
     const drawerLinks = document.querySelectorAll('.drawer-link');
@@ -217,6 +229,14 @@ const activateTab = (targetTabId) => {
     drawerLinks.forEach(link => {
         const isActive = link.dataset.tab === targetTabId;
         link.classList.toggle('active', isActive);
+    });
+
+    document.querySelectorAll('.universal-bottom-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === targetTabId);
+    });
+
+    document.querySelectorAll('#mobile-nav-drawer .tab-link').forEach(link => {
+        link.classList.toggle('active', link.dataset.tab === targetTabId);
     });
 
     tabContents.forEach(content => {
@@ -301,22 +321,6 @@ const initTabNavigation = () => {
     activateTab('tab-dashboard');
 };
 
-// --- Clock Display ---
-const startClock = () => {
-    const clockEl = document.getElementById('live-clock-display');
-    const update = () => {
-        if (!clockEl) return;
-        const now = new Date();
-        clockEl.textContent = now.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-        });
-    };
-    update();
-    setInterval(update, 1000);
-};
-
 // --- Unsaved Changes Badges Management ---
 const setTasksUnsavedState = (dirty) => {
     tasksHaveUnsavedChanges = dirty;
@@ -346,8 +350,13 @@ const reloadActiveTabRoster = () => {
 // --- Initialization & Auth ---
 const initApp = async () => {
     initSidebarState();
+    UniversalShell.setup({
+        pageKey: 'activity',
+        availableTabs: ACTIVITY_AVAILABLE_TABS,
+        defaultBottomTabs: DEFAULT_ACTIVITY_BOTTOM_TABS,
+        onTabSelect: (tabId) => activateTab(tabId)
+    });
     initTabNavigation();
-    startClock();
     setupEventListeners(); // Register immediately so all buttons & filters work unconditionally
 
     const dateInputs = ['tasks-date-input', 'prayer-date-input'];

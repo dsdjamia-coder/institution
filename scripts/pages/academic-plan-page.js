@@ -5,6 +5,7 @@ import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
+import { UniversalShell } from '../shared/universal-shell.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
 if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -386,6 +387,18 @@ const closeModal = (modalId) => {
     }
 };
 
+// --- Available Tabs & Bottom Nav Definition ---
+const ACADEMIC_AVAILABLE_TABS = [
+    { id: 'tab-subjects', label: 'Subjects', icon: 'fa-book-open' },
+    { id: 'tab-timetable', label: 'Routine', icon: 'fa-calendar-days' },
+    { id: 'tab-yearplan', label: 'Year Plan', icon: 'fa-calendar-alt' },
+    { id: 'tab-syllabus-tracker', label: 'Syllabus', icon: 'fa-list-check' },
+    { id: 'tab-exam-schedule', label: 'Exams', icon: 'fa-file-pen' },
+    { id: 'tab-master-timetable', label: 'Master TT', icon: 'fa-calendar-check' }
+];
+
+const DEFAULT_ACADEMIC_BOTTOM_TABS = ['tab-subjects', 'tab-timetable', 'tab-yearplan', 'tab-syllabus-tracker', 'tab-exam-schedule'];
+
 // --- Navigation Tabs ---
 const activateTab = (targetTabId) => {
     const drawerLinks = document.querySelectorAll('.drawer-link');
@@ -394,6 +407,14 @@ const activateTab = (targetTabId) => {
     drawerLinks.forEach(link => {
         const isActive = link.dataset.tab === targetTabId;
         link.classList.toggle('active', isActive);
+    });
+
+    document.querySelectorAll('.universal-bottom-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === targetTabId);
+    });
+
+    document.querySelectorAll('#mobile-nav-drawer .tab-link').forEach(link => {
+        link.classList.toggle('active', link.dataset.tab === targetTabId);
     });
 
     tabContents.forEach(content => {
@@ -453,27 +474,16 @@ const initTabNavigation = () => {
     activateTab('tab-subjects');
 };
 
-// --- Clock Display ---
-const startClock = () => {
-    const clockEl = document.getElementById('live-clock-display');
-    const update = () => {
-        if (!clockEl) return;
-        const now = new Date();
-        clockEl.textContent = now.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-        });
-    };
-    update();
-    setInterval(update, 1000);
-};
-
 // --- Initialization & Auth ---
 const initApp = async () => {
     initSidebarState();
+    UniversalShell.setup({
+        pageKey: 'academic_plan',
+        availableTabs: ACADEMIC_AVAILABLE_TABS,
+        defaultBottomTabs: DEFAULT_ACADEMIC_BOTTOM_TABS,
+        onTabSelect: (tabId) => activateTab(tabId)
+    });
     initTabNavigation();
-    startClock();
     setupEventListeners();
 
     onAuthStateChanged(auth, async (user) => {

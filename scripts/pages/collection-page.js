@@ -5,6 +5,7 @@ import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js
 import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, registerServiceWorker, renderVersionInfo } from '../shared/app-common.js';
 import { appLog } from '../shared/logger.js';
 import { showToast } from '../shared/toaster.js';
+import '../shared/universal-shell.js';
 import { initCollectionEntryModule } from './collection/entry-module.js';
 import { initCollectionHistoryModule } from './collection/history-module.js';
 import { initCollectionReportsModule } from './collection/reports-module.js';
@@ -178,21 +179,33 @@ const initSidebarState = () => {
     }
 };
 
-const startLiveClock = () => {
-    const el = document.getElementById('live-clock-display');
-    const tick = () => {
-        if (el) {
-            const now = new Date();
-            el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
-    };
-    tick();
-    setInterval(tick, 1000);
-};
-
 // Initial invocation
 initSidebarState();
-startLiveClock();
+
+// Initialize Universal Shell
+if (window.UniversalShell) {
+    window.UniversalShell.setup({
+        pageKey: 'collection',
+        pageTitle: 'Fee Collection',
+        availableTabs: [
+            { id: 'dashboard', label: 'Overview', icon: 'fas fa-chart-pie', target: 'dashboard-page' },
+            { id: 'home', label: 'Fee Entry', icon: 'fas fa-edit', target: 'home-page' },
+            { id: 'bulk-upload', label: 'Bulk Upload', icon: 'fas fa-file-excel', target: 'bulk-upload-page' },
+            { id: 'donation', label: 'Donation', icon: 'fas fa-hand-holding-heart', target: 'donation-page' },
+            { id: 'fee', label: 'Fee Status', icon: 'fas fa-list', target: 'fee-page' },
+            { id: 'master-ledger', label: 'Master Ledger', icon: 'fas fa-table-cells', target: 'master-ledger-page' },
+            { id: 'conc-group', label: 'Concession', icon: 'fas fa-users-viewfinder', target: 'conc-group-page' },
+            { id: 'history', label: 'History', icon: 'fas fa-history', target: 'history-page' },
+            { id: 'monthly', label: 'Monthly Report', icon: 'fas fa-chart-bar', target: 'monthly-collected-page' },
+            { id: 'students', label: 'Students', icon: 'fas fa-user-graduate', target: 'students-page' }
+        ],
+        defaultBottomTabs: ['dashboard', 'home', 'fee', 'master-ledger', 'monthly'],
+        onTabSelect: (tabId) => {
+            const tabEl = document.querySelector(`.drawer-link[href="#${tabId}"], .tab-link[href="#${tabId}"], [data-target="${tabId}-page"]`);
+            if (tabEl) tabEl.click();
+        }
+    });
+}
 
 // --- Mobile Navigation Dropdown Management ---
 const mobileMenuBtn = document.getElementById('collection-mobile-menu-btn') || document.getElementById('mobile-menu-btn');
@@ -330,6 +343,12 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         const isActive = link.dataset.target === safeTargetId;
         link.classList.toggle('active', isActive);
         link.setAttribute('aria-current', isActive ? 'page' : 'false');
+    });
+
+    // Sync active state on universal bottom navigation buttons
+    document.querySelectorAll('.universal-bottom-nav-btn').forEach(btn => {
+        const isMatch = btn.dataset.target === safeTargetId || btn.dataset.tabId === safeTargetId.replace('-page', '');
+        btn.classList.toggle('active', isMatch);
     });
 
     pages.forEach(page => {

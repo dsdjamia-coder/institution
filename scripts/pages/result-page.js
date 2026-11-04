@@ -4,6 +4,7 @@ import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
+import '../shared/universal-shell.js';
 
 // --- Global Variables ---
 let isCurrentAdmin = false;
@@ -806,26 +807,36 @@ const initSidebarState = () => {
             overlay.classList.add('opacity-0', 'hidden');
         }
     } else {
-        const stored = localStorage.getItem('result_sidebar_collapsed');
+        const stored = localStorage.getItem('result_sidebar_collapsed') || localStorage.getItem('app_sidebar_collapsed');
         setSidebarCollapsed(stored === 'true');
     }
 };
 
-const startLiveClock = () => {
-    const el = document.getElementById('live-clock-display');
-    const tick = () => {
-        if (el) {
-            const now = new Date();
-            el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
-    };
-    tick();
-    setInterval(tick, 1000);
-};
-
 // Initial invocation
 initSidebarState();
-startLiveClock();
+
+// Initialize Universal Shell (Mobile bottom nav, customizer, 5-element header, footer)
+if (window.UniversalShell) {
+    window.UniversalShell.setup({
+        pageKey: 'result',
+        pageTitle: 'Result Management',
+        availableTabs: [
+            { id: 'dashboard', label: 'Overview', icon: 'fas fa-chart-pie', target: 'dashboard-page' },
+            { id: 'marks', label: 'Marks Entry', icon: 'fas fa-pen-to-square', target: 'marks-page' },
+            { id: 'draft', label: 'Draft Review', icon: 'fas fa-file-lines', target: 'draft-page' },
+            { id: 'published', label: 'Published', icon: 'fas fa-circle-check', target: 'published-page' },
+            { id: 'report-cards', label: 'Report Cards', icon: 'fas fa-id-card', target: 'report-cards-page' },
+            { id: 'promotion', label: 'Promotion', icon: 'fas fa-graduation-cap', target: 'promotion-page' },
+            { id: 'snapshot', label: 'Snapshot', icon: 'fas fa-file-export', target: 'snapshot-page' },
+            { id: 'settings', label: 'Settings', icon: 'fas fa-sliders', target: 'settings-page' }
+        ],
+        defaultBottomTabs: ['dashboard', 'marks', 'draft', 'published', 'report-cards'],
+        onTabSelect: (tabId) => {
+            const tabEl = document.querySelector(`.drawer-link[href="#${tabId}"], .tab-link[href="#${tabId}"], [data-target="${tabId}-page"]`);
+            if (tabEl) activateResultTab(tabEl);
+        }
+    });
+}
 
 // --- Mobile Navigation Dropdown Management ---
 const mobileMenuBtn = document.getElementById('result-mobile-menu-btn');
@@ -874,10 +885,10 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     const targetSubtab = tabEl.dataset.subtab;
     const targetHref = tabEl.getAttribute('href');
 
-    // Sync active class on all matching links across drawer and mobile dropdown
-    document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link').forEach((link) => {
-        const isMatch = (targetId && link.dataset.target === targetId && (!targetSubtab || link.dataset.subtab === targetSubtab)) ||
-                        (targetHref && link.getAttribute('href') === targetHref);
+    // Sync active class on all matching links across drawer, mobile dropdown, and bottom nav
+    document.querySelectorAll('.tab-link, .drawer-link, .mobile-dropdown-link, .universal-bottom-nav-btn').forEach((link) => {
+        const isMatch = (targetId && (link.dataset.target === targetId || link.dataset.tabId === targetId.replace('-page', ''))) ||
+                        (targetHref && (link.getAttribute('href') === targetHref || '#' + link.dataset.tabId === targetHref));
         link.classList.toggle('active', !!isMatch);
     });
 

@@ -120,6 +120,10 @@ const studentPwa = registerPortalForPwa('student', {
 
             setMobileMenuState(false);
             window.scrollTo(0,0);
+            document.querySelectorAll('#side-drawer .drawer-link').forEach((link) => {
+                const isActive = link.dataset.target === safeTargetId;
+                link.classList.toggle('active', isActive);
+            });
             document.querySelectorAll('.student-bottom-nav-btn[data-target]').forEach((btn) => {
                 btn.classList.toggle('active', btn.dataset.target === safeTargetId);
             });
@@ -152,6 +156,45 @@ const studentPwa = registerPortalForPwa('student', {
             });
         });
         activateStudentTab(defaultTabId);
+
+        // Sidebar Collapse & Desktop Drawer Management
+        const setSidebarCollapsed = (collapsed) => {
+            const appEl = document.getElementById('student-app');
+            if (!appEl) return;
+            appEl.classList.toggle('sidebar-collapsed', collapsed);
+            try {
+                localStorage.setItem('student_sidebar_collapsed', collapsed ? 'true' : 'false');
+            } catch (_) {}
+        };
+
+        const initSidebarState = () => {
+            try {
+                const saved = localStorage.getItem('student_sidebar_collapsed');
+                if (saved !== null) {
+                    setSidebarCollapsed(saved === 'true');
+                } else {
+                    setSidebarCollapsed(false);
+                }
+            } catch (_) {
+                setSidebarCollapsed(false);
+            }
+        };
+
+        document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
+            const appEl = document.getElementById('student-app');
+            if (appEl) {
+                setSidebarCollapsed(!appEl.classList.contains('sidebar-collapsed'));
+            }
+        });
+
+        document.querySelectorAll('#side-drawer .drawer-link[data-target]').forEach((link) => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                activateStudentTab(link.dataset.target);
+            });
+        });
+
+        initSidebarState();
 
         // Inline Accordion Expansion (No Popup)
         window.toggleReceipt = (element) => {
@@ -6939,6 +6982,26 @@ const studentPwa = registerPortalForPwa('student', {
 
                 const st = stuSnap.data();
                 studentProfile = { id: stuSnap.id, ...st };
+                const hydrateStudentHeader = (profile) => {
+                    if (!profile) return;
+                    const nameEl = document.getElementById('staff-name-display');
+                    if (nameEl) nameEl.textContent = profile.name || 'Student';
+                    const roleEl = document.getElementById('staff-role-badge');
+                    if (roleEl) roleEl.textContent = profile.class ? `Class ${profile.class}` : 'Student';
+                    const avatarImg = document.getElementById('header-avatar-img');
+                    const fallback = document.getElementById('header-avatar-fallback');
+                    const photo = profile.photoUrl || profile.photo;
+                    if (avatarImg && photo) {
+                        avatarImg.src = photo;
+                        avatarImg.classList.remove('hidden');
+                        if (fallback) fallback.classList.add('hidden');
+                    }
+                    const yearEl = document.getElementById('header-active-year');
+                    if (yearEl) {
+                        yearEl.textContent = currentAcademicYear || profile.academicYear || 'Active Session';
+                    }
+                };
+                hydrateStudentHeader(studentProfile);
                 studentGroups = grpSnap.docs ? grpSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
                 const activeGroup = studentGroups.find((group) => Array.isArray(group.memberIds) && group.memberIds.includes(studentId));
 
@@ -7084,6 +7147,7 @@ const studentPwa = registerPortalForPwa('student', {
                     if (studentSnap.exists()) {
                         const updatedData = studentSnap.data();
                         studentProfile = { id: studentSnap.id, ...updatedData };
+                        hydrateStudentHeader(studentProfile);
                         classByYear[updatedData.academicYear || '--'] = updatedData.class || '--';
                         if (typeof renderStudentComprehensiveProfile === 'function') {
                             renderStudentComprehensiveProfile(studentProfile, studentPhotoSubmission);

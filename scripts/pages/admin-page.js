@@ -5,6 +5,7 @@ import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '.
 import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatDateDisplay, hardenExternalLinks, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
+import { UniversalShell } from '../shared/universal-shell.js';
 
 registerServiceWorker();
 hardenExternalLinks();
@@ -2198,6 +2199,28 @@ window.addEventListener('resize', () => {
     }
 });
 
+// --- Available Tabs & Bottom Nav Definition ---
+const ADMIN_AVAILABLE_TABS = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+    { id: 'academic-years', label: 'Academic Year', icon: 'fa-calendar-alt' },
+    { id: 'workflow-modules', label: 'Modules', icon: 'fa-toggle-on' },
+    { id: 'add-staff', label: 'Add Staff', icon: 'fa-user-plus' },
+    { id: 'staff-management', label: 'Staff Roster', icon: 'fa-chalkboard-user' },
+    { id: 'add-students', label: 'Add Students', icon: 'fa-user-plus' },
+    { id: 'manage-students', label: 'Students', icon: 'fa-users-cog' },
+    { id: 'manage-classes', label: 'Classes', icon: 'fa-chalkboard' },
+    { id: 'student-continuity', label: 'Continuity', icon: 'fa-user-clock' },
+    { id: 'fee-settings', label: 'Fees', icon: 'fa-receipt' },
+    { id: 'manage-groups', label: 'Groups', icon: 'fa-layer-group' },
+    { id: 'fee-concessions', label: 'Concessions', icon: 'fa-hand-holding-usd' },
+    { id: 'web-basic-info', label: 'Basic Info', icon: 'fa-globe' },
+    { id: 'web-notices', label: 'Notices', icon: 'fa-bell' },
+    { id: 'web-gallery', label: 'Gallery', icon: 'fa-images' },
+    { id: 'security-settings', label: 'Security', icon: 'fa-shield-alt' }
+];
+
+const DEFAULT_ADMIN_BOTTOM_TABS = ['dashboard', 'manage-students', 'manage-classes', 'academic-years', 'fee-settings'];
+
 const activateAdminPage = (targetId, options = {}) => {
     const { suppressDeniedAlert = false, pushHistory = true } = options;
     if (targetId === 'web-directory' || targetId === 'web-directory-entries') targetId = 'add-staff';
@@ -2215,6 +2238,12 @@ const activateAdminPage = (targetId, options = {}) => {
     document.querySelectorAll('.nav-link').forEach((link) => {
         const href = link.getAttribute('href');
         link.classList.toggle('active', href === `#${targetId}`);
+    });
+    document.querySelectorAll('.universal-bottom-nav-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === targetId);
+    });
+    document.querySelectorAll('#mobile-nav-drawer .tab-link').forEach((link) => {
+        link.classList.toggle('active', link.dataset.tab === targetId);
     });
     document.querySelectorAll('.page').forEach((page) => page.classList.add('hidden'));
     const targetPageEl = document.getElementById(`${targetId}-page`);
@@ -2255,6 +2284,13 @@ const activateAdminPage = (targetId, options = {}) => {
 };
 
 // Navigation
+UniversalShell.setup({
+    pageKey: 'admin',
+    availableTabs: ADMIN_AVAILABLE_TABS,
+    defaultBottomTabs: DEFAULT_ADMIN_BOTTOM_TABS,
+    onTabSelect: (tabId) => activateAdminPage(tabId, { pushHistory: false })
+});
+
 document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();

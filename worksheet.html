@@ -1698,73 +1698,134 @@
 
 <body class="antialiased text-gray-800 collection-shell" data-page-type="worksheet">
 
-  <div id="official-app" class="h-screen flex flex-col">
-    <header class="app-sticky-header no-print sticky top-0 z-30 w-full px-3 sm:px-6 py-3 flex items-center justify-between h-16">
+  <div id="official-app" class="min-h-screen flex flex-col has-desktop-sidebar">
+    <!-- Universal 5-Element Header Bar -->
+    <header class="app-sticky-header no-print sticky top-0 z-30 w-full px-3 sm:px-6 py-2.5 flex items-center justify-between h-16 bg-white border-b border-slate-200">
       <div class="flex items-center gap-3 min-w-0">
+        <button class="mobile-toggle lg:hidden text-gray-700 hover:text-teal-600 p-2 -ml-1 rounded-xl hover:bg-gray-100 transition flex items-center justify-center focus:outline-none cursor-pointer" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
+          <div class="menu-icon-wrapper">
+            <i class="fas fa-bars icon-bars text-lg"></i>
+            <i class="fas fa-times icon-close text-lg"></i>
+          </div>
+        </button>
+
         <!-- Logo -->
         <div class="w-9 h-9 rounded-xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0 shadow-2xs">
           <img id="header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
         </div>
         <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-teal-700">
-              <i class="fas fa-file-excel text-teal-600"></i> Class Worksheet &amp; Registers
-            </span>
+          <h1 id="header-title" class="font-extrabold text-slate-900 text-xs sm:text-sm leading-tight truncate">Official Portal</h1>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span id="header-page-title" class="text-xs sm:text-sm font-black text-teal-700 leading-tight">Class Worksheet &amp; Registers</span>
             <span class="text-slate-300">•</span>
             <span id="header-active-year" class="bg-teal-100 text-teal-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-teal-300">Loading Session...</span>
           </div>
-          <h1 id="header-title" class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight truncate">Official Portal</h1>
         </div>
       </div>
 
       <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-        <!-- Live Clock -->
-        <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-700 border border-slate-200">
-          <i class="fas fa-clock text-teal-600"></i>
-          <span id="live-clock-display">--:-- --</span>
-        </div>
-
-        <!-- User Badge -->
+        <!-- User Badge (Clock Removed) -->
         <div id="header-user-badge" class="flex items-center gap-2 bg-teal-50 border border-teal-200 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs">
-          <div class="w-7 h-7 rounded-full bg-teal-200 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0">
-            <i class="fas fa-user-check"></i>
+          <div class="w-7 h-7 rounded-full bg-teal-200 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+            <img id="header-avatar-img" class="w-full h-full object-cover hidden" alt="Avatar">
+            <i id="header-avatar-fallback" class="fas fa-user-check"></i>
           </div>
           <div class="hidden sm:block text-left">
             <div id="staff-name-display" class="font-bold text-slate-900 leading-tight text-xs max-w-[120px] truncate">Staff</div>
             <div id="staff-role-badge" class="text-[10px] text-teal-700 font-semibold leading-tight">Official Portal</div>
           </div>
         </div>
-
-        <!-- Hamburger Menu Toggle Button & Dropdown -->
-        <div class="relative">
-          <button class="mobile-toggle p-2 rounded-xl hover:bg-slate-100 text-slate-700 hover:text-teal-600 transition flex items-center justify-center focus:outline-none cursor-pointer" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
-            <div class="menu-icon-wrapper">
-              <i class="fas fa-bars icon-bars text-lg"></i>
-              <i class="fas fa-times icon-close text-lg"></i>
-            </div>
-          </button>
-
-          <!-- Dropdown Menu -->
-          <ul class="nav-menu" aria-label="Official navigation">
-            <li><a href="#summary" class="nav-link tab-link active" data-tab="summary"><i class="fas fa-chart-pie text-lg w-6 text-emerald-600"></i> <span>Dashboard (Class Summary)</span></a></li>
-            <li><a href="#students" class="nav-link tab-link" data-tab="students"><i class="fas fa-users text-lg w-6 text-blue-600"></i> <span>Students Register</span></a></li>
-            <li><a href="#alumni" class="nav-link tab-link text-amber-700" data-tab="alumni"><i class="fas fa-user-graduate text-lg w-6 text-amber-600"></i> <span>Alumni Register</span></a></li>
-            <li><a href="#staff" class="nav-link tab-link" data-tab="staff"><i class="fas fa-chalkboard-teacher text-lg w-6 text-indigo-600"></i> <span>Staff Directory</span></a></li>
-            <li><a href="#export" class="nav-link tab-link font-bold text-teal-700" data-tab="export"><i class="fas fa-file-excel text-lg w-6 text-teal-600"></i> <span>Class Worksheet</span></a></li>
-            <div class="border-t border-slate-200 my-1"></div>
-            <li><a href="official.html" class="nav-link font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200"><i class="fas fa-th-large text-lg w-6 text-blue-600"></i> <span>Official Hub</span></a></li>
-            <li><button id="official-logout-btn" class="login-btn-nav btn-danger !w-full"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></button></li>
-          </ul>
-        </div>
       </div>
     </header>
 
-    <main id="app" class="flex-grow flex flex-col overflow-hidden relative w-full max-w-none">
+    <!-- Collapsible Sidebar Navigation Drawer -->
+    <aside id="side-drawer" class="fixed top-0 left-0 h-full w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
+      <div class="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <div class="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+            <i class="fas fa-file-excel"></i>
+          </div>
+          <div class="drawer-header-title min-w-0">
+            <h2 class="font-extrabold text-sm text-slate-900 truncate">Worksheet Studio</h2>
+            <p class="text-[10px] text-slate-500 font-bold truncate">Registers &amp; Print Sheets</p>
+          </div>
+        </div>
+        <button id="sidebar-collapse-btn" class="text-gray-500 hover:text-teal-600 hover:bg-teal-50 p-2 rounded-lg transition flex items-center justify-center shrink-0" title="Collapse / Expand sidebar">
+          <i id="sidebar-toggle-icon" class="fas fa-angles-left text-base transition-transform duration-300"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="p-3 space-y-1 flex-1 overflow-y-auto">
+        <div class="drawer-heading">Class Rosters</div>
+        <a href="#summary" class="drawer-link tab-link active" data-tab="summary" title="Dashboard Summary">
+          <i class="fas fa-chart-pie w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Class Summary</span>
+        </a>
+        <a href="#students" class="drawer-link tab-link" data-tab="students" title="Students Register">
+          <i class="fas fa-users w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Students Register</span>
+        </a>
+        <a href="#alumni" class="drawer-link tab-link" data-tab="alumni" title="Alumni Register">
+          <i class="fas fa-user-graduate w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Alumni Register</span>
+        </a>
+        <a href="#staff" class="drawer-link tab-link" data-tab="staff" title="Staff Directory">
+          <i class="fas fa-chalkboard-teacher w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Staff Directory</span>
+        </a>
+
+        <div class="drawer-heading">Custom Sheets</div>
+        <a href="#export" class="drawer-link tab-link" data-tab="export" title="Class Worksheet">
+          <i class="fas fa-file-excel w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Class Worksheet</span>
+        </a>
+
+        <div class="drawer-heading">Hub</div>
+        <a href="official.html" class="drawer-link" title="Official Hub">
+          <i class="fas fa-th-large w-5 text-center shrink-0"></i>
+          <span class="nav-text truncate">Official Hub</span>
+        </a>
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="p-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2 shrink-0">
+        <button id="worksheet-sidebar-logout-btn" type="button" class="sidebar-footer-btn bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-xl font-bold transition text-xs cursor-pointer official-logout-btn" title="Sign Out">
+          <i class="fas fa-power-off shrink-0"></i>
+          <span class="sidebar-btn-label truncate">Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <main id="app" class="worksheet-main-wrapper app-main-wrapper flex-grow flex flex-col overflow-hidden relative w-full max-w-none transition-all duration-300 pb-20">
       <div id="page-content" class="h-full w-full max-w-none overflow-y-auto">
         <section id="official-tab-summary" class="official-tab page-content w-full max-w-none px-1 py-1.5 sm:px-2 sm:py-2 lg:px-2.5 lg:py-2.5"></section>
         <section id="official-tab-students" class="official-tab page-content hidden w-full max-w-none px-1 py-1.5 sm:px-2 sm:py-2 lg:px-2.5 lg:py-2.5"></section>
         <section id="official-tab-alumni" class="official-tab page-content hidden w-full max-w-none px-1 py-1.5 sm:px-2 sm:py-2 lg:px-2.5 lg:py-2.5"></section>
         <section id="official-tab-staff" class="official-tab page-content hidden w-full max-w-none px-1 py-1.5 sm:px-2 sm:py-2 lg:px-2.5 lg:py-2.5"></section>
+        
+        <!-- Universal Footer -->
+        <footer class="footer mt-auto pt-8">
+            <div class="follow-title">FOLLOW US</div>
+            <div class="socials">
+                <a href="#" id="link-youtube" target="_blank" class="hidden"><i class="fa-brands fa-youtube"></i></a>
+                <a href="#" id="link-telegram" target="_blank" class="hidden"><i class="fa-brands fa-telegram-plane"></i></a>
+                <a href="#" id="link-instagram" target="_blank" class="hidden"><i class="fa-brands fa-instagram"></i></a>
+                <a href="#" id="link-whatsapp" target="_blank" class="hidden"><i class="fa-brands fa-whatsapp"></i></a>
+                <a href="#" id="link-facebook" target="_blank" class="hidden"><i class="fa-brands fa-facebook-f"></i></a>
+            </div>
+            <div class="corporate">
+               <a href="#" id="footer-email-link"><i class="fas fa-envelope"></i> <span id="footer-email">Email</span></a>
+               <a href="#" id="footer-phone-link"><i class="fas fa-phone"></i> <span id="footer-phone">Phone</span></a>
+            </div>
+            <div class="divider"></div>
+            <div class="copy">&copy; <span id="footer-inst-name">Institution Name</span>. All Rights Reserved.</div>
+            <div class="powered">Developed by <a href="https://www.instagram.com/muhammed_sanjide_p" target="_blank">HADI MAHIRI FAIZY</a></div>
+            <div class="app-version-meta">
+                <div id="footer-version">Version: --</div>
+                <div id="footer-updated">Last Updated: --</div>
+            </div>
+        </footer>
       </div>
       
       <!-- Excel Interface Container -->
@@ -1783,6 +1844,79 @@
         <div id="official-detail-body" class="max-h-[calc(94vh-56px)] overflow-y-auto p-2.5 sm:p-4"></div>
       </div>
     </div>
+  </div>
+
+  <!-- Mobile Navigation Drawer & Bottom Bar Settings Trigger -->
+  <div id="mobile-nav-drawer" class="hidden fixed inset-0 z-50 lg:hidden flex">
+      <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs" onclick="document.getElementById('mobile-nav-drawer').classList.add('hidden')"></div>
+      <div class="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col p-4 z-10 overflow-y-auto">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                  <i class="fas fa-file-excel text-teal-600 text-lg"></i>
+                  <span class="font-extrabold text-slate-800 text-sm">Navigation &amp; Settings</span>
+              </div>
+              <button type="button" onclick="document.getElementById('mobile-nav-drawer').classList.add('hidden')" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                  <i class="fas fa-times text-base"></i>
+              </button>
+          </div>
+
+          <!-- Customizer Trigger Button -->
+          <div class="pt-3 pb-2">
+              <button type="button" id="btn-open-bottom-nav-customizer" class="w-full flex items-center justify-between p-3 rounded-xl bg-teal-50 text-teal-900 font-bold text-xs hover:bg-teal-100 transition cursor-pointer">
+                  <span class="flex items-center gap-2"><i class="fas fa-sliders-h text-teal-600"></i> Customize Bottom Nav</span>
+                  <span class="text-[10px] bg-teal-200/80 text-teal-900 px-2 py-0.5 rounded-full font-black">5 Tabs</span>
+              </button>
+          </div>
+
+          <!-- All Navigation Tabs -->
+          <nav class="space-y-1 py-2 flex-grow">
+              <div class="px-2 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">Worksheets &amp; Registers</div>
+              <a href="#summary" class="mobile-dropdown-link tab-link active" data-tab="summary"><i class="fas fa-chart-pie w-5 text-center"></i> Class Summary</a>
+              <a href="#students" class="mobile-dropdown-link tab-link" data-tab="students"><i class="fas fa-users w-5 text-center"></i> Students Register</a>
+              <a href="#alumni" class="mobile-dropdown-link tab-link" data-tab="alumni"><i class="fas fa-user-graduate w-5 text-center"></i> Alumni Register</a>
+              <a href="#staff" class="mobile-dropdown-link tab-link" data-tab="staff"><i class="fas fa-chalkboard-teacher w-5 text-center"></i> Staff Directory</a>
+              <a href="#export" class="mobile-dropdown-link tab-link" data-tab="export"><i class="fas fa-file-excel w-5 text-center"></i> Class Worksheet</a>
+          </nav>
+
+          <div class="pt-3 border-t border-slate-100 space-y-2">
+              <a href="official.html" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 transition">
+                  <i class="fas fa-th-large w-4 text-center text-blue-600"></i> Official Hub
+              </a>
+              <button type="button" class="official-logout-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 transition cursor-pointer">
+                  <i class="fas fa-sign-out-alt w-4 text-center text-rose-600"></i> Sign Out
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation (5 Dynamic Tabs) -->
+  <nav id="mobile-bottom-nav" class="universal-bottom-nav"></nav>
+
+  <!-- Bottom Navigation Customizer Modal -->
+  <div id="bottom-nav-customizer-modal" class="modal-overlay hidden" style="z-index: 9999;">
+      <div class="modal-box w-full max-w-sm p-5 text-left rounded-2xl shadow-2xl bg-white">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                  <h3 class="text-base font-extrabold text-slate-800">Customize Bottom Bar</h3>
+                  <p class="text-[11px] font-semibold text-slate-500">Select any 5 tabs for quick mobile access</p>
+              </div>
+              <button type="button" id="btn-close-bottom-nav-customizer" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                  <i class="fas fa-times text-base"></i>
+              </button>
+          </div>
+          <div id="bottom-nav-customizer-count" class="text-xs font-black text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg my-3 text-center">
+              0 / 5 Selected
+          </div>
+          <div id="bottom-nav-customizer-list" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+          <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-3">
+              <button type="button" id="btn-reset-bottom-nav" class="px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer">
+                  Reset Defaults
+              </button>
+              <button type="button" id="btn-save-bottom-nav" class="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition shadow-sm cursor-pointer">
+                  Apply Tabs
+              </button>
+          </div>
+      </div>
   </div>
 
   <script type="module" src="scripts/pages/official-shared-bootstrap.js"></script>

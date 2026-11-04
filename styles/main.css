@@ -545,7 +545,7 @@ header:not(.app-sticky-header):not(.collection-sticky-header):not(.result-sticky
     }
 }
 
-/* Modern Universal Sticky Header (Full-width, zero extra margin/card nesting, glassmorphism) */
+/* Modern Universal Sticky Header (Full-width base, glassmorphism, responsive alignment) */
 .app-sticky-header,
 header.app-sticky-header,
 .collection-sticky-header,
@@ -556,19 +556,110 @@ header.app-sticky-header,
     position: sticky !important;
     top: 0 !important;
     z-index: 40 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
     height: 4rem !important; /* 64px */
     border-radius: 0 !important;
     border-top: none !important;
     border-left: none !important;
     border-right: none !important;
     border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
-    background: rgba(255, 255, 255, 0.95) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
     backdrop-filter: blur(12px) !important;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Mobile: Full-width sticky header & content */
+@media (max-width: 1023px) {
+    .app-sticky-header,
+    header.app-sticky-header,
+    .collection-sticky-header,
+    .result-sticky-header,
+    .attendance-sticky-header,
+    .admin-sticky-header,
+    .official-sticky-header,
+    .app-main-wrapper,
+    .collection-main-wrapper,
+    .result-main-wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    #side-drawer {
+        display: none !important;
+    }
+}
+
+/* Desktop with Collapsible Sidebar: Dynamic Header & Content Alignment */
+@media (min-width: 1024px) {
+    .has-desktop-sidebar #side-drawer {
+        transform: translateX(0) !important;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .has-desktop-sidebar:not(.sidebar-collapsed) #side-drawer {
+        width: 16rem !important; /* 256px */
+    }
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer {
+        width: 4.5rem !important; /* 72px */
+    }
+    .has-desktop-sidebar:not(.sidebar-collapsed) .app-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) header.app-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .collection-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .result-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .attendance-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .admin-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .official-sticky-header,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .app-main-wrapper,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .collection-main-wrapper,
+    .has-desktop-sidebar:not(.sidebar-collapsed) .result-main-wrapper {
+        margin-left: 16rem !important;
+        width: calc(100% - 16rem) !important;
+        max-width: calc(100% - 16rem) !important;
+    }
+    .has-desktop-sidebar.sidebar-collapsed .app-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed header.app-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed .collection-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed .result-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed .attendance-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed .admin-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed .official-sticky-header,
+    .has-desktop-sidebar.sidebar-collapsed .app-main-wrapper,
+    .has-desktop-sidebar.sidebar-collapsed .collection-main-wrapper,
+    .has-desktop-sidebar.sidebar-collapsed .result-main-wrapper {
+        margin-left: 4.5rem !important;
+        width: calc(100% - 4.5rem) !important;
+        max-width: calc(100% - 4.5rem) !important;
+    }
+
+    /* Collapsed sidebar element states */
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .nav-text,
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .drawer-heading,
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .drawer-header-title,
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .sidebar-btn-label {
+        display: none !important;
+    }
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer > div:first-child {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .drawer-link {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        margin: 4px 6px;
+    }
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .drawer-link i {
+        font-size: 1.15rem;
+        margin: 0 auto;
+    }
+    .has-desktop-sidebar.sidebar-collapsed #side-drawer .sidebar-footer-btn {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    .has-desktop-sidebar.sidebar-collapsed #sidebar-toggle-icon {
+        transform: rotate(180deg);
+    }
 }
 
 /* Clean reset for any inner header tag so double headers are impossible */
@@ -649,7 +740,7 @@ header.app-sticky-header,
     padding: 0.625rem 0.875rem;
     font-size: 0.8125rem;
     font-weight: 700;
-    color: #475569 !important;
+    color: #1e293b !important; /* Black/Dark text for inactive tabs */
     border-radius: 12px !important;
     margin: 2px 8px;
     transition: all 0.15s ease;
@@ -658,15 +749,29 @@ header.app-sticky-header,
     border: 1px solid transparent;
     box-shadow: none;
 }
+.drawer-link i {
+    color: #64748b !important;
+    transition: color 0.15s ease;
+}
 .drawer-link:hover {
     background: #f1f5f9 !important;
-    color: #0f172a !important;
+    color: #2563eb !important;
 }
-.drawer-link.active {
-    color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25) !important;
+.drawer-link:hover i {
+    color: #2563eb !important;
 }
-.drawer-link.active i {
+/* Active Drawer Link: Universal Blue Background with Pure White Text & Icon */
+.drawer-link.active,
+#side-drawer .drawer-link.active {
+    background: #2563eb !important; /* Blue background */
+    color: #ffffff !important; /* White text */
+    font-weight: 700 !important;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28) !important;
+}
+.drawer-link.active i,
+#side-drawer .drawer-link.active i,
+.drawer-link.active .nav-text,
+#side-drawer .drawer-link.active .nav-text {
     color: #ffffff !important;
 }
 
@@ -678,18 +783,26 @@ header.app-sticky-header,
     border-radius: 12px !important;
     font-size: 12px;
     font-weight: 700;
-    color: #334155 !important;
+    color: #1e293b !important;
     transition: all 0.15s ease;
     cursor: pointer;
     background: transparent;
     border: 1px solid transparent;
     box-shadow: none;
 }
+.mobile-dropdown-link i {
+    color: #64748b !important;
+    transition: color 0.15s ease;
+}
 .mobile-dropdown-link:hover {
     background: #f1f5f9 !important;
-    color: #0f172a !important;
+    color: #2563eb !important;
+}
+.mobile-dropdown-link:hover i {
+    color: #2563eb !important;
 }
 .mobile-dropdown-link.active {
+    background: #2563eb !important;
     color: #ffffff !important;
     box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25) !important;
 }
@@ -697,48 +810,79 @@ header.app-sticky-header,
     color: #ffffff !important;
 }
 
-/* Page-specific Theme Highlights for Active Drawer Links */
-body[data-page-type="collection"] .drawer-link.active,
-body[data-page-type="collection"] .mobile-dropdown-link.active,
-body.collection-shell .drawer-link.active,
-body.collection-shell .mobile-dropdown-link.active {
-    background: #2563eb !important; /* Royal Blue */
+/* Universal Mobile Bottom Navigation Bar */
+.universal-bottom-nav {
+    display: none;
+}
+@media (max-width: 1023px) {
+    .universal-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 62px;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(16px);
+        border-top: 1px solid #e2e8f0;
+        z-index: 50;
+        padding: 0 4px calc(env(safe-area-inset-bottom, 0px));
+        align-items: center;
+        justify-content: space-around;
+        box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
+    }
+    .universal-bottom-nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        padding: 4px 2px;
+        color: #64748b;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        user-select: none;
+    }
+    .universal-bottom-nav-btn i {
+        font-size: 1.15rem;
+        transition: transform 0.2s ease, color 0.2s ease;
+    }
+    .universal-bottom-nav-btn span {
+        font-size: 10px;
+        font-weight: 700;
+        margin-top: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 62px;
+    }
+    .universal-bottom-nav-btn.active {
+        color: #2563eb !important;
+    }
+    .universal-bottom-nav-btn.active i {
+        color: #2563eb !important;
+        transform: translateY(-1px) scale(1.1);
+    }
+    .universal-bottom-nav-btn.active span {
+        color: #2563eb !important;
+        font-weight: 800;
+    }
+    /* Mobile Content Padding so Bottom Nav never hides content or footer */
+    .has-desktop-sidebar .app-main-wrapper,
+    .has-desktop-sidebar .collection-main-wrapper,
+    .has-desktop-sidebar .result-main-wrapper,
+    .has-desktop-sidebar .page-content,
+    .has-desktop-sidebar main {
+        padding-bottom: 74px !important;
+    }
 }
 
-body[data-page-type="result"] .drawer-link.active,
-body[data-page-type="result"] .mobile-dropdown-link.active {
-    background: #4f46e5 !important; /* Indigo */
-}
-
-body[data-page-type="attendance"] .drawer-link.active,
-body[data-page-type="attendance"] .mobile-dropdown-link.active {
-    background: #059669 !important; /* Emerald */
-}
-
-body[data-page-type="academicPlan"] .drawer-link.active,
-body[data-page-type="academicPlan"] .mobile-dropdown-link.active {
-    background: #4f46e5 !important; /* Indigo */
-}
-
-body[data-page-type="activity"] .drawer-link.active,
-body[data-page-type="activity"] .mobile-dropdown-link.active {
-    background: #d97706 !important; /* Amber */
-}
-
-body[data-page-type="evaluation"] .drawer-link.active,
-body[data-page-type="evaluation"] .mobile-dropdown-link.active {
-    background: #e11d48 !important; /* Rose */
-}
-
-body[data-page-type="worksheet"] .drawer-link.active,
-body[data-page-type="worksheet"] .mobile-dropdown-link.active {
-    background: #0d9488 !important; /* Teal */
-}
-
-body[data-page-type="admin"] .drawer-link.active,
-body[data-page-type="admin"] .mobile-dropdown-link.active {
-    background: #1d4ed8 !important; /* Blue-700 */
-}
 .settings-nav-link {
     font-size: 12px !important;
     padding: 6px 10px !important;

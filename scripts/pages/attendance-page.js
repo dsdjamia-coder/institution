@@ -4,6 +4,7 @@ import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
+import '../shared/universal-shell.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
 if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -198,6 +199,10 @@ const activateTab = (targetTabId) => {
         link.classList.toggle('active', isActive);
     });
 
+    document.querySelectorAll('.universal-bottom-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.target === targetTabId || btn.dataset.tabId === targetTabId.replace('tab-', ''));
+    });
+
     tabContents.forEach(content => {
         if (content.id === targetTabId) {
             content.classList.remove('hidden');
@@ -249,6 +254,24 @@ const setupNavigationTabs = () => {
             }
         });
     });
+
+    if (window.UniversalShell) {
+        window.UniversalShell.setup({
+            pageKey: 'attendance',
+            pageTitle: 'Attendance Register',
+            availableTabs: [
+                { id: 'daily', label: 'Daily', icon: 'fas fa-calendar-day', target: 'tab-daily' },
+                { id: 'monthly', label: 'Monthly', icon: 'fas fa-table-cells', target: 'tab-monthly' },
+                { id: 'analytics', label: 'Analytics', icon: 'fas fa-chart-pie', target: 'tab-analytics' },
+                { id: 'session', label: 'Session', icon: 'fas fa-calendar-check', target: 'tab-session' },
+                { id: 'calendar', label: 'Holidays', icon: 'fas fa-calendar-week', target: 'tab-calendar' }
+            ],
+            defaultBottomTabs: ['daily', 'monthly', 'analytics', 'session', 'calendar'],
+            onTabSelect: (tabId) => {
+                activateTab('tab-' + tabId);
+            }
+        });
+    }
 
     // Always default to Daily Attendance tab on clean page load
     activateTab('tab-daily');

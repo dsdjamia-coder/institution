@@ -257,37 +257,30 @@
 
 <body class="antialiased text-gray-800 collection-shell">
 
-  <div id="official-app" class="h-screen flex flex-col">
-    <header class="app-sticky-header official-sticky-header no-print shrink-0 w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between h-16 border-b border-slate-200/80 bg-white/95 backdrop-blur-md sticky top-0 z-40">
+  <div id="official-app" class="min-h-screen flex flex-col justify-between">
+    <header class="app-sticky-header official-sticky-header no-print shrink-0 w-full px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between h-16 border-b border-slate-200/80 bg-white sticky top-0 z-40">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl overflow-hidden bg-indigo-50 border border-indigo-200 flex items-center justify-center shrink-0">
+        <div class="w-9 h-9 rounded-xl overflow-hidden bg-indigo-50 border border-indigo-200 flex items-center justify-center shrink-0 shadow-2xs">
           <img id="header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
         </div>
         <div>
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fas fa-th-large text-indigo-600"></i> Official Portal
-            </span>
+          <h1 id="header-title" class="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">Institution Name</h1>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span id="header-page-title" class="text-xs sm:text-sm font-black text-indigo-700 leading-tight">Official Portal</span>
             <span class="text-slate-300">•</span>
             <span id="header-active-year" class="bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-indigo-300">Loading Session...</span>
           </div>
-          <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Official Portal</h1>
           <p id="header-subtitle" class="hidden text-xs text-slate-500 font-medium"><span id="official-user-line">--</span></p>
         </div>
       </div>
       
-      <!-- Header Navigation & Actions -->
+      <!-- Header Navigation & Actions (Clock Removed) -->
       <div class="relative flex items-center gap-2 sm:gap-3">
-        <!-- Live Clock -->
-        <div class="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-500">
-          <i class="fas fa-clock text-indigo-600"></i>
-          <span id="live-clock-display">--:-- --</span>
-        </div>
-
         <!-- Official Profile Button (Trigger for Dropdown) -->
         <button id="official-my-profile-btn" type="button" class="group flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100/90 active:scale-95 transition-all cursor-pointer border border-transparent hover:border-slate-200/80" title="Account & Profile Menu" aria-haspopup="true" aria-expanded="false">
           <div id="official-header-avatar-box" class="w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-100 group-hover:border-indigo-400 bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-2xs transition-all shrink-0">
-            <i class="fas fa-user text-sm"></i>
+            <img id="header-avatar-img" class="w-full h-full object-cover hidden" alt="Avatar">
+            <i id="header-avatar-fallback" class="fas fa-user text-sm"></i>
           </div>
           <div class="hidden sm:flex flex-col text-left">
             <span id="staff-name-display" class="text-xs font-black text-slate-800 group-hover:text-indigo-700 truncate max-w-[120px] leading-tight">Profile</span>
@@ -326,8 +319,31 @@
     </header>
 
     <main id="app" class="flex-grow flex flex-col overflow-hidden relative">
-      <div id="page-content" class="h-full overflow-y-auto">
+      <div id="page-content" class="h-full overflow-y-auto flex flex-col justify-between">
         <section id="official-tab-dashboard" class="official-tab page-content p-4"></section>
+        
+        <!-- Universal Footer -->
+        <footer class="footer mt-auto pt-8">
+            <div class="follow-title">FOLLOW US</div>
+            <div class="socials">
+                <a href="#" id="link-youtube" target="_blank" class="hidden"><i class="fa-brands fa-youtube"></i></a>
+                <a href="#" id="link-telegram" target="_blank" class="hidden"><i class="fa-brands fa-telegram-plane"></i></a>
+                <a href="#" id="link-instagram" target="_blank" class="hidden"><i class="fa-brands fa-instagram"></i></a>
+                <a href="#" id="link-whatsapp" target="_blank" class="hidden"><i class="fa-brands fa-whatsapp"></i></a>
+                <a href="#" id="link-facebook" target="_blank" class="hidden"><i class="fa-brands fa-facebook-f"></i></a>
+            </div>
+            <div class="corporate">
+               <a href="#" id="footer-email-link"><i class="fas fa-envelope"></i> <span id="footer-email">Email</span></a>
+               <a href="#" id="footer-phone-link"><i class="fas fa-phone"></i> <span id="footer-phone">Phone</span></a>
+            </div>
+            <div class="divider"></div>
+            <div class="copy">&copy; <span id="footer-inst-name">Institution Name</span>. All Rights Reserved.</div>
+            <div class="powered">Developed by <a href="https://www.instagram.com/muhammed_sanjide_p" target="_blank">HADI MAHIRI FAIZY</a></div>
+            <div class="app-version-meta">
+                <div id="footer-version">Version: --</div>
+                <div id="footer-updated">Last Updated: --</div>
+            </div>
+        </footer>
       </div>
     </main>
 

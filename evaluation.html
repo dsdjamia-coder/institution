@@ -152,10 +152,10 @@
 
   <div id="evaluation-app" class="min-h-screen has-desktop-sidebar">
 
-    <!-- Top Sticky Header Bar -->
-    <header class="app-sticky-header attendance-sticky-header sticky top-0 z-30 w-full px-3 sm:px-6 py-3 flex items-center justify-between h-16">
+    <!-- Universal 5-Element Header Bar -->
+    <header class="app-sticky-header sticky top-0 z-30 w-full px-3 sm:px-6 py-2.5 flex items-center justify-between h-16 bg-white border-b border-slate-200">
       <div class="flex items-center gap-3 min-w-0">
-        <button id="evaluation-mobile-menu-btn" type="button" class="lg:hidden text-gray-700 hover:text-rose-600 p-2 -ml-1 rounded-xl hover:bg-gray-100 transition flex items-center justify-center focus:outline-none" aria-label="Open Navigation Menu">
+        <button id="evaluation-mobile-menu-btn" type="button" class="lg:hidden text-gray-700 hover:text-rose-600 p-2 -ml-1 rounded-xl hover:bg-gray-100 transition flex items-center justify-center focus:outline-none cursor-pointer" aria-label="Open Navigation Menu">
           <i class="fas fa-bars text-lg"></i>
         </button>
 
@@ -163,26 +163,20 @@
           <img id="header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
         </div>
         <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-rose-700">
-              <i class="fas fa-chalkboard-user text-rose-600"></i> Classroom Evaluation
-            </span>
+          <h1 id="header-title" class="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">Institution Name</h1>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span id="header-page-title" class="text-xs sm:text-sm font-black text-rose-700 leading-tight">Classroom Evaluation</span>
             <span class="text-slate-300">•</span>
             <span id="header-active-year" class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md font-extrabold text-[10px] border border-rose-300">Loading Session...</span>
           </div>
-          <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight truncate">Institution Name</h1>
         </div>
       </div>
 
       <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-        <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-700 border border-slate-200">
-          <i class="fas fa-clock text-rose-600"></i>
-          <span id="live-clock-display">--:-- --</span>
-        </div>
-
         <div id="header-user-badge" class="flex items-center gap-2 bg-rose-50 border border-rose-200 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs">
-          <div class="w-7 h-7 rounded-full bg-rose-200 text-rose-800 flex items-center justify-center font-bold text-xs shrink-0">
-            <i class="fas fa-user-check"></i>
+          <div class="w-7 h-7 rounded-full bg-rose-200 text-rose-800 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+            <img id="header-avatar-img" class="w-full h-full object-cover hidden" alt="Avatar">
+            <i id="header-avatar-fallback" class="fas fa-user-check"></i>
           </div>
           <div class="hidden sm:block text-left">
             <div id="staff-name-display" class="font-bold text-slate-900 leading-tight text-xs max-w-[120px] truncate">Staff</div>
@@ -254,7 +248,7 @@
     </aside>
 
     <!-- Main Content Wrapper -->
-    <div class="evaluation-main-wrapper pt-20 px-3 sm:px-6 pb-12 transition-all duration-300">
+    <div class="evaluation-main-wrapper app-main-wrapper pt-6 px-3 sm:px-6 pb-20 transition-all duration-300 min-h-[calc(100vh-64px)] flex flex-col justify-between">
       <div class="max-w-7xl mx-auto space-y-4">
 
         <!-- GLOBAL CONTROLS BAR: Class, Academic Year, Date, Subject & Stats -->
@@ -605,7 +599,102 @@
         </section>
 
       </div>
+
+      <!-- Universal Footer -->
+      <footer class="footer mt-auto pt-8">
+        <div class="follow-title">FOLLOW US</div>
+        <div class="socials">
+            <a href="#" id="link-youtube" target="_blank" class="hidden"><i class="fa-brands fa-youtube"></i></a>
+            <a href="#" id="link-telegram" target="_blank" class="hidden"><i class="fa-brands fa-telegram-plane"></i></a>
+            <a href="#" id="link-instagram" target="_blank" class="hidden"><i class="fa-brands fa-instagram"></i></a>
+            <a href="#" id="link-whatsapp" target="_blank" class="hidden"><i class="fa-brands fa-whatsapp"></i></a>
+            <a href="#" id="link-facebook" target="_blank" class="hidden"><i class="fa-brands fa-facebook-f"></i></a>
+        </div>
+        <div class="corporate">
+           <a href="#" id="footer-email-link"><i class="fas fa-envelope"></i> <span id="footer-email">Email</span></a>
+           <a href="#" id="footer-phone-link"><i class="fas fa-phone"></i> <span id="footer-phone">Phone</span></a>
+        </div>
+        <div class="divider"></div>
+        <div class="copy">&copy; <span id="footer-inst-name">Institution Name</span>. All Rights Reserved.</div>
+        <div class="powered">Developed by <a href="https://www.instagram.com/muhammed_sanjide_p" target="_blank">HADI MAHIRI FAIZY</a></div>
+        <div class="app-version-meta">
+            <div id="footer-version">Version: --</div>
+            <div id="footer-updated">Last Updated: --</div>
+        </div>
+      </footer>
     </div>
+  </div>
+
+  <!-- Mobile Navigation Drawer & Bottom Bar Settings Trigger -->
+  <div id="mobile-nav-drawer" class="hidden fixed inset-0 z-50 lg:hidden flex">
+      <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs" onclick="document.getElementById('mobile-nav-drawer').classList.add('hidden')"></div>
+      <div class="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col p-4 z-10 overflow-y-auto">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                  <i class="fas fa-chalkboard-user text-rose-600 text-lg"></i>
+                  <span class="font-extrabold text-slate-800 text-sm">Navigation &amp; Settings</span>
+              </div>
+              <button type="button" onclick="document.getElementById('mobile-nav-drawer').classList.add('hidden')" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                  <i class="fas fa-times text-base"></i>
+              </button>
+          </div>
+
+          <!-- Customizer Trigger Button -->
+          <div class="pt-3 pb-2">
+              <button type="button" id="btn-open-bottom-nav-customizer" class="w-full flex items-center justify-between p-3 rounded-xl bg-rose-50 text-rose-900 font-bold text-xs hover:bg-rose-100 transition cursor-pointer">
+                  <span class="flex items-center gap-2"><i class="fas fa-sliders-h text-rose-600"></i> Customize Bottom Nav</span>
+                  <span class="text-[10px] bg-rose-200/80 text-rose-900 px-2 py-0.5 rounded-full font-black">4 Tabs</span>
+              </button>
+          </div>
+
+          <!-- All Navigation Tabs -->
+          <nav class="space-y-1 py-2 flex-grow">
+              <div class="px-2 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">Evaluation &amp; Conduct</div>
+              <a href="#live" class="mobile-dropdown-link tab-link active" data-tab="tab-live"><i class="fas fa-users-viewfinder w-5 text-center"></i> Live Board</a>
+              <a href="#impositions" class="mobile-dropdown-link tab-link" data-tab="tab-impositions"><i class="fas fa-list-check w-5 text-center"></i> Pending Tasks</a>
+              <a href="#analytics" class="mobile-dropdown-link tab-link" data-tab="tab-analytics"><i class="fas fa-chart-pie w-5 text-center"></i> Monthly Register</a>
+              <a href="#settings" class="mobile-dropdown-link tab-link" data-tab="tab-settings"><i class="fas fa-sliders w-5 text-center"></i> Subjects &amp; Setup</a>
+          </nav>
+
+          <div class="pt-3 border-t border-slate-100 space-y-2">
+              <a href="official.html" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 transition">
+                  <i class="fas fa-th-large w-4 text-center text-blue-600"></i> Official Hub
+              </a>
+              <button id="mobile-logout-btn" type="button" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 transition cursor-pointer">
+                  <i class="fas fa-sign-out-alt w-4 text-center text-rose-600"></i> Sign Out
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation (Dynamic Tabs) -->
+  <nav id="mobile-bottom-nav" class="universal-bottom-nav"></nav>
+
+  <!-- Bottom Navigation Customizer Modal -->
+  <div id="bottom-nav-customizer-modal" class="modal-overlay hidden" style="z-index: 9999;">
+      <div class="modal-box w-full max-w-sm p-5 text-left rounded-2xl shadow-2xl bg-white">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                  <h3 class="text-base font-extrabold text-slate-800">Customize Bottom Bar</h3>
+                  <p class="text-[11px] font-semibold text-slate-500">Select tabs for quick mobile access</p>
+              </div>
+              <button type="button" id="btn-close-bottom-nav-customizer" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                  <i class="fas fa-times text-base"></i>
+              </button>
+          </div>
+          <div id="bottom-nav-customizer-count" class="text-xs font-black text-rose-700 bg-rose-50 px-3 py-1.5 rounded-lg my-3 text-center">
+              0 / 4 Selected
+          </div>
+          <div id="bottom-nav-customizer-list" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+          <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-3">
+              <button type="button" id="btn-reset-bottom-nav" class="px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer">
+                  Reset Defaults
+              </button>
+              <button type="button" id="btn-save-bottom-nav" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-sm cursor-pointer">
+                  Apply Tabs
+              </button>
+          </div>
+      </div>
   </div>
 
   <!-- ========================================== -->

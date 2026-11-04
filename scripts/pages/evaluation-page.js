@@ -3,6 +3,14 @@ import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, 
 import { db, auth } from '../../config/firebase-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
+import { UniversalShell } from '../shared/universal-shell.js';
+
+// Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
+if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (_) {}
+}
 
 // --- State Variables ---
 let isSuperAdmin = false;
@@ -197,13 +205,15 @@ const initSidebarState = () => {
     }
 };
 
-// Live Clock Ticker
-const updateLiveClock = () => {
-    const clockEl = document.getElementById('live-clock-display');
-    if (!clockEl) return;
-    const now = new Date();
-    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-};
+// --- Available Tabs & Bottom Nav Definition ---
+const EVALUATION_AVAILABLE_TABS = [
+    { id: 'tab-live', label: 'Live Board', icon: 'fa-users-viewfinder' },
+    { id: 'tab-impositions', label: 'Pending', icon: 'fa-list-check' },
+    { id: 'tab-analytics', label: 'Register', icon: 'fa-chart-pie' },
+    { id: 'tab-settings', label: 'Settings', icon: 'fa-sliders' }
+];
+
+const DEFAULT_EVALUATION_BOTTOM_TABS = ['tab-live', 'tab-impositions', 'tab-analytics', 'tab-settings'];
 
 // Confirmation Dialog helper
 const showConfirmDialog = ({ title = 'Confirm Action', message = 'Are you sure you want to proceed?', confirmText = 'Yes, Confirm', confirmBtnClass = 'bg-rose-600 hover:bg-rose-700', onConfirm = null }) => {
@@ -248,6 +258,14 @@ const switchTab = (tabId) => {
         } else {
             btn.classList.remove('active');
         }
+    });
+
+    document.querySelectorAll('.universal-bottom-nav-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+
+    document.querySelectorAll('#mobile-nav-drawer .tab-link').forEach((link) => {
+        link.classList.toggle('active', link.dataset.tab === tabId);
     });
 
     if (!isDesktop()) {
@@ -1958,8 +1976,12 @@ const initEventBindings = () => {
 // --- Initialization Lifecycle ---
 const initEvaluationModule = async () => {
     initSidebarState();
-    updateLiveClock();
-    setInterval(updateLiveClock, 1000);
+    UniversalShell.setup({
+        pageKey: 'evaluation',
+        availableTabs: EVALUATION_AVAILABLE_TABS,
+        defaultBottomTabs: DEFAULT_EVALUATION_BOTTOM_TABS,
+        onTabSelect: (tabId) => switchTab(tabId)
+    });
     await applyInstitutionBranding();
     await setupSessionAndStaff();
     await loadAcademicYears();
