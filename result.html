@@ -280,6 +280,150 @@
     .promotion-toggle-switch input:checked + .promotion-toggle-slider:before {
         transform: translateX(16px);
     }
+
+    /* Mobile-Specific Tactile Button Enhancements Across All Tabs */
+    @media (max-width: 767px) {
+      /* Ensure quick-filter pills on mobile look like distinctive tactile buttons */
+      .draft-quick-filter-btn,
+      .published-quick-filter-btn {
+        min-height: 38px !important;
+        padding: 8px 13px !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        border-radius: 12px !important;
+        border-width: 1.5px !important;
+        border-style: solid !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 5px !important;
+        cursor: pointer !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      .draft-quick-filter-btn:not(.active),
+      .published-quick-filter-btn:not(.active) {
+        background-color: #ffffff !important;
+      }
+      .draft-quick-filter-btn[data-filter="passed"]:not(.active),
+      .published-quick-filter-btn[data-filter="passed"]:not(.active) {
+        border-color: #86efac !important;
+        color: #15803d !important;
+        background-color: #f0fdf4 !important;
+      }
+      .draft-quick-filter-btn[data-filter="failed"]:not(.active),
+      .published-quick-filter-btn[data-filter="failed"]:not(.active) {
+        border-color: #fca5a5 !important;
+        color: #b91c1c !important;
+        background-color: #fef2f2 !important;
+      }
+      .draft-quick-filter-btn[data-filter="absent"]:not(.active),
+      .published-quick-filter-btn[data-filter="absent"]:not(.active) {
+        border-color: #fde68a !important;
+        color: #92400e !important;
+        background-color: #fffbeb !important;
+      }
+      .draft-quick-filter-btn[data-filter="p_awarded"]:not(.active),
+      .published-quick-filter-btn[data-filter="p_awarded"]:not(.active) {
+        border-color: #d8b4fe !important;
+        color: #6b21a8 !important;
+        background-color: #faf5ff !important;
+      }
+      .draft-quick-filter-btn[data-filter="all"]:not(.active),
+      .published-quick-filter-btn[data-filter="all"]:not(.active) {
+        border-color: #cbd5e1 !important;
+        color: #334155 !important;
+        background-color: #f8fafc !important;
+      }
+      .draft-quick-filter-btn.active,
+      .published-quick-filter-btn.active {
+        background-color: #4338ca !important;
+        color: #ffffff !important;
+        border-color: #3730a3 !important;
+        box-shadow: 0 3px 8px rgba(67, 56, 202, 0.35) !important;
+      }
+
+      /* Mark Entry header action buttons on mobile */
+      #mark-fill-absent-btn,
+      #mark-clear-btn,
+      #save-draft-btn,
+      #save-publish-btn {
+        min-height: 40px !important;
+        padding: 8px 12px !important;
+        font-size: 11px !important;
+        border-radius: 12px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        cursor: pointer !important;
+        font-weight: 700 !important;
+      }
+
+      /* Select-all and bulk toggle buttons on mobile */
+      #draft-select-toggle-btn,
+      #published-select-toggle-btn {
+        min-height: 40px !important;
+        padding: 8px 14px !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+        font-weight: 700 !important;
+        background-color: #ffffff !important;
+      }
+
+      /* Bulk action buttons in Draft & Published tabs */
+      #draft-bulk-publish-btn,
+      #draft-bulk-delete-btn,
+      #published-bulk-unpublish-btn,
+      #published-bulk-delete-btn {
+        min-height: 40px !important;
+        padding: 8px 14px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        font-weight: 700 !important;
+      }
+
+      /* Report Cards & Marksheets download buttons */
+      #report-download-pdf-btn,
+      #report-download-excel-btn,
+      #generate-class-report-btn,
+      #generate-individual-cards-btn {
+        min-height: 42px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+        font-weight: 700 !important;
+      }
+
+      /* Settings & Setup subpanel action buttons */
+      #run-publish-action-btn,
+      #cancel-publish-edit-btn,
+      #open-carryforward-modal-btn,
+      #subject-add-row-btn,
+      #save-subject-schema-btn,
+      #exam-config-add-row-btn,
+      #save-exam-config-btn,
+      #add-grade-rule-row-btn,
+      #save-grade-rules-btn,
+      #run-auto-promotion-btn,
+      #preview-promotion-btn,
+      #export-snapshot-all-btn,
+      #export-snapshot-classwise-btn,
+      #import-snapshot-btn {
+        min-height: 42px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        font-weight: 700 !important;
+      }
+
+      /* Tactile press feedback on touch devices */
+      button:active:not(:disabled),
+      .btn-primary:active:not(:disabled),
+      .marks-action-btn:active:not(:disabled) {
+        transform: scale(0.97) !important;
+        transition: transform 0.1s ease !important;
+      }
+    }
     </style>
 </head>
 <body class="antialiased min-h-screen text-gray-800 bg-slate-50" data-page-type="result">
@@ -561,27 +705,61 @@
                         </div>
                     </div>
 
-                    <!-- Compact Download & Upload Actions Bar -->
-                    <div class="pt-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
-                        <!-- Download for Upload -->
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mr-0.5"><i class="fas fa-file-arrow-down text-indigo-600 mr-1"></i>Download for Upload:</span>
-                            <button id="marks-template-csv-btn" disabled class="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-400 font-semibold transition text-xs flex items-center gap-1 opacity-50 cursor-not-allowed">
-                                <i class="fas fa-file-csv text-blue-500"></i> CSV
-                            </button>
-                            <button id="marks-template-xlsx-btn" disabled class="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-400 font-semibold transition text-xs flex items-center gap-1 opacity-50 cursor-not-allowed">
-                                <i class="fas fa-file-excel text-emerald-600"></i> Excel (.xlsx)
-                            </button>
-                        </div>
-
-                        <!-- Bulk Upload File Input & Review Action -->
-                        <div class="flex flex-wrap items-center gap-2">
-                            <div class="relative flex items-center">
-                                <input type="file" id="marks-bulk-file" accept=".csv,.xlsx,.xls" disabled class="text-xs text-slate-400 opacity-50 cursor-not-allowed file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-400 cursor-not-allowed">
+                    <!-- Modern Responsive Download & Bulk Upload Center -->
+                    <div class="pt-3 border-t border-slate-200/80">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Card 1: Download Pre-filled Templates -->
+                            <div class="bg-gradient-to-br from-slate-50 to-indigo-50/40 border border-slate-200 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+                                <div class="flex items-center justify-between gap-2 mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
+                                            <i class="fas fa-file-arrow-down"></i>
+                                        </span>
+                                        <div>
+                                            <h4 class="text-xs font-extrabold text-slate-800 leading-tight">1. Download Template</h4>
+                                            <p class="text-[11px] text-slate-500 font-medium">With student list &amp; subject limits</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-full border border-indigo-200 hidden sm:inline-block">Offline</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 mt-1">
+                                    <button id="marks-template-csv-btn" type="button" disabled class="marks-action-btn flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-slate-400 font-bold text-xs shadow-2xs transition opacity-50 cursor-not-allowed">
+                                        <i class="fas fa-file-csv text-blue-500 text-sm"></i>
+                                        <span>CSV Format</span>
+                                    </button>
+                                    <button id="marks-template-xlsx-btn" type="button" disabled class="marks-action-btn flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-slate-400 font-bold text-xs shadow-2xs transition opacity-50 cursor-not-allowed">
+                                        <i class="fas fa-file-excel text-emerald-600 text-sm"></i>
+                                        <span>Excel (.xlsx)</span>
+                                    </button>
+                                </div>
                             </div>
-                            <button id="marks-bulk-upload-btn" disabled class="bg-gray-200 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs opacity-50 cursor-not-allowed">
-                                <i class="fas fa-cloud-arrow-up"></i> Upload & Review
-                            </button>
+
+                            <!-- Card 2: Bulk Upload & Validation Review -->
+                            <div class="bg-gradient-to-br from-slate-50 to-emerald-50/40 border border-slate-200 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex flex-col justify-between">
+                                <div class="flex items-center justify-between gap-2 mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
+                                            <i class="fas fa-cloud-arrow-up"></i>
+                                        </span>
+                                        <div>
+                                            <h4 class="text-xs font-extrabold text-slate-800 leading-tight">2. Upload Filled File</h4>
+                                            <p class="text-[11px] text-slate-500 font-medium">Auto-validates marks against limits</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 hidden sm:inline-block">Bulk</span>
+                                </div>
+                                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-1">
+                                    <label id="marks-file-picker-label" class="flex-1 flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 shadow-2xs transition overflow-hidden opacity-50 cursor-not-allowed">
+                                        <i class="fas fa-paperclip text-slate-400 shrink-0"></i>
+                                        <span id="marks-bulk-filename" class="truncate text-slate-500">Choose CSV or Excel...</span>
+                                        <input type="file" id="marks-bulk-file" accept=".csv,.xlsx,.xls" disabled class="sr-only">
+                                    </label>
+                                    <button id="marks-bulk-upload-btn" type="button" disabled class="marks-action-btn flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-200 text-slate-400 font-extrabold text-xs shadow-2xs transition opacity-50 cursor-not-allowed shrink-0">
+                                        <i class="fas fa-cloud-arrow-up"></i>
+                                        <span>Upload &amp; Review</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -662,18 +840,18 @@
                             </div>
 
                             <!-- Right: Bulk Fill & Action Buttons -->
-                            <div class="flex items-center gap-2 flex-wrap justify-end">
-                                <button type="button" id="mark-fill-absent-btn" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center gap-1.5 shadow-xs" title="Fill empty fields with 'A'">
+                            <div class="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-2 justify-end">
+                                <button type="button" id="mark-fill-absent-btn" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-xs" title="Fill empty fields with 'A'">
                                     <i class="fas fa-user-xmark"></i> Empty as 'A'
                                 </button>
-                                <button type="button" id="mark-clear-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center gap-1.5" title="Clear all marks">
+                                <button type="button" id="mark-clear-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-xs" title="Clear all marks">
                                     <i class="fas fa-eraser"></i> Clear
                                 </button>
                                 <div class="h-5 w-px bg-slate-200 hidden sm:block mx-0.5"></div>
-                                <button id="save-draft-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center gap-1.5 text-xs sm:text-sm">
+                                <button id="save-draft-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 text-xs sm:text-sm">
                                     <i class="fas fa-file"></i> Save as Draft
                                 </button>
-                                <button id="save-publish-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center gap-1.5 text-xs sm:text-sm">
+                                <button id="save-publish-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 text-xs sm:text-sm">
                                     <i class="fas fa-upload"></i> Publish
                                 </button>
                             </div>
@@ -706,11 +884,11 @@
                     <!-- Quick Smart Filters -->
                     <div class="flex flex-wrap items-center gap-2 mb-3">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
-                        <button type="button" class="draft-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition" data-filter="all">All (<span id="draft-count-all">0</span>)</button>
-                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition" data-filter="passed">Passed (<span id="draft-count-passed">0</span>)</button>
-                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition" data-filter="failed">Failed (<span id="draft-count-failed">0</span>)</button>
-                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition" data-filter="absent">Absent (<span id="draft-count-absent">0</span>)</button>
-                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition" data-filter="p_awarded">P Awarded (<span id="draft-count-p-awarded">0</span>)</button>
+                        <button type="button" class="draft-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm transition" data-filter="all">All (<span id="draft-count-all">0</span>)</button>
+                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 shadow-2xs transition" data-filter="passed">Passed (<span id="draft-count-passed">0</span>)</button>
+                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 shadow-2xs transition" data-filter="failed">Failed (<span id="draft-count-failed">0</span>)</button>
+                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-2xs transition" data-filter="absent">Absent (<span id="draft-count-absent">0</span>)</button>
+                        <button type="button" class="draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 shadow-2xs transition" data-filter="p_awarded">P Awarded (<span id="draft-count-p-awarded">0</span>)</button>
                     </div>
 
                     <!-- Filter & Sorting Toolbar -->
@@ -771,11 +949,11 @@
                     <!-- Quick Smart Filters for Published Results -->
                     <div class="flex flex-wrap items-center gap-2 mb-3">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
-                        <button type="button" class="published-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition" data-filter="all">All (<span id="published-count-all">0</span>)</button>
-                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition" data-filter="passed">Passed (<span id="published-count-passed">0</span>)</button>
-                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition" data-filter="failed">Failed (<span id="published-count-failed">0</span>)</button>
-                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition" data-filter="absent">Absent (<span id="published-count-absent">0</span>)</button>
-                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition" data-filter="p_awarded">P Awarded (<span id="published-count-p-awarded">0</span>)</button>
+                        <button type="button" class="published-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm transition" data-filter="all">All (<span id="published-count-all">0</span>)</button>
+                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 shadow-2xs transition" data-filter="passed">Passed (<span id="published-count-passed">0</span>)</button>
+                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 shadow-2xs transition" data-filter="failed">Failed (<span id="published-count-failed">0</span>)</button>
+                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-2xs transition" data-filter="absent">Absent (<span id="published-count-absent">0</span>)</button>
+                        <button type="button" class="published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 shadow-2xs transition" data-filter="p_awarded">P Awarded (<span id="published-count-p-awarded">0</span>)</button>
                     </div>
 
                     <!-- Filter & Sorting Toolbar -->

@@ -2938,13 +2938,16 @@ const updateMarkEntryActionButtonsUI = () => {
     }
 };
 
+let lastLoadedMarksContext = { class: '', exam: '', academicYear: '' };
+
 const loadMarksTable = () => {
-    const examId = document.getElementById('entry-exam-select').value;
-    const className = document.getElementById('entry-class-select').value;
+    const examId = document.getElementById('entry-exam-select')?.value || '';
+    const className = document.getElementById('entry-class-select')?.value || '';
     const cont = document.getElementById('marks-entry-container');
 
     if(!examId || !className) {
-        cont.classList.add('hidden');
+        cont?.classList.add('hidden');
+        lastLoadedMarksContext = { class: className, exam: examId, academicYear: currentAcademicYear };
         return;
     }
 
@@ -2953,22 +2956,38 @@ const loadMarksTable = () => {
 
     updateMarkEntryActionButtonsUI();
 
-    // Capture any user-entered inputs before re-ordering so work isn't lost
+    const isSameContext = (
+        lastLoadedMarksContext.class === className &&
+        lastLoadedMarksContext.exam === examId &&
+        lastLoadedMarksContext.academicYear === currentAcademicYear
+    );
+
+    // Only capture user-entered inputs before re-sorting/re-ordering if it's the SAME class and exam!
     const currentInputValues = {};
-    document.querySelectorAll('#marks-table-body tr').forEach((tr) => {
-        const sId = tr.dataset.studentid;
-        if (!sId) return;
-        const sMarks = {};
-        tr.querySelectorAll('.mark-input').forEach((inp) => {
-            const sub = inp.dataset.subject;
-            if (sub) sMarks[sub] = inp.value;
+    if (isSameContext) {
+        document.querySelectorAll('#marks-table-body tr').forEach((tr) => {
+            const sId = tr.dataset.studentid;
+            if (!sId) return;
+            const sMarks = {};
+            tr.querySelectorAll('.mark-input').forEach((inp) => {
+                const sub = inp.dataset.subject;
+                if (sub) sMarks[sub] = inp.value;
+            });
+            const workInp = tr.querySelector('.attendance-working');
+            const work = workInp?.value;
+            const isOverridden = workInp?.dataset?.overridden === 'true';
+            const pres = tr.querySelector('.attendance-present')?.value;
+            currentInputValues[sId] = { marks: sMarks, working: work, present: pres, overridden: isOverridden };
         });
-        const workInp = tr.querySelector('.attendance-working');
-        const work = workInp?.value;
-        const isOverridden = workInp?.dataset?.overridden === 'true';
-        const pres = tr.querySelector('.attendance-present')?.value;
-        currentInputValues[sId] = { marks: sMarks, working: work, present: pres, overridden: isOverridden };
-    });
+    } else {
+        // Reset top attendance setters when context (exam or class) switches
+        const toolbarInp = document.getElementById('entry-top-total-attendance');
+        const headerInp = document.getElementById('header-col-total-attendance');
+        if (toolbarInp) toolbarInp.value = '';
+        if (headerInp) headerInp.value = '';
+    }
+
+    lastLoadedMarksContext = { class: className, exam: examId, academicYear: currentAcademicYear };
 
     const sortMode = document.getElementById('entry-sort-order')?.value || 'name_asc';
     const genderMode = document.getElementById('entry-gender-order')?.value || 'mixed';
@@ -3233,14 +3252,19 @@ function updateMarksDownloadAndUploadState() {
     const xlsxBtn = document.getElementById('marks-template-xlsx-btn');
     const fileInput = document.getElementById('marks-bulk-file');
     const uploadBtn = document.getElementById('marks-bulk-upload-btn');
+    const fileLabel = document.getElementById('marks-file-picker-label');
+    const filenameSpan = document.getElementById('marks-bulk-filename');
 
     if (csvBtn) {
         csvBtn.disabled = !isBothSelected;
         csvBtn.classList.toggle('opacity-50', !isBothSelected);
         csvBtn.classList.toggle('cursor-not-allowed', !isBothSelected);
         csvBtn.classList.toggle('cursor-pointer', isBothSelected);
-        csvBtn.classList.toggle('text-slate-400', !isBothSelected);
-        csvBtn.classList.toggle('text-slate-700', isBothSelected);
+        if (isBothSelected) {
+            csvBtn.className = 'marks-action-btn flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white border border-blue-300 hover:border-blue-500 hover:bg-blue-50/50 text-blue-900 font-bold text-xs shadow-xs transition cursor-pointer';
+        } else {
+            csvBtn.className = 'marks-action-btn flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-slate-400 font-bold text-xs shadow-2xs transition opacity-50 cursor-not-allowed';
+        }
     }
 
     if (xlsxBtn) {
@@ -3248,14 +3272,32 @@ function updateMarksDownloadAndUploadState() {
         xlsxBtn.classList.toggle('opacity-50', !isBothSelected);
         xlsxBtn.classList.toggle('cursor-not-allowed', !isBothSelected);
         xlsxBtn.classList.toggle('cursor-pointer', isBothSelected);
-        xlsxBtn.classList.toggle('text-slate-400', !isBothSelected);
-        xlsxBtn.classList.toggle('text-slate-700', isBothSelected);
+        if (isBothSelected) {
+            xlsxBtn.className = 'marks-action-btn flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white border border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/50 text-emerald-900 font-bold text-xs shadow-xs transition cursor-pointer';
+        } else {
+            xlsxBtn.className = 'marks-action-btn flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-slate-400 font-bold text-xs shadow-2xs transition opacity-50 cursor-not-allowed';
+        }
     }
 
     if (fileInput) {
         fileInput.disabled = !isBothSelected;
-        fileInput.classList.toggle('opacity-50', !isBothSelected);
-        fileInput.classList.toggle('cursor-not-allowed', !isBothSelected);
+    }
+
+    if (fileLabel) {
+        fileLabel.classList.toggle('opacity-50', !isBothSelected);
+        fileLabel.classList.toggle('cursor-not-allowed', !isBothSelected);
+        fileLabel.classList.toggle('cursor-pointer', isBothSelected);
+        if (isBothSelected) {
+            fileLabel.classList.add('border-slate-300', 'hover:border-emerald-400', 'bg-white');
+            fileLabel.classList.remove('border-slate-200');
+        } else {
+            fileLabel.classList.add('border-slate-200');
+            fileLabel.classList.remove('border-slate-300', 'hover:border-emerald-400');
+            if (filenameSpan && !fileInput?.files?.length) {
+                filenameSpan.textContent = 'Choose CSV or Excel...';
+                filenameSpan.className = 'truncate text-slate-400 font-medium';
+            }
+        }
     }
 
     if (uploadBtn) {
@@ -3264,9 +3306,9 @@ function updateMarksDownloadAndUploadState() {
         uploadBtn.classList.toggle('cursor-not-allowed', !isBothSelected);
         uploadBtn.classList.toggle('cursor-pointer', isBothSelected);
         if (isBothSelected) {
-            uploadBtn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer';
+            uploadBtn.className = 'marks-action-btn flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm cursor-pointer transition shrink-0';
         } else {
-            uploadBtn.className = 'bg-gray-200 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs opacity-50 cursor-not-allowed';
+            uploadBtn.className = 'marks-action-btn flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-200 text-slate-400 font-extrabold text-xs shadow-2xs opacity-50 cursor-not-allowed transition shrink-0';
         }
     }
 };
@@ -3310,6 +3352,11 @@ const closeMarksReviewModal = () => {
     currentMarksReviewData = null;
     const fileInput = document.getElementById('marks-bulk-file');
     if (fileInput) fileInput.value = '';
+    const filenameSpan = document.getElementById('marks-bulk-filename');
+    if (filenameSpan) {
+        filenameSpan.textContent = 'Choose CSV or Excel...';
+        filenameSpan.className = 'truncate text-slate-400 font-medium';
+    }
 };
 
 const openMarksReviewModal = () => {
@@ -3720,8 +3767,16 @@ document.getElementById('entry-exam-select')?.addEventListener('change', () => {
 
 document.getElementById('entry-class-select')?.addEventListener('change', () => {
     const examSelect = document.getElementById('entry-exam-select');
+    const prevExam = examSelect?.value || '';
     renderExamSelectOptions(examSelect, document.getElementById('entry-class-select')?.value || '', currentAcademicYear);
-    if (examSelect) examSelect.value = '';
+    if (examSelect) {
+        const optionExists = Array.from(examSelect.options).some(opt => opt.value === prevExam && opt.value !== '');
+        if (optionExists) {
+            examSelect.value = prevExam;
+        } else {
+            examSelect.value = '';
+        }
+    }
     updateMarksDownloadAndUploadState();
     loadMarksTable();
 });
@@ -3731,6 +3786,11 @@ document.getElementById('marks-template-xlsx-btn')?.addEventListener('click', ()
 
 document.getElementById('marks-bulk-file')?.addEventListener('change', () => {
     const file = document.getElementById('marks-bulk-file')?.files?.[0];
+    const filenameSpan = document.getElementById('marks-bulk-filename');
+    if (filenameSpan && file) {
+        filenameSpan.textContent = file.name;
+        filenameSpan.className = 'truncate text-emerald-800 font-bold';
+    }
     if (file) {
         parseAndReviewBulkMarks();
     }
@@ -7058,18 +7118,18 @@ document.querySelectorAll('.published-quick-filter-btn').forEach((btn) => {
         document.querySelectorAll('.published-quick-filter-btn').forEach((b) => {
             b.classList.remove('active', 'bg-indigo-600', 'text-white', 'shadow-sm');
             if (b.dataset.filter === 'passed') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition';
+                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 shadow-2xs transition';
             } else if (b.dataset.filter === 'failed') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition';
+                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 shadow-2xs transition';
             } else if (b.dataset.filter === 'absent') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition';
+                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-2xs transition';
             } else if (b.dataset.filter === 'p_awarded') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition';
+                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 shadow-2xs transition';
             } else {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 shadow-2xs transition';
             }
         });
-        btn.className = 'published-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition';
+        btn.className = 'published-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm transition';
         renderPublishedDraftTables();
     });
 });
@@ -7081,18 +7141,18 @@ document.querySelectorAll('.draft-quick-filter-btn').forEach((btn) => {
         document.querySelectorAll('.draft-quick-filter-btn').forEach((b) => {
             b.classList.remove('active', 'bg-indigo-600', 'text-white', 'shadow-sm');
             if (b.dataset.filter === 'passed') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition';
+                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 shadow-2xs transition';
             } else if (b.dataset.filter === 'failed') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition';
+                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 shadow-2xs transition';
             } else if (b.dataset.filter === 'absent') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition';
+                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-2xs transition';
             } else if (b.dataset.filter === 'p_awarded') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition';
+                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 shadow-2xs transition';
             } else {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 shadow-2xs transition';
             }
         });
-        btn.className = 'draft-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition';
+        btn.className = 'draft-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm transition';
         renderPublishedDraftTables();
     });
 });
