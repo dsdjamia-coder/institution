@@ -1899,13 +1899,35 @@ let updateReportPreview = () => {};
 const renderExamSelectOptions = (selectEl, classLabel = '', year = currentAcademicYear, placeholder = '-- Choose Exam --', onlyPublished = false) => {
     if (!selectEl) return;
     const previous = selectEl.value;
-    const isAll = (classLabel === 'ALL');
-    const baseOptions = (classLabel && !isAll)
-        ? getExamOptionsForClass(classLabel, year)
-        : DEFAULT_EXAM_DEFS.map((exam) => ({ value: makeExamValue('__all', exam.key), key: exam.key, label: exam.label }));
-    const options = baseOptions.filter((option) => !onlyPublished || examResultsCache.some((row) => row.published === true && (!classLabel || isAll || row.classLabel === classLabel) && row.academicYear === year && resultMatchesExam(row, option.value)));
-    selectEl.innerHTML = `<option value="">${placeholder}</option>` + options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('');
-    if (previous && Array.from(selectEl.options).some((option) => option.value === previous)) selectEl.value = previous;
+    const isAll = (classLabel === 'ALL' || !classLabel);
+    let baseOptions = [];
+    if (classLabel && !isAll) {
+        baseOptions = getExamOptionsForClass(classLabel, year);
+    } else {
+        const examMap = new Map();
+        DEFAULT_EXAM_DEFS.forEach((exam) => {
+            examMap.set(exam.key, { value: makeExamValue('__all', exam.key), key: exam.key, label: exam.label });
+        });
+        resultSchemas.filter((s) => !year || s.academicYear === year || !s.academicYear).forEach((s) => {
+            const configs = s.examConfigs || {};
+            Object.entries(configs).forEach(([key, config]) => {
+                if (!isDefaultExamKey(key) && config?.disabled !== true && !examMap.has(key)) {
+                    examMap.set(key, { value: makeExamValue('__all', key), key, label: config?.label || key });
+                }
+            });
+        });
+        baseOptions = Array.from(examMap.values());
+    }
+    const options = baseOptions.filter((option) => !onlyPublished || examResultsCache.some((row) => row.published === true && (!classLabel || isAll || row.classLabel === classLabel) && (!year || row.academicYear === year) && resultMatchesExam(row, option.value)));
+
+    const placeholderHtml = (placeholder && String(placeholder).trim() !== '') ? `<option value="">${placeholder}</option>` : '';
+    selectEl.innerHTML = placeholderHtml + options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('');
+
+    if (previous && Array.from(selectEl.options).some((option) => option.value === previous)) {
+        selectEl.value = previous;
+    } else if (!placeholderHtml && options.length > 0) {
+        selectEl.value = options[0].value;
+    }
 };
 const getReportClassesForYear = (targetYear) => {
     const classSet = new Set();
@@ -2279,72 +2301,121 @@ const isAllAbsent = (row = {}) => {
     });
 };
 
+const populateClassFilterSelect = (selectEl, allowedClasses) => {
+    if (!selectEl) return;
+    const prev = selectEl.value;
+    selectEl.innerHTML = `<option value="">Select Class</option><option value="ALL">All Classes</option>${allowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
+    if (prev && (prev === 'ALL' || allowedClasses.some((c) => isClassInDutyScope(prev, [c])))) {
+        selectEl.value = prev;
+    } else {
+        selectEl.value = 'ALL';
+    }
+};
+
 const renderPublishedDraftTables = () => {
     const publishedEl = document.getElementById('published-results-table');
     const draftEl = document.getElementById('draft-results-table');
     if (!publishedEl || !draftEl) return;
-    const yearRows = examResultsCache.filter((row) => !currentAcademicYear || !row.academicYear || row.academicYear === currentAcademicYear);
-    const publishedClass = document.getElementById('published-class-filter')?.value || '';
-    const publishedExam = document.getElementById('published-exam-filter')?.value || '';
-    const draftClass = document.getElementById('draft-class-filter')?.value || '';
-    const draftExam = document.getElementById('draft-exam-filter')?.value || '';
+
+    const pubClassEl = document.getElementById('published-class-filter');
+    const pubExamEl = document.getElementById('published-exam-filter');
+    const pubStatusEl = document.getElementById('published-status-filter');
+    const draftClassEl = document.getElementById('draft-class-filter');
+    const draftExamEl = document.getElementById('draft-exam-filter');
+    const draftStatusEl = document.getElementById('draft-status-filter');
 
     const isTeacherScope = (roleScope === 'staff' && teacherAssignedClasses.length > 0);
+    const pubAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
+    const draftAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
+
+    // 1. Populate Class Filter dropdowns: Select Class, All Classes, then classes
+    populateClassFilterSelect(pubClassEl, pubAllowedClasses);
+    populateClassFilterSelect(draftClassEl, draftAllowedClasses);
+
+    const publishedClass = pubClassEl?.value || 'ALL';
+    const draftClass = draftClassEl?.value || 'ALL';
+
+    // 2. Populate Exam Filter dropdowns (NO "All Exams" option, only real exams)
+    if (pubExamEl && !pubExamEl.options.length) {
+        renderExamSelectOptions(pubExamEl, publishedClass, currentAcademicYear, '');
+    }
+    if (draftExamEl && !draftExamEl.options.length) {
+        renderExamSelectOptions(draftExamEl, draftClass, currentAcademicYear, '');
+    }
+
+    const publishedExam = pubExamEl?.value || '';
+    const draftExam = draftExamEl?.value || '';
+
+    const yearRows = examResultsCache.filter((row) => !currentAcademicYear || !row.academicYear || row.academicYear === currentAcademicYear);
+
+    const isPubClassMatch = (row) => !publishedClass || publishedClass === 'ALL' || row.classLabel === publishedClass;
+    const isDraftClassMatch = (row) => !draftClass || draftClass === 'ALL' || row.classLabel === draftClass;
 
     const publishedRowsRaw = yearRows.filter((row) => row.published === true)
         .filter((row) => !isTeacherScope || isClassInDutyScope(row.classLabel, teacherAssignedClasses))
-        .filter((row) => !publishedClass || row.classLabel === publishedClass)
-        .filter((row) => resultMatchesExam(row, publishedExam));
+        .filter(isPubClassMatch)
+        .filter((row) => !publishedExam || resultMatchesExam(row, publishedExam));
+
     const draftRowsRaw = yearRows.filter((row) => row.published !== true)
         .filter((row) => !isTeacherScope || isClassInDutyScope(row.classLabel, teacherAssignedClasses))
-        .filter((row) => !draftClass || row.classLabel === draftClass)
-        .filter((row) => resultMatchesExam(row, draftExam));
+        .filter(isDraftClassMatch)
+        .filter((row) => !draftExam || resultMatchesExam(row, draftExam));
 
-    // Update smart filter count badges for Draft
-    const elAll = document.getElementById('draft-count-all');
-    if (elAll) elAll.textContent = draftRowsRaw.length;
-    const elPassed = document.getElementById('draft-count-passed');
-    if (elPassed) elPassed.textContent = draftRowsRaw.filter(r => isPassFromMarks(r)).length;
-    const elFailed = document.getElementById('draft-count-failed');
-    if (elFailed) elFailed.textContent = draftRowsRaw.filter(r => !isPassFromMarks(r) && !isAllAbsent(r)).length;
-    const elAbsent = document.getElementById('draft-count-absent');
-    if (elAbsent) elAbsent.textContent = draftRowsRaw.filter(r => hasAbsentSubject(r)).length;
-    const elPAwarded = document.getElementById('draft-count-p-awarded');
-    if (elPAwarded) elPAwarded.textContent = draftRowsRaw.filter(r => hasPAwarded(r)).length;
+    // 3. Update single Status Dropdown with live counts (default: all)
+    const curDraft = currentDraftFilter || draftStatusEl?.value || 'all';
+    if (draftStatusEl) {
+        const dAll = draftRowsRaw.length;
+        const dPassed = draftRowsRaw.filter(r => isPassFromMarks(r)).length;
+        const dFailed = draftRowsRaw.filter(r => !isPassFromMarks(r) && !isAllAbsent(r)).length;
+        const dAbsent = draftRowsRaw.filter(r => hasAbsentSubject(r)).length;
+        const dPA = draftRowsRaw.filter(r => hasPAwarded(r)).length;
+        draftStatusEl.innerHTML = `
+            <option value="all" ${curDraft === 'all' ? 'selected' : ''}>All (${dAll})</option>
+            <option value="passed" ${curDraft === 'passed' ? 'selected' : ''}>Passed (${dPassed})</option>
+            <option value="failed" ${curDraft === 'failed' ? 'selected' : ''}>Failed (${dFailed})</option>
+            <option value="absent" ${curDraft === 'absent' ? 'selected' : ''}>Absent (${dAbsent})</option>
+            <option value="p_awarded" ${curDraft === 'p_awarded' ? 'selected' : ''}>P Awarded (${dPA})</option>
+        `;
+        draftStatusEl.value = curDraft;
+    }
 
-    // Update smart filter count badges for Published
-    const elPubAll = document.getElementById('published-count-all');
-    if (elPubAll) elPubAll.textContent = publishedRowsRaw.length;
-    const elPubPassed = document.getElementById('published-count-passed');
-    if (elPubPassed) elPubPassed.textContent = publishedRowsRaw.filter(r => isPassFromMarks(r)).length;
-    const elPubFailed = document.getElementById('published-count-failed');
-    if (elPubFailed) elPubFailed.textContent = publishedRowsRaw.filter(r => !isPassFromMarks(r) && !isAllAbsent(r)).length;
-    const elPubAbsent = document.getElementById('published-count-absent');
-    if (elPubAbsent) elPubAbsent.textContent = publishedRowsRaw.filter(r => hasAbsentSubject(r)).length;
-    const elPubPAwarded = document.getElementById('published-count-p-awarded');
-    if (elPubPAwarded) elPubPAwarded.textContent = publishedRowsRaw.filter(r => hasPAwarded(r)).length;
+    const curPub = currentPublishedFilter || pubStatusEl?.value || 'all';
+    if (pubStatusEl) {
+        const pAll = publishedRowsRaw.length;
+        const pPassed = publishedRowsRaw.filter(r => isPassFromMarks(r)).length;
+        const pFailed = publishedRowsRaw.filter(r => !isPassFromMarks(r) && !isAllAbsent(r)).length;
+        const pAbsent = publishedRowsRaw.filter(r => hasAbsentSubject(r)).length;
+        const pPA = publishedRowsRaw.filter(r => hasPAwarded(r)).length;
+        pubStatusEl.innerHTML = `
+            <option value="all" ${curPub === 'all' ? 'selected' : ''}>All (${pAll})</option>
+            <option value="passed" ${curPub === 'passed' ? 'selected' : ''}>Passed (${pPassed})</option>
+            <option value="failed" ${curPub === 'failed' ? 'selected' : ''}>Failed (${pFailed})</option>
+            <option value="absent" ${curPub === 'absent' ? 'selected' : ''}>Absent (${pAbsent})</option>
+            <option value="p_awarded" ${curPub === 'p_awarded' ? 'selected' : ''}>P Awarded (${pPA})</option>
+        `;
+        pubStatusEl.value = curPub;
+    }
 
-    // Filter by active quick filter for Draft
+    // 4. Filter by active single status filter
     let filteredDraftRows = draftRowsRaw;
-    if (currentDraftFilter === 'passed') {
+    if (curDraft === 'passed') {
         filteredDraftRows = draftRowsRaw.filter(r => isPassFromMarks(r));
-    } else if (currentDraftFilter === 'failed') {
+    } else if (curDraft === 'failed') {
         filteredDraftRows = draftRowsRaw.filter(r => !isPassFromMarks(r) && !isAllAbsent(r));
-    } else if (currentDraftFilter === 'absent') {
+    } else if (curDraft === 'absent') {
         filteredDraftRows = draftRowsRaw.filter(r => hasAbsentSubject(r));
-    } else if (currentDraftFilter === 'p_awarded') {
+    } else if (curDraft === 'p_awarded') {
         filteredDraftRows = draftRowsRaw.filter(r => hasPAwarded(r));
     }
 
-    // Filter by active quick filter for Published
     let filteredPublishedRows = publishedRowsRaw;
-    if (currentPublishedFilter === 'passed') {
+    if (curPub === 'passed') {
         filteredPublishedRows = publishedRowsRaw.filter(r => isPassFromMarks(r));
-    } else if (currentPublishedFilter === 'failed') {
+    } else if (curPub === 'failed') {
         filteredPublishedRows = publishedRowsRaw.filter(r => !isPassFromMarks(r) && !isAllAbsent(r));
-    } else if (currentPublishedFilter === 'absent') {
+    } else if (curPub === 'absent') {
         filteredPublishedRows = publishedRowsRaw.filter(r => hasAbsentSubject(r));
-    } else if (currentPublishedFilter === 'p_awarded') {
+    } else if (curPub === 'p_awarded') {
         filteredPublishedRows = publishedRowsRaw.filter(r => hasPAwarded(r));
     }
 
@@ -2502,37 +2573,6 @@ const renderPublishedDraftTables = () => {
 
     publishedEl.innerHTML = renderTableForResults(publishedRows, true);
     draftEl.innerHTML = renderTableForResults(draftRows, false);
-
-    const pubClassEl = document.getElementById('published-class-filter');
-    if (pubClassEl) {
-        const prev = pubClassEl.value;
-        const pubAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
-        pubClassEl.innerHTML = (pubAllowedClasses.length === 1)
-            ? pubAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')
-            : `<option value="">All Classes</option>${pubAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
-        if (prev && pubAllowedClasses.some((c) => isClassInDutyScope(prev, [c]))) {
-            pubClassEl.value = prev;
-        } else if (pubAllowedClasses.length === 1) {
-            pubClassEl.value = pubAllowedClasses[0];
-        }
-    }
-
-    const draftClassEl = document.getElementById('draft-class-filter');
-    if (draftClassEl) {
-        const prevDraft = draftClassEl.value;
-        const draftAllowedClasses = isTeacherScope ? classes.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : classes;
-        draftClassEl.innerHTML = (draftAllowedClasses.length === 1)
-            ? draftAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')
-            : `<option value="">All Classes</option>${draftAllowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
-        if (prevDraft && draftAllowedClasses.some((c) => isClassInDutyScope(prevDraft, [c]))) {
-            draftClassEl.value = prevDraft;
-        } else if (draftAllowedClasses.length === 1) {
-            draftClassEl.value = draftAllowedClasses[0];
-        }
-    }
-
-    renderExamSelectOptions(document.getElementById('published-exam-filter'), publishedClass, currentAcademicYear, 'All Exams');
-    renderExamSelectOptions(document.getElementById('draft-exam-filter'), draftClass, currentAcademicYear, 'All Exams');
 };
 
 // --- Exam Setup Logic ---
@@ -6971,17 +7011,15 @@ document.getElementById('result-edit-fields')?.addEventListener('input', (event)
 document.getElementById('published-results-table')?.addEventListener('click', async (event) => handleResultRowAction(event, true));
 document.getElementById('draft-results-table')?.addEventListener('click', async (event) => handleResultRowAction(event, false));
 document.getElementById('published-class-filter')?.addEventListener('change', () => {
-    const classValue = document.getElementById('published-class-filter')?.value || '';
+    const classValue = document.getElementById('published-class-filter')?.value || 'ALL';
     const examSelect = document.getElementById('published-exam-filter');
-    renderExamSelectOptions(examSelect, classValue, currentAcademicYear, 'All Exams');
-    if (examSelect) examSelect.value = '';
+    renderExamSelectOptions(examSelect, classValue, currentAcademicYear, '');
     renderPublishedDraftTables();
 });
 document.getElementById('draft-class-filter')?.addEventListener('change', () => {
-    const classValue = document.getElementById('draft-class-filter')?.value || '';
+    const classValue = document.getElementById('draft-class-filter')?.value || 'ALL';
     const examSelect = document.getElementById('draft-exam-filter');
-    renderExamSelectOptions(examSelect, classValue, currentAcademicYear, 'All Exams');
-    if (examSelect) examSelect.value = '';
+    renderExamSelectOptions(examSelect, classValue, currentAcademicYear, '');
     renderPublishedDraftTables();
 });
 document.getElementById('published-exam-filter')?.addEventListener('change', renderPublishedDraftTables);
@@ -7111,50 +7149,15 @@ const bindSelectToggle = (btnId, checkboxClass) => {
 bindSelectToggle('published-select-toggle-btn', 'published-select-checkbox');
 bindSelectToggle('draft-select-toggle-btn', 'draft-select-checkbox');
 
-// Published smart filter buttons
-document.querySelectorAll('.published-quick-filter-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-        currentPublishedFilter = btn.dataset.filter || 'all';
-        document.querySelectorAll('.published-quick-filter-btn').forEach((b) => {
-            b.classList.remove('active', 'bg-indigo-600', 'text-white', 'shadow-sm');
-            if (b.dataset.filter === 'passed') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 shadow-2xs transition';
-            } else if (b.dataset.filter === 'failed') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 shadow-2xs transition';
-            } else if (b.dataset.filter === 'absent') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-2xs transition';
-            } else if (b.dataset.filter === 'p_awarded') {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 shadow-2xs transition';
-            } else {
-                b.className = 'published-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 shadow-2xs transition';
-            }
-        });
-        btn.className = 'published-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm transition';
-        renderPublishedDraftTables();
-    });
+// Single status filter dropdown listeners (Default: All)
+document.getElementById('published-status-filter')?.addEventListener('change', (e) => {
+    currentPublishedFilter = e.target.value || 'all';
+    renderPublishedDraftTables();
 });
 
-// Draft smart filter buttons & select-all in table header
-document.querySelectorAll('.draft-quick-filter-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-        currentDraftFilter = btn.dataset.filter || 'all';
-        document.querySelectorAll('.draft-quick-filter-btn').forEach((b) => {
-            b.classList.remove('active', 'bg-indigo-600', 'text-white', 'shadow-sm');
-            if (b.dataset.filter === 'passed') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 shadow-2xs transition';
-            } else if (b.dataset.filter === 'failed') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 shadow-2xs transition';
-            } else if (b.dataset.filter === 'absent') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-2xs transition';
-            } else if (b.dataset.filter === 'p_awarded') {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 shadow-2xs transition';
-            } else {
-                b.className = 'draft-quick-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 shadow-2xs transition';
-            }
-        });
-        btn.className = 'draft-quick-filter-btn active text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm transition';
-        renderPublishedDraftTables();
-    });
+document.getElementById('draft-status-filter')?.addEventListener('change', (e) => {
+    currentDraftFilter = e.target.value || 'all';
+    renderPublishedDraftTables();
 });
 
 document.addEventListener('change', (e) => {
