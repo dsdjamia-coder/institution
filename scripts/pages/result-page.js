@@ -681,7 +681,7 @@ function applyRoleTabVisibility() {
 
         const activeTab = document.querySelector('.tab-link.active');
         const activeTarget = activeTab?.dataset?.target || '';
-        const blockedTargets = new Set(['published-page', 'report-cards-page', 'snapshot-page']);
+        const blockedTargets = new Set(['published-page', 'report-cards-page']);
         if (blockedTargets.has(activeTarget)) {
             const dashboardLink = document.querySelector('.tab-link[data-target="dashboard-page"]');
             dashboardLink?.click();
@@ -909,7 +909,7 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     });
 
     // Overflow tabs highlight the "More" button on bottom nav
-    const isOverflowActive = ['report-cards-page', 'promotion-page', 'snapshot-page', 'settings-page'].includes(targetId);
+    const isOverflowActive = ['report-cards-page', 'promotion-page', 'settings-page'].includes(targetId);
     const moreBtn = document.getElementById('btn-result-more');
     if (moreBtn) moreBtn.classList.toggle('active', isOverflowActive);
 
@@ -934,12 +934,7 @@ const activateResultTab = (tabEl, { updateHash = true } = {}) => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.body.classList.remove('modal-scroll-lock');
 
-    // Trigger panel refresh when snapshot-page is activated
-    if (targetId === 'snapshot-page') {
-        if (typeof renderSnapshotPanelUI === 'function') {
-            renderSnapshotPanelUI();
-        }
-    } else if (targetId === 'published-page' || targetId === 'draft-page') {
+    if (targetId === 'published-page' || targetId === 'draft-page') {
         if (typeof renderPublishedDraftTables === 'function') {
             renderPublishedDraftTables();
         }
@@ -991,14 +986,6 @@ document.querySelectorAll('.tab-link, .drawer-link, .bottom-nav-link[data-target
 
 window.addEventListener('hashchange', () => {
     const hash = window.location.hash;
-    if (hash === '#snapshot' || hash === '#snapshot-export' || hash === '#settings-snapshot') {
-        const snapTab = document.querySelector('[data-target="snapshot-page"]');
-        if (snapTab) {
-            activateResultTab(snapTab, { updateHash: false });
-            if (hash !== '#snapshot') history.replaceState({}, '', '#snapshot');
-            return;
-        }
-    }
     if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
         const promoTab = document.querySelector('[data-target="promotion-page"]');
         if (promoTab) {
@@ -1041,13 +1028,7 @@ window.addEventListener('hashchange', () => {
 
 if (window.location.hash) {
     const hash = window.location.hash;
-    if (hash === '#snapshot' || hash === '#snapshot-export' || hash === '#settings-snapshot') {
-        const snapTab = document.querySelector('[data-target="snapshot-page"]');
-        if (snapTab) {
-            activateResultTab(snapTab, { updateHash: false });
-            if (hash !== '#snapshot') history.replaceState({}, '', '#snapshot');
-        }
-    } else if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
+    if (hash === '#promotion' || hash === '#settings-promotion' || hash === '#class-promotion') {
         const promoTab = document.querySelector('[data-target="promotion-page"]');
         if (promoTab) {
             activateResultTab(promoTab, { updateHash: false });
@@ -1101,9 +1082,6 @@ function initializeDataListeners() {
             syncHeaderDisplays();
             try { populateDropdowns(); } catch (err) { console.warn('populateDropdowns warning:', err); }
             try { updateDashboard(); } catch (err) { console.warn('updateDashboard warning:', err); }
-            try {
-                if (typeof renderSnapshotPanelUI === 'function') renderSnapshotPanelUI();
-            } catch (err) { console.warn('renderSnapshotPanelUI warning:', err); }
             try {
                 if (typeof renderPublishedDraftTables === 'function') renderPublishedDraftTables();
             } catch (err) { console.warn('renderPublishedDraftTables warning:', err); }
@@ -1203,9 +1181,6 @@ function initializeDataListeners() {
         }
         if (typeof renderPromotionCandidatesUI === 'function') {
             renderPromotionCandidatesUI();
-        }
-        if (typeof renderSnapshotPanelUI === 'function') {
-            renderSnapshotPanelUI();
         }
         refreshResultClasses();
     });
@@ -5085,489 +5060,8 @@ document.getElementById('save-blocked-classes-btn')?.addEventListener('click', a
     await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), { blockedClasses: blocked }, { merge: true });
     alert('Blocked classes saved.');
 });
-// ==========================================
-// --- Advanced Snapshot Export & Import Logic ---
-// ==========================================
 
-const getSnapshotScopeYears = () => {
-    const set = new Set();
-    if (currentAcademicYear) set.add(currentAcademicYear);
-    (availableAcademicYears || []).forEach((y) => { if (y) set.add(String(y).trim()); });
-    (examResultsCache || []).forEach((r) => { if (r.academicYear) set.add(String(r.academicYear).trim()); });
-    (resultSchemas || []).forEach((s) => { if (s.academicYear) set.add(String(s.academicYear).trim()); });
-    return Array.from(set).filter(Boolean).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
-};
 
-const renderSnapshotPanelUI = () => {
-    const yearSelect = document.getElementById('snapshot-academic-year-select');
-    if (!yearSelect) return;
-    const years = getSnapshotScopeYears();
-    const currentSelected = yearSelect.value || currentAcademicYear || 'all';
-
-    let optionsHtml = `<option value="all">All Academic Years (Full Archive)</option>`;
-    years.forEach((yr) => {
-        const isCur = (yr === currentAcademicYear) ? ' (Active)' : '';
-        optionsHtml += `<option value="${escapeHtml(yr)}">Academic Year ${escapeHtml(yr)}${isCur}</option>`;
-    });
-    yearSelect.innerHTML = optionsHtml;
-    if (Array.from(yearSelect.options).some((o) => o.value === currentSelected)) {
-        yearSelect.value = currentSelected;
-    } else {
-        yearSelect.value = currentAcademicYear || 'all';
-    }
-    updateSnapshotScopeMetrics();
-};
-
-const updateSnapshotScopeMetrics = () => {
-    const yearSelect = document.getElementById('snapshot-academic-year-select');
-    const selectedYear = yearSelect?.value || 'all';
-
-    const inScopeRows = (selectedYear === 'all')
-        ? examResultsCache
-        : examResultsCache.filter((r) => r.academicYear === selectedYear);
-
-    const totalRecords = inScopeRows.length;
-    const publishedCount = inScopeRows.filter((r) => r.published === true).length;
-    const draftCount = inScopeRows.filter((r) => r.published !== true).length;
-    const representedClasses = [...new Set(inScopeRows.map((r) => r.classLabel).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-    const inScopeSchemas = (selectedYear === 'all')
-        ? resultSchemas
-        : resultSchemas.filter((s) => !s.academicYear || s.academicYear === selectedYear);
-
-    const totalEl = document.getElementById('snapshot-stat-total-records');
-    const pubEl = document.getElementById('snapshot-stat-published');
-    const draftEl = document.getElementById('snapshot-stat-draft');
-    const classesEl = document.getElementById('snapshot-stat-classes');
-    const schemasEl = document.getElementById('snapshot-stat-schemas');
-    const recordsSub = document.getElementById('snapshot-stat-records-sub');
-
-    if (totalEl) totalEl.textContent = totalRecords;
-    if (pubEl) pubEl.textContent = publishedCount;
-    if (draftEl) draftEl.textContent = draftCount;
-    if (classesEl) classesEl.textContent = representedClasses.length;
-    if (schemasEl) schemasEl.textContent = inScopeSchemas.length;
-    if (recordsSub) recordsSub.textContent = (selectedYear === 'all') ? 'full archive' : `in ${selectedYear}`;
-
-    // Populate class selector for single or batch class-wise export
-    const classSelect = document.getElementById('snapshot-export-single-class-select');
-    if (classSelect) {
-        const currentClassVal = classSelect.value;
-        const availableClassList = representedClasses.length ? representedClasses : classes;
-        classSelect.innerHTML = `<option value="">-- All Classes (Batch Class-wise) --</option>` +
-            availableClassList.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('');
-        if (Array.from(classSelect.options).some((o) => o.value === currentClassVal)) {
-            classSelect.value = currentClassVal;
-        }
-    }
-};
-
-document.getElementById('snapshot-academic-year-select')?.addEventListener('change', () => {
-    updateSnapshotScopeMetrics();
-});
-
-document.getElementById('refresh-snapshot-scope-btn')?.addEventListener('click', () => {
-    renderSnapshotPanelUI();
-});
-
-// Full Snapshot Export
-document.getElementById('export-snapshot-all-btn')?.addEventListener('click', () => {
-    const yearSelect = document.getElementById('snapshot-academic-year-select');
-    const selectedYear = yearSelect?.value || 'all';
-
-    const includeResults = document.getElementById('snapshot-export-opt-results')?.checked !== false;
-    const includeSchemas = document.getElementById('snapshot-export-opt-schemas')?.checked !== false;
-    const includeGrades = document.getElementById('snapshot-export-opt-grades')?.checked !== false;
-    const includeHistory = document.getElementById('snapshot-export-opt-history')?.checked !== false;
-    const statusFilter = document.getElementById('snapshot-export-status-filter')?.value || 'all';
-
-    let rowsToExport = (selectedYear === 'all')
-        ? [...examResultsCache]
-        : examResultsCache.filter((r) => r.academicYear === selectedYear);
-
-    if (statusFilter === 'published') {
-        rowsToExport = rowsToExport.filter((r) => r.published === true);
-    } else if (statusFilter === 'draft') {
-        rowsToExport = rowsToExport.filter((r) => r.published !== true);
-    }
-
-    const schemasToExport = (selectedYear === 'all')
-        ? [...resultSchemas]
-        : resultSchemas.filter((s) => !s.academicYear || s.academicYear === selectedYear);
-
-    const rawHistory = getPublishHistoryRecords();
-    const historyToExport = (selectedYear === 'all')
-        ? rawHistory
-        : rawHistory.filter((h) => !h.academicYear || h.academicYear === selectedYear);
-
-    const payload = {
-        exportFormat: 'student-result-snapshot',
-        version: '2.0',
-        exportedAt: new Date().toISOString(),
-        academicYear: selectedYear,
-        statusFilter,
-        recordCounts: {
-            results: includeResults ? rowsToExport.length : 0,
-            schemas: includeSchemas ? schemasToExport.length : 0,
-            publishedHistory: includeHistory ? historyToExport.length : 0
-        },
-        settings: (includeGrades || includeHistory) ? {
-            examLabel: resultCenterSettings.examLabel || '',
-            publishAt: resultCenterSettings.publishAt || '',
-            blockedClasses: resultCenterSettings.blockedClasses || [],
-            gradeScales: includeGrades ? (resultCenterSettings.gradeScales || DEFAULT_GRADE_SCALES) : undefined,
-            publishedHistory: includeHistory ? historyToExport : undefined
-        } : undefined,
-        schemas: includeSchemas ? schemasToExport : [],
-        results: includeResults ? rowsToExport : []
-    };
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const yearSlug = (selectedYear === 'all' ? 'all_years' : selectedYear).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const dateSlug = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `result_snapshot_${yearSlug}_${dateSlug}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    const feedbackEl = document.getElementById('snapshot-export-feedback');
-    if (feedbackEl) {
-        feedbackEl.textContent = `✓ Exported ${includeResults ? rowsToExport.length : 0} exam results and ${includeSchemas ? schemasToExport.length : 0} schemas.`;
-        feedbackEl.classList.remove('hidden');
-        setTimeout(() => feedbackEl.classList.add('hidden'), 4000);
-    }
-});
-
-// Class-wise Snapshot Export
-document.getElementById('export-snapshot-classwise-btn')?.addEventListener('click', () => {
-    const yearSelect = document.getElementById('snapshot-academic-year-select');
-    const selectedYear = yearSelect?.value || 'all';
-    const statusFilter = document.getElementById('snapshot-export-status-filter')?.value || 'all';
-    const selectedClass = document.getElementById('snapshot-export-single-class-select')?.value || '';
-
-    let rowsToExport = (selectedYear === 'all')
-        ? [...examResultsCache]
-        : examResultsCache.filter((r) => r.academicYear === selectedYear);
-
-    if (statusFilter === 'published') {
-        rowsToExport = rowsToExport.filter((r) => r.published === true);
-    } else if (statusFilter === 'draft') {
-        rowsToExport = rowsToExport.filter((r) => r.published !== true);
-    }
-
-    if (selectedClass) {
-        const classRows = rowsToExport.filter((r) => r.classLabel === selectedClass);
-        if (!classRows.length) {
-            return alert(`No results found for "${selectedClass}" in selected scope.`);
-        }
-        const payload = {
-            exportFormat: 'student-result-snapshot-class',
-            version: '2.0',
-            exportedAt: new Date().toISOString(),
-            academicYear: selectedYear,
-            classLabel: selectedClass,
-            resultsCount: classRows.length,
-            schemas: resultSchemas.filter((s) => s.classLabel === selectedClass),
-            results: classRows
-        };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const clsSlug = selectedClass.replace(/[^a-zA-Z0-9_-]/g, '_');
-        a.href = url;
-        a.download = `result_snapshot_${clsSlug}_${selectedYear === 'all' ? 'all' : selectedYear}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        return;
-    }
-
-    // Export all classes batch
-    const classMap = {};
-    rowsToExport.forEach((row) => {
-        const cls = row.classLabel || 'unknown';
-        if (!classMap[cls]) classMap[cls] = [];
-        classMap[cls].push(row);
-    });
-
-    const entries = Object.entries(classMap);
-    if (!entries.length) {
-        return alert('No exam results found to export for selected scope.');
-    }
-
-    entries.forEach(([cls, items], idx) => {
-        setTimeout(() => {
-            const payload = {
-                exportFormat: 'student-result-snapshot-class',
-                version: '2.0',
-                exportedAt: new Date().toISOString(),
-                academicYear: selectedYear,
-                classLabel: cls,
-                resultsCount: items.length,
-                schemas: resultSchemas.filter((s) => s.classLabel === cls),
-                results: items
-            };
-            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `result_snapshot_${cls.replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedYear === 'all' ? 'all' : selectedYear}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }, idx * 180);
-    });
-});
-
-// Staged import data holder
-let stagedSnapshotData = null;
-
-const handleSnapshotFileSelection = (file) => {
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
-        return alert('Please select a valid .json snapshot file.');
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const json = JSON.parse(e.target.result);
-            let results = [];
-            let schemas = [];
-            let settings = {};
-            let sourceYear = '';
-
-            if (Array.isArray(json)) {
-                results = json;
-            } else if (typeof json === 'object' && json !== null) {
-                results = Array.isArray(json.results) ? json.results : [];
-                schemas = Array.isArray(json.schemas) ? json.schemas : [];
-                settings = json.settings || {};
-                sourceYear = json.academicYear || results[0]?.academicYear || schemas[0]?.academicYear || '';
-            }
-
-            if (!results.length && !schemas.length && !Object.keys(settings).length) {
-                return alert('Invalid Snapshot File: Could not find any exam results, schemas, or settings in this JSON file.');
-            }
-
-            stagedSnapshotData = {
-                file,
-                name: file.name,
-                size: file.size,
-                data: json,
-                results,
-                schemas,
-                settings,
-                sourceYear
-            };
-
-            // Populate preview card
-            const previewCard = document.getElementById('snapshot-import-preview');
-            const filenameEl = document.getElementById('snapshot-preview-filename');
-            const filesizeEl = document.getElementById('snapshot-preview-filesize');
-            const yearEl = document.getElementById('snapshot-preview-year');
-            const resultsCountEl = document.getElementById('snapshot-preview-results-count');
-            const schemasCountEl = document.getElementById('snapshot-preview-schemas-count');
-            const startBtn = document.getElementById('start-snapshot-import-btn');
-
-            if (filenameEl) filenameEl.textContent = file.name;
-            if (filesizeEl) filesizeEl.textContent = `${(file.size / 1024).toFixed(1)} KB`;
-            if (yearEl) yearEl.textContent = sourceYear || 'As in records';
-            if (resultsCountEl) resultsCountEl.textContent = results.length;
-            if (schemasCountEl) schemasCountEl.textContent = schemas.length;
-
-            // Populate Target Academic Year selector in preview
-            const targetYearSelect = document.getElementById('snapshot-import-target-year');
-            if (targetYearSelect) {
-                const years = getSnapshotScopeYears();
-                let options = `<option value="__as_in_file__">Keep Original Year (${sourceYear || 'From File'})</option>`;
-                years.forEach((yr) => {
-                    options += `<option value="${escapeHtml(yr)}">Assign to ${escapeHtml(yr)}</option>`;
-                });
-                targetYearSelect.innerHTML = options;
-                if (sourceYear && years.includes(sourceYear)) {
-                    targetYearSelect.value = sourceYear;
-                }
-            }
-
-            if (previewCard) previewCard.classList.remove('hidden');
-            if (startBtn) startBtn.disabled = false;
-        } catch (err) {
-            alert('Failed to parse snapshot JSON file: ' + err.message);
-        }
-    };
-    reader.readAsText(file);
-};
-
-// Drag and drop & File Picker listeners
-const snapshotDropzone = document.getElementById('snapshot-dropzone');
-const snapshotFileInput = document.getElementById('snapshot-import-file');
-
-snapshotDropzone?.addEventListener('click', () => snapshotFileInput?.click());
-
-snapshotFileInput?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) handleSnapshotFileSelection(file);
-});
-
-snapshotDropzone?.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    snapshotDropzone.classList.add('border-indigo-500', 'bg-indigo-100/50');
-});
-
-snapshotDropzone?.addEventListener('dragleave', () => {
-    snapshotDropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
-});
-
-snapshotDropzone?.addEventListener('drop', (e) => {
-    e.preventDefault();
-    snapshotDropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleSnapshotFileSelection(file);
-});
-
-document.getElementById('snapshot-clear-file-btn')?.addEventListener('click', () => {
-    stagedSnapshotData = null;
-    if (snapshotFileInput) snapshotFileInput.value = '';
-    document.getElementById('snapshot-import-preview')?.classList.add('hidden');
-    const startBtn = document.getElementById('start-snapshot-import-btn');
-    if (startBtn) startBtn.disabled = true;
-});
-
-// Import execution
-document.getElementById('start-snapshot-import-btn')?.addEventListener('click', async () => {
-    if (!stagedSnapshotData) return alert('Please select a snapshot JSON file first.');
-    if (roleScope !== 'admin' && !isCurrentAdmin) return alert('Only administrators have permission to restore or import snapshot data.');
-
-    const targetYearChoice = document.getElementById('snapshot-import-target-year')?.value || '__as_in_file__';
-    const importMode = document.querySelector('input[name="snapshot-import-mode"]:checked')?.value || 'merge';
-
-    const resultsTotal = stagedSnapshotData.results.length;
-    const schemasTotal = stagedSnapshotData.schemas.length;
-    const targetYearLabel = targetYearChoice === '__as_in_file__' ? (stagedSnapshotData.sourceYear || 'from snapshot records') : targetYearChoice;
-
-    const confirmMsg = `Are you sure you want to restore / import this snapshot?\n\n` +
-        `• Results to import: ${resultsTotal}\n` +
-        `• Schemas to import: ${schemasTotal}\n` +
-        `• Target Academic Year: ${targetYearLabel}\n` +
-        `• Conflict Mode: ${importMode === 'replace' ? 'CLEAN OVERWRITE (Deletes existing results for this year)' : 'MERGE & UPDATE'}\n\n` +
-        `Proceed with database restore?`;
-
-    const ok = await showAppConfirm({
-        title: 'Restore / Import Snapshot',
-        message: confirmMsg,
-        confirmText: 'Restore Snapshot',
-        type: importMode === 'replace' ? 'danger' : 'warning'
-    });
-    if (!ok) return;
-
-    const progressContainer = document.getElementById('snapshot-import-progress-container');
-    const progressBar = document.getElementById('snapshot-import-progress-bar');
-    const progressPct = document.getElementById('snapshot-import-progress-pct');
-    const progressLabel = document.getElementById('snapshot-import-progress-label');
-    const progressLog = document.getElementById('snapshot-import-log');
-    const startBtn = document.getElementById('start-snapshot-import-btn');
-
-    if (progressContainer) progressContainer.classList.remove('hidden');
-    if (startBtn) startBtn.disabled = true;
-
-    const setProgress = (percent, label, log = '') => {
-        if (progressBar) progressBar.style.width = `${percent}%`;
-        if (progressPct) progressPct.textContent = `${percent}%`;
-        if (progressLabel) progressLabel.textContent = label;
-        if (progressLog) progressLog.textContent = log;
-    };
-
-    try {
-        // If clean overwrite is chosen and target year is defined:
-        if (importMode === 'replace') {
-            setProgress(5, 'Preparing clean overwrite...', 'Locating existing records...');
-            const yearToClear = (targetYearChoice !== '__as_in_file__') ? targetYearChoice : stagedSnapshotData.sourceYear;
-            if (yearToClear) {
-                const rowsToDelete = examResultsCache.filter((r) => r.academicYear === yearToClear);
-                if (rowsToDelete.length > 0) {
-                    for (let i = 0; i < rowsToDelete.length; i += 400) {
-                        const chunk = rowsToDelete.slice(i, i + 400);
-                        const delBatch = writeBatch(db);
-                        chunk.forEach((row) => {
-                            delBatch.delete(doc(db, `${BASE_PATH}/examResults`, row.id));
-                        });
-                        await delBatch.commit();
-                        setProgress(15, 'Clearing previous records...', `Deleted ${Math.min(i + 400, rowsToDelete.length)} of ${rowsToDelete.length}`);
-                    }
-                }
-            }
-        }
-
-        // Import exam results in chunks
-        if (resultsTotal > 0) {
-            for (let i = 0; i < resultsTotal; i += 400) {
-                const chunk = stagedSnapshotData.results.slice(i, i + 400);
-                const batch = writeBatch(db);
-                chunk.forEach((row) => {
-                    const cleanRow = { ...row };
-                    if (targetYearChoice !== '__as_in_file__') {
-                        cleanRow.academicYear = targetYearChoice;
-                    }
-                    cleanRow.updatedAt = Date.now();
-                    cleanRow.importedAt = Date.now();
-
-                    const fallbackId = `${cleanRow.studentId || cleanRow.admissionNo || 'res'}_${cleanRow.examKey || 'exam'}_${cleanRow.academicYear || 'year'}`.replace(/[\/\s#]/g, '_');
-                    const docId = cleanRow.id || fallbackId;
-                    delete cleanRow.id;
-                    batch.set(doc(db, `${BASE_PATH}/examResults`, docId), cleanRow, { merge: true });
-                });
-                await batch.commit();
-                const pct = Math.round(20 + ((i + chunk.length) / resultsTotal) * 65);
-                setProgress(pct, `Importing results (${Math.min(i + 400, resultsTotal)}/${resultsTotal})...`, `Batch committed successfully`);
-            }
-        }
-
-        // Import schemas if present
-        if (schemasTotal > 0) {
-            setProgress(88, 'Importing exam schemas...', `${schemasTotal} schema definitions`);
-            for (let i = 0; i < schemasTotal; i += 400) {
-                const chunk = stagedSnapshotData.schemas.slice(i, i + 400);
-                const schemaBatch = writeBatch(db);
-                chunk.forEach((schema) => {
-                    const cleanSchema = { ...schema };
-                    if (targetYearChoice !== '__as_in_file__') {
-                        cleanSchema.academicYear = targetYearChoice;
-                    }
-                    cleanSchema.updatedAt = Date.now();
-                    const sId = cleanSchema.id || `schema_${(cleanSchema.classLabel || 'class').replace(/[\/\s#]/g, '_')}_${cleanSchema.academicYear || 'year'}`;
-                    delete cleanSchema.id;
-                    schemaBatch.set(doc(db, `${BASE_PATH}/resultSchemas`, sId), cleanSchema, { merge: true });
-                });
-                await schemaBatch.commit();
-            }
-        }
-
-        // Import gradeScales / settings if present in snapshot
-        if (stagedSnapshotData.settings?.gradeScales) {
-            setProgress(95, 'Updating grade rules & settings...', 'Merging grade scales');
-            await setDoc(doc(db, `${BASE_PATH}/settings`, 'resultCenter'), {
-                gradeScales: stagedSnapshotData.settings.gradeScales
-            }, { merge: true });
-        }
-
-        setProgress(100, 'Import completed successfully!', `Restored ${resultsTotal} results and ${schemasTotal} schemas.`);
-        alert(`Snapshot Import Successful!\n\n• ${resultsTotal} examination results synced\n• ${schemasTotal} exam schemas configured\n• Database updated.`);
-
-        stagedSnapshotData = null;
-        if (snapshotFileInput) snapshotFileInput.value = '';
-        document.getElementById('snapshot-import-preview')?.classList.add('hidden');
-        setTimeout(() => {
-            if (progressContainer) progressContainer.classList.add('hidden');
-        }, 3500);
-
-        renderSnapshotPanelUI();
-    } catch (err) {
-        console.error('Import error:', err);
-        alert('Snapshot import encountered an error: ' + err.message);
-        setProgress(0, 'Import failed', err.message);
-        if (startBtn) startBtn.disabled = false;
-    }
-});
 document.getElementById('promotion-direct-bypass-toggle')?.addEventListener('change', async (e) => {
     const isChecked = e.target.checked;
     if (isChecked) {
@@ -7255,13 +6749,6 @@ document.getElementById('grade-scale-total-input')?.addEventListener('change', (
 
 // Settings & Setup Sub-Panel Activator (hamburger menu & subtab buttons)
 const activateSettingsSubpanel = (subtabId) => {
-    if (subtabId === 'subpanel-snapshot') {
-        const snapTab = document.querySelector('.tab-link[data-target="snapshot-page"]');
-        if (snapTab) {
-            activateResultTab(snapTab);
-            return;
-        }
-    }
     if (subtabId === 'subpanel-promotion') {
         const promoTab = document.querySelector('.tab-link[data-target="promotion-page"]');
         if (promoTab) {
