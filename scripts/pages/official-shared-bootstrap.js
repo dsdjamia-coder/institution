@@ -869,6 +869,13 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       });
     };
 
+    const syncHeaderActiveYear = () => {
+      const el = document.getElementById('header-active-year');
+      if (!el) return;
+      const currentObj = academicYears.find((y) => y.id === activeAcademicYearId || y.name === activeAcademicYearId || y.isActive);
+      el.textContent = currentObj ? (currentObj.name || currentObj.label || currentObj.id) : (activeAcademicYearId || 'Academic Year');
+    };
+
     const resolveInstitutionName = (conf = {}) => String(conf.appName || conf.institutionName || conf.institution || conf.schoolName || conf.school || conf.name || '').trim();
 
     const applyOfficialBranding = (conf = {}) => {
@@ -886,7 +893,24 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         el.src = effectiveLogo;
         el.onerror = () => { el.onerror = null; el.src = 'assets/images/logo.png'; };
       });
-      document.getElementById('header-title').textContent = institutionName;
+      const titleEl = document.getElementById('header-title');
+      if (titleEl) titleEl.textContent = institutionName;
+
+      const regEl = document.getElementById('header-regno');
+      const placeEl = document.getElementById('header-place');
+      const sepEl = document.getElementById('header-sep');
+      const subContainer = document.getElementById('header-subtitle');
+      if (regEl && placeEl && sepEl && subContainer) {
+        regEl.textContent = conf.regNo ? `Reg: ${conf.regNo}` : '';
+        placeEl.textContent = conf.place || '';
+        if (conf.regNo || conf.place) {
+          subContainer.classList.remove('hidden');
+          sepEl.classList.toggle('hidden', !(conf.regNo && conf.place));
+        } else {
+          subContainer.classList.add('hidden');
+        }
+      }
+      syncHeaderActiveYear();
     };
 
     const hashCredentialValue = async (rawValue = '') => {
@@ -1078,6 +1102,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         btn.classList.toggle('active', active);
         btn.classList.toggle('text-indigo-700', active);
       });
+      if (isWorksheetPage) {
+        const isOverflowTab = target === 'alumni';
+        document.getElementById('btn-worksheet-more')?.classList.toggle('active', isOverflowTab);
+        document.querySelectorAll('.worksheet-more-tile').forEach((tile) => {
+          tile.classList.toggle('active', tile.dataset.tab === target);
+        });
+        closeWorksheetMoreSheet();
+      }
       setMobileMenuState(false);
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       
@@ -1169,6 +1201,110 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         setMobileMenuState(false);
       }
     });
+
+    // Worksheet Collapsible Desktop Sidebar & Mobile More Sheet Controller
+    const isWorksheetDesktop = () => window.innerWidth >= 1024;
+
+    const setWorksheetSidebarCollapsed = (collapsed) => {
+      const app = document.getElementById('official-app');
+      if (!app) return;
+      app.classList.toggle('sidebar-collapsed', collapsed);
+      if (isWorksheetDesktop()) {
+        try {
+          localStorage.setItem('worksheet_sidebar_collapsed', collapsed ? 'true' : 'false');
+        } catch (_) {}
+      }
+    };
+
+    const toggleWorksheetSidebarState = () => {
+      const app = document.getElementById('official-app');
+      const isCollapsed = app?.classList.contains('sidebar-collapsed');
+      setWorksheetSidebarCollapsed(!isCollapsed);
+    };
+
+    const initWorksheetSidebarState = () => {
+      if (!isWorksheetDesktop()) {
+        setWorksheetSidebarCollapsed(true);
+      } else {
+        try {
+          const stored = localStorage.getItem('worksheet_sidebar_collapsed');
+          setWorksheetSidebarCollapsed(stored === 'true');
+        } catch (_) {
+          setWorksheetSidebarCollapsed(false);
+        }
+      }
+    };
+
+    const closeWorksheetMoreSheet = () => {
+      const sheet = document.getElementById('worksheet-more-sheet');
+      if (sheet) {
+        sheet.classList.add('hidden');
+        sheet.classList.remove('flex');
+      }
+    };
+
+    const openWorksheetMoreSheet = () => {
+      const sheet = document.getElementById('worksheet-more-sheet');
+      if (sheet) {
+        sheet.classList.remove('hidden');
+        sheet.classList.add('flex');
+      }
+    };
+
+    if (isWorksheetPage) {
+      document.getElementById('sidebar-collapse-btn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleWorksheetSidebarState();
+      });
+
+      document.getElementById('btn-worksheet-more')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openWorksheetMoreSheet();
+      });
+
+      document.getElementById('btn-close-worksheet-more')?.addEventListener('click', () => {
+        closeWorksheetMoreSheet();
+      });
+
+      document.getElementById('worksheet-more-sheet')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('worksheet-more-sheet')) {
+          closeWorksheetMoreSheet();
+        }
+      });
+
+      document.querySelectorAll('.worksheet-more-tile').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tab = btn.dataset.tab;
+          if (tab) {
+            setTab(tab);
+          }
+          closeWorksheetMoreSheet();
+        });
+      });
+
+      document.getElementById('mobile-more-logout-btn')?.addEventListener('click', () => {
+        closeWorksheetMoreSheet();
+        document.getElementById('official-logout-btn')?.click();
+      });
+
+      window.addEventListener('resize', () => {
+        if (isWorksheetDesktop()) {
+          closeWorksheetMoreSheet();
+          let isCollapsed = false;
+          try {
+            const stored = localStorage.getItem('worksheet_sidebar_collapsed');
+            if (stored !== null) isCollapsed = stored === 'true';
+          } catch (_) {}
+          setWorksheetSidebarCollapsed(isCollapsed);
+        } else {
+          setWorksheetSidebarCollapsed(true);
+        }
+      });
+
+      initWorksheetSidebarState();
+    }
 
     const summaryStats = () => {
       const totalStudents = allStudents.length;
@@ -7412,6 +7548,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }
       const conf = configSnap.exists() ? configSnap.data() : {};
       applyOfficialBranding(conf);
+      syncHeaderActiveYear();
     };
 
     const preloadOfficialBranding = async () => {
@@ -7490,6 +7627,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           });
           renderAll();
         }
+        syncHeaderActiveYear();
       });
 
       onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
@@ -7537,7 +7675,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       }, () => {});
       if (isWorksheetPage) {
         const rawHash = (window.location.hash || '').replace('#', '');
-        const validTabs = ['summary', 'students', 'staff', 'export'];
+        const validTabs = ['summary', 'students', 'alumni', 'staff', 'export'];
         setTab(validTabs.includes(rawHash) ? rawHash : 'summary');
       } else {
         setTab('dashboard');

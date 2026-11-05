@@ -380,29 +380,40 @@ body.collection-shell .fee-item-new-green {
 /* DESKTOP (lg: min-width 1024px) */
 @media (min-width: 1024px) {
     #collection-bottom-nav,
-    #collection-more-sheet {
+    #collection-more-sheet,
+    #worksheet-bottom-nav,
+    .worksheet-bottom-nav,
+    #worksheet-more-sheet {
         display: none !important;
     }
-    #collection-app #drawer-overlay {
+    #collection-app #drawer-overlay,
+    #official-app #drawer-overlay {
         display: none !important;
     }
-    #collection-app #side-drawer {
+    #collection-app #side-drawer,
+    #official-app #side-drawer {
         transform: translateX(0) !important;
     }
-    #collection-app:not(.sidebar-collapsed) #side-drawer {
+    #collection-app:not(.sidebar-collapsed) #side-drawer,
+    #official-app:not(.sidebar-collapsed) #side-drawer {
         width: 16rem !important; /* 256px */
     }
-    #collection-app.sidebar-collapsed #side-drawer {
+    #collection-app.sidebar-collapsed #side-drawer,
+    #official-app.sidebar-collapsed #side-drawer {
         width: 4.5rem !important; /* 72px */
     }
     #collection-app:not(.sidebar-collapsed) .collection-main-wrapper,
-    #collection-app:not(.sidebar-collapsed) .collection-sticky-header {
+    #collection-app:not(.sidebar-collapsed) .collection-sticky-header,
+    #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
+    #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
         margin-left: 16rem !important;
         width: calc(100% - 16rem) !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     #collection-app.sidebar-collapsed .collection-main-wrapper,
-    #collection-app.sidebar-collapsed .collection-sticky-header {
+    #collection-app.sidebar-collapsed .collection-sticky-header,
+    #official-app.sidebar-collapsed .worksheet-main-wrapper,
+    #official-app.sidebar-collapsed .worksheet-sticky-header {
         margin-left: 4.5rem !important;
         width: calc(100% - 4.5rem) !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -412,29 +423,38 @@ body.collection-shell .fee-item-new-green {
     #collection-app.sidebar-collapsed #side-drawer .nav-text,
     #collection-app.sidebar-collapsed #side-drawer .drawer-heading,
     #collection-app.sidebar-collapsed #side-drawer .drawer-header-title,
-    #collection-app.sidebar-collapsed #side-drawer .sidebar-btn-label {
+    #collection-app.sidebar-collapsed #side-drawer .sidebar-btn-label,
+    #official-app.sidebar-collapsed #side-drawer .nav-text,
+    #official-app.sidebar-collapsed #side-drawer .drawer-heading,
+    #official-app.sidebar-collapsed #side-drawer .drawer-header-title,
+    #official-app.sidebar-collapsed #side-drawer .sidebar-btn-label {
         display: none !important;
     }
-    #collection-app.sidebar-collapsed #side-drawer > div:first-child {
+    #collection-app.sidebar-collapsed #side-drawer > div:first-child,
+    #official-app.sidebar-collapsed #side-drawer > div:first-child {
         justify-content: center !important;
         padding-left: 0.5rem;
         padding-right: 0.5rem;
     }
-    #collection-app.sidebar-collapsed #side-drawer .drawer-link {
+    #collection-app.sidebar-collapsed #side-drawer .drawer-link,
+    #official-app.sidebar-collapsed #side-drawer .drawer-link {
         justify-content: center !important;
         padding-left: 0.5rem;
         padding-right: 0.5rem;
     }
-    #collection-app.sidebar-collapsed #side-drawer .drawer-link i {
+    #collection-app.sidebar-collapsed #side-drawer .drawer-link i,
+    #official-app.sidebar-collapsed #side-drawer .drawer-link i {
         font-size: 1.15rem;
         margin: 0 auto;
     }
-    #collection-app.sidebar-collapsed #side-drawer .sidebar-footer-btn {
+    #collection-app.sidebar-collapsed #side-drawer .sidebar-footer-btn,
+    #official-app.sidebar-collapsed #side-drawer .sidebar-footer-btn {
         justify-content: center !important;
         padding-left: 0.5rem;
         padding-right: 0.5rem;
     }
-    #collection-app.sidebar-collapsed #sidebar-toggle-icon {
+    #collection-app.sidebar-collapsed #sidebar-toggle-icon,
+    #official-app.sidebar-collapsed #sidebar-toggle-icon {
         transform: rotate(180deg);
     }
 }
@@ -443,18 +463,24 @@ body.collection-shell .fee-item-new-green {
 @media (max-width: 1023px) {
     #collection-app #side-drawer,
     #collection-app #drawer-overlay,
-    #collection-mobile-menu-btn {
+    #collection-mobile-menu-btn,
+    #official-app #side-drawer,
+    #official-app #drawer-overlay,
+    #worksheet-mobile-menu-btn {
         display: none !important;
     }
 
     #collection-app .collection-main-wrapper,
-    #collection-app .collection-sticky-header {
+    #collection-app .collection-sticky-header,
+    #official-app .worksheet-main-wrapper,
+    #official-app .worksheet-sticky-header {
         margin-left: 0 !important;
         width: 100% !important;
         transition: none;
     }
 
-    #collection-app .collection-main-wrapper {
+    #collection-app .collection-main-wrapper,
+    #official-app .worksheet-main-wrapper {
         padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
     }
 }
@@ -1836,23 +1862,32 @@ html[data-session-guard="worksheet"] #official-app {
     max-width: 100% !important;
 }
 
-body[data-page-type="worksheet"] header,
-body.collection-shell[data-page-type="worksheet"] header,
-html[data-session-guard="worksheet"] header {
+body[data-page-type="worksheet"]:not(:has(.has-desktop-sidebar)) header,
+#official-app:not(.has-desktop-sidebar) header {
     max-width: 99vw !important;
     width: 99vw !important;
     margin: 10px auto !important;
 }
 
-body[data-page-type="worksheet"] main,
-body.collection-shell[data-page-type="worksheet"] main,
-html[data-session-guard="worksheet"] body main,
-#official-app main#app {
+body[data-page-type="worksheet"]:not(:has(.has-desktop-sidebar)) main,
+#official-app:not(.has-desktop-sidebar) main#app {
     max-width: 99vw !important;
     width: 99vw !important;
     margin: 0 auto 10px auto !important;
     padding: 0 !important;
     flex-grow: 1;
+}
+
+#official-app.has-desktop-sidebar .worksheet-sticky-header header {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+}
+
+#official-app.has-desktop-sidebar .worksheet-main-wrapper main#app {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
 }
 
 body[data-page-type="worksheet"] #page-content,

@@ -57,127 +57,202 @@
     input, select, textarea { background-color: #ffffff; border-color: #d1d5db; color: #1f2937; transition: border 0.2s; outline: none; }
     input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
 
-    header { background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px); position: sticky; top: 10px; z-index: 1000; border: 1px solid #e2e8f0; height: var(--header-height); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); border-radius: 16px; margin: 10px auto; width: calc(100% - 24px); max-width: 100%; }
-    @media (max-width: 768px) { header { margin: 8px; width: calc(100% - 16px); border-radius: 12px; top: 8px; } }
-    .nav-container { height: 100%; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; position: relative; }
-    .header-branding-box { display: flex; align-items: center; gap: 10px; z-index: 10; }
-    .header-logo-box { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-    .header-logo-box img { max-height: 100%; max-width: 100%; border-radius: 10px; object-fit: contain; opacity: 1; }
-    .header-branding-box h1 { font-weight: 800; color: var(--primary); line-height: 1.2; font-size: 15px; margin: 0; }
-    .header-branding-box p { font-size: 11px; color: var(--text-gray); font-weight: 600; opacity: 0.85; margin-top: 1px; }
+    /* Header & Shell Styling */
+    .worksheet-sticky-header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #e2e8f0;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    }
 
-    /* Navigation Bar and Hamburger Menu */
-    .mobile-toggle { 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        color: var(--primary); 
-        cursor: pointer; 
-        padding: 8px 10px; 
-        border-radius: 12px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        z-index: 1001; 
+    .drawer-link {
+      color: #334155;
+      border-radius: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      margin: 2px 10px;
+    }
+    .drawer-link:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .drawer-link.active {
+      background: #2563eb !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+    .drawer-link.active i {
+      color: #ffffff !important;
+    }
+    .drawer-heading {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      padding: 12px 16px 4px;
+    }
+
+    /* Desktop Collapsible Sidebar (1024px+) */
+    @media (min-width: 1024px) {
+      #worksheet-bottom-nav,
+      .worksheet-bottom-nav,
+      #worksheet-more-sheet {
+        display: none !important;
+      }
+      #official-app.has-desktop-sidebar #side-drawer {
+        transform: translateX(0) !important;
+      }
+      #official-app:not(.sidebar-collapsed) #side-drawer {
+        width: 16rem !important; /* 256px */
+      }
+      #official-app.sidebar-collapsed #side-drawer {
+        width: 4.5rem !important; /* 72px */
+      }
+      #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
+      #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
+        margin-left: 16rem !important;
+        width: calc(100% - 16rem) !important;
+        transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #official-app.sidebar-collapsed .worksheet-main-wrapper,
+      #official-app.sidebar-collapsed .worksheet-sticky-header {
+        margin-left: 4.5rem !important;
+        width: calc(100% - 4.5rem) !important;
+        transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #official-app.sidebar-collapsed #side-drawer .nav-text,
+      #official-app.sidebar-collapsed #side-drawer .drawer-heading,
+      #official-app.sidebar-collapsed #side-drawer .drawer-header-title,
+      #official-app.sidebar-collapsed #side-drawer .sidebar-btn-label {
+        display: none !important;
+      }
+      #official-app.sidebar-collapsed #side-drawer > div:first-child {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+      #official-app.sidebar-collapsed #side-drawer .drawer-link {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        margin: 4px 6px;
+      }
+      #official-app.sidebar-collapsed #side-drawer .drawer-link i {
+        font-size: 1.15rem;
+        margin: 0 auto;
+      }
+      #official-app.sidebar-collapsed #side-drawer .sidebar-footer-btn {
+        justify-content: center !important;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+      #official-app.sidebar-collapsed #sidebar-toggle-icon {
+        transform: rotate(180deg);
+      }
+    }
+
+    /* Mobile and Tablet (max-width: 1023px) */
+    @media (max-width: 1023px) {
+      #official-app #side-drawer,
+      #official-app #drawer-overlay,
+      #worksheet-mobile-menu-btn {
+        display: none !important;
+      }
+      #official-app .worksheet-main-wrapper,
+      #official-app .worksheet-sticky-header {
+        margin-left: 0 !important;
+        width: 100% !important;
+        transition: none;
+      }
+      #official-app .worksheet-main-wrapper {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+      .worksheet-bottom-nav,
+      #worksheet-bottom-nav {
+        position: fixed !important;
+        left: 8px !important;
+        right: 8px !important;
+        bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+        z-index: 40 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-around !important;
+        gap: 4px !important;
+        padding: 5px 4px 6px !important;
+        border: 1px solid rgba(226, 232, 240, 0.95) !important;
+        border-radius: 20px !important;
+        background: rgba(255, 255, 255, 0.97) !important;
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08) !important;
+        backdrop-filter: blur(16px) !important;
+      }
+      .bottom-nav-link {
         position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 48px;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        color: #64748b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        font-size: 10px;
+        font-weight: 700;
+        text-align: center;
         transition: all 0.2s ease;
+        padding: 4px 2px;
+        text-decoration: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bottom-nav-link i {
+        font-size: 16px;
+        line-height: 1;
+        transition: all 0.2s ease;
+      }
+      .bottom-nav-link span {
+        line-height: 1.1;
+        white-space: nowrap;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .bottom-nav-link.active {
+        background: #2563eb !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+      }
+      .bottom-nav-link.active i,
+      .bottom-nav-link.active span {
+        color: #ffffff !important;
+        font-weight: 800;
+      }
+      .worksheet-more-tile.active {
+        background: #eff6ff !important;
+        border-color: #3b82f6 !important;
+      }
     }
-    .mobile-toggle:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-    }
-    .menu-icon-wrapper { 
-        width: 24px; 
-        height: 24px; 
-        position: relative; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-    }
-    .menu-icon-wrapper i { 
-        position: absolute; 
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-        font-size: 20px; 
-    }
-    .icon-bars { opacity: 1; transform: rotate(0deg) scale(1); color: #1e293b; }
-    .icon-close { opacity: 0; transform: rotate(-90deg) scale(0.5); }
-    .active-toggle { background: #fee2e2 !important; border-color: #fca5a5 !important; }
-    .active-toggle .icon-bars { opacity: 0; transform: rotate(90deg) scale(0.5); }
-    .active-toggle .icon-close { opacity: 1; transform: rotate(0deg) scale(1); color: #ef4444; }
 
-    .nav-menu { 
-        position: absolute; 
-        top: calc(100% + 12px); 
-        right: 0; 
-        width: min(300px, calc(100vw - 30px)); 
-        max-height: min(78vh, 600px); 
-        overflow-y: auto; 
-        background: rgba(255, 255, 255, 0.98); 
-        backdrop-filter: blur(16px); 
-        flex-direction: column; 
-        align-items: stretch; 
-        padding: 14px; 
-        gap: 6px; 
-        border: 1px solid #e2e8f0; 
-        border-radius: 20px; 
-        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15); 
-        transform: translateY(-12px) scale(0.96); 
-        opacity: 0; 
-        pointer-events: none; 
-        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease; 
-        transform-origin: top right; 
-        z-index: 1100; 
-        display: flex; 
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
     }
-    .nav-menu.active { 
-        transform: translateY(0) scale(1); 
-        opacity: 1; 
-        pointer-events: auto; 
+
+    /* Fullscreen Mode Overrides */
+    body.worksheet-fullscreen-mode #side-drawer,
+    body.worksheet-fullscreen-mode .worksheet-sticky-header,
+    body.worksheet-fullscreen-mode #worksheet-bottom-nav,
+    body.worksheet-fullscreen-mode #worksheet-more-sheet {
+      display: none !important;
     }
-    .nav-link { 
-        font-size: 13.5px; 
-        font-weight: 600; 
-        color: #334155; 
-        width: 100%; 
-        display: flex; 
-        align-items: center; 
-        gap: 12px; 
-        padding: 10px 14px; 
-        border-radius: 12px; 
-        transition: all 0.18s ease; 
-    }
-    .nav-link:hover { 
-        background: #f1f5f9; 
-        color: #0f172a; 
-    }
-    .nav-link.active { 
-        background: #0f172a !important; 
-        color: #ffffff !important; 
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2); 
-    }
-    .nav-link.active i { 
-        color: #60a5fa !important; 
-    }
-    .login-btn-nav { 
-        width: 100%; 
-        text-align: center; 
-        justify-content: center; 
-        padding: 10px 16px; 
-        border-radius: 12px; 
-        font-weight: 700; 
-        font-size: 13px; 
-        cursor: pointer; 
-        display: flex; 
-        align-items: center; 
-        gap: 8px; 
-        border: none; 
-        transition: all 0.2s ease; 
-    }
-    .btn-danger { 
-        background: #ef4444; 
-        color: #ffffff; 
-    }
-    .btn-danger:hover { 
-        background: #dc2626; 
+    body.worksheet-fullscreen-mode .worksheet-main-wrapper {
+      margin-left: 0 !important;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      padding: 0 !important;
     }
 
     /* Tabbed Modal & Staff Card Styling */
@@ -1698,51 +1773,83 @@
 
 <body class="antialiased text-gray-800 collection-shell" data-page-type="worksheet">
 
-  <div id="official-app" class="h-screen flex flex-col">
-    <header class="no-print shrink-0">
-      <div class="nav-container">
-        <div class="header-branding-box">
-          <div class="header-logo-box">
-            <img id="header-logo" src="assets/images/logo.png" alt="Logo" onerror="this.style.display='none'">
+    <div id="official-app" class="min-h-screen has-desktop-sidebar">
+
+    <!-- STICKY HEADER -->
+    <div class="sticky top-0 z-30 worksheet-sticky-header">
+      <header class="w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl overflow-hidden bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
+            <img id="header-logo" src="assets/images/logo.png" alt="Logo" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
           </div>
           <div>
-            <div class="text-[10px] sm:text-[11px] font-extrabold text-teal-700 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fas fa-file-excel text-teal-600"></i>
-              <span>Class Worksheet & Registers</span>
-            </div>
-            <h1 id="header-title" class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">Official Portal</h1>
-            <p id="header-subtitle" class="text-xs text-slate-500 font-bold"><span id="official-user-line">--</span></p>
+            <h1 id="header-title" class="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Institution Name</h1>
+            <p id="header-subtitle" class="hidden text-xs text-slate-500 font-medium"><span id="header-regno"></span> <span id="header-sep" class="mx-1 hidden">|</span> <span id="header-place"></span></p>
           </div>
         </div>
-
         <div class="flex items-center gap-2">
-          <!-- Hamburger Menu Toggle Button -->
-          <button class="mobile-toggle" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
-            <div class="menu-icon-wrapper">
-              <i class="fas fa-bars icon-bars"></i>
-              <i class="fas fa-times icon-close"></i>
-            </div>
-          </button>
-        </div>
-
-        <!-- Dropdown Menu -->
-        <ul class="nav-menu" aria-label="Official navigation">
-          <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl shadow-xs mb-2 text-center">
-            <div class="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Logged in as</div>
-            <div id="staff-name-display" class="text-blue-900 font-extrabold truncate text-sm">--</div>
-            <div id="staff-role-display" class="text-[11px] text-blue-600 font-semibold truncate">Official Portal</div>
+          <div class="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-900 shadow-xs">
+            <i class="fas fa-calendar-alt text-blue-600"></i>
+            <span id="header-active-year">Loading Session...</span>
           </div>
-          <li><a href="#summary" class="nav-link tab-link active" data-tab="summary"><i class="fas fa-chart-pie text-lg w-6 text-emerald-600"></i> <span>Dashboard (Class Summary)</span></a></li>
-          <li><a href="#students" class="nav-link tab-link" data-tab="students"><i class="fas fa-users text-lg w-6 text-blue-600"></i> <span>Students Register</span></a></li>
-          <li><a href="#alumni" class="nav-link tab-link text-amber-700" data-tab="alumni"><i class="fas fa-user-graduate text-lg w-6 text-amber-600"></i> <span>Alumni Register</span></a></li>
-          <li><a href="#staff" class="nav-link tab-link" data-tab="staff"><i class="fas fa-chalkboard-teacher text-lg w-6 text-indigo-600"></i> <span>Staff Directory</span></a></li>
-          <li><a href="#export" class="nav-link tab-link font-bold text-teal-700" data-tab="export"><i class="fas fa-file-excel text-lg w-6 text-teal-600"></i> <span>Class Worksheet</span></a></li>
-          <div class="border-t border-slate-200 my-1"></div>
-          <li><a href="official.html" class="nav-link font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200"><i class="fas fa-th-large text-lg w-6 text-blue-600"></i> <span>Official Hub</span></a></li>
-          <li><button id="official-logout-btn" class="login-btn-nav btn-danger !w-full"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></button></li>
-        </ul>
+        </div>
+      </header>
+    </div>
+
+    <!-- MOBILE OVERLAY -->
+    <div id="drawer-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 hidden opacity-0 transition-opacity duration-300"></div>
+
+    <!-- COLLAPSIBLE SIDEBAR (admin-style) -->
+    <aside id="side-drawer" class="fixed top-0 left-0 h-full w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
+      <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 h-16 shrink-0">
+        <div class="drawer-header-title flex items-center gap-2 overflow-hidden">
+          <i class="fas fa-file-excel text-teal-600 text-lg shrink-0"></i>
+          <div class="flex flex-col min-w-0">
+            <span class="font-bold text-base text-gray-800 truncate">Class Worksheet</span>
+            <span id="staff-name-display" class="text-[10px] font-bold text-blue-600 truncate">Staff</span>
+          </div>
+        </div>
+        <button type="button" id="sidebar-collapse-btn" class="text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition flex items-center justify-center shrink-0 cursor-pointer" title="Collapse / Expand sidebar">
+          <i id="sidebar-toggle-icon" class="fas fa-angles-left text-base transition-transform duration-300 pointer-events-none"></i>
+        </button>
       </div>
-    </header>
+      <nav class="flex-grow pb-4 space-y-1 overflow-y-auto">
+        <div class="drawer-heading">Navigation</div>
+        <a href="#summary" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition active" data-tab="summary" title="Dashboard (Class Summary)">
+          <i class="fas fa-chart-pie w-5 text-center shrink-0 text-emerald-600"></i>
+          <span class="text-sm nav-text truncate">Dashboard</span>
+        </a>
+        <a href="#students" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-tab="students" title="Students Register">
+          <i class="fas fa-users w-5 text-center shrink-0 text-blue-600"></i>
+          <span class="text-sm nav-text truncate">Students Register</span>
+        </a>
+        <a href="#alumni" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition text-amber-700" data-tab="alumni" title="Alumni Register">
+          <i class="fas fa-user-graduate w-5 text-center shrink-0 text-amber-600"></i>
+          <span class="text-sm nav-text truncate">Alumni Register</span>
+        </a>
+        <a href="#staff" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition text-indigo-700" data-tab="staff" title="Staff Directory">
+          <i class="fas fa-chalkboard-teacher w-5 text-center shrink-0 text-indigo-600"></i>
+          <span class="text-sm nav-text truncate">Staff Directory</span>
+        </a>
+        <a href="#export" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition font-bold text-teal-700" data-tab="export" title="Class Worksheet">
+          <i class="fas fa-file-excel w-5 text-center shrink-0 text-teal-600"></i>
+          <span class="text-sm nav-text truncate">Class Worksheet</span>
+        </a>
+      </nav>
+      <div class="p-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2 shrink-0">
+        <a href="official.html" id="back-to-official-btn" class="sidebar-footer-btn bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-lg font-bold transition text-xs" title="Official Hub">
+          <i class="fas fa-th-large text-indigo-600 shrink-0"></i>
+          <span class="sidebar-btn-label truncate">Official Hub</span>
+        </a>
+        <button id="official-logout-btn" class="sidebar-footer-btn btn-danger flex items-center justify-center gap-2 w-full p-2.5 rounded-lg font-bold transition text-xs bg-rose-600 hover:bg-rose-700 text-white border-none cursor-pointer" title="Logout">
+          <i class="fas fa-sign-out-alt shrink-0"></i>
+          <span class="sidebar-btn-label truncate">Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="worksheet-main-wrapper flex-grow flex flex-col overflow-hidden transition-all duration-300">
 
     <main id="app" class="flex-grow flex flex-col overflow-hidden relative w-full max-w-none">
       <div id="page-content" class="h-full w-full max-w-none overflow-y-auto">
@@ -1755,6 +1862,7 @@
       <!-- Excel Interface Container -->
       <section id="official-tab-export" class="official-tab hidden h-full w-full max-w-none flex-col bg-[#f3f2f1]"></section>
     </main>
+    </div><!-- /.worksheet-main-wrapper -->
 
     <div id="official-detail-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-950/60 p-2 sm:p-4 no-print" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="official-detail-title">
       <div class="official-detail-dialog w-full max-w-5xl max-h-[94vh] overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200">
@@ -1766,6 +1874,64 @@
           <button id="official-detail-close" type="button" class="h-8 w-8 sm:h-10 sm:w-10 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition" aria-label="Close details"><i class="fas fa-times text-xs sm:text-sm"></i></button>
         </div>
         <div id="official-detail-body" class="max-h-[calc(94vh-56px)] overflow-y-auto p-2.5 sm:p-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION (matching student.html / result.html design) -->
+  <nav id="worksheet-bottom-nav" class="worksheet-bottom-nav" aria-label="Mobile Navigation">
+    <button type="button" class="bottom-nav-link tab-link active" data-tab="summary">
+      <i class="fas fa-chart-pie"></i>
+      <span>Dashboard</span>
+    </button>
+    <button type="button" class="bottom-nav-link tab-link" data-tab="students">
+      <i class="fas fa-users"></i>
+      <span>Students</span>
+    </button>
+    <button type="button" class="bottom-nav-link tab-link" data-tab="export">
+      <i class="fas fa-file-excel"></i>
+      <span>Worksheet</span>
+    </button>
+    <button type="button" class="bottom-nav-link tab-link" data-tab="staff">
+      <i class="fas fa-chalkboard-teacher"></i>
+      <span>Staff</span>
+    </button>
+    <button type="button" id="btn-worksheet-more" class="bottom-nav-link" aria-label="More Options">
+      <i class="fas fa-ellipsis-h"></i>
+      <span>More</span>
+    </button>
+  </nav>
+
+  <!-- MOBILE MORE ACTIONS BOTTOM SHEET (matching student.html design) -->
+  <div id="worksheet-more-sheet" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-200">
+    <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 animate-[slideUp_.2s_ease-out] space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
+          <i class="fas fa-grid text-blue-600"></i> More Portal Features
+        </h3>
+        <button type="button" id="btn-close-worksheet-more" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition border-none cursor-pointer" aria-label="Close More Menu">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+      <div id="worksheet-more-sheet-items" class="grid grid-cols-2 gap-2.5">
+        <button type="button" class="worksheet-more-tile p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer" data-tab="alumni">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-user-graduate"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Alumni Register</span>
+        </button>
+        <a href="official.html" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer text-decoration-none">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
+            <i class="fas fa-th-large"></i>
+          </div>
+          <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Official Hub</span>
+        </a>
+      </div>
+      <div class="pt-2 border-t border-slate-100">
+        <button type="button" id="mobile-more-logout-btn" class="w-full py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer border border-rose-200">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Sign Out</span>
+        </button>
       </div>
     </div>
   </div>
