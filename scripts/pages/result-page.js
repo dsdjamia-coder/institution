@@ -477,6 +477,97 @@ const withBusyButton = async (buttonId, labelBusy, runner) => {
         }
     }
 };
+const parseClassNatural = (label = '') => {
+    const raw = String(label || '').trim();
+    if (!raw) return { rank: 9999, num: 9999, suffix: '', raw: '' };
+
+    const lower = raw.toLowerCase();
+
+    // Check preschool stages
+    if (lower === 'pre-kg' || lower === 'prekg') return { rank: 1, num: 1, suffix: raw, raw };
+    if (lower === 'nursery') return { rank: 1, num: 2, suffix: raw, raw };
+    if (lower === 'lkg') return { rank: 1, num: 3, suffix: raw, raw };
+    if (lower === 'ukg') return { rank: 1, num: 4, suffix: raw, raw };
+    if (lower === 'kg') return { rank: 1, num: 5, suffix: raw, raw };
+
+    // Roman numerals lookup
+    const romanMap = {
+        'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5,
+        'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10,
+        'xi': 11, 'xii': 12
+    };
+
+    // Strip common prefixes like "Class", "Std", "Standard", "Grade"
+    const stripped = raw.replace(/^(class|std|standard|grade)\s*[-:]?\s*/i, '').trim();
+
+    // Extract leading digits: e.g. "1", "10", "1 A", "10-B", "10th A"
+    const digitMatch = stripped.match(/^(\d+)(?:st|nd|rd|th)?[\s\-_]*(.*)$/i);
+    if (digitMatch) {
+        return {
+            rank: 2,
+            num: parseInt(digitMatch[1], 10),
+            suffix: digitMatch[2].trim().toLowerCase(),
+            raw
+        };
+    }
+
+    // Try roman numerals: e.g. "X A", "IV", "XII"
+    const romanMatch = stripped.match(/^([ivxLCDM]+)[\s\-_]*(.*)$/i);
+    if (romanMatch && romanMap[romanMatch[1].toLowerCase()]) {
+        return {
+            rank: 2,
+            num: romanMap[romanMatch[1].toLowerCase()],
+            suffix: romanMatch[2].trim().toLowerCase(),
+            raw
+        };
+    }
+
+    // If "alumni"
+    if (lower === 'alumni') {
+        return { rank: 999, num: 999, suffix: '', raw };
+    }
+
+    // Default other text: rank 3
+    return { rank: 3, num: 0, suffix: lower, raw };
+};
+
+const compareClassLabelsNatural = (a = '', b = '') => {
+    const pA = parseClassNatural(a);
+    const pB = parseClassNatural(b);
+    if (pA.rank !== pB.rank) return pA.rank - pB.rank;
+    if (pA.num !== pB.num) return pA.num - pB.num;
+    const comp = pA.suffix.localeCompare(pB.suffix, undefined, { numeric: true, sensitivity: 'base' });
+    if (comp !== 0) return comp;
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+};
+
+const getNextAcademicYearLabel = (currentYearStr = '') => {
+    const str = String(currentYearStr || '').trim();
+    if (!str) return '';
+    // Format YYYY-YYYY or YYYY/YYYY (e.g. 2025-2026 -> 2026-2027)
+    const match = str.match(/^(\d{4})[-/](\d{4})$/);
+    if (match) {
+        const y1 = parseInt(match[1], 10);
+        const y2 = parseInt(match[2], 10);
+        return `${y1 + 1}-${y2 + 1}`;
+    }
+    // Format YYYY-YY (e.g. 2025-26 -> 2026-27)
+    const matchShort = str.match(/^(\d{4})[-/](\d{2})$/);
+    if (matchShort) {
+        const y1 = parseInt(matchShort[1], 10);
+        const y2 = parseInt(matchShort[2], 10);
+        const nextY2 = (y2 + 1) % 100;
+        return `${y1 + 1}-${String(nextY2).padStart(2, '0')}`;
+    }
+    // Format single year YYYY (e.g. 2025 -> 2026-2027)
+    const matchSingle = str.match(/^(\d{4})$/);
+    if (matchSingle) {
+        const y = parseInt(matchSingle[1], 10);
+        return `${y + 1}-${y + 2}`;
+    }
+    return '';
+};
+
 const getNextClassLabel = (classLabel = '') => {
     const progressionMap = resultCenterSettings.classProgressionMap || {};
     if (progressionMap[classLabel] !== undefined && progressionMap[classLabel] !== null && String(progressionMap[classLabel]).trim() !== '') {
@@ -1145,15 +1236,7 @@ function initializeDataListeners() {
             if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
         });
 
-        const configuredMap = new Map();
-        configuredOrder.forEach((cls, idx) => configuredMap.set(cls, idx));
-
-        classes = Array.from(classSet).sort((a, b) => {
-            const idxA = configuredMap.has(a) ? configuredMap.get(a) : 9999;
-            const idxB = configuredMap.has(b) ? configuredMap.get(b) : 9999;
-            if (idxA !== idxB) return idxA - idxB;
-            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-        });
+        classes = Array.from(classSet).sort(compareClassLabelsNatural);
         scheduleRefresh();
     };
 
@@ -1426,21 +1509,30 @@ const renderPromotionCandidatesUI = () => {
             if (typeof entry === 'object') return String(entry.value || entry.year || entry.label || '').trim();
             return String(entry).trim();
         };
-        const options = availableAcademicYears
-            .map((year) => normalizeYear(year))
-            .filter((year) => year && year !== currentAcademicYear);
 
-        if (!options.length && currentAcademicYear) {
-            const startYear = parseInt(String(currentAcademicYear).split('-')[0], 10);
-            if (!isNaN(startYear)) {
-                options.push(`${startYear + 1}-${startYear + 2}`);
+        const calculatedNextYear = getNextAcademicYearLabel(currentAcademicYear);
+        const yearSet = new Set();
+        if (calculatedNextYear) yearSet.add(calculatedNextYear);
+
+        (availableAcademicYears || []).forEach((year) => {
+            const y = normalizeYear(year);
+            if (y && y !== currentAcademicYear) {
+                yearSet.add(y);
             }
-        }
+        });
+
+        const options = Array.from(yearSet).sort((a, b) => {
+            const startA = parseInt(String(a).split(/[-/]/)[0], 10) || 0;
+            const startB = parseInt(String(b).split(/[-/]/)[0], 10) || 0;
+            return startA - startB;
+        });
 
         const currentTargetVal = yearSelect.value;
-        const previousOptionsHtml = yearSelect.innerHTML;
-        if (!previousOptionsHtml || yearSelect.options.length <= 1) {
-            yearSelect.innerHTML = `<option value="">Select Next Year</option>${options.map((year, idx) => `<option value="${escapeHtml(year)}" ${currentTargetVal === year || (!currentTargetVal && idx === 0) ? 'selected' : ''}>${escapeHtml(year)}</option>`).join('')}`;
+        const selectedValue = currentTargetVal || calculatedNextYear || (options[0] || '');
+
+        yearSelect.innerHTML = `<option value="">Select Next Year</option>${options.map((year) => `<option value="${escapeHtml(year)}" ${selectedValue === year ? 'selected' : ''}>${escapeHtml(year)}</option>`).join('')}`;
+        if (selectedValue && yearSelect.value !== selectedValue) {
+            yearSelect.value = selectedValue;
         }
     }
 
@@ -1459,34 +1551,56 @@ const renderPromotionCandidatesUI = () => {
         return [cls, { pass: 0, fail: 0, total: 0, boys: 0, girls: 0, nextClass: defaultNext }];
     }));
 
+    // 1. Gather all active enrolled students in promotable classes for current session
+    const activeEnrolledStudents = students.filter((student) => {
+        if (!student) return false;
+        const status = String(student.status || '').toLowerCase();
+        if (status === 'alumni' || status === 'inactive' || status === 'graduated' || status === 'discontinued' || student.isAlumni) return false;
+        if (currentAcademicYear && student.academicYear && student.academicYear !== currentAcademicYear) return false;
+        const fromClass = String(student.class || '').trim();
+        return Boolean(fromClass && summaryMap.has(fromClass));
+    });
+
+    // 2. Count Total, Boys, and Girls based on master active enrolled student records
+    activeEnrolledStudents.forEach((student) => {
+        const fromClass = String(student.class || '').trim();
+        const item = summaryMap.get(fromClass);
+        if (!item) return;
+        item.total += 1;
+        const gender = String(student.gender || '').toLowerCase();
+        if (gender.startsWith('m') || gender.includes('boy')) item.boys += 1;
+        if (gender.startsWith('f') || gender.includes('girl')) item.girls += 1;
+    });
+
+    // 3. Determine Pass and Fail counts
     if (directPromotionMode) {
-        // Direct Promotion Mode: scan all active students in class
-        students.forEach((student) => {
-            if (student?.status === 'alumni' || student?.status === 'inactive' || student?.isAlumni) return;
-            const fromClass = student?.class || '';
-            if (!fromClass || !summaryMap.has(fromClass)) return;
-            if (currentAcademicYear && student.academicYear && student.academicYear !== currentAcademicYear) return;
-            const gender = String(student.gender || '').toLowerCase();
-            const item = summaryMap.get(fromClass);
-            item.total += 1;
-            if (gender.startsWith('m') || gender.includes('boy')) item.boys += 1;
-            if (gender.startsWith('f') || gender.includes('girl')) item.girls += 1;
-            item.pass += 1; // All active students in class are directly promotable
+        // Direct Promotion Mode: all active students in class are directly eligible
+        summaryMap.forEach((item) => {
+            item.pass = item.total;
+            item.fail = 0;
         });
     } else {
-        // Standard Examination Mode: check published annual exam results
+        // Standard Examination Mode: evaluate pass/fail based on published annual exam results
+        const studentAnnualPassMap = new Map();
         annualRows.forEach((row) => {
-            const student = students.find((entry) => entry.id === row.studentId);
-            const fromClass = student?.class || row.classLabel || '';
-            if (!fromClass || !summaryMap.has(fromClass)) return;
+            if (!row || !row.studentId) return;
             const passed = isPassFromMarks(row);
-            const gender = String(student?.gender || '').toLowerCase();
+            if (!studentAnnualPassMap.has(row.studentId) || passed) {
+                studentAnnualPassMap.set(row.studentId, passed);
+            }
+        });
+
+        activeEnrolledStudents.forEach((student) => {
+            const fromClass = String(student.class || '').trim();
             const item = summaryMap.get(fromClass);
-            item.total += 1;
-            if (gender.startsWith('m') || gender.includes('boy')) item.boys += 1;
-            if (gender.startsWith('f') || gender.includes('girl')) item.girls += 1;
-            if (passed) item.pass += 1;
-            else item.fail += 1;
+            if (!item) return;
+
+            const hasResult = studentAnnualPassMap.has(student.id);
+            if (hasResult && studentAnnualPassMap.get(student.id) === true) {
+                item.pass += 1;
+            } else {
+                item.fail += 1;
+            }
         });
     }
 
@@ -1596,7 +1710,7 @@ const renderResultVisibilitySettings = () => {
     if (!container) return;
     const map = resultCenterSettings.resultVisibilityMap || {};
     const rows = [];
-    const classList = [...new Set(resultSchemas.filter((schema) => schema.academicYear === currentAcademicYear || !schema.academicYear).map((schema) => schema.classLabel).filter(Boolean))];
+    const classList = [...new Set(resultSchemas.filter((schema) => schema.academicYear === currentAcademicYear || !schema.academicYear).map((schema) => schema.classLabel).filter(Boolean))].sort(compareClassLabelsNatural);
     classList.forEach((cls) => rows.push(`<button class="visibility-class-card border rounded-lg p-3 bg-white text-left hover:border-indigo-400" data-class="${escapeHtml(cls)}"><div class="font-bold">${escapeHtml(cls)}</div><div class="text-xs text-gray-500">Click to manage exam visibility</div></button>`));
     container.innerHTML = rows.length ? rows.join('') : '<div class="text-sm text-gray-500">No class/exam entries found.</div>';
 };
@@ -1992,7 +2106,7 @@ const getReportClassesForYear = (targetYear) => {
 
     return Array.from(classSet)
         .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        .sort(compareClassLabelsNatural);
 };
 
 const populateReportClasses = (selectedYear) => {
@@ -2638,7 +2752,8 @@ const renderExamSetup = () => {
     const filtered = resultSchemas
         .filter((s) => s.academicYear === currentAcademicYear || !s.academicYear)
         .filter((s) => !isTeacherScope || isClassInDutyScope(s.classLabel, teacherAssignedClasses))
-        .filter((s) => !classFilter || s.classLabel === classFilter);
+        .filter((s) => !classFilter || s.classLabel === classFilter)
+        .sort((a, b) => compareClassLabelsNatural(a.classLabel, b.classLabel));
     
     if (filtered.length === 0) {
         cont.innerHTML = `
@@ -5216,10 +5331,13 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
 
     const updates = [];
     const promotionDecisions = [];
+    const processedStudentIds = new Set();
     annualRows.forEach((row) => {
         if (!isPassFromMarks(row)) return;
+        if (!row.studentId || processedStudentIds.has(row.studentId)) return;
         const student = students.find((entry) => entry.id === row.studentId);
         if (!student) return;
+        processedStudentIds.add(student.id);
         const fromClass = student.class || row.classLabel || '';
         const nextClass = classTargetMap[fromClass] !== undefined ? classTargetMap[fromClass] : getNextClassLabel(fromClass);
         if (!nextClass) return; // Discontinue / No promotion
@@ -5397,7 +5515,7 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
                 .filter(r => r.published === true && (!reportYear || r.academicYear === reportYear || !r.academicYear) && resultMatchesExam(r, examId) && r.classLabel)
                 .map(r => String(r.classLabel).trim())
                 .filter(Boolean)
-        )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        )].sort(compareClassLabelsNatural);
 
         const rawTargetClasses = publishedExamClasses.length ? publishedExamClasses : getReportClassesForYear(reportYear);
         targetClasses = isTeacherScope ? rawTargetClasses.filter((c) => isClassInDutyScope(c, teacherAssignedClasses)) : rawTargetClasses;
