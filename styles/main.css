@@ -404,16 +404,16 @@ body.collection-shell .fee-item-new-green {
     }
     #collection-app:not(.sidebar-collapsed) .collection-main-wrapper,
     #collection-app:not(.sidebar-collapsed) .collection-sticky-header,
-    #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
-    #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
+    body:not(.worksheet-fullscreen-mode) #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
+    body:not(.worksheet-fullscreen-mode) #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
         margin-left: 16rem !important;
         width: calc(100% - 16rem) !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     #collection-app.sidebar-collapsed .collection-main-wrapper,
     #collection-app.sidebar-collapsed .collection-sticky-header,
-    #official-app.sidebar-collapsed .worksheet-main-wrapper,
-    #official-app.sidebar-collapsed .worksheet-sticky-header {
+    body:not(.worksheet-fullscreen-mode) #official-app.sidebar-collapsed .worksheet-main-wrapper,
+    body:not(.worksheet-fullscreen-mode) #official-app.sidebar-collapsed .worksheet-sticky-header {
         margin-left: 4.5rem !important;
         width: calc(100% - 4.5rem) !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1877,8 +1877,8 @@ body[data-page-type="worksheet"] header,
     margin: 0 !important;
 }
 
-#official-app.has-desktop-sidebar .worksheet-main-wrapper,
-#official-app.has-desktop-sidebar .worksheet-main-wrapper main#app {
+body:not(.worksheet-fullscreen-mode) #official-app.has-desktop-sidebar .worksheet-main-wrapper,
+body:not(.worksheet-fullscreen-mode) #official-app.has-desktop-sidebar .worksheet-main-wrapper main#app {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
@@ -1902,13 +1902,24 @@ body.worksheet-fullscreen-mode {
     overflow: hidden !important;
 }
 
-body.worksheet-fullscreen-mode #official-app {
+body.worksheet-fullscreen-mode #official-app,
+body.worksheet-fullscreen-mode #official-app .worksheet-main-wrapper,
+body.worksheet-fullscreen-mode #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
+body.worksheet-fullscreen-mode #official-app.sidebar-collapsed .worksheet-main-wrapper {
+    margin: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding: 0 !important;
     height: 100vh !important;
+    height: 100dvh !important;
     max-height: 100vh !important;
+    max-height: 100dvh !important;
     width: 100vw !important;
     max-width: 100vw !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    min-width: 100vw !important;
+    overflow: hidden !important;
 }
 
 body.worksheet-fullscreen-mode .worksheet-sticky-header,
@@ -1919,33 +1930,32 @@ body.worksheet-fullscreen-mode #worksheet-more-sheet {
     display: none !important;
 }
 
-body.worksheet-fullscreen-mode .worksheet-main-wrapper {
-    margin-left: 0 !important;
-    width: 100vw !important;
-    max-width: 100vw !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    padding: 0 !important;
-}
-
 body.worksheet-fullscreen-mode #official-app main#app,
 body.worksheet-fullscreen-mode #official-tab-export {
     width: 100vw !important;
     max-width: 100vw !important;
+    min-width: 100vw !important;
     margin: 0 !important;
     padding: 0 !important;
     height: 100vh !important;
+    height: 100dvh !important;
     max-height: 100vh !important;
+    max-height: 100dvh !important;
     border-radius: 0 !important;
+    overflow: hidden !important;
 }
 
 body.worksheet-fullscreen-mode .excel-studio-container {
     display: flex !important;
     flex-direction: column !important;
     height: 100vh !important;
+    height: 100dvh !important;
     max-height: 100vh !important;
+    max-height: 100dvh !important;
     width: 100vw !important;
     max-width: 100vw !important;
+    min-width: 100vw !important;
+    overflow: hidden !important;
 }
 
 body.worksheet-fullscreen-mode .excel-ribbon-bar {
@@ -1957,6 +1967,9 @@ body.worksheet-fullscreen-mode .excel-ribbon-bar {
 
 body.worksheet-fullscreen-mode .excel-ribbon-content:not(.hidden) {
     display: flex !important;
+}
+body.worksheet-fullscreen-mode .excel-ribbon-content.hidden {
+    display: none !important;
 }
 
 body.worksheet-fullscreen-mode .slim-formula-bar {

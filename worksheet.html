@@ -109,8 +109,8 @@
       #official-app.sidebar-collapsed #side-drawer {
         width: 4.5rem !important; /* 72px */
       }
-      #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
-      #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
+      body:not(.worksheet-fullscreen-mode) #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
+      body:not(.worksheet-fullscreen-mode) #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
         margin-left: 16rem !important;
         width: calc(100% - 16rem) !important;
         max-width: calc(100% - 16rem) !important;
@@ -118,14 +118,21 @@
         min-width: 0 !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      #official-app.sidebar-collapsed .worksheet-main-wrapper,
-      #official-app.sidebar-collapsed .worksheet-sticky-header {
+      body:not(.worksheet-fullscreen-mode) #official-app.sidebar-collapsed .worksheet-main-wrapper,
+      body:not(.worksheet-fullscreen-mode) #official-app.sidebar-collapsed .worksheet-sticky-header {
         margin-left: 4.5rem !important;
         width: calc(100% - 4.5rem) !important;
         max-width: calc(100% - 4.5rem) !important;
         box-sizing: border-box !important;
         min-width: 0 !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      body:not(.worksheet-fullscreen-mode) #official-app .worksheet-main-wrapper {
+        height: calc(100vh - 64px) !important;
+        height: calc(100dvh - 64px) !important;
+        max-height: calc(100vh - 64px) !important;
+        max-height: calc(100dvh - 64px) !important;
+        padding-bottom: 0 !important;
       }
       #official-app.sidebar-collapsed #side-drawer .nav-text,
       #official-app.sidebar-collapsed #side-drawer .drawer-heading,
@@ -165,14 +172,16 @@
       #worksheet-mobile-menu-btn {
         display: none !important;
       }
-      #official-app .worksheet-main-wrapper,
-      #official-app .worksheet-sticky-header {
+      body:not(.worksheet-fullscreen-mode) #official-app .worksheet-main-wrapper,
+      body:not(.worksheet-fullscreen-mode) #official-app .worksheet-sticky-header {
         margin-left: 0 !important;
         width: 100% !important;
         transition: none;
       }
-      #official-app .worksheet-main-wrapper {
-        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+      body:not(.worksheet-fullscreen-mode) #official-app .worksheet-main-wrapper {
+        height: calc(100dvh - 64px - 76px) !important;
+        max-height: calc(100dvh - 64px - 76px) !important;
+        padding-bottom: 0 !important;
       }
       .worksheet-bottom-nav,
       #worksheet-bottom-nav {
@@ -245,20 +254,6 @@
     @keyframes slideUp {
       from { transform: translateY(100%); }
       to { transform: translateY(0); }
-    }
-
-    /* Fullscreen Mode Overrides */
-    body.worksheet-fullscreen-mode #side-drawer,
-    body.worksheet-fullscreen-mode .worksheet-sticky-header,
-    body.worksheet-fullscreen-mode #worksheet-bottom-nav,
-    body.worksheet-fullscreen-mode #worksheet-more-sheet {
-      display: none !important;
-    }
-    body.worksheet-fullscreen-mode .worksheet-main-wrapper {
-      margin-left: 0 !important;
-      width: 100vw !important;
-      max-width: 100vw !important;
-      padding: 0 !important;
     }
 
     /* Tabbed Modal & Staff Card Styling */
@@ -405,12 +400,27 @@
     /* ==========================================
        WORKSHEET FULL-WIDTH & DESKTOP LAYOUT
        ========================================== */
+    body[data-page-type="worksheet"] {
+        height: 100vh !important;
+        height: 100dvh !important;
+        overflow: hidden !important;
+    }
+
     body[data-page-type="worksheet"] #official-app,
     body.collection-shell[data-page-type="worksheet"] #official-app,
     html[data-session-guard="worksheet"] #official-app {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: 100vh !important;
+        max-height: 100dvh !important;
         width: 100% !important;
         max-width: 100% !important;
+        overflow: hidden !important;
         box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     body[data-page-type="worksheet"] header,
@@ -431,12 +441,28 @@
         min-width: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
-        flex-grow: 1;
+        flex-grow: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
         box-sizing: border-box !important;
-        overflow-x: hidden !important;
+        overflow: hidden !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        max-height: 100% !important;
     }
 
-    body[data-page-type="worksheet"] #page-content,
+    body[data-page-type="worksheet"] #page-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        overflow-y: auto !important;
+        flex-grow: 1 !important;
+        min-height: 0 !important;
+    }
+
     body[data-page-type="worksheet"] .official-tab,
     body[data-page-type="worksheet"] #official-tab-export,
     html[data-session-guard="worksheet"] #page-content,
@@ -447,17 +473,38 @@
         box-sizing: border-box !important;
     }
 
+    body[data-page-type="worksheet"] #official-tab-export {
+        height: 100% !important;
+        max-height: 100% !important;
+        overflow: hidden !important;
+        flex-grow: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0 !important;
+    }
+
     /* Fullscreen Mode Overrides */
     body.worksheet-fullscreen-mode {
         overflow: hidden !important;
     }
-    body.worksheet-fullscreen-mode #official-app {
+    body.worksheet-fullscreen-mode #official-app,
+    body.worksheet-fullscreen-mode #official-app .worksheet-main-wrapper,
+    body.worksheet-fullscreen-mode #official-app:not(.sidebar-collapsed) .worksheet-main-wrapper,
+    body.worksheet-fullscreen-mode #official-app.sidebar-collapsed .worksheet-main-wrapper {
+        margin: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding: 0 !important;
         height: 100vh !important;
+        height: 100dvh !important;
         max-height: 100vh !important;
+        max-height: 100dvh !important;
         width: 100vw !important;
         max-width: 100vw !important;
-        padding: 0 !important;
-        margin: 0 !important;
+        min-width: 100vw !important;
+        overflow: hidden !important;
     }
     body.worksheet-fullscreen-mode .worksheet-sticky-header,
     body.worksheet-fullscreen-mode #side-drawer,
@@ -466,31 +513,31 @@
     body.worksheet-fullscreen-mode #worksheet-more-sheet {
         display: none !important;
     }
-    body.worksheet-fullscreen-mode .worksheet-main-wrapper {
-        margin-left: 0 !important;
-        width: 100vw !important;
-        max-width: 100vw !important;
-        height: 100vh !important;
-        max-height: 100vh !important;
-        padding: 0 !important;
-    }
     body.worksheet-fullscreen-mode #official-app main#app,
     body.worksheet-fullscreen-mode #official-tab-export {
         width: 100vw !important;
         max-width: 100vw !important;
+        min-width: 100vw !important;
         margin: 0 !important;
         padding: 0 !important;
         height: 100vh !important;
+        height: 100dvh !important;
         max-height: 100vh !important;
+        max-height: 100dvh !important;
         border-radius: 0 !important;
+        overflow: hidden !important;
     }
     body.worksheet-fullscreen-mode .excel-studio-container {
         display: flex !important;
         flex-direction: column !important;
         height: 100vh !important;
+        height: 100dvh !important;
         max-height: 100vh !important;
+        max-height: 100dvh !important;
         width: 100vw !important;
         max-width: 100vw !important;
+        min-width: 100vw !important;
+        overflow: hidden !important;
     }
     body.worksheet-fullscreen-mode .excel-ribbon-bar {
         display: flex !important;
@@ -500,6 +547,9 @@
     }
     body.worksheet-fullscreen-mode .excel-ribbon-content:not(.hidden) {
         display: flex !important;
+    }
+    body.worksheet-fullscreen-mode .excel-ribbon-content.hidden {
+        display: none !important;
     }
     body.worksheet-fullscreen-mode .slim-formula-bar {
         display: flex !important;
@@ -526,14 +576,16 @@
        EXCEL TOP RIBBON & WORKSPACE STYLING (Microsoft Excel UI)
        ========================================================= */
     .excel-studio-container {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+        max-height: 100% !important;
         width: 100% !important;
         max-width: 100% !important;
         min-width: 0 !important;
+        min-height: 0 !important;
         box-sizing: border-box !important;
-        overflow: hidden;
+        overflow: hidden !important;
         background: #f3f2f1;
         font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     }
@@ -541,9 +593,9 @@
     .excel-ribbon-bar {
         background: #f3f2f1;
         border-bottom: 1px solid #c8c6c4;
-        flex-shrink: 0;
+        flex-shrink: 0 !important;
         position: relative;
-        z-index: 40;
+        z-index: 40 !important;
         width: 100% !important;
         max-width: 100% !important;
         min-width: 0 !important;
@@ -562,6 +614,10 @@
         max-width: 100% !important;
         min-width: 0 !important;
         box-sizing: border-box !important;
+    }
+
+    .excel-ribbon-content.hidden {
+        display: none !important;
     }
 
     .excel-ribbon-tabs {
@@ -833,13 +889,17 @@
         background: #f8fafc;
         border-top: 1px solid #c8c6c4;
         padding: 4px 14px;
-        display: flex;
+        display: flex !important;
         align-items: center;
         justify-content: space-between;
         font-size: 12px;
         color: #605e5c;
-        flex-shrink: 0;
-        min-height: 32px;
+        flex-shrink: 0 !important;
+        min-height: 36px !important;
+        max-height: 38px !important;
+        z-index: 30 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
     .side-meta-badge {
         display: inline-flex;
@@ -1538,7 +1598,7 @@
     .excel-table thead th.col-header {
       position: sticky;
       top: 0;
-      z-index: 35;
+      z-index: 25;
       background-color: #e6e6e6 !important;
       color: #333 !important;
       text-align: center !important;
@@ -1551,14 +1611,14 @@
     .excel-table thead th.config-row-th {
       position: sticky;
       top: 25px;
-      z-index: 32;
+      z-index: 24;
       background-color: #f8fafc !important;
     }
     .excel-table th.select-all-corner {
       position: sticky;
       top: 0;
       left: 0;
-      z-index: 40;
+      z-index: 28;
       background-color: #e6e6e6 !important;
       color: #333 !important;
       text-align: center !important;
@@ -1568,7 +1628,7 @@
     .excel-table td.row-header, .excel-table th.row-header {
       position: sticky;
       left: 0;
-      z-index: 30;
+      z-index: 20;
       background-color: #e6e6e6 !important;
       color: #333 !important;
       text-align: center !important;
@@ -1577,13 +1637,12 @@
       user-select: none;
       cursor: pointer;
       padding: 2px !important;
-      position: relative;
     }
     .excel-table thead tr.config-row th.row-header {
       position: sticky;
       left: 0;
       top: 25px;
-      z-index: 36;
+      z-index: 27;
       background-color: #e2e8f0 !important;
     }
 

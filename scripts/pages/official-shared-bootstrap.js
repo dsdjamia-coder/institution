@@ -5153,7 +5153,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               </div>
 
               <!-- Quick Action Buttons on Top Right -->
-              <div class="flex items-center gap-1 sm:gap-1.5 pb-1 shrink-0 ml-auto">
+              <div class="flex items-center gap-1 sm:gap-1.5 pb-1 shrink-0 ml-auto pr-1">
                 <button type="button" id="btn-export-print" class="premium-export-btn btn-pdf-red !py-1 !px-2 sm:!px-2.5 text-xs font-bold shadow-xs cursor-pointer shrink-0" title="Print or Save as PDF">
                   <i class="fas fa-print"></i> <span class="hidden sm:inline">Print</span>
                 </button>
@@ -5164,7 +5164,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                   <i class="fas ${document.body.classList.contains('worksheet-fullscreen-mode') ? 'fa-compress' : 'fa-expand'} fullscreen-icon-toggle"></i>
                   <span class="fullscreen-text-toggle">${document.body.classList.contains('worksheet-fullscreen-mode') ? 'Exit Fullscreen' : 'Fullscreen'}</span>
                 </button>
-                <button type="button" id="btn-toggle-ribbon-collapse" class="excel-btn-small hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-600 ml-0.5 cursor-pointer shrink-0" title="Collapse / Expand Ribbon">
+                <button type="button" id="btn-toggle-ribbon-collapse" class="excel-btn-small bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 ml-1 cursor-pointer shrink-0" title="Collapse / Expand Ribbon">
                   <i class="fas ${builderConfig.ribbonCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'} text-xs ribbon-toggle-icon"></i>
                 </button>
               </div>
@@ -5195,31 +5195,32 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
           </div>
 
           <!-- 4. BOTTOM STATUS BAR (Sheet Meta, Zoom Controls, Template Quick Access) -->
-          <footer class="excel-status-bar bg-[#f8fafc] border-t border-[#cbd5e1] px-4 py-1.5 flex items-center justify-between text-xs text-slate-600 shrink-0 no-print">
-            <div class="flex items-center gap-2.5">
-              <span class="side-meta-badge">
-                <i class="fas fa-table text-emerald-600"></i> ${dataRows.length} Rows
+          <footer class="excel-status-bar bg-[#f8fafc] border-t border-[#cbd5e1] px-2 sm:px-4 py-1.5 flex items-center justify-between text-xs text-slate-600 shrink-0 no-print gap-2 overflow-x-auto w-full box-border min-h-[38px] max-h-[40px]">
+            <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+              <span class="side-meta-badge shadow-2xs">
+                <i class="fas fa-table text-emerald-600"></i> <span class="font-bold">${dataRows.length}</span> Rows
               </span>
-              <span class="side-meta-badge">
-                <i class="fas fa-file-alt text-indigo-600"></i> ${totalPages} Page${totalPages > 1 ? 's' : ''}
+              <span class="side-meta-badge shadow-2xs">
+                <i class="fas fa-file-alt text-indigo-600"></i> <span class="font-bold">${totalPages}</span> Page${totalPages > 1 ? 's' : ''}
               </span>
-              <span class="side-meta-badge font-mono text-[10px]">
-                ${builderConfig.paper} • ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
+              <span class="side-meta-badge font-mono text-[11px] shadow-2xs">
+                <i class="fas fa-ruler-combined text-slate-500 mr-0.5"></i>
+                <span class="font-bold">${builderConfig.paper}</span> • ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
               </span>
             </div>
 
-            <div class="flex items-center gap-2.5">
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
               <!-- Templates Quick Buttons -->
-              <button type="button" id="btn-save-template-side" class="side-tool-btn !bg-indigo-50 hover:!bg-indigo-100 !text-indigo-700 !border-indigo-200" title="Save Reusable Template">
-                <i class="fas fa-save"></i> <span>Save Template</span>
+              <button type="button" id="btn-save-template-side" class="side-tool-btn !bg-indigo-50 hover:!bg-indigo-100 !text-indigo-700 !border-indigo-200 shadow-2xs cursor-pointer" title="Save Reusable Template">
+                <i class="fas fa-save"></i> <span class="hidden sm:inline">Save Template</span><span class="sm:hidden">Save</span>
               </button>
-              <button type="button" id="btn-load-template-side" class="side-tool-btn !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !border-slate-300" title="Open Saved Templates">
-                <i class="fas fa-folder-open text-amber-500"></i> <span>Templates (<span class="tpl-count-badge font-black text-indigo-600">${allWorksheetTemplates.length}</span>)</span>
+              <button type="button" id="btn-load-template-side" class="side-tool-btn !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !border-slate-300 shadow-2xs cursor-pointer" title="Open Saved Templates">
+                <i class="fas fa-folder-open text-amber-500"></i> <span class="hidden sm:inline">Templates</span><span class="sm:hidden">Tpls</span> (<span class="tpl-count-badge font-black text-indigo-600">${allWorksheetTemplates.length}</span>)
               </button>
 
               <!-- Zoom Controls -->
-              <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-full px-2 py-0.5 shadow-2xs">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Zoom</span>
+              <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-full px-2 py-0.5 shadow-2xs shrink-0">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">Zoom</span>
                 <button type="button" id="btn-zoom-out" class="w-5 h-5 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition cursor-pointer" title="Zoom Out"><i class="fas fa-minus text-[9px]"></i></button>
                 <span id="canvas-zoom-text" class="px-1 font-black text-xs text-indigo-700 min-w-[38px] text-center">${builderConfig.zoom || 100}%</span>
                 <button type="button" id="btn-zoom-in" class="w-5 h-5 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition cursor-pointer" title="Zoom In"><i class="fas fa-plus text-[9px]"></i></button>
