@@ -5548,9 +5548,10 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
     const isAllClasses = (className === 'ALL');
     let targetClasses;
     if (isAllClasses) {
+        const cleanRepYear = cleanAcademicYearLabel(reportYear);
         const publishedExamClasses = [...new Set(
             (examResultsCache || [])
-                .filter(r => r.published === true && (!reportYear || r.academicYear === reportYear || !r.academicYear) && resultMatchesExam(r, examId) && r.classLabel)
+                .filter(r => r.published === true && (!cleanRepYear || cleanAcademicYearLabel(r.academicYear) === cleanRepYear || !r.academicYear) && resultMatchesExam(r, examId) && r.classLabel)
                 .map(r => String(r.classLabel).trim())
                 .filter(Boolean)
         )].sort(compareClassLabelsNatural);
@@ -5574,11 +5575,12 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
         const reportSubjects = getSchemaSubjectRows(examSchema, examContext?.key || '');
 
         // Gather all published result records for this exam, class, and year
+        const cleanRepYear = cleanAcademicYearLabel(reportYear);
         const classResultRecords = (examResultsCache || []).filter(r => 
             resultMatchesExam(r, examId) && 
             r.published === true && 
             r.classLabel === cls && 
-            (!reportYear || r.academicYear === reportYear || !r.academicYear)
+            (!cleanRepYear || cleanAcademicYearLabel(r.academicYear) === cleanRepYear || !r.academicYear)
         );
 
         // Map students who belong to this class in this academic year
@@ -5600,8 +5602,8 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
 
         // 2. Also add students whose historical or current record matches this class & year
         (students || []).forEach((s) => {
-            const hasHistoryInYear = s.academicYears && typeof s.academicYears === 'object' && s.academicYears[reportYear]?.class === cls;
-            const isCurrentInYear = (!s.academicYears || !s.academicYears[reportYear]) && (s.academicYear === reportYear || !s.academicYear) && s.class === cls;
+            const hasHistoryInYear = s.academicYears && typeof s.academicYears === 'object' && Object.entries(s.academicYears).some(([yK, yV]) => cleanAcademicYearLabel(yK) === cleanRepYear && yV?.class === cls);
+            const isCurrentInYear = (!s.academicYears || Object.keys(s.academicYears).length === 0) && (cleanAcademicYearLabel(s.academicYear) === cleanRepYear || !s.academicYear) && s.class === cls;
             if (hasHistoryInYear || isCurrentInYear) {
                 if (!studentMap.has(s.id)) {
                     studentMap.set(s.id, { ...s, class: cls });
@@ -5612,7 +5614,7 @@ const compileReportData = ({ examId, className, reportYear, reportOrder } = {}) 
         const classStudents = Array.from(studentMap.values());
 
         const resultRows = classStudents.map(student => {
-            const resultRecord = classResultRecords.find(r => r.studentId === student.id) || (examResultsCache || []).find(r => resultMatchesExam(r, examId) && r.studentId === student.id && (!reportYear || r.academicYear === reportYear || !r.academicYear) && r.published === true);
+            const resultRecord = classResultRecords.find(r => r.studentId === student.id) || (examResultsCache || []).find(r => resultMatchesExam(r, examId) && r.studentId === student.id && (!cleanRepYear || cleanAcademicYearLabel(r.academicYear) === cleanRepYear || !r.academicYear) && r.published === true);
             const marks = resultRecord ? (resultRecord.marks || {}) : {};
             let total = 0;
             let maximum = 0;
@@ -6233,23 +6235,21 @@ const syncPdfModalRadioVisuals = () => {
 };
 
 const openReportPdfOptionsModal = () => {
-    if (!cachedReportData) {
-        updateReportPreview();
-    }
-    const data = cachedReportData;
-    if (!data || !data.classReports || !data.classReports.length) {
-        alert('No report data available to export. Please select Year, Class, and Exam first.');
-        return;
-    }
-
     const modal = document.getElementById('report-pdf-options-modal');
     if (!modal) {
         exportReportPDF({ model: activeReportModel });
         return;
     }
 
+    const reportYear = document.getElementById('report-academic-year')?.value?.trim() || currentAcademicYear || '';
+    const className = document.getElementById('report-class-select')?.value || '';
+    const examSelectEl = document.getElementById('report-exam-select');
+    const examId = examSelectEl?.value || '';
+    const examLabel = examSelectEl?.selectedOptions?.[0]?.textContent || examId;
+
     const targetTypeEl = document.getElementById('report-pdf-modal-target-type');
     const targetBadgeEl = document.getElementById('report-pdf-modal-target-badge');
+    const targetDescEl = document.getElementById('report-pdf-modal-target-desc');
 
     if (activeReportModel === 'individual') {
         if (targetTypeEl) targetTypeEl.textContent = 'Individual Report Cards';
@@ -6273,6 +6273,16 @@ const openReportPdfOptionsModal = () => {
         if (a4Radio) a4Radio.checked = true;
     }
 
+    if (targetDescEl) {
+        if (className && examId) {
+            targetDescEl.textContent = `${className === 'ALL' ? 'All Classes' : `Class: ${className}`} • ${examLabel} • Academic Year: ${reportYear}`;
+            targetDescEl.className = 'text-[11px] text-slate-500 font-semibold mt-0.5';
+        } else {
+            targetDescEl.textContent = 'Notice: Please choose a Class and Exam from the dropdowns above.';
+            targetDescEl.className = 'text-[11px] text-amber-600 font-bold mt-0.5';
+        }
+    }
+
     const currentColorChecked = document.querySelector('input[name="report-pdf-color-mode"]:checked');
     if (!currentColorChecked) {
         const colorRadio = document.querySelector('input[name="report-pdf-color-mode"][value="color"]');
@@ -6280,12 +6290,22 @@ const openReportPdfOptionsModal = () => {
     }
 
     syncPdfModalRadioVisuals();
+
+    // Show modal with flex display and body scroll lock
     modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modal.style.display = 'flex';
+    document.body.classList.add('modal-scroll-lock');
 };
 
 const closeReportPdfOptionsModal = () => {
     const modal = document.getElementById('report-pdf-options-modal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-scroll-lock');
+    }
 };
 
 const exportReportPDF = (optionsOrModel = {}) => {
@@ -6742,6 +6762,40 @@ document.getElementById('report-pdf-options-modal')?.addEventListener('click', (
 });
 
 document.getElementById('report-pdf-modal-confirm-btn')?.addEventListener('click', () => {
+    const reportYear = document.getElementById('report-academic-year')?.value?.trim() || currentAcademicYear || '';
+    const className = document.getElementById('report-class-select')?.value || '';
+    const examId = document.getElementById('report-exam-select')?.value || '';
+    const reportOrder = document.getElementById('report-order-select')?.value || 'rank';
+
+    if (!className || !examId) {
+        if (typeof showAppAlert === 'function') {
+            showAppAlert({
+                title: 'Selection Required',
+                message: 'Please choose an Academic Year, Class, and Exam from the dropdowns at the top of the Report Cards page before downloading the PDF.',
+                type: 'warning'
+            });
+        } else {
+            alert('Please choose an Academic Year, Class, and Exam from the dropdowns at the top of the Report Cards page before downloading the PDF.');
+        }
+        return;
+    }
+
+    cachedReportData = compileReportData({ examId, className, reportYear, reportOrder });
+    const data = cachedReportData;
+
+    if (!data || !data.classReports || !data.classReports.length) {
+        if (typeof showAppAlert === 'function') {
+            showAppAlert({
+                title: 'No Results Found',
+                message: `No published results found for ${className === 'ALL' ? 'All Classes' : className} in the selected exam. Check Marks Entry or Draft Review to publish marks first.`,
+                type: 'warning'
+            });
+        } else {
+            alert(`No published results found for ${className === 'ALL' ? 'All Classes' : className} in the selected exam.`);
+        }
+        return;
+    }
+
     const orientation = document.querySelector('input[name="report-pdf-orientation"]:checked')?.value || (activeReportModel === 'individual' ? 'portrait' : 'landscape');
     const paperSize = document.querySelector('input[name="report-pdf-paper-size"]:checked')?.value || (activeReportModel === 'individual' ? 'a5' : 'a4');
     const colorMode = document.querySelector('input[name="report-pdf-color-mode"]:checked')?.value || 'color';

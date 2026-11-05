@@ -385,6 +385,13 @@
       }
 
       /* Report Cards & Marksheets download buttons */
+      #report-pdf-options-modal.flex {
+        display: flex !important;
+      }
+      #report-pdf-options-modal.hidden {
+        display: none !important;
+      }
+
       #report-download-pdf-btn,
       #report-download-excel-btn {
         min-height: 42px !important;
@@ -1659,6 +1666,7 @@
                     <div>
                         <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Document Type</span>
                         <span id="report-pdf-modal-target-type" class="font-extrabold text-slate-800 text-xs sm:text-sm">Consolidated Marksheet</span>
+                        <p id="report-pdf-modal-target-desc" class="text-[11px] text-slate-500 font-semibold mt-0.5"></p>
                     </div>
                     <span id="report-pdf-modal-target-badge" class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">Table</span>
                 </div>
