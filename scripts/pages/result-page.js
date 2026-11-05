@@ -483,13 +483,32 @@ const getNextClassLabel = (classLabel = '') => {
         return String(progressionMap[classLabel]).trim();
     }
     const clean = String(classLabel || '').trim();
-    if (clean.toLowerCase() === 'alumni') return '';
-    const match = clean.match(/^(\d+)(\s*[A-Z])?$/i);
-    if (!match) return 'Alumni';
-    const num = Number(match[1]);
-    if (!Number.isFinite(num) || num <= 0) return 'Alumni';
-    if (num >= 10) return 'Alumni';
-    return `${num + 1}${match[2] || ''}`.trim();
+    if (!clean || clean.toLowerCase() === 'alumni') return '';
+
+    // Check configured classes sequence (exact names configured in Admin)
+    const activeLadder = (Array.isArray(classes) ? classes : []).filter((c) => String(c || '').trim().toLowerCase() !== 'alumni');
+    const index = activeLadder.findIndex((c) => String(c).trim().toLowerCase() === clean.toLowerCase());
+    if (index !== -1) {
+        if (index + 1 < activeLadder.length) {
+            return activeLadder[index + 1];
+        }
+        return 'Alumni';
+    }
+
+    // Fallback: check if class name has numeric pattern
+    const match = clean.match(/^(.*?)(\d+)(\s*[A-Za-z])?$/i);
+    if (match) {
+        const prefix = match[1] || '';
+        const num = parseInt(match[2], 10);
+        const suffix = match[3] || '';
+        const candidateNext = `${prefix}${num + 1}${suffix}`.trim();
+        const foundNext = activeLadder.find((c) => String(c).trim().toLowerCase() === candidateNext.toLowerCase());
+        if (foundNext) return foundNext;
+        if (num >= 12) return 'Alumni';
+        return candidateNext;
+    }
+
+    return 'Alumni';
 };
 const detectAnnualResultRow = (row = {}) => {
     if (String(row.examType || '').toLowerCase() === 'annual') return true;
@@ -1118,29 +1137,45 @@ function initializeDataListeners() {
 
     const refreshResultClasses = () => {
         const classSet = new Set();
-        (configuredClasses || []).forEach(c => {
+        const configuredOrder = [];
+        const seenOrder = new Set();
+
+        const addCandidate = (c) => {
             const str = String(c?.id || c?.name || c || '').trim();
-            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
-        });
+            if (str && str.toLowerCase() !== 'alumni') {
+                classSet.add(str);
+                if (!seenOrder.has(str)) {
+                    seenOrder.add(str);
+                    configuredOrder.push(str);
+                }
+            }
+        };
+
+        (configuredClasses || []).forEach(addCandidate);
         const activeYr = (availableAcademicYears || []).find(y => {
             const lbl = (typeof y === 'object' && y !== null) ? (y.label || y.id || y.name || '') : String(y || '');
             return lbl.trim() === currentAcademicYear;
         }) || availableAcademicYears[0];
         if (activeYr && typeof activeYr === 'object' && Array.isArray(activeYr.classes)) {
-            activeYr.classes.forEach(c => {
-                const str = String(c || '').trim();
-                if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
-            });
+            activeYr.classes.forEach(addCandidate);
         }
         if (classSet.size === 0) {
-            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach(c => classSet.add(c));
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach(addCandidate);
         }
         (students || []).forEach(s => {
             const str = String(s.class || '').trim();
             if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
         });
 
-        classes = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const configuredMap = new Map();
+        configuredOrder.forEach((cls, idx) => configuredMap.set(cls, idx));
+
+        classes = Array.from(classSet).sort((a, b) => {
+            const idxA = configuredMap.has(a) ? configuredMap.get(a) : 9999;
+            const idxB = configuredMap.has(b) ? configuredMap.get(b) : 9999;
+            if (idxA !== idxB) return idxA - idxB;
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        });
         scheduleRefresh();
     };
 
@@ -1444,8 +1479,8 @@ const renderPromotionCandidatesUI = () => {
     const targetChoices = [...classes.filter((c) => String(c).trim().toLowerCase() !== 'alumni')];
     if (!targetChoices.includes('Alumni')) targetChoices.push('Alumni');
 
-    const summaryMap = new Map(promotableClasses.map((cls, idx) => {
-        const defaultNext = progressionMap[cls] !== undefined ? progressionMap[cls] : (promotableClasses[idx + 1] || 'Alumni');
+    const summaryMap = new Map(promotableClasses.map((cls) => {
+        const defaultNext = progressionMap[cls] !== undefined ? progressionMap[cls] : getNextClassLabel(cls);
         return [cls, { pass: 0, fail: 0, total: 0, boys: 0, girls: 0, nextClass: defaultNext }];
     }));
 
@@ -1491,7 +1526,7 @@ const renderPromotionCandidatesUI = () => {
                 const selectedTarget = stat.nextClass;
                 const options = [
                     `<option value="Alumni" ${selectedTarget === 'Alumni' ? 'selected' : ''}>🎓 Alumni (Pass Out)</option>`,
-                    ...targetChoices.filter((opt) => opt !== 'Alumni').map((opt) => `<option value="${escapeHtml(opt)}" ${selectedTarget === opt ? 'selected' : ''}>Class ${escapeHtml(opt)}</option>`),
+                    ...targetChoices.filter((opt) => opt !== 'Alumni').map((opt) => `<option value="${escapeHtml(opt)}" ${selectedTarget === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`),
                     `<option value="" ${selectedTarget === '' ? 'selected' : ''}>-- No Promotion (Remain / Discontinue) --</option>`
                 ].join('');
 
@@ -1541,7 +1576,7 @@ const renderPromotionCandidatesUI = () => {
                                 <span class="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-extrabold">
                                     <i class="fas fa-layer-group"></i>
                                 </span>
-                                Class ${escapeHtml(cls)}
+                                ${escapeHtml(cls)}
                             </span>
                             <span id="badge-target-${escapeHtml(cls)}" class="text-[10px] font-bold ${isAlumni ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'} px-2 py-0.5 rounded-full">
                                 ${isAlumni ? '🎓 To Alumni' : `To ${escapeHtml(selectedTarget || 'None')}`}
@@ -3047,7 +3082,7 @@ const loadMarksTable = () => {
         if (studentCountBadge) studentCountBadge.textContent = '0 Students';
 
         document.getElementById('marks-table-head').innerHTML = `<tr><th class="p-3 text-center bg-slate-100 text-slate-600 font-bold text-xs border-b border-slate-200">Information</th></tr>`;
-        document.getElementById('marks-table-body').innerHTML = `<tr><td class="p-10 text-center text-slate-400 font-bold bg-white"><i class="fas fa-users-slash text-2xl mb-2 text-slate-300 block"></i>No active students registered in Class ${escapeHtml(className)} for academic session ${escapeHtml(currentAcademicYear)}.</td></tr>`;
+        document.getElementById('marks-table-body').innerHTML = `<tr><td class="p-10 text-center text-slate-400 font-bold bg-white"><i class="fas fa-users-slash text-2xl mb-2 text-slate-300 block"></i>No active students registered in ${escapeHtml(className)} for academic session ${escapeHtml(currentAcademicYear)}.</td></tr>`;
         cont.classList.remove('hidden');
         return;
     }
@@ -3416,7 +3451,7 @@ const renderMarksReviewModalUI = () => {
     const examTitle = currentExamContext?.label || currentExamContext?.key || 'Exam';
     const titleEl = document.getElementById('marks-review-modal-title');
     const subtitleEl = document.getElementById('marks-review-modal-subtitle');
-    if (titleEl) titleEl.textContent = `Review Marks Upload - Class ${className} (${examTitle})`;
+    if (titleEl) titleEl.textContent = `Review Marks Upload - ${className} (${examTitle})`;
     if (subtitleEl) subtitleEl.textContent = `Academic Year: ${currentAcademicYear || 'N/A'} • ${totalRows} records loaded from file.`;
 
     const totalEl = document.getElementById('marks-review-stat-total');
@@ -3620,7 +3655,7 @@ const parseAndReviewBulkMarks = async () => {
             rowIssues.push('Missing Student ID');
             hasFatalError = true;
         } else if (!matchedStudent) {
-            rowIssues.push(`Student not found in Class ${className}`);
+            rowIssues.push(`Student not found in ${className}`);
             hasFatalError = true;
         }
 
@@ -3788,7 +3823,7 @@ const executeConfirmedMarksUpload = async (skipIssues = false) => {
         closeMarksReviewModal();
         updateBulkStatus(`Uploaded ${committedCount} row(s) successfully as draft.`, 100, 'success');
         loadMarksTable();
-        notify(`Successfully uploaded ${committedCount} result record(s) into Draft for Class ${className}!`, 'success');
+        notify(`Successfully uploaded ${committedCount} result record(s) into Draft for ${className}!`, 'success');
     } catch (err) {
         console.error('Error committing marks', err);
         if (confirmBtn) {
@@ -5120,7 +5155,7 @@ const updateSnapshotScopeMetrics = () => {
         const currentClassVal = classSelect.value;
         const availableClassList = representedClasses.length ? representedClasses : classes;
         classSelect.innerHTML = `<option value="">-- All Classes (Batch Class-wise) --</option>` +
-            availableClassList.map((cls) => `<option value="${escapeHtml(cls)}">Class: ${escapeHtml(cls)}</option>`).join('');
+            availableClassList.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('');
         if (Array.from(classSelect.options).some((o) => o.value === currentClassVal)) {
             classSelect.value = currentClassVal;
         }
@@ -5225,7 +5260,7 @@ document.getElementById('export-snapshot-classwise-btn')?.addEventListener('clic
     if (selectedClass) {
         const classRows = rowsToExport.filter((r) => r.classLabel === selectedClass);
         if (!classRows.length) {
-            return alert(`No results found for Class "${selectedClass}" in selected scope.`);
+            return alert(`No results found for "${selectedClass}" in selected scope.`);
         }
         const payload = {
             exportFormat: 'student-result-snapshot-class',
@@ -6117,7 +6152,7 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
                 <div class="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/80 px-4 py-2.5 rounded-xl border border-indigo-200 mb-2.5">
                     <div class="flex items-center gap-2">
                         <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold text-xs inline-flex items-center justify-center">${escapeHtml(cr.className)}</span>
-                        <h4 class="font-extrabold text-slate-900 text-sm">Class ${escapeHtml(cr.className)} Marksheet</h4>
+                        <h4 class="font-extrabold text-slate-900 text-sm">${escapeHtml(cr.className)} Marksheet</h4>
                     </div>
                     <div class="flex items-center gap-2 text-xs font-bold">
                         <span class="text-slate-600">${cr.totalStudents} Students</span>
@@ -6188,7 +6223,7 @@ const renderConsolidatedCanvas = (canvasEl, data) => {
             </div>
             
             <div class="mb-4 px-4 py-2 bg-indigo-50/90 border border-indigo-100 rounded-xl flex flex-wrap items-center justify-between text-xs font-extrabold text-indigo-950 gap-2">
-                <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Class:</span>${escapeHtml(data.isAllClasses ? 'All Classes' : `Class ${data.className}`)}</div>
+                <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Class:</span>${escapeHtml(data.isAllClasses ? 'All Classes' : data.className)}</div>
                 <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Exam:</span>${escapeHtml(examLabel)}</div>
                 <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Academic Year:</span>${escapeHtml(data.reportYear)}</div>
                 <div><span class="text-indigo-500 font-semibold uppercase text-[10px] mr-1">Order:</span>${escapeHtml(orderLabels[data.reportOrder] || data.reportOrder)}</div>
@@ -6280,7 +6315,7 @@ const renderIndividualCanvas = (canvasEl, data) => {
                         </div>
                         <div class="flex items-center justify-between sm:justify-start gap-2">
                             <span class="text-slate-500 font-semibold">Class:</span>
-                            <span class="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">Class ${escapeHtml(row.className)}</span>
+                            <span class="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">${escapeHtml(row.className)}</span>
                         </div>
                     </div>
                     <div class="space-y-1.5 sm:border-l sm:border-slate-200 sm:pl-3">
@@ -6439,7 +6474,7 @@ updateReportPreview = () => {
                 <div class="p-8 text-center bg-amber-50 border border-amber-200 rounded-2xl text-amber-800">
                     <i class="fas fa-exclamation-triangle text-2xl mb-2 text-amber-600"></i>
                     <h4 class="font-extrabold text-sm">No Published Results Found</h4>
-                    <p class="text-xs mt-1">There are no published results matching ${escapeHtml(className === 'ALL' ? 'All Classes' : `Class ${className}`)} for the selected exam. Check Marks Entry or Draft Review to publish marks first.</p>
+                    <p class="text-xs mt-1">There are no published results matching ${escapeHtml(className === 'ALL' ? 'All Classes' : className)} for the selected exam. Check Marks Entry or Draft Review to publish marks first.</p>
                 </div>`;
         }
         return;
