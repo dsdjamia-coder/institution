@@ -1887,15 +1887,46 @@ body:not(.worksheet-fullscreen-mode) #official-app.has-desktop-sidebar .workshee
     overflow-x: hidden !important;
 }
 
-body[data-page-type="worksheet"] #page-content,
-body[data-page-type="worksheet"] .official-tab,
-body[data-page-type="worksheet"] #official-tab-export,
-html[data-session-guard="worksheet"] #page-content,
-html[data-session-guard="worksheet"] .official-tab {
+body[data-page-type="worksheet"] .hidden,
+body[data-page-type="worksheet"] [hidden],
+body[data-page-type="worksheet"] #page-content.hidden,
+body[data-page-type="worksheet"] .official-tab.hidden,
+body[data-page-type="worksheet"] #official-tab-export.hidden {
+    display: none !important;
+}
+
+body[data-page-type="worksheet"] #page-content:not(.hidden) {
     max-width: 100% !important;
     width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    flex-grow: 1 !important;
+    min-height: 0 !important;
+    display: block !important;
+}
+
+body[data-page-type="worksheet"] .official-tab:not(.hidden) {
+    max-width: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+body[data-page-type="worksheet"] #official-tab-export:not(.hidden) {
+    max-width: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    flex-grow: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
 }
 
 body.worksheet-fullscreen-mode {

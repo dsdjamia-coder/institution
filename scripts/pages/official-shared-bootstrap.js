@@ -1082,17 +1082,24 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const defaultTab = isWorksheetPage ? 'summary' : 'dashboard';
       const requested = document.getElementById(`official-tab-${tab}`) ? tab : defaultTab;
       const target = document.getElementById(`official-tab-${requested}`) ? requested : defaultTab;
-      document.querySelectorAll('.official-tab').forEach((el) => el.classList.add('hidden'));
+      document.querySelectorAll('.official-tab').forEach((el) => {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+      });
       
       const pageContentWrap = document.getElementById('page-content');
+      const exportTarget = document.getElementById('official-tab-export');
       const targetEl = document.getElementById(`official-tab-${target}`);
-      if(targetEl) {
+      if (targetEl) {
           targetEl.classList.remove('hidden');
           if (target === 'export') {
               targetEl.classList.add('flex');
               pageContentWrap?.classList.add('hidden');
           } else {
-              document.getElementById('official-tab-export')?.classList.remove('flex');
+              if (exportTarget) {
+                  exportTarget.classList.remove('flex');
+                  exportTarget.classList.add('hidden');
+              }
               pageContentWrap?.classList.remove('hidden');
           }
       }

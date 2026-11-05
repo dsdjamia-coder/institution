@@ -451,7 +451,18 @@
         max-height: 100% !important;
     }
 
-    body[data-page-type="worksheet"] #page-content {
+    /* Clean Tab Visibility Rules */
+    .hidden,
+    [hidden],
+    body[data-page-type="worksheet"] .hidden,
+    body[data-page-type="worksheet"] [hidden],
+    body[data-page-type="worksheet"] #page-content.hidden,
+    body[data-page-type="worksheet"] .official-tab.hidden,
+    body[data-page-type="worksheet"] #official-tab-export.hidden {
+        display: none !important;
+    }
+
+    body[data-page-type="worksheet"] #page-content:not(.hidden) {
         max-width: 100% !important;
         width: 100% !important;
         min-width: 0 !important;
@@ -461,19 +472,21 @@
         overflow-y: auto !important;
         flex-grow: 1 !important;
         min-height: 0 !important;
+        display: block !important;
     }
 
-    body[data-page-type="worksheet"] .official-tab,
-    body[data-page-type="worksheet"] #official-tab-export,
-    html[data-session-guard="worksheet"] #page-content,
-    html[data-session-guard="worksheet"] .official-tab {
+    body[data-page-type="worksheet"] .official-tab:not(.hidden) {
         max-width: 100% !important;
         width: 100% !important;
         min-width: 0 !important;
         box-sizing: border-box !important;
     }
 
-    body[data-page-type="worksheet"] #official-tab-export {
+    body[data-page-type="worksheet"] #official-tab-export:not(.hidden) {
+        max-width: 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
         height: 100% !important;
         max-height: 100% !important;
         overflow: hidden !important;
