@@ -31,6 +31,15 @@ const getInitialAcademicYear = () => {
 };
 let currentAcademicYear = getInitialAcademicYear();
 let availableAcademicYears = [];
+
+const cleanAcademicYearLabel = (str = '') => {
+    if (!str) return '';
+    const raw = (typeof str === 'object' && str !== null) ? (str.label || str.year || str.name || str.id || '') : String(str || '');
+    return raw
+        .replace(/^Academic\s*Year\s*[:\-–]?\s*/i, '')
+        .replace(/\s*\((Active|Current)\)\s*$/i, '')
+        .trim();
+};
 let allStaff = [];
 let currentDraftFilter = 'all';
 let currentPublishedFilter = 'all';
@@ -2141,21 +2150,31 @@ const populateReportYears = () => {
     if (!el) return;
     const previous = el.value;
     const yearSet = new Set();
-    if (currentAcademicYear) yearSet.add(String(currentAcademicYear).trim());
+    const cleanCurYear = cleanAcademicYearLabel(currentAcademicYear);
+    if (cleanCurYear) yearSet.add(cleanCurYear);
     (availableAcademicYears || []).forEach((y) => {
-        const yStr = (typeof y === 'object' && y !== null) ? (y.label || y.year || y.name || '') : String(y || '');
-        if (yStr && yStr.trim()) yearSet.add(yStr.trim());
+        const c = cleanAcademicYearLabel(y);
+        if (c) yearSet.add(c);
     });
     (examResultsCache || []).forEach((row) => {
-        if (row.academicYear) yearSet.add(String(row.academicYear).trim());
+        const c = cleanAcademicYearLabel(row.academicYear);
+        if (c) yearSet.add(c);
     });
     (resultSchemas || []).forEach((s) => {
-        if (s.academicYear) yearSet.add(String(s.academicYear).trim());
+        const c = cleanAcademicYearLabel(s.academicYear);
+        if (c) yearSet.add(c);
     });
     const source = Array.from(yearSet).filter(Boolean).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
-    el.innerHTML = `<option value="">-- Select Academic Year --</option>` + source.map((year) => `<option value="${escapeHtml(year)}">${escapeHtml(year)}</option>`).join('');
+    el.innerHTML = `<option value="">-- Select Academic Year --</option>` + source.map((year) => {
+        const isCurrent = cleanCurYear && (year === cleanCurYear);
+        const displayLabel = isCurrent ? `${year} (Current)` : year;
+        return `<option value="${escapeHtml(year)}">${escapeHtml(displayLabel)}</option>`;
+    }).join('');
+
     if (previous && source.includes(previous)) {
         el.value = previous;
+    } else if (cleanCurYear && source.includes(cleanCurYear)) {
+        el.value = cleanCurYear;
     } else if (currentAcademicYear && source.includes(currentAcademicYear)) {
         el.value = currentAcademicYear;
     } else {
@@ -6196,17 +6215,105 @@ const exportReportExcel = () => {
     XLSX.writeFile(wb, `${filePrefix}_${safeExam}.xlsx`);
 };
 
-const exportReportPDF = (model = activeReportModel) => {
+const syncPdfModalRadioVisuals = () => {
+    ['report-pdf-orientation', 'report-pdf-paper-size', 'report-pdf-color-mode'].forEach((groupName) => {
+        const radios = document.querySelectorAll(`input[name="${groupName}"]`);
+        radios.forEach((r) => {
+            const label = r.closest('label');
+            if (!label) return;
+            if (r.checked) {
+                label.classList.add('border-indigo-600', 'bg-indigo-50/40');
+                label.classList.remove('border-slate-200', 'bg-white');
+            } else {
+                label.classList.remove('border-indigo-600', 'bg-indigo-50/40');
+                label.classList.add('border-slate-200', 'bg-white');
+            }
+        });
+    });
+};
+
+const openReportPdfOptionsModal = () => {
     if (!cachedReportData) {
         updateReportPreview();
     }
     const data = cachedReportData;
-    if (!data || !data.classReports.length) {
+    if (!data || !data.classReports || !data.classReports.length) {
         alert('No report data available to export. Please select Year, Class, and Exam first.');
         return;
     }
 
-    const { jsPDF } = window.jspdf;
+    const modal = document.getElementById('report-pdf-options-modal');
+    if (!modal) {
+        exportReportPDF({ model: activeReportModel });
+        return;
+    }
+
+    const targetTypeEl = document.getElementById('report-pdf-modal-target-type');
+    const targetBadgeEl = document.getElementById('report-pdf-modal-target-badge');
+
+    if (activeReportModel === 'individual') {
+        if (targetTypeEl) targetTypeEl.textContent = 'Individual Report Cards';
+        if (targetBadgeEl) {
+            targetBadgeEl.textContent = 'Student Cards';
+            targetBadgeEl.className = 'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-purple-50 text-purple-700 border border-purple-200';
+        }
+        const portRadio = document.querySelector('input[name="report-pdf-orientation"][value="portrait"]');
+        if (portRadio) portRadio.checked = true;
+        const a5Radio = document.querySelector('input[name="report-pdf-paper-size"][value="a5"]');
+        if (a5Radio) a5Radio.checked = true;
+    } else {
+        if (targetTypeEl) targetTypeEl.textContent = 'Consolidated Marksheet';
+        if (targetBadgeEl) {
+            targetBadgeEl.textContent = 'Consolidated Table';
+            targetBadgeEl.className = 'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-200';
+        }
+        const landRadio = document.querySelector('input[name="report-pdf-orientation"][value="landscape"]');
+        if (landRadio) landRadio.checked = true;
+        const a4Radio = document.querySelector('input[name="report-pdf-paper-size"][value="a4"]');
+        if (a4Radio) a4Radio.checked = true;
+    }
+
+    const currentColorChecked = document.querySelector('input[name="report-pdf-color-mode"]:checked');
+    if (!currentColorChecked) {
+        const colorRadio = document.querySelector('input[name="report-pdf-color-mode"][value="color"]');
+        if (colorRadio) colorRadio.checked = true;
+    }
+
+    syncPdfModalRadioVisuals();
+    modal.classList.remove('hidden');
+};
+
+const closeReportPdfOptionsModal = () => {
+    const modal = document.getElementById('report-pdf-options-modal');
+    if (modal) modal.classList.add('hidden');
+};
+
+const exportReportPDF = (optionsOrModel = {}) => {
+    let options = {};
+    if (typeof optionsOrModel === 'string') {
+        options = { model: optionsOrModel };
+    } else if (typeof optionsOrModel === 'object' && optionsOrModel !== null) {
+        options = optionsOrModel;
+    }
+
+    const model = options.model || activeReportModel || 'consolidated';
+    const isIndividual = (model === 'individual');
+    const orientation = options.orientation || (isIndividual ? 'portrait' : 'landscape');
+    const paperSize = options.paperSize || (isIndividual ? 'a5' : 'a4');
+    const colorMode = options.colorMode || 'color';
+    const isBw = (colorMode === 'bw');
+    const isA5 = (paperSize === 'a5');
+
+    if (!cachedReportData) {
+        updateReportPreview();
+    }
+    const data = cachedReportData;
+    if (!data || !data.classReports || !data.classReports.length) {
+        alert('No report data available to export. Please select Year, Class, and Exam first.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf || {};
     if (!jsPDF) return alert('PDF export library not available.');
 
     const instName = institutionConfig.appName || 'Institution Name';
@@ -6219,8 +6326,9 @@ const exportReportPDF = (model = activeReportModel) => {
     const hasLogo = Boolean(logoImg && logoImg.complete && logoImg.naturalWidth > 0 && logoImg.getAttribute('src'));
 
     if (model === 'consolidated') {
-        const docPdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const docPdf = new jsPDF({ orientation, unit: 'mm', format: paperSize });
         const pageWidth = docPdf.internal.pageSize.getWidth();
+        const pageHeight = docPdf.internal.pageSize.getHeight();
 
         data.classReports.forEach((cr, classIdx) => {
             if (classIdx > 0) docPdf.addPage();
@@ -6246,24 +6354,36 @@ const exportReportPDF = (model = activeReportModel) => {
             // Draw Institution Header with Logo
             if (hasLogo) {
                 try {
-                    docPdf.addImage(logoImg, 'PNG', 14, 8, 16, 16);
+                    docPdf.addImage(logoImg, 'PNG', 14, 8, isA5 ? 12 : 16, isA5 ? 12 : 16);
                 } catch (e) {
                     console.warn('Could not render logo in PDF:', e);
                 }
             }
 
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setFontSize(15);
-            docPdf.text(instName, pageWidth / 2, 12, { align: 'center' });
+            docPdf.setFontSize(isA5 ? 12 : 15);
+            docPdf.setTextColor(isBw ? 0 : 30, isBw ? 0 : 27, isBw ? 0 : 75);
+            docPdf.text(instName, pageWidth / 2, isA5 ? 10 : 12, { align: 'center' });
+
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setFontSize(9);
-            if (subTitle) docPdf.text(subTitle, pageWidth / 2, 17, { align: 'center' });
+            docPdf.setFontSize(isA5 ? 7.5 : 9);
+            docPdf.setTextColor(isBw ? 80 : 100);
+            if (subTitle) docPdf.text(subTitle, pageWidth / 2, isA5 ? 15 : 17, { align: 'center' });
+
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setFontSize(10);
-            docPdf.text(`Class: ${cr.className}`, 14, 27);
-            docPdf.text(`Exam: ${cr.examContext?.label || data.examId}`, 80, 27);
-            docPdf.text(`Academic Year: ${data.reportYear}`, 150, 27);
-            docPdf.text(`Order: ${orderLabels[data.reportOrder] || orderLabels.rank}`, 225, 27);
+            docPdf.setFontSize(isA5 ? 8 : 10);
+            docPdf.setTextColor(isBw ? 20 : 51, isBw ? 20 : 65, isBw ? 20 : 85);
+
+            const col1 = 14;
+            const col2 = Math.round(pageWidth * 0.28);
+            const col3 = Math.round(pageWidth * 0.55);
+            const col4 = Math.round(pageWidth * 0.78);
+            const metaY = isA5 ? 22 : 27;
+
+            docPdf.text(`Class: ${cr.className}`, col1, metaY);
+            docPdf.text(`Exam: ${cr.examContext?.label || data.examId}`, col2, metaY);
+            docPdf.text(`Academic Year: ${data.reportYear}`, col3, metaY);
+            docPdf.text(`Order: ${orderLabels[data.reportOrder] || orderLabels.rank}`, col4, metaY);
 
             const headers = ['No', 'Adm No', 'Student Name', ...cr.reportSubjects.map((s) => `${s.name} (${s.maxMarks})`), `Total (${classMaxTotal})`, 'Result', `Att. (${classWorkingDays || 'Total'})`, 'Rank'];
             const studentNameColIndex = 2;
@@ -6294,28 +6414,47 @@ const exportReportPDF = (model = activeReportModel) => {
                 ];
             });
 
+            const headFill = isBw ? [45, 45, 45] : [79, 70, 229];
+            const tableStartY = isA5 ? 26 : 33;
+
             docPdf.autoTable({
-                startY: 33,
+                startY: tableStartY,
                 head: [headers],
                 body,
-                styles: { fontSize: cr.reportSubjects.length > 8 ? 6.5 : 7.5, cellPadding: 1.5, overflow: 'linebreak', valign: 'middle' },
-                headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
-                columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 18 }, 2: { cellWidth: 38 } },
+                styles: { fontSize: (isA5 || cr.reportSubjects.length > 8) ? 6 : 7.5, cellPadding: isA5 ? 1.0 : 1.5, overflow: 'linebreak', valign: 'middle' },
+                headStyles: { fillColor: headFill, textColor: [255, 255, 255], fontStyle: 'bold' },
+                columnStyles: {
+                    0: { cellWidth: isA5 ? 7 : 9, halign: 'center' },
+                    1: { cellWidth: isA5 ? 14 : 18 },
+                    2: { cellWidth: isA5 ? 26 : 38 }
+                },
                 didParseCell: (cellData) => {
                     if (cellData.section !== 'body') return;
                     const rowMeta = cr.rows[cellData.row.index];
-                    if (rowMeta?.passStatus === 'FAIL') {
-                        if (cellData.column.index === studentNameColIndex) {
-                            cellData.cell.styles.textColor = [220, 38, 38];
+                    if (isBw) {
+                        if (rowMeta?.passStatus === 'FAIL') {
+                            if (cellData.column.index === studentNameColIndex || cellData.column.index === resultColIndex) {
+                                cellData.cell.styles.textColor = [0, 0, 0];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            }
+                        } else if (rowMeta?.passStatus === 'PASS' && cellData.column.index === resultColIndex) {
+                            cellData.cell.styles.textColor = [15, 23, 42];
                             cellData.cell.styles.fontStyle = 'bold';
                         }
-                        if (cellData.column.index === resultColIndex) {
-                            cellData.cell.styles.textColor = [220, 38, 38];
+                    } else {
+                        if (rowMeta?.passStatus === 'FAIL') {
+                            if (cellData.column.index === studentNameColIndex) {
+                                cellData.cell.styles.textColor = [220, 38, 38];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            }
+                            if (cellData.column.index === resultColIndex) {
+                                cellData.cell.styles.textColor = [220, 38, 38];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            }
+                        } else if (rowMeta?.passStatus === 'PASS' && cellData.column.index === resultColIndex) {
+                            cellData.cell.styles.textColor = [16, 149, 101];
                             cellData.cell.styles.fontStyle = 'bold';
                         }
-                    } else if (rowMeta?.passStatus === 'PASS' && cellData.column.index === resultColIndex) {
-                        cellData.cell.styles.textColor = [16, 149, 101];
-                        cellData.cell.styles.fontStyle = 'bold';
                     }
                 },
                 didDrawPage: () => {
@@ -6330,100 +6469,135 @@ const exportReportPDF = (model = activeReportModel) => {
 
         const filePrefix = data.isAllClasses ? `Results_${data.reportYear}_AllClasses` : `Results_${data.reportYear}_Class_${data.className}`;
         const safeExam = (data.classReports[0]?.examContext?.label || data.examId || 'Exam').replace(/\s+/g, '_');
-        docPdf.save(`${filePrefix}_${safeExam}_${data.reportOrder}.pdf`);
+        const colorSuffix = isBw ? '_BW' : '';
+        const sizeSuffix = isA5 ? '_A5' : '';
+        docPdf.save(`${filePrefix}_${safeExam}_${data.reportOrder}${sizeSuffix}${colorSuffix}.pdf`);
     } else {
-        // Individual Report Cards Batch PDF (Strict A4 Portrait)
-        const docPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        // Individual Report Cards Batch PDF (Supports A5 standard card size & A4 full sheet)
+        const docPdf = new jsPDF({ orientation, unit: 'mm', format: paperSize });
         const pageWidth = docPdf.internal.pageSize.getWidth();
         const pageHeight = docPdf.internal.pageSize.getHeight();
+
+        const outerMargin = isA5 ? 6 : 8;
+        const innerMargin = isA5 ? 7.5 : 10;
+        const margin = isA5 ? 10 : 14;
+
+        const borderCol1 = isBw ? [45, 45, 45] : [79, 70, 229];
+        const borderCol2 = isBw ? [215, 215, 215] : [224, 231, 255];
+        const tableHeadFill = isBw ? [45, 45, 45] : [79, 70, 229];
 
         data.allStudentsList.forEach((row, idx) => {
             if (idx > 0) docPdf.addPage();
 
-            docPdf.setDrawColor(79, 70, 229);
-            docPdf.setLineWidth(0.8);
-            docPdf.rect(8, 8, pageWidth - 16, pageHeight - 16);
-            docPdf.setDrawColor(224, 231, 255);
+            // Decorative Dual Borders
+            docPdf.setDrawColor(...borderCol1);
+            docPdf.setLineWidth(isA5 ? 0.6 : 0.8);
+            docPdf.rect(outerMargin, outerMargin, pageWidth - (outerMargin * 2), pageHeight - (outerMargin * 2));
+            docPdf.setDrawColor(...borderCol2);
             docPdf.setLineWidth(0.3);
-            docPdf.rect(10, 10, pageWidth - 20, pageHeight - 20);
+            docPdf.rect(innerMargin, innerMargin, pageWidth - (innerMargin * 2), pageHeight - (innerMargin * 2));
 
             // Draw Logo in Header
             if (hasLogo) {
                 try {
-                    docPdf.addImage(logoImg, 'PNG', 14, 13, 14, 14);
+                    docPdf.addImage(logoImg, 'PNG', margin, isA5 ? 9 : 13, isA5 ? 12 : 14, isA5 ? 12 : 14);
                 } catch (e) {
                     console.warn('Could not add logo to individual report PDF:', e);
                 }
             }
 
+            // Institution Name & Subtitle
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setFontSize(16);
-            docPdf.setTextColor(30, 27, 75);
-            docPdf.text(instName, pageWidth / 2, 20, { align: 'center' });
+            docPdf.setFontSize(isA5 ? 13 : 16);
+            docPdf.setTextColor(isBw ? 0 : 30, isBw ? 0 : 27, isBw ? 0 : 75);
+            docPdf.text(instName, pageWidth / 2, isA5 ? 14 : 20, { align: 'center' });
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setFontSize(9);
-            docPdf.setTextColor(100);
-            if (subTitle) docPdf.text(subTitle, pageWidth / 2, 26, { align: 'center' });
+            docPdf.setFontSize(isA5 ? 7.5 : 9);
+            docPdf.setTextColor(isBw ? 80 : 100);
+            if (subTitle) docPdf.text(subTitle, pageWidth / 2, isA5 ? 19 : 26, { align: 'center' });
 
-            docPdf.setFillColor(238, 242, 255);
-            docPdf.roundedRect(pageWidth / 2 - 35, 30, 70, 7, 2, 2, 'F');
+            // "STUDENT REPORT CARD" Badge
+            const badgeW = isA5 ? 54 : 70;
+            const badgeH = isA5 ? 6 : 7;
+            const badgeY = isA5 ? 22 : 30;
+            docPdf.setFillColor(isBw ? 240 : 238, isBw ? 240 : 242, isBw ? 240 : 255);
+            docPdf.roundedRect(pageWidth / 2 - (badgeW / 2), badgeY, badgeW, badgeH, 1.5, 1.5, 'F');
+
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setFontSize(10);
-            docPdf.setTextColor(67, 56, 202);
-            docPdf.text('STUDENT REPORT CARD', pageWidth / 2, 35, { align: 'center' });
+            docPdf.setFontSize(isA5 ? 8.5 : 10);
+            docPdf.setTextColor(isBw ? 20 : 67, isBw ? 20 : 56, isBw ? 20 : 202);
+            docPdf.text('STUDENT REPORT CARD', pageWidth / 2, badgeY + (isA5 ? 4.3 : 5), { align: 'center' });
 
+            // Student Info Card Box
+            const infoY = isA5 ? 30 : 41;
+            const infoH = isA5 ? 23 : 28;
             docPdf.setFillColor(248, 250, 252);
-            docPdf.setDrawColor(226, 232, 240);
-            docPdf.roundedRect(14, 41, pageWidth - 28, 28, 2, 2, 'FD');
+            docPdf.setDrawColor(isBw ? 215 : 226, isBw ? 215 : 232, isBw ? 215 : 240);
+            docPdf.roundedRect(margin, infoY, pageWidth - (margin * 2), infoH, 1.5, 1.5, 'FD');
 
             const admNo = row.student?.adm || row.student?.admissionNo || row.student?.uid || '-';
             const stName = row.student?.name || '-';
             const crExam = data.classReports.find(cr => cr.className === row.className)?.examContext?.label || data.examId;
 
-            docPdf.setFontSize(9);
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Student Name:', 18, 48);
+            const leftLabelX = margin + (isA5 ? 3 : 4);
+            const leftValX = margin + (isA5 ? 24 : 30);
+            const rightLabelX = pageWidth / 2 + (isA5 ? 4 : 10);
+            const rightValX = pageWidth / 2 + (isA5 ? 26 : 37);
+
+            const row1Y = infoY + (isA5 ? 5.5 : 7);
+            const row2Y = infoY + (isA5 ? 12.5 : 15);
+            const row3Y = infoY + (isA5 ? 19.5 : 23);
+
+            docPdf.setFontSize(isA5 ? 7.5 : 9);
+
+            // Row 1: Student Name & Academic Year
+            docPdf.setFont('helvetica', 'normal');
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Student Name:', leftLabelX, row1Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(stName, 44, 48);
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(stName, leftValX, row1Y);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Admission No:', 18, 56);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Academic Year:', rightLabelX, row1Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(admNo, 44, 56);
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(data.reportYear, rightValX, row1Y);
+
+            // Row 2: Admission No & Examination
+            docPdf.setFont('helvetica', 'normal');
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Admission No:', leftLabelX, row2Y);
+            docPdf.setFont('helvetica', 'bold');
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(admNo, leftValX, row2Y);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Class:', 18, 64);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Examination:', rightLabelX, row2Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(String(row.className), 44, 64);
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(crExam, rightValX, row2Y);
+
+            // Row 3: Class & Class Rank
+            docPdf.setFont('helvetica', 'normal');
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Class:', leftLabelX, row3Y);
+            docPdf.setFont('helvetica', 'bold');
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(String(row.className), leftValX, row3Y);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Academic Year:', pageWidth / 2 + 10, 48);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Class Rank:', rightLabelX, row3Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(data.reportYear, pageWidth / 2 + 37, 48);
+            docPdf.setTextColor(isBw ? 0 : 67, isBw ? 0 : 56, isBw ? 0 : 202);
+            docPdf.text(String(row.rank || '-'), rightValX, row3Y);
 
-            docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Examination:', pageWidth / 2 + 10, 56);
-            docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(crExam, pageWidth / 2 + 37, 56);
-
-            docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Class Rank:', pageWidth / 2 + 10, 64);
-            docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(67, 56, 202);
-            docPdf.text(String(row.rank || '-'), pageWidth / 2 + 37, 64);
-
-            const subHeaders = ['#', 'Subject', 'Max Marks', 'Pass Marks', 'Obtained Marks', 'Grade', 'Status'];
+            // Marks Table
+            const subHeaders = ['#', 'Subject', 'Max', 'Pass', 'Marks', 'Grade', 'Status'];
             const subBody = row.subjectValues.map((item, sIdx) => {
                 const grade = (Number.isFinite(item.num) && item.sub.maxMarks) ? getConfiguredGrade(item.num, item.sub.maxMarks) : (item.val === 'P' ? 'P' : '-');
                 return [
@@ -6437,14 +6611,24 @@ const exportReportPDF = (model = activeReportModel) => {
                 ];
             });
 
+            const tableStartY = infoY + infoH + (isA5 ? 4 : 5);
+
             docPdf.autoTable({
-                startY: 74,
-                margin: { left: 14, right: 14 },
+                startY: tableStartY,
+                margin: { left: margin, right: margin },
                 head: [subHeaders],
                 body: subBody,
-                styles: { fontSize: 8.5, cellPadding: 2.2, valign: 'middle' },
-                headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
-                columnStyles: {
+                styles: { fontSize: isA5 ? 7 : 8.5, cellPadding: isA5 ? 1.4 : 2.2, valign: 'middle' },
+                headStyles: { fillColor: tableHeadFill, textColor: [255, 255, 255], fontStyle: 'bold' },
+                columnStyles: isA5 ? {
+                    0: { cellWidth: 7, halign: 'center' },
+                    1: { cellWidth: 38 },
+                    2: { cellWidth: 16, halign: 'center' },
+                    3: { cellWidth: 16, halign: 'center' },
+                    4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+                    5: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+                    6: { cellWidth: 19, halign: 'center' }
+                } : {
                     0: { cellWidth: 10, halign: 'center' },
                     1: { cellWidth: 50 },
                     2: { cellWidth: 22, halign: 'center' },
@@ -6455,73 +6639,123 @@ const exportReportPDF = (model = activeReportModel) => {
                 },
                 didParseCell: (cellData) => {
                     if (cellData.section === 'body' && cellData.column.index === 6) {
-                        if (cellData.cell.raw === 'FAIL') {
-                            cellData.cell.styles.textColor = [220, 38, 38];
-                            cellData.cell.styles.fontStyle = 'bold';
-                        } else if (cellData.cell.raw === 'PASS') {
-                            cellData.cell.styles.textColor = [16, 149, 101];
-                            cellData.cell.styles.fontStyle = 'bold';
-                        } else if (cellData.cell.raw === 'ABSENT') {
-                            cellData.cell.styles.textColor = [217, 119, 6];
-                            cellData.cell.styles.fontStyle = 'bold';
+                        if (isBw) {
+                            if (cellData.cell.raw === 'FAIL') {
+                                cellData.cell.styles.textColor = [0, 0, 0];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            } else if (cellData.cell.raw === 'PASS') {
+                                cellData.cell.styles.textColor = [15, 23, 42];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            } else if (cellData.cell.raw === 'ABSENT') {
+                                cellData.cell.styles.textColor = [60, 60, 60];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            }
+                        } else {
+                            if (cellData.cell.raw === 'FAIL') {
+                                cellData.cell.styles.textColor = [220, 38, 38];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            } else if (cellData.cell.raw === 'PASS') {
+                                cellData.cell.styles.textColor = [16, 149, 101];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            } else if (cellData.cell.raw === 'ABSENT') {
+                                cellData.cell.styles.textColor = [217, 119, 6];
+                                cellData.cell.styles.fontStyle = 'bold';
+                            }
                         }
                     }
                 }
             });
 
-            const finalY = docPdf.lastAutoTable.finalY + 6;
+            // Summary Box
+            const finalY = docPdf.lastAutoTable.finalY + (isA5 ? 3.5 : 6);
+            const summaryH = isA5 ? 18 : 24;
 
             docPdf.setFillColor(248, 250, 252);
-            docPdf.setDrawColor(226, 232, 240);
-            docPdf.roundedRect(14, finalY, pageWidth - 28, 24, 2, 2, 'FD');
+            docPdf.setDrawColor(isBw ? 215 : 226, isBw ? 215 : 232, isBw ? 215 : 240);
+            docPdf.roundedRect(margin, finalY, pageWidth - (margin * 2), summaryH, 1.5, 1.5, 'FD');
 
             const pct = row.maximum > 0 ? Math.round((row.total / row.maximum) * 100) : 0;
+            const sumRow1Y = finalY + (isA5 ? 6 : 8);
+            const sumRow2Y = finalY + (isA5 ? 13 : 16);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setFontSize(8.5);
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Total Marks:', 18, finalY + 8);
+            docPdf.setFontSize(isA5 ? 7.5 : 8.5);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Total Marks:', leftLabelX, sumRow1Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(`${row.total} / ${row.maximum}`, 42, finalY + 8);
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(`${row.total} / ${row.maximum}`, leftValX, sumRow1Y);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Percentage:', 18, finalY + 16);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Percentage:', leftLabelX, sumRow2Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(`${pct}%`, 42, finalY + 16);
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(`${pct}%`, leftValX, sumRow2Y);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Attendance:', pageWidth / 2 + 10, finalY + 8);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Attendance:', rightLabelX, sumRow1Y);
             docPdf.setFont('helvetica', 'bold');
-            docPdf.setTextColor(15, 23, 42);
-            docPdf.text(row.attendance || '-', pageWidth / 2 + 35, finalY + 8);
+            docPdf.setTextColor(isBw ? 0 : 15, isBw ? 0 : 23, isBw ? 0 : 42);
+            docPdf.text(row.attendance || '-', rightValX, sumRow1Y);
 
             docPdf.setFont('helvetica', 'normal');
-            docPdf.setTextColor(71, 85, 105);
-            docPdf.text('Final Result:', pageWidth / 2 + 10, finalY + 16);
+            docPdf.setTextColor(isBw ? 80 : 71, isBw ? 80 : 85, isBw ? 80 : 105);
+            docPdf.text('Final Result:', rightLabelX, sumRow2Y);
             docPdf.setFont('helvetica', 'bold');
-            if (row.passStatus === 'PASS') {
-                docPdf.setTextColor(16, 149, 101);
-                docPdf.text(`PASSED (Grade: ${row.grade})`, pageWidth / 2 + 35, finalY + 16);
+            if (isBw) {
+                docPdf.setTextColor(row.passStatus === 'PASS' ? [15, 23, 42] : [0, 0, 0]);
+                docPdf.text(row.passStatus === 'PASS' ? `PASSED (Grade: ${row.grade})` : 'FAILED', rightValX, sumRow2Y);
             } else {
-                docPdf.setTextColor(220, 38, 38);
-                docPdf.text('FAILED', pageWidth / 2 + 35, finalY + 16);
+                if (row.passStatus === 'PASS') {
+                    docPdf.setTextColor(16, 149, 101);
+                    docPdf.text(`PASSED (Grade: ${row.grade})`, rightValX, sumRow2Y);
+                } else {
+                    docPdf.setTextColor(220, 38, 38);
+                    docPdf.text('FAILED', rightValX, sumRow2Y);
+                }
             }
         });
 
         const filePrefix = data.isAllClasses ? `Report_Cards_${data.reportYear}_AllClasses` : `Report_Cards_${data.reportYear}_Class_${data.className}`;
         const safeExam = (data.classReports[0]?.examContext?.label || data.examId || 'Exam').replace(/\s+/g, '_');
-        docPdf.save(`${filePrefix}_${safeExam}.pdf`);
+        const colorSuffix = isBw ? '_BW' : '';
+        const sizeSuffix = isA5 ? '_A5' : '_A4';
+        docPdf.save(`${filePrefix}_${safeExam}${sizeSuffix}${colorSuffix}.pdf`);
     }
 };
 
-// Wire up report actions
-document.getElementById('generate-class-report-btn')?.addEventListener('click', () => exportReportPDF('consolidated'));
-document.getElementById('generate-individual-cards-btn')?.addEventListener('click', () => exportReportPDF('individual'));
-document.getElementById('report-download-pdf-btn')?.addEventListener('click', () => exportReportPDF(activeReportModel));
+// Wire up report actions & modal
+document.getElementById('report-pdf-modal-close-x')?.addEventListener('click', closeReportPdfOptionsModal);
+document.getElementById('report-pdf-modal-cancel')?.addEventListener('click', closeReportPdfOptionsModal);
+document.getElementById('report-pdf-options-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'report-pdf-options-modal') {
+        closeReportPdfOptionsModal();
+    }
+});
+
+['report-pdf-orientation', 'report-pdf-paper-size', 'report-pdf-color-mode'].forEach((groupName) => {
+    document.querySelectorAll(`input[name="${groupName}"]`).forEach((r) => {
+        r.addEventListener('change', syncPdfModalRadioVisuals);
+    });
+});
+
+document.getElementById('report-pdf-modal-confirm-btn')?.addEventListener('click', () => {
+    const orientation = document.querySelector('input[name="report-pdf-orientation"]:checked')?.value || (activeReportModel === 'individual' ? 'portrait' : 'landscape');
+    const paperSize = document.querySelector('input[name="report-pdf-paper-size"]:checked')?.value || (activeReportModel === 'individual' ? 'a5' : 'a4');
+    const colorMode = document.querySelector('input[name="report-pdf-color-mode"]:checked')?.value || 'color';
+
+    closeReportPdfOptionsModal();
+    exportReportPDF({
+        model: activeReportModel,
+        orientation,
+        paperSize,
+        colorMode
+    });
+});
+
+document.getElementById('report-download-pdf-btn')?.addEventListener('click', () => openReportPdfOptionsModal());
 document.getElementById('report-download-excel-btn')?.addEventListener('click', () => exportReportExcel());
 
 // Model Dropdown Event
