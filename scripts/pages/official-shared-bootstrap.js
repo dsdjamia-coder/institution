@@ -5125,83 +5125,108 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (!exportTarget) return;
 
       exportTarget.innerHTML = `
-        <div class="excel-studio-layout">
-          <!-- Left Side Studio Palette -->
-          <aside id="excel-side-studio" class="excel-side-studio no-print ${builderConfig.sideStudioCollapsed ? 'collapsed' : ''}">
-            <!-- Studio Header -->
-            <div class="side-studio-header">
-              <div class="side-studio-title">
-                <i class="fas fa-layer-group text-indigo-400"></i>
-                <span>Worksheet Studio</span>
+        <div class="excel-studio-container flex flex-col h-full w-full overflow-hidden bg-[#f3f2f1] select-none">
+          <!-- 1. TOP EXCEL RIBBON BAR -->
+          <header class="excel-ribbon-bar bg-[#f3f2f1] border-b border-[#cbd5e1] shrink-0 no-print flex flex-col">
+            <!-- Row 1: Ribbon Tab Headers & Global Action Buttons -->
+            <div class="excel-ribbon-header-row flex items-center justify-between px-3 pt-1 border-b border-[#cbd5e1]">
+              <div class="flex items-center gap-1">
+                <div class="flex items-center gap-1.5 px-2 py-1 mr-2 text-emerald-700 font-extrabold text-xs">
+                  <i class="fas fa-file-excel text-base text-emerald-600"></i>
+                  <span class="tracking-wide">Worksheet Studio</span>
+                </div>
+                <!-- Ribbon Tabs -->
+                <div class="excel-ribbon-tabs flex items-center gap-0.5">
+                  <button type="button" class="excel-tab ${builderConfig.activeTab === 'data' ? 'active' : ''}" data-ribbon="data">
+                    <i class="fas fa-database text-xs mr-1"></i><span>Data</span>
+                  </button>
+                  <button type="button" class="excel-tab ${builderConfig.activeTab === 'home' ? 'active' : ''}" data-ribbon="home">
+                    <i class="fas fa-pen-nib text-xs mr-1"></i><span>Home</span>
+                  </button>
+                  <button type="button" class="excel-tab ${builderConfig.activeTab === 'insert' ? 'active' : ''}" data-ribbon="insert">
+                    <i class="fas fa-plus-circle text-xs mr-1"></i><span>Insert</span>
+                  </button>
+                  <button type="button" class="excel-tab ${builderConfig.activeTab === 'layout' ? 'active' : ''}" data-ribbon="layout">
+                    <i class="fas fa-sliders-h text-xs mr-1"></i><span>Layout</span>
+                  </button>
+                </div>
               </div>
-              <div class="side-studio-actions">
-                <button id="btn-toggle-fullscreen" class="side-studio-hdr-btn" title="Toggle Fullscreen (Esc to exit)"><i class="fas fa-expand fullscreen-icon-toggle"></i></button>
-                <button id="btn-toggle-studio-collapse" class="side-studio-hdr-btn" title="Collapse / Expand Sidebar"><i class="fas fa-chevron-left"></i></button>
+
+              <!-- Quick Action Buttons on Top Right -->
+              <div class="flex items-center gap-1.5 pb-1">
+                <button type="button" id="btn-export-print" class="premium-export-btn btn-pdf-red !py-1 !px-2.5 text-xs font-bold shadow-xs cursor-pointer" title="Print or Save as PDF">
+                  <i class="fas fa-print"></i> <span>Print</span>
+                </button>
+                <button type="button" id="btn-export-excel" class="premium-export-btn btn-excel-green !py-1 !px-2.5 text-xs font-bold shadow-xs cursor-pointer" title="Export as Excel Sheet (.xlsx)">
+                  <i class="fas fa-file-excel"></i> <span>Export XLSX</span>
+                </button>
+                <button type="button" id="btn-toggle-fullscreen" class="premium-export-btn bg-slate-800 hover:bg-slate-900 !py-1 !px-2.5 text-xs font-bold shadow-xs cursor-pointer" title="Toggle Fullscreen Mode (Esc to exit)">
+                  <i class="fas ${document.body.classList.contains('worksheet-fullscreen-mode') ? 'fa-compress' : 'fa-expand'} fullscreen-icon-toggle"></i>
+                  <span class="fullscreen-text-toggle">${document.body.classList.contains('worksheet-fullscreen-mode') ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+                </button>
+                <button type="button" id="btn-toggle-ribbon-collapse" class="excel-btn-small hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-600 ml-1 cursor-pointer" title="Collapse / Expand Ribbon">
+                  <i class="fas ${builderConfig.ribbonCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'} text-xs ribbon-toggle-icon"></i>
+                </button>
               </div>
             </div>
 
-            <!-- Segmented Ribbon Tabs -->
-            <div class="side-studio-tabs">
-              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'data' ? 'active' : ''}" data-ribbon="data"><i class="fas fa-database"></i><span>Data</span></button>
-              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'home' ? 'active' : ''}" data-ribbon="home"><i class="fas fa-pen-nib"></i><span>Home</span></button>
-              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'insert' ? 'active' : ''}" data-ribbon="insert"><i class="fas fa-plus-circle"></i><span>Insert</span></button>
-              <button class="side-studio-tab excel-tab ${builderConfig.activeTab === 'layout' ? 'active' : ''}" data-ribbon="layout"><i class="fas fa-sliders-h"></i><span>Layout</span></button>
-            </div>
-
-            <!-- Scrollable Tool Panels -->
-            <div class="side-studio-body">
+            <!-- Row 2: Ribbon Content Tool Strip (Horizontal Shelf) -->
+            <div id="excel-ribbon-content" class="excel-ribbon-content bg-white overflow-x-auto px-3 py-2 flex items-start gap-4 min-h-[82px] border-b border-[#cbd5e1] ${builderConfig.ribbonCollapsed ? 'hidden' : ''}">
               ${ribbonData}
               ${ribbonHome}
               ${ribbonInsert}
               ${ribbonLayout}
             </div>
+          </header>
 
-            <!-- Side Studio Footer with Sheet Meta & Zoom -->
-            <div class="side-studio-footer">
-              <div class="side-meta-pills">
-                <span class="side-meta-badge"><i class="fas fa-table text-emerald-600"></i> ${dataRows.length} Rows</span>
-                <span class="side-meta-badge"><i class="fas fa-file-alt text-indigo-600"></i> ${totalPages} Page${totalPages > 1 ? 's' : ''}</span>
-                <span class="side-meta-badge font-mono text-[9px]">${builderConfig.paper} ${builderConfig.orientation === 'landscape' ? 'L' : 'P'}</span>
-              </div>
-              <div class="flex items-center justify-between pt-1 border-t border-slate-100">
-                <span class="text-[10px] font-bold text-slate-500 uppercase">Zoom:</span>
-                <div class="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-full px-1.5 py-0.5">
-                  <button id="btn-zoom-out" class="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom Out"><i class="fas fa-minus text-[9px]"></i></button>
-                  <span id="canvas-zoom-text" class="px-1 font-black text-xs text-indigo-700 min-w-[38px] text-center">${builderConfig.zoom || 100}%</span>
-                  <button id="btn-zoom-in" class="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center font-bold text-slate-700 transition-colors" title="Zoom In"><i class="fas fa-plus text-[9px]"></i></button>
-                  <button id="btn-zoom-reset" class="px-1 text-[9px] font-bold text-slate-600 hover:text-slate-900" title="Reset 100%">100%</button>
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-1.5 pt-1">
-                <button id="btn-save-template-side" class="side-tool-btn !bg-indigo-600 hover:!bg-indigo-700 !text-white !py-1 text-xs font-bold" title="Save Reusable Template"><i class="fas fa-save"></i> Save Tpl</button>
-                <button id="btn-load-template-side" class="side-tool-btn !bg-slate-800 hover:!bg-slate-900 !text-white !py-1 text-xs font-bold" title="Open Saved Templates"><i class="fas fa-folder-open text-amber-400"></i> Tpls (<span class="tpl-count-badge font-black text-amber-300">${allWorksheetTemplates.length}</span>)</button>
-              </div>
-            </div>
-          </aside>
+          <!-- 2. FORMULA BAR (Compact 34px Bar) -->
+          <div class="slim-formula-bar bg-white border-b border-[#cbd5e1] px-3 py-1 flex items-center gap-2 shrink-0 no-print">
+            <div id="active-cell-id" class="formula-name-box">A1</div>
+            <div class="formula-divider"></div>
+            <div class="formula-icon">fx</div>
+            <input type="text" id="formula-input" class="formula-input" placeholder="Click any cell or box to edit, or drag across cells to format / merge..." />
+          </div>
 
-          <!-- Main Canvas View Area -->
-          <div class="excel-main-area">
-            <!-- Slim Formula & Quick Action Bar (Only 38px tall!) -->
-            <div class="slim-formula-bar no-print">
-              <button id="btn-expand-studio-floating" class="studio-expand-floating-btn ${builderConfig.sideStudioCollapsed ? '' : '!hidden'}" title="Expand Studio Sidebar"><i class="fas fa-bars"></i> Tools</button>
-              <div id="active-cell-id" class="formula-name-box">A1</div>
-              <div class="formula-divider"></div>
-              <div class="formula-icon">fx</div>
-              <input type="text" id="formula-input" class="formula-input" placeholder="Click any cell or box to edit, or drag across cells to format / merge..." />
-              <div class="flex items-center gap-1.5 ml-auto pr-1">
-                <button id="btn-export-print" class="premium-export-btn btn-pdf-red !py-1 !px-2.5 text-xs font-bold" title="Print or Save as PDF"><i class="fas fa-print"></i> Print</button>
-                <button id="btn-export-excel" class="premium-export-btn btn-excel-green !py-1 !px-2.5 text-xs font-bold" title="Export as Excel Sheet"><i class="fas fa-file-excel"></i> Excel</button>
-                <button id="btn-toggle-fullscreen-top" class="premium-export-btn bg-slate-800 hover:bg-slate-900 !py-1 !px-2.5 text-xs font-bold" title="Toggle Fullscreen Mode (Esc to exit)"><i class="fas fa-expand fullscreen-icon-toggle"></i> Fullscreen</button>
-              </div>
-            </div>
-
-            <!-- Full-Height Workspace Container -->
-            <div class="excel-workspace spreadsheet-container">
-              <div id="print-canvas" class="print-canvas" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}" style="zoom: ${(builderConfig.zoom || 100) / 100};">
-                ${pagesHtml}
-              </div>
+          <!-- 3. SPREADSHEET WORKSPACE / CANVAS -->
+          <div class="excel-workspace spreadsheet-container flex-grow overflow-auto p-4 relative bg-[#e2e8f0]">
+            <div id="print-canvas" class="print-canvas" data-paper="${builderConfig.paper}" data-orient="${builderConfig.orientation}" style="zoom: ${(builderConfig.zoom || 100) / 100};">
+              ${pagesHtml}
             </div>
           </div>
+
+          <!-- 4. BOTTOM STATUS BAR (Sheet Meta, Zoom Controls, Template Quick Access) -->
+          <footer class="excel-status-bar bg-[#f8fafc] border-t border-[#cbd5e1] px-4 py-1.5 flex items-center justify-between text-xs text-slate-600 shrink-0 no-print">
+            <div class="flex items-center gap-2.5">
+              <span class="side-meta-badge">
+                <i class="fas fa-table text-emerald-600"></i> ${dataRows.length} Rows
+              </span>
+              <span class="side-meta-badge">
+                <i class="fas fa-file-alt text-indigo-600"></i> ${totalPages} Page${totalPages > 1 ? 's' : ''}
+              </span>
+              <span class="side-meta-badge font-mono text-[10px]">
+                ${builderConfig.paper} • ${builderConfig.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2.5">
+              <!-- Templates Quick Buttons -->
+              <button type="button" id="btn-save-template-side" class="side-tool-btn !bg-indigo-50 hover:!bg-indigo-100 !text-indigo-700 !border-indigo-200" title="Save Reusable Template">
+                <i class="fas fa-save"></i> <span>Save Template</span>
+              </button>
+              <button type="button" id="btn-load-template-side" class="side-tool-btn !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !border-slate-300" title="Open Saved Templates">
+                <i class="fas fa-folder-open text-amber-500"></i> <span>Templates (<span class="tpl-count-badge font-black text-indigo-600">${allWorksheetTemplates.length}</span>)</span>
+              </button>
+
+              <!-- Zoom Controls -->
+              <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-full px-2 py-0.5 shadow-2xs">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Zoom</span>
+                <button type="button" id="btn-zoom-out" class="w-5 h-5 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition cursor-pointer" title="Zoom Out"><i class="fas fa-minus text-[9px]"></i></button>
+                <span id="canvas-zoom-text" class="px-1 font-black text-xs text-indigo-700 min-w-[38px] text-center">${builderConfig.zoom || 100}%</span>
+                <button type="button" id="btn-zoom-in" class="w-5 h-5 rounded-full hover:bg-slate-100 flex items-center justify-center font-bold text-slate-700 transition cursor-pointer" title="Zoom In"><i class="fas fa-plus text-[9px]"></i></button>
+                <button type="button" id="btn-zoom-reset" class="px-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 cursor-pointer" title="Reset to 100%">100%</button>
+              </div>
+            </div>
+          </footer>
         </div>
       `;
 
@@ -5349,6 +5374,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const toggleWorksheetFullscreen = () => {
         const isFull = document.body.classList.toggle('worksheet-fullscreen-mode');
         const icons = document.querySelectorAll('.fullscreen-icon-toggle');
+        const texts = document.querySelectorAll('.fullscreen-text-toggle');
         icons.forEach((ic) => {
           if (isFull) {
             ic.classList.remove('fa-expand');
@@ -5358,11 +5384,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             ic.classList.add('fa-expand');
           }
         });
+        texts.forEach((tx) => {
+          tx.textContent = isFull ? 'Exit Fullscreen' : 'Fullscreen';
+        });
         if (isFull) {
           if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => {});
           }
-          showToastNotification('Fullscreen enabled (Press Esc to restore)');
+          showToastNotification('Fullscreen enabled (Press Esc or Exit Fullscreen to restore)');
         } else {
           if (document.exitFullscreen && document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
@@ -5374,35 +5403,42 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', toggleWorksheetFullscreen);
       document.getElementById('btn-toggle-fullscreen-top')?.addEventListener('click', toggleWorksheetFullscreen);
 
-      const toggleSideStudioCollapse = (collapse) => {
-        const studio = document.getElementById('excel-side-studio');
-        if (!studio) return;
-        const willCollapse = typeof collapse === 'boolean' ? collapse : !studio.classList.contains('collapsed');
-        builderConfig.sideStudioCollapsed = willCollapse;
+      const toggleRibbonCollapse = (collapse) => {
+        const ribbonContent = document.getElementById('excel-ribbon-content');
+        const icon = document.querySelector('.ribbon-toggle-icon');
+        if (!ribbonContent) return;
+        const willCollapse = typeof collapse === 'boolean' ? collapse : !ribbonContent.classList.contains('hidden');
+        builderConfig.ribbonCollapsed = willCollapse;
         if (willCollapse) {
-          studio.classList.add('collapsed');
-          document.getElementById('btn-expand-studio-floating')?.classList.remove('!hidden');
+          ribbonContent.classList.add('hidden');
+          icon?.classList.remove('fa-chevron-up');
+          icon?.classList.add('fa-chevron-down');
         } else {
-          studio.classList.remove('collapsed');
-          document.getElementById('btn-expand-studio-floating')?.classList.add('!hidden');
+          ribbonContent.classList.remove('hidden');
+          icon?.classList.remove('fa-chevron-down');
+          icon?.classList.add('fa-chevron-up');
         }
       };
 
-      document.getElementById('btn-toggle-studio-collapse')?.addEventListener('click', () => toggleSideStudioCollapse(true));
-      document.getElementById('btn-expand-studio-floating')?.addEventListener('click', () => toggleSideStudioCollapse(false));
+      document.getElementById('btn-toggle-ribbon-collapse')?.addEventListener('click', () => toggleRibbonCollapse());
 
-      document.querySelectorAll('.excel-tab, .side-studio-tab').forEach((tab) =>
+      document.querySelectorAll('.excel-tab').forEach((tab) => {
         tab.addEventListener('click', (e) => {
           const btn = e.currentTarget;
-          document.querySelectorAll('.excel-tab, .side-studio-tab').forEach((t) => t.classList.remove('active'));
+          const targetId = btn.dataset.ribbon;
+          if (builderConfig.activeTab === targetId && document.getElementById('excel-ribbon-content')?.classList.contains('hidden')) {
+            toggleRibbonCollapse(false);
+          }
+          document.querySelectorAll('.excel-tab').forEach((t) => t.classList.remove('active'));
           document.querySelectorAll('.ribbon-panel').forEach((p) => p.classList.remove('active'));
           btn.classList.add('active');
-          const targetId = btn.dataset.ribbon;
           builderConfig.activeTab = targetId;
-          document.querySelectorAll(`.side-studio-tab[data-ribbon="${targetId}"]`).forEach((t) => t.classList.add('active'));
           document.getElementById(`ribbon-${targetId}`)?.classList.add('active');
-        })
-      );
+        });
+        tab.addEventListener('dblclick', () => {
+          toggleRibbonCollapse();
+        });
+      });
 
       document.getElementById('builder-source-type')?.addEventListener('change', (e) => {
         const newSource = e.target.value;
@@ -7065,6 +7101,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               ic.classList.remove('fa-compress');
               ic.classList.add('fa-expand');
             });
+            document.querySelectorAll('.fullscreen-text-toggle').forEach((tx) => {
+              tx.textContent = 'Fullscreen';
+            });
             if (document.exitFullscreen && document.fullscreenElement) {
               document.exitFullscreen().catch(() => {});
             }
@@ -7088,6 +7127,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             document.querySelectorAll('.fullscreen-icon-toggle').forEach((ic) => {
               ic.classList.remove('fa-compress');
               ic.classList.add('fa-expand');
+            });
+            document.querySelectorAll('.fullscreen-text-toggle').forEach((tx) => {
+              tx.textContent = 'Fullscreen';
             });
           }
         });

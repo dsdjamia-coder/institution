@@ -457,399 +457,344 @@
         border-radius: 0 !important;
     }
 
-    .excel-studio-layout {
+    /* =========================================================
+       EXCEL TOP RIBBON & WORKSPACE STYLING (Microsoft Excel UI)
+       ========================================================= */
+    .excel-studio-container {
         display: flex;
-        flex-direction: row;
+        flex-direction: column;
         height: 100%;
         width: 100%;
         overflow: hidden;
-        position: relative;
-        background: #cbd5e1;
+        background: #f3f2f1;
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     }
 
-    .excel-side-studio {
-        width: 310px;
-        min-width: 310px;
-        max-width: 310px;
-        background: #ffffff;
-        border-right: 1px solid #cbd5e1;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        z-index: 30;
-        box-shadow: 4px 0 16px rgba(0,0,0,0.06);
-        transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    .excel-ribbon-bar {
+        background: #f3f2f1;
+        border-bottom: 1px solid #c8c6c4;
+        flex-shrink: 0;
         position: relative;
-    }
-    .excel-side-studio.collapsed {
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        overflow: hidden !important;
-        border-right: none !important;
-        box-shadow: none !important;
+        z-index: 40;
     }
 
-    .side-studio-header {
+    .excel-ribbon-header-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 12px;
-        background: #0f172a;
-        color: #ffffff;
-        border-bottom: 1px solid #1e293b;
-        flex-shrink: 0;
-    }
-    .side-studio-title {
-        font-size: 12px;
-        font-weight: 800;
-        letter-spacing: 0.5px;
-        display: flex;
-        align-items: center;
+        padding: 4px 12px 0 12px;
+        background: #f3f2f1;
+        border-bottom: 1px solid #c8c6c4;
         gap: 8px;
     }
-    .side-studio-actions {
+
+    .excel-ribbon-tabs {
         display: flex;
-        align-items: center;
-        gap: 6px;
+        gap: 2px;
+        align-items: flex-end;
     }
-    .side-studio-hdr-btn {
-        background: #1e293b;
-        color: #cbd5e1;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        width: 28px;
-        height: 28px;
+
+    .excel-tab {
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #323130;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 4px 4px 0 0;
+        position: relative;
+        bottom: -1px;
+        transition: all 0.15s ease;
+        background: transparent;
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        font-size: 11px;
-        transition: all 0.15s ease;
+        gap: 6px;
+        user-select: none;
     }
-    .side-studio-hdr-btn:hover {
-        background: #334155;
-        color: #ffffff;
+    .excel-tab:hover {
+        background: #e1dfdd;
+        color: #201f1e;
+    }
+    .excel-tab.active {
+        background: #ffffff !important;
+        color: #107c41 !important;
+        font-weight: 700;
+        border-color: #c8c6c4 !important;
+        border-bottom-color: #ffffff !important;
+        z-index: 10;
+        box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.03);
+    }
+    .excel-tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #107c41;
+        z-index: 12;
     }
 
-    .side-studio-tabs {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        background: #f1f5f9;
-        padding: 4px;
-        gap: 4px;
-        border-bottom: 1px solid #cbd5e1;
+    .excel-ribbon-content {
+        background: #ffffff;
+        display: flex;
+        padding: 6px 14px;
+        gap: 16px;
+        align-items: flex-start;
+        overflow-x: auto;
+        min-height: 84px;
+        scrollbar-width: thin;
+        border-bottom: 1px solid #c8c6c4;
+    }
+
+    .ribbon-panel {
+        display: none;
+        width: 100%;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .ribbon-panel.active {
+        display: flex;
+    }
+
+    .ribbon-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        border-right: 1px solid #edebe9;
+        padding: 0 12px;
+        min-height: 72px;
         flex-shrink: 0;
     }
-    .side-studio-tab {
+    .ribbon-group:last-child {
+        border-right: none;
+    }
+    .ribbon-row {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        width: 100%;
+        justify-content: center;
+    }
+    .ribbon-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: #605e5c;
+        margin-top: auto;
+        text-align: center;
+        white-space: nowrap;
+        padding-top: 2px;
+    }
+
+    .excel-btn-ribbon {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 2px;
-        padding: 6px 2px;
-        border-radius: 6px;
-        font-size: 10px;
-        font-weight: 700;
-        color: #64748b;
-        border: none;
-        background: transparent;
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-    .side-studio-tab i {
-        font-size: 13px;
-    }
-    .side-studio-tab:hover {
-        background: #e2e8f0;
-        color: #0f172a;
-    }
-    .side-studio-tab.active {
-        background: #ffffff;
-        color: #2563eb;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-
-    .side-studio-body {
-        flex-grow: 1;
-        overflow-y: auto;
-        padding: 10px;
-        background: #f8fafc;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .side-studio-body::-webkit-scrollbar {
-        width: 5px;
-    }
-    .side-studio-body::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
+        gap: 3px;
+        min-width: 48px;
+        height: 50px;
         border-radius: 4px;
+        border: 1px solid transparent;
+        color: #323130;
+        cursor: pointer;
+        background: transparent;
+        transition: all 0.12s ease;
+        padding: 2px 6px;
     }
-
-    .side-studio-panel {
-        display: none;
-        flex-direction: column;
-        gap: 10px;
-        width: 100%;
+    .excel-btn-ribbon:hover {
+        background: #f3f2f1;
+        border-color: #c8c6c4;
     }
-    .side-studio-panel.active {
-        display: flex;
+    .excel-btn-ribbon:active {
+        background: #e1dfdd;
+        transform: scale(0.96);
     }
-
-    .side-studio-body .ribbon-panel {
-        display: none;
-        flex-direction: column;
-        gap: 10px;
-        width: 100%;
+    .excel-btn-ribbon i {
+        font-size: 16px;
     }
-    .side-studio-body .ribbon-panel.active {
-        display: flex;
-    }
-    .side-studio-body .ribbon-group {
-        border-right: none !important;
-        border: 1px solid #e2e8f0;
-        background: #ffffff;
-        border-radius: 8px;
-        padding: 8px 10px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        width: 100%;
-        align-items: stretch;
-        min-height: auto;
-    }
-    .side-studio-body .ribbon-label {
-        order: -1;
+    .excel-btn-ribbon span {
         font-size: 10px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #64748b;
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 4px;
-        margin-bottom: 2px;
-        text-align: left;
-    }
-    .side-studio-body .ribbon-row {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-start;
-        gap: 6px;
-        width: 100%;
-    }
-    .side-studio-body .excel-btn-ribbon {
-        flex: 1 1 calc(50% - 6px);
-        min-width: 90px;
-        height: 38px;
-        flex-direction: row;
-        gap: 6px;
-        padding: 4px 8px;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        font-weight: 700;
-        background: #ffffff;
-        justify-content: flex-start;
-    }
-    .side-studio-body .excel-btn-ribbon:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-    }
-    .side-studio-body .excel-btn-ribbon i {
-        font-size: 13px;
-        width: 18px;
-        text-align: center;
-    }
-    .side-studio-body .excel-btn-ribbon span {
-        font-size: 11px;
+        font-weight: 600;
         white-space: nowrap;
     }
-    .side-studio-body .excel-input-ribbon {
-        width: 100% !important;
-        height: 28px;
-        border-radius: 6px;
-        border-color: #cbd5e1;
-        font-size: 11.5px;
+
+    .excel-btn-small {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 4px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        color: #323130;
+        transition: all 0.12s ease;
+        background: transparent;
+    }
+    .excel-btn-small:hover {
+        background: #f3f2f1;
+        border-color: #c8c6c4;
+    }
+    .excel-btn-small:active {
+        background: #e1dfdd;
+        transform: scale(0.95);
     }
 
-    .side-tool-card {
+    .excel-input-ribbon {
+        border: 1px solid #8a8886;
+        border-radius: 3px;
+        padding: 2px 6px;
+        font-size: 12px;
+        height: 26px;
+        outline: none;
+        color: #323130;
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 10px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
     }
-    .side-card-title {
-        font-size: 10px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #64748b;
+    .excel-input-ribbon:focus {
+        border-color: #107c41;
+        box-shadow: 0 0 0 1px #107c41;
+    }
+
+    .premium-export-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: none;
+    }
+    .btn-excel-green {
+        background: #107c41;
+    }
+    .btn-excel-green:hover {
+        background: #0b5a2f;
+    }
+    .btn-pdf-red {
+        background: #d83b01;
+    }
+    .btn-pdf-red:hover {
+        background: #a4262c;
+    }
+
+    .slim-formula-bar {
+        height: 34px;
+        min-height: 34px;
+        background: #ffffff;
+        border-bottom: 1px solid #c8c6c4;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .formula-name-box {
+        min-width: 55px;
+        font-size: 12px;
+        text-align: center;
+        color: #323130;
+        font-family: monospace;
+        font-weight: bold;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 3px;
+        padding: 2px 4px;
+    }
+    .formula-divider {
+        width: 1px;
+        height: 16px;
+        background: #c8c6c4;
+    }
+    .formula-icon {
+        color: #605e5c;
+        font-style: italic;
+        font-family: 'Times New Roman', Times, serif;
+        font-weight: bold;
+        font-size: 14px;
+        padding: 0 2px;
+    }
+    .formula-input {
+        flex-grow: 1;
+        border: none;
+        outline: none;
+        font-size: 13px;
+        color: #000000;
+        padding: 2px 6px;
+        font-family: inherit;
+    }
+
+    .excel-workspace {
+        flex-grow: 1;
+        overflow: auto;
+        padding: 16px;
+        position: relative;
+        background: #e1dfdd;
+    }
+    .excel-workspace::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+    }
+    .excel-workspace::-webkit-scrollbar-track {
+        background: #f3f2f1;
+    }
+    .excel-workspace::-webkit-scrollbar-thumb {
+        background: #c8c6c4;
+        border: 2px solid #f3f2f1;
+        border-radius: 6px;
+    }
+    .excel-workspace::-webkit-scrollbar-thumb:hover {
+        background: #a19f9d;
+    }
+
+    .excel-status-bar {
+        background: #f8fafc;
+        border-top: 1px solid #c8c6c4;
+        padding: 4px 14px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 5px;
-        margin-bottom: 2px;
-    }
-
-    .side-btn-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-    }
-    .side-btn-grid-3 {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-    }
-    .side-tool-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 6px 8px;
-        border-radius: 6px;
-        border: 1px solid #e2e8f0;
-        background: #ffffff;
-        color: #1e293b;
-        font-size: 11px;
-        font-weight: 700;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        text-align: center;
-    }
-    .side-tool-btn:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-        color: #0f172a;
-    }
-    .side-tool-btn:active {
-        transform: scale(0.97);
-    }
-    .side-tool-btn i {
         font-size: 12px;
-    }
-
-    .side-studio-footer {
-        padding: 8px 10px;
-        background: #ffffff;
-        border-top: 1px solid #e2e8f0;
+        color: #605e5c;
         flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-    .side-meta-pills {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
+        min-height: 32px;
     }
     .side-meta-badge {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 3px 7px;
+        padding: 2px 8px;
         border-radius: 4px;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
-        background: #f1f5f9;
-        color: #475569;
-        border: 1px solid #e2e8f0;
-    }
-
-    .excel-main-area {
-        flex-grow: 1;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        position: relative;
-        background: #cbd5e1;
-    }
-    .slim-formula-bar {
-        height: 38px;
-        min-height: 38px;
-        max-height: 38px;
         background: #ffffff;
-        border-bottom: 1px solid #cbd5e1;
-        display: flex;
-        align-items: center;
-        padding: 0 10px;
-        gap: 8px;
-        z-index: 20;
-        flex-shrink: 0;
+        color: #334155;
+        border: 1px solid #cbd5e1;
     }
-    .studio-expand-floating-btn {
+    .side-tool-btn {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 6px;
-        background: #0f172a;
-        color: #ffffff;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 5px;
         font-size: 11px;
-        font-weight: 800;
-        border: none;
+        font-weight: 700;
         cursor: pointer;
-        transition: background 0.15s ease;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        transition: all 0.15s ease;
     }
-    .studio-expand-floating-btn:hover {
-        background: #1e293b;
+    .side-tool-btn:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
     }
-
-    .excel-container { display: flex; flex-direction: column; height: 100%; background: #f3f2f1; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;}
-    
-    .excel-ribbon-wrapper { background: #f3f2f1; border-bottom: 1px solid #c8c6c4; padding-top: 4px; z-index: 40; position: relative;}
-    .excel-tabs { display: flex; gap: 4px; padding: 0 10px; border-bottom: 1px solid #c8c6c4;}
-    .excel-tab { padding: 4px 16px; font-size: 13px; color: #323130; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0; position: relative; bottom: -1px; transition: 0.1s; background: transparent;}
-    .excel-tab:hover { background: #e1dfdd; }
-    .excel-tab.active { background: #ffffff; color: #107c41; font-weight: 600; border-color: #c8c6c4; border-bottom-color: #ffffff; z-index: 10; }
-    
-    .excel-ribbon { background: #ffffff; display: flex; padding: 6px 10px; gap: 16px; align-items: flex-start; overflow-x: auto; min-height: 84px; scrollbar-width: none;}
-    .excel-ribbon::-webkit-scrollbar { display: none; }
-    .ribbon-panel { display: none; width: 100%; align-items: flex-start; gap: 16px;}
-    .ribbon-panel.active { display: flex; }
-
-    .ribbon-group { display: flex; flex-direction: column; align-items: center; justify-content: space-between; border-right: 1px solid #e1dfdd; padding-right: 16px; min-height: 68px; }
-    .ribbon-group:last-child { border-right: none; }
-    .ribbon-row { display: flex; gap: 4px; align-items: center; width: 100%; justify-content: center;}
-    .ribbon-label { font-size: 11px; color: #605e5c; margin-top: auto; }
-
-    .excel-btn-ribbon { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 48px; height: 50px; border-radius: 4px; border: 1px solid transparent; color: #323130; cursor: pointer; background: transparent; transition: 0.1s;}
-    .excel-btn-ribbon:hover { background: #f3f2f1; border-color: #c8c6c4;}
-    .excel-btn-ribbon:active { background: #e1dfdd; transform: scale(0.96); }
-    .excel-btn-ribbon i { font-size: 18px; }
-    .excel-btn-ribbon span { font-size: 10px; }
-
-    .excel-btn-small { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 4px; border: 1px solid transparent; cursor: pointer; color: #323130; transition: 0.1s;}
-    .excel-btn-small:hover { background: #f3f2f1; border-color: #c8c6c4;}
-    .excel-btn-small:active { background: #e1dfdd; transform: scale(0.95);}
-
-    .excel-input-ribbon { border: 1px solid #8a8886; border-radius: 2px; padding: 2px 6px; font-size: 12px; height: 26px; outline: none; color: #323130;}
-    .excel-input-ribbon:focus { border-color: #107c41; box-shadow: 0 0 0 1px #107c41; }
-
-    .premium-export-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; transition: 0.2s; border: none; }
-    .btn-excel-green { background: #107c41;}
-    .btn-excel-green:hover { background: #185c37; }
-    .btn-pdf-red { background: #d83b01; }
-    .btn-pdf-red:hover { background: #a4262c; }
-
-    .formula-bar { display: flex; align-items: center; background: #fff; border-bottom: 1px solid #c8c6c4; padding: 4px 10px; gap: 10px;}
-    .formula-name-box { width: 60px; font-size: 13px; text-align: center; color: #323130; font-family: monospace; font-weight: bold;}
-    .formula-divider { width: 1px; height: 18px; background: #c8c6c4; }
-    .formula-icon { color: #605e5c; font-style: italic; font-family: 'Times New Roman', Times, serif; font-weight: bold; font-size: 14px;}
-    .formula-input { flex-grow: 1; border: none; outline: none; font-size: 13px; color: #000; padding: 2px 5px;}
-
-    .excel-workspace { flex-grow: 1; overflow: auto; padding: 15px; position: relative; background: #e1dfdd;}
-    .excel-workspace::-webkit-scrollbar { width: 12px; height: 12px; }
-    .excel-workspace::-webkit-scrollbar-track { background: #f3f2f1; }
-    .excel-workspace::-webkit-scrollbar-thumb { background: #c8c6c4; border: 2px solid #f3f2f1; border-radius: 6px; }
-    .excel-workspace::-webkit-scrollbar-thumb:hover { background: #a19f9d; }
 
     .print-canvas {
         background: transparent;
