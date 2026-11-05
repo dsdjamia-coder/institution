@@ -4114,7 +4114,10 @@ const saveMarksFromEntry = async (shouldPublish = false) => {
         }, 2000);
     } catch (e) {
         console.error(e);
-        alert("Failed to save marks. Check internet connection.");
+        const errMsg = e?.code === 'permission-denied'
+            ? 'Permission denied: Your staff account does not have permission to save marks. Please contact the administrator.'
+            : (e?.message || 'Failed to save marks. Check internet connection.');
+        alert(errMsg);
         draftBtn.innerHTML = `<i class="fas fa-file"></i> Save as Draft`;
         updateMarkEntryActionButtonsUI();
         draftBtn.disabled = false;
@@ -4756,53 +4759,61 @@ document.getElementById('save-subject-schema-btn')?.addEventListener('click', as
     if (subjectRows.some((subject) => subject.passMarks > subject.maxMarks)) return alert('Pass mark cannot be greater than total mark.');
     const existingSchema = getSchemaForClass(currentAcademicYear, classLabel) || {};
     const docId = `${currentAcademicYear}_${classLabel}`.replace(/[^\w-]/g, '_');
-    await withBusyButton('save-subject-schema-btn', 'Saving...', async () => {
-        await setDoc(doc(db, `${BASE_PATH}/resultSchemas`, docId), {
-            classLabel,
-            academicYear: currentAcademicYear || '',
-            subjects,
-            subjectRows,
-            examConfigs: getCustomExamConfigs(existingSchema.examConfigs || {}),
-            updatedAt: Date.now()
-        }, { merge: true });
-
-        // Concurrently synchronize with Academic Planning (classSubjects)
-        try {
-            const cleanY = String(currentAcademicYear || '').trim().replace(/[^\w-]/g, '_');
-            const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
-            const classSubjDocId = `${cleanY}__${cleanC}`;
-            const classSubjRef = doc(db, `${BASE_PATH}/classSubjects`, classSubjDocId);
-            const classSubjSnap = await getDoc(classSubjRef);
-            let existingClassSubjects = [];
-            if (classSubjSnap.exists() && Array.isArray(classSubjSnap.data().subjects)) {
-                existingClassSubjects = classSubjSnap.data().subjects;
-            }
-
-            const updatedClassSubjects = subjects.map((subName, idx) => {
-                const trimmed = String(subName).trim();
-                const matched = existingClassSubjects.find(s => String(s.name || '').trim().toLowerCase() === trimmed.toLowerCase());
-                if (matched) {
-                    return matched;
-                }
-                const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`;
-                return {
-                    id: `subj_${Date.now()}_${idx}`,
-                    name: trimmed,
-                    code: code,
-                    teacher: '',
-                    weeklyPeriods: 5
-                };
-            });
-
-            await setDoc(classSubjRef, {
-                subjects: updatedClassSubjects,
+    try {
+        await withBusyButton('save-subject-schema-btn', 'Saving...', async () => {
+            await setDoc(doc(db, `${BASE_PATH}/resultSchemas`, docId), {
+                classLabel,
+                academicYear: currentAcademicYear || '',
+                subjects,
+                subjectRows,
+                examConfigs: getCustomExamConfigs(existingSchema.examConfigs || {}),
                 updatedAt: Date.now()
             }, { merge: true });
-        } catch (syncErr) {
-            console.warn('Class subjects sync error in result page:', syncErr);
-        }
-    });
-    alert('Subjects saved for this academic year.');
+
+            // Concurrently synchronize with Academic Planning (classSubjects)
+            try {
+                const cleanY = String(currentAcademicYear || '').trim().replace(/[^\w-]/g, '_');
+                const cleanC = String(classLabel || '').trim().replace(/[^\w-]/g, '_');
+                const classSubjDocId = `${cleanY}__${cleanC}`;
+                const classSubjRef = doc(db, `${BASE_PATH}/classSubjects`, classSubjDocId);
+                const classSubjSnap = await getDoc(classSubjRef);
+                let existingClassSubjects = [];
+                if (classSubjSnap.exists() && Array.isArray(classSubjSnap.data().subjects)) {
+                    existingClassSubjects = classSubjSnap.data().subjects;
+                }
+
+                const updatedClassSubjects = subjects.map((subName, idx) => {
+                    const trimmed = String(subName).trim();
+                    const matched = existingClassSubjects.find(s => String(s.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+                    if (matched) {
+                        return matched;
+                    }
+                    const code = trimmed.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || `S${idx + 1}`;
+                    return {
+                        id: `subj_${Date.now()}_${idx}`,
+                        name: trimmed,
+                        code: code,
+                        teacher: '',
+                        weeklyPeriods: 5
+                    };
+                });
+
+                await setDoc(classSubjRef, {
+                    subjects: updatedClassSubjects,
+                    updatedAt: Date.now()
+                }, { merge: true });
+            } catch (syncErr) {
+                console.warn('Class subjects sync error in result page:', syncErr);
+            }
+        });
+        alert('Subjects saved for this academic year.');
+    } catch (saveErr) {
+        console.error('Error saving subjects:', saveErr);
+        const msg = saveErr?.code === 'permission-denied'
+            ? 'Permission denied: Your staff account does not have permission to save subjects.'
+            : (saveErr?.message || 'Failed to save subjects.');
+        alert(msg);
+    }
 });
 document.querySelectorAll('.setup-mode-radio').forEach((radio) => {
     radio.addEventListener('change', () => setSetupMode(radio.value));
@@ -4858,17 +4869,25 @@ document.getElementById('save-exam-config-btn')?.addEventListener('click', async
         if (!ok) return;
     }
     const docId = `${currentAcademicYear}_${classLabel}`.replace(/[^\w-]/g, '_');
-    await withBusyButton('save-exam-config-btn', 'Saving...', async () => {
-        await setDoc(doc(db, `${BASE_PATH}/resultSchemas`, docId), {
-            classLabel,
-            academicYear: currentAcademicYear || '',
-            subjects: schema.subjects || subjectRows.map((subject) => subject.name),
-            subjectRows,
-            examConfigs: nextConfigs,
-            updatedAt: Date.now()
-        }, { merge: true });
-    });
-    alert('Exams saved for this class.');
+    try {
+        await withBusyButton('save-exam-config-btn', 'Saving...', async () => {
+            await setDoc(doc(db, `${BASE_PATH}/resultSchemas`, docId), {
+                classLabel,
+                academicYear: currentAcademicYear || '',
+                subjects: schema.subjects || subjectRows.map((subject) => subject.name),
+                subjectRows,
+                examConfigs: nextConfigs,
+                updatedAt: Date.now()
+            }, { merge: true });
+        });
+        alert('Exams saved for this class.');
+    } catch (saveErr) {
+        console.error('Error saving exams:', saveErr);
+        const msg = saveErr?.code === 'permission-denied'
+            ? 'Permission denied: Your staff account does not have permission to save exams.'
+            : (saveErr?.message || 'Failed to save exams.');
+        alert(msg);
+    }
 });
 document.getElementById('schema-list-class-filter')?.addEventListener('change', renderExamSetup);
 

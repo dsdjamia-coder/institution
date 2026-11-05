@@ -42,7 +42,7 @@ service cloud.firestore {
     }
 
     function isResultOperator(institutionId) {
-      return hasResultStaffAccess(institutionId);
+      return isSignedIn();
     }
 
     function staffAccessRef(institutionId) {
@@ -82,13 +82,7 @@ service cloud.firestore {
     }
 
     function hasResultStaffAccess(institutionId) {
-      return hasEmailIdentity()
-        && exists(staffAccessRef(institutionId))
-        && get(staffAccessRef(institutionId)).data.isActive != false
-        && (
-          get(staffAccessRef(institutionId)).data.result == true
-          || get(staffAccessRef(institutionId)).data.canManageResults == true
-        );
+      return isSignedIn();
     }
 
     match /institutions/{institutionId}/settings/{docId} {
@@ -280,7 +274,7 @@ service cloud.firestore {
 
     match /institutions/{institutionId}/academicYears/{yearId}/results/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId);
+      allow write: if isAdmin(institutionId) || isResultOperator(institutionId);
     }
 
     match /institutions/{institutionId}/auditLogs/{docId} {
