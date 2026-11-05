@@ -18,6 +18,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     let directoryCategories = [];
     let academicYears = [];
     let activeAcademicYearId = '';
+    let adminConfiguredClasses = [];
     let allFeeItems = [];
     let allPayments = [];
     let allExams = [];
@@ -33,7 +34,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
     const officialFilters = {
       academicYearId: '',
-      studentClass: 'ALL',
+      studentClass: '',
       studentGender: 'ALL',
       studentStatus: 'ALL',
       studentInfo: 'ALL',
@@ -71,6 +72,60 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       { key: 'motherMobile', label: "14. Mother's Phone" },
       { key: 'address', label: '15. Permanent Address' }
     ];
+
+    const formatAcademicYearLabel = (yearEntry, activeId = '') => {
+      if (!yearEntry) return '';
+      let name = (typeof yearEntry === 'object' ? (yearEntry.name || yearEntry.label || yearEntry.id) : String(yearEntry)).trim();
+      name = name.replace(/^Academic\s*Year\s*[:\-–]?\s*/i, '').trim();
+      name = name.replace(/\s*\((Active|Current)\)\s*$/i, '').trim();
+      const targetActive = activeId || activeAcademicYearId;
+      const isAct = (typeof yearEntry === 'object' && yearEntry.isActive)
+        || (yearEntry?.id && yearEntry.id === targetActive)
+        || (name === targetActive)
+        || (typeof yearEntry === 'object' && yearEntry.name === targetActive)
+        || (!targetActive && yearEntry?.isActive);
+      return isAct ? `${name} (Current)` : name;
+    };
+
+    const normalizeYearKey = (str = '') => {
+      return String(str || '')
+        .replace(/^Academic\s*Year\s*[:\-–]?\s*/i, '')
+        .replace(/\s*\((Active|Current)\)\s*$/i, '')
+        .trim();
+    };
+
+    const isYearMatch = (candidateYear, targetYear) => {
+      if (!candidateYear || !targetYear) return false;
+      const c = normalizeYearKey(candidateYear);
+      const t = normalizeYearKey(targetYear);
+      if (c === t) return true;
+      const yearObj = academicYears.find((y) => y.id === targetYear || y.name === targetYear || y.label === targetYear);
+      if (yearObj) {
+        if (c === normalizeYearKey(yearObj.id) || c === normalizeYearKey(yearObj.name) || c === normalizeYearKey(yearObj.label)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const getAvailableClassesList = () => {
+      const yearId = officialFilters.academicYearId || activeAcademicYearId;
+      const yearObj = academicYears.find((y) => y.id === yearId || y.name === yearId);
+      const classesFromYear = (yearObj && Array.isArray(yearObj.classes) && yearObj.classes.length > 0)
+        ? yearObj.classes.map((c) => String(c.name || c.id || c).trim()).filter(Boolean)
+        : [];
+      const classesFromSettings = (adminConfiguredClasses && adminConfiguredClasses.length > 0)
+        ? adminConfiguredClasses.map((c) => String(c.name || c.id || c).trim()).filter(Boolean)
+        : [];
+      const baseClasses = classesFromYear.length > 0 ? classesFromYear : classesFromSettings;
+      const yearStudents = getStudentsForCurrentAcademicYear();
+      const studentClasses = yearStudents.map(getStudentClass).filter((c) => c && c !== '--');
+      const merged = [...baseClasses];
+      studentClasses.forEach((sc) => {
+        if (!merged.includes(sc)) merged.push(sc);
+      });
+      return merged;
+    };
 
     const isStudentFieldAvailable = (student = {}, key = '') => {
       if (!student) return false;
@@ -202,7 +257,20 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         return student;
       }
 
-      const yearRecord = student.academicYears?.[targetYear];
+      let yearRecord = null;
+      if (student.academicYears && typeof student.academicYears === 'object') {
+        if (student.academicYears[targetYear]) {
+          yearRecord = student.academicYears[targetYear];
+        } else {
+          for (const [k, v] of Object.entries(student.academicYears)) {
+            if (isYearMatch(k, targetYear)) {
+              yearRecord = v;
+              break;
+            }
+          }
+        }
+      }
+
       if (yearRecord && typeof yearRecord === 'object') {
         const rawStatus = yearRecord.status || student.status || 'Active';
         const isAct = String(rawStatus).trim().toLowerCase() === 'active';
@@ -219,11 +287,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const stuYear = String(student.academicYear || '').trim();
       if (stuYear) {
-        if (stuYear !== targetYear) return null;
+        if (!isYearMatch(stuYear, targetYear)) return null;
         return student;
       }
 
-      if (!activeAcademicYearId || targetYear === activeAcademicYearId) {
+      if (!activeAcademicYearId || isYearMatch(targetYear, activeAcademicYearId)) {
         return student;
       }
 
@@ -245,7 +313,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     let builderConfig = {
       sourceType: 'students', // 'students' | 'staff' | 'fees' | 'results'
       academicYearId: '',
-      classId: 'ALL',
+      classId: '',
       staffCategory: 'ALL',
       examId: 'ALL',
       feeItemId: 'ALL',
@@ -750,49 +818,46 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const renderTemplateCards = (templates, isCustom) => {
         if (!templates.length) {
           return `
-            <div class="py-8 text-center text-slate-400 col-span-full">
-              <i class="fas fa-folder-open text-3xl mb-2 block"></i>
-              <p class="text-sm">No ${isCustom ? 'custom saved' : 'system'} templates found.</p>
+            <div class="py-4 text-center text-slate-400 col-span-full">
+              <i class="fas fa-folder-open text-2xl mb-1.5 block"></i>
+              <p class="text-xs font-semibold">No ${isCustom ? 'custom saved' : 'system'} templates found.</p>
             </div>
           `;
         }
 
         return templates.map((tpl) => {
           const colCount = tpl.columns ? tpl.columns.length : 0;
-          const colPreview = (tpl.columns || []).map((c) => c.title || c.field).slice(0, 6).join(' • ') + (colCount > 6 ? ` • +${colCount - 6}` : '');
-          const moduleBadgeClass = tpl.sourceType === 'fees' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-            tpl.sourceType === 'results' ? 'bg-purple-100 text-purple-800 border-purple-200' :
-            tpl.sourceType === 'staff' ? 'bg-teal-100 text-teal-800 border-teal-200' :
-            tpl.sourceType === 'alumni' ? 'bg-sky-100 text-sky-800 border-sky-200' :
-            'bg-indigo-100 text-indigo-800 border-indigo-200';
+          const colPreview = (tpl.columns || []).map((c) => c.title || c.field).slice(0, 5).join(', ') + (colCount > 5 ? ` +${colCount - 5}` : '');
+          const moduleBadgeClass = tpl.sourceType === 'fees' ? 'bg-amber-50 text-amber-800 border-amber-200' :
+            tpl.sourceType === 'results' ? 'bg-purple-50 text-purple-800 border-purple-200' :
+            tpl.sourceType === 'staff' ? 'bg-teal-50 text-teal-800 border-teal-200' :
+            tpl.sourceType === 'alumni' ? 'bg-sky-50 text-sky-800 border-sky-200' :
+            'bg-indigo-50 text-indigo-800 border-indigo-200';
 
           return `
-            <div class="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md transition-all flex flex-col justify-between gap-3 group">
-              <div class="flex items-start justify-between gap-2">
-                <div>
-                  <div class="flex items-center gap-2 mb-1 flex-wrap">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${moduleBadgeClass}">${escapeHtml(tpl.sourceType || 'students')}</span>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(tpl.paper || 'A4')} ${tpl.orientation === 'landscape' ? 'Landscape' : 'Portrait'}</span>
-                    <span class="text-[11px] text-slate-400 font-semibold">${colCount} Cols</span>
+            <div class="p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-white hover:border-indigo-400 hover:shadow-sm transition-all flex flex-col justify-between gap-2 group">
+              <div>
+                <div class="flex items-center justify-between gap-1.5 mb-1">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${moduleBadgeClass}">${escapeHtml(tpl.sourceType || 'students')}</span>
+                    <span class="text-[10px] font-semibold text-slate-400">${escapeHtml(tpl.paper || 'A4')} • ${colCount} cols</span>
                   </div>
-                  <h4 class="font-extrabold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">${escapeHtml(tpl.name)}</h4>
-                  ${tpl.description ? `<p class="text-xs text-slate-500 mt-0.5 line-clamp-1">${escapeHtml(tpl.description)}</p>` : ''}
+                  ${!tpl.isSystem ? `
+                    <button class="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors btn-delete-tpl cursor-pointer" data-tpl-id="${escapeHtml(tpl.id)}" title="Delete Template">
+                      <i class="fas fa-trash-alt text-[10px]"></i>
+                    </button>
+                  ` : ''}
                 </div>
-                ${!tpl.isSystem ? `
-                  <button class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors btn-delete-tpl" data-tpl-id="${escapeHtml(tpl.id)}" title="Delete Template">
-                    <i class="fas fa-trash-alt text-xs"></i>
-                  </button>
-                ` : ''}
+                <h4 class="font-extrabold text-slate-900 text-xs truncate group-hover:text-indigo-600 transition-colors" title="${escapeHtml(tpl.name)}">${escapeHtml(tpl.name)}</h4>
+                <div class="text-[10px] text-slate-500 font-medium truncate mt-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100" title="${escapeHtml(colPreview)}">
+                  <span class="text-slate-600 font-bold">Cols:</span> ${escapeHtml(colPreview)}
+                </div>
               </div>
 
-              <div class="text-[11px] text-slate-500 font-medium bg-slate-50 rounded-lg p-2 border border-slate-100 truncate">
-                <strong class="text-slate-700">Columns:</strong> ${escapeHtml(colPreview)}
-              </div>
-
-              <div class="flex items-center justify-between pt-1">
-                <span class="text-[10px] text-slate-400 font-semibold">${tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleDateString() : 'Standard Preset'}</span>
-                <button class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm flex items-center gap-1.5 btn-apply-tpl transition-all" data-tpl-id="${escapeHtml(tpl.id)}" data-is-system="${Boolean(tpl.isSystem)}">
-                  <i class="fas fa-check-circle"></i> Load Template
+              <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+                <span class="text-[9px] text-slate-400 font-medium">${tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleDateString() : 'Preset'}</span>
+                <button class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-2xs flex items-center gap-1 btn-apply-tpl transition-all cursor-pointer" data-tpl-id="${escapeHtml(tpl.id)}" data-is-system="${Boolean(tpl.isSystem)}">
+                  <i class="fas fa-check-circle text-[10px]"></i> Load
                 </button>
               </div>
             </div>
@@ -807,7 +872,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               <h3 class="font-extrabold text-slate-900 text-base">Register Templates Studio</h3>
               <p class="text-xs text-slate-500">Load a saved layout or design to automatically populate with current class or student records</p>
             </div>
-            <button id="btn-modal-save-new" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5">
+            <button id="btn-modal-save-new" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer">
               <i class="fas fa-plus"></i> Save Current Sheet
             </button>
           </div>
@@ -819,7 +884,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 <i class="fas fa-folder text-indigo-600"></i> My Saved Templates (${allWorksheetTemplates.length})
               </h4>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="user-templates-grid">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5" id="user-templates-grid">
               ${renderTemplateCards(allWorksheetTemplates, true)}
             </div>
           </div>
@@ -831,7 +896,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 <i class="fas fa-star text-amber-500"></i> Pre-Built Standard Institutional Registers (${SYSTEM_WORKSHEET_TEMPLATES.length})
               </h4>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               ${renderTemplateCards(SYSTEM_WORKSHEET_TEMPLATES, false)}
             </div>
           </div>
@@ -873,7 +938,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const el = document.getElementById('header-active-year');
       if (!el) return;
       const currentObj = academicYears.find((y) => y.id === activeAcademicYearId || y.name === activeAcademicYearId || y.isActive);
-      el.textContent = currentObj ? (currentObj.name || currentObj.label || currentObj.id) : (activeAcademicYearId || 'Academic Year');
+      const cleanLabel = currentObj ? formatAcademicYearLabel(currentObj, activeAcademicYearId) : formatAcademicYearLabel(activeAcademicYearId, activeAcademicYearId);
+      el.textContent = cleanLabel ? cleanLabel.replace(/\s*\(Current\)$/i, '') : 'Academic Year';
     };
 
     const resolveInstitutionName = (conf = {}) => String(conf.appName || conf.institutionName || conf.institution || conf.schoolName || conf.school || conf.name || '').trim();
@@ -1849,6 +1915,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     const attachStudentModalTabs = () => {};
 
     const getFilteredStudentsList = () => {
+      if (!officialFilters.studentClass) {
+        return [];
+      }
       const yearStudents = getStudentsForCurrentAcademicYear();
       const dutyScope = getEffectiveStaffAssignedClasses();
       return yearStudents
@@ -1863,7 +1932,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             .join(' ')
             .toLowerCase();
           const group = getStudentGroup(student.id);
-          const classOk = !officialFilters.studentClass || officialFilters.studentClass === 'ALL' || cls === officialFilters.studentClass;
+          const classOk = officialFilters.studentClass === 'ALL' || cls === officialFilters.studentClass;
           const genderOk = officialFilters.studentGender === 'ALL' || gender === normalizeText(officialFilters.studentGender);
           const statusOk = officialFilters.studentStatus === 'ALL' || status === normalizeText(officialFilters.studentStatus);
           const searchOk = !officialFilters.studentSearch || searchable.includes(officialFilters.studentSearch.toLowerCase());
@@ -2138,7 +2207,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     const renderStudents = () => {
       const yearStudents = getStudentsForCurrentAcademicYear();
       const dutyScope = getEffectiveStaffAssignedClasses();
-      const rawClassOptions = [...new Set(yearStudents.map(getStudentClass))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const rawClassOptions = getAvailableClassesList();
       const classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : rawClassOptions;
       if (dutyScope.length > 0 && officialFilters.studentClass && officialFilters.studentClass !== 'ALL' && !isClassInDutyScope(officialFilters.studentClass, dutyScope)) {
         officialFilters.studentClass = 'ALL';
@@ -2216,7 +2285,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               return `<td class="stu-sticky-col-3 px-2 py-1.5 align-middle font-extrabold text-slate-900 whitespace-nowrap truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
             }
             if (col.key === 'class') {
-              return `<td class="px-2 py-1.5 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-xs">Class ${escapeHtml(val)}</span></td>`;
+              return `<td class="px-2 py-1.5 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-xs">${escapeHtml(val)}</span></td>`;
             }
             if (col.key === 'status') {
               return `<td class="px-2 py-1.5 align-middle text-center whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">${escapeHtml(status)}</span></td>`;
@@ -2235,67 +2304,17 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         </tr>`;
       }).join('');
 
-      const cardRows = paginatedStudents.map((student, idx) => {
-        const serialNo = startIdx + idx + 1;
-        const group = getStudentGroup(student.id);
-        const status = getStudentStatus(student);
-        const isAct = status.toLowerCase() === 'active';
-        const prof = (student?.profile && typeof student.profile === 'object') ? student.profile : {};
-        const fatherPhone = student.mobile || student.phone || student.fatherMobile || prof.mobile || prof.phone || '';
-        const motherPhone = student.motherMobile || student.mother_mobile || prof.motherMobile || '';
-        const hasConc = hasStudentConcession(student);
-        const dobFormatted = formatDateIfIso(student.dob || prof.dob || '');
-        const admDateFormatted = formatDateIfIso(student.adm_date || student.admDate || prof.admDate || prof.adm_date || '');
-        return `
-          <div class="official-student-card p-3.5 text-left w-full border border-slate-200 bg-white rounded-2xl shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer" data-student-id="${escapeHtml(student.id)}">
-            <div class="flex items-start gap-3 w-full">
-              <span class="w-6 text-center font-extrabold text-xs text-slate-400 mt-1">${serialNo}</span>
-              ${renderAvatarMarkup(student, student.name, 'w-12 h-12 rounded-xl text-sm shrink-0 border border-slate-200 shadow-2xs')}
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-1.5 mb-1">
-                  <span class="font-extrabold text-slate-900 text-sm truncate">${escapeHtml(student.name || '--')}</span>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isAct ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'} whitespace-nowrap">${escapeHtml(status)}</span>
-                </div>
-                <div class="flex flex-wrap items-center gap-1.5 mb-2 text-xs">
-                  <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[11px]">Class ${escapeHtml(student.class || '--')}</span>
-                  <span class="text-slate-500 font-medium">Adm: <b class="text-slate-800 font-mono">${escapeHtml(student.adm || prof.admNo || '--')}</b></span>
-                  <span class="text-slate-400">•</span>
-                  <span class="text-slate-500 font-medium">UID: <b class="text-slate-800 font-mono">${escapeHtml(student.uid || prof.uid || '--')}</b></span>
-                </div>
-                <div class="space-y-1 text-[11px] text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 mb-2">
-                  <div class="flex items-center justify-between gap-1">
-                    <span class="truncate">Father: <b class="text-slate-800">${escapeHtml(student.father || prof.father || '--')}</b></span>
-                    ${fatherPhone ? `<a href="tel:${escapeHtml(fatherPhone)}" onclick="event.stopPropagation()" class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px] hover:bg-emerald-200 inline-flex items-center gap-1 shrink-0"><i class="fas fa-phone-alt text-[8px]"></i> Call</a>` : ''}
-                  </div>
-                  ${fatherPhone ? `<div class="text-[10px] text-slate-500">Father Mobile: <b class="text-slate-700 font-mono">${escapeHtml(fatherPhone)}</b></div>` : ''}
-                  ${motherPhone ? `<div class="text-[10px] text-slate-500">Mother Mobile: <b class="text-slate-700 font-mono">${escapeHtml(motherPhone)}</b></div>` : ''}
-                  <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 pt-1 border-t border-slate-200/50">
-                    <span>DOB: <b class="text-slate-700 font-mono">${escapeHtml(dobFormatted || '--')}</b></span>
-                    <span>•</span>
-                    <span>Adm Date: <b class="text-slate-700 font-mono">${escapeHtml(admDateFormatted || '--')}</b></span>
-                  </div>
-                </div>
-                <div class="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
-                  <div class="flex flex-wrap items-center gap-1.5">
-                    ${group ? `<span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200 text-[10px]">Group ₹${escapeHtml(String(group.fee || 0))}</span>` : ''}
-                    ${hasConc ? `<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[10px]">Conc: ₹${escapeHtml(String(student.concessionFee))}</span>` : ''}
-                  </div>
-                  <span class="text-blue-600 font-bold inline-flex items-center gap-1 hover:underline text-xs">View Profile <i class="fas fa-chevron-right text-[10px]"></i></span>
-                </div>
-              </div>
-            </div>
-          </div>`;
-      }).join('');
-
       const stuTarget = document.getElementById('official-tab-students');
       if (!stuTarget) return;
 
       const selectedYearValue = officialFilters.academicYearId || activeAcademicYearId || '';
       const yearOptionsHtml = academicYears.length
-        ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${selectedYearValue === y.id ? 'selected' : ''}>Academic Year: ${escapeHtml(y.name || y.id)}${y.id === activeAcademicYearId ? ' (Active)' : ''}</option>`).join('')
+        ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${selectedYearValue === y.id ? 'selected' : ''}>${escapeHtml(formatAcademicYearLabel(y, activeAcademicYearId))}</option>`).join('')
         : `<option value="">Current Academic Year</option>`;
 
-      const emptyStudentMessage = 'No student records match the selected filters.';
+      const emptyStudentMessage = !officialFilters.studentClass
+        ? 'വിദ്യാർത്ഥികളുടെ ലിസ്റ്റ് കാണുന്നതിനായി ഒരു ക്ലാസ്സ് തിരഞ്ഞെടുക്കുക അല്ലെങ്കിൽ "All Classes" സെലക്ട് ചെയ്യുക (Please select a class or choose "All Classes" to view student records).'
+        : 'No student records match the selected filters.';
 
       stuTarget.innerHTML = `
         <div class="card p-2.5 sm:p-3.5 lg:p-4 rounded-2xl shadow-sm w-full max-w-none">
@@ -2344,8 +2363,9 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             <div>
               <label class="block text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-0.5 sm:mb-1">Class</label>
               <select id="official-student-class" class="w-full py-1.5 sm:py-2 px-2 sm:px-2.5 rounded-lg sm:rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs focus:border-blue-500">
-                <option value="ALL" ${(!officialFilters.studentClass || officialFilters.studentClass === 'ALL') ? 'selected' : ''}>All Classes (${yearStudents.length})</option>
-                ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${officialFilters.studentClass === className ? 'selected' : ''}>Class ${escapeHtml(className)}</option>`).join('')}
+                <option value="" ${!officialFilters.studentClass ? 'selected' : ''}>Select Class</option>
+                <option value="ALL" ${officialFilters.studentClass === 'ALL' ? 'selected' : ''}>All Classes</option>
+                ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${officialFilters.studentClass === className ? 'selected' : ''}>${escapeHtml(className)}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -2401,8 +2421,8 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
             </div>
           </div>
 
-          <!-- Full-Screen Responsive Data Table with Sticky Header & Sticky Left Columns (Desktop only) -->
-          <div class="stu-reg-scroll-wrap hidden md:block w-full rounded-xl border border-slate-200">
+          <!-- Full-Screen Responsive Data Table with Sticky Header & Sticky Left Columns -->
+          <div class="stu-reg-scroll-wrap w-full rounded-xl border border-slate-200 overflow-x-auto">
             <table class="stu-reg-table w-full text-[11px] sm:text-xs min-w-[1050px] xl:min-w-full">
               <thead>
                 <tr class="bg-slate-100 text-slate-700">
@@ -2412,13 +2432,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 </tr>
               </thead>
               <tbody>
-                ${rows || `<tr><td colspan="${coreAdminColumns.length + 2}" class="p-6 text-center text-slate-500 font-semibold">${emptyStudentMessage}</td></tr>`}
+                ${rows || `<tr><td colspan="${coreAdminColumns.length + 2}" class="p-8 text-center text-slate-500 font-bold">${emptyStudentMessage}</td></tr>`}
               </tbody>
             </table>
           </div>
-
-          <!-- Mobile Cards View (Mobile only) -->
-          <div class="official-mobile-card-list block md:hidden mt-4 space-y-2.5">${cardRows || `<div class="text-sm text-slate-500 text-center py-4">${emptyStudentMessage}</div>`}</div>
 
           <!-- Bottom Pagination Bar -->
           <div class="flex flex-wrap items-center justify-between gap-3 mt-3 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
@@ -2620,10 +2637,11 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       const paginatedAlumni = filteredAlumni.slice(startIdx, startIdx + pageSize);
 
       const yearOptionsHtml = [
-        `<option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Academic Years (${allAlumni.length})</option>`,
+        `<option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Years (${allAlumni.length})</option>`,
         ...distinctYears.map((yr) => {
           const cnt = allAlumni.filter((s) => getAlumniGraduatedYear(s) === yr).length;
-          return `<option value="${escapeHtml(yr)}" ${selectedYear === yr ? 'selected' : ''}>Alumni (${escapeHtml(yr)}) — ${cnt} Students</option>`;
+          const cleanYr = formatAcademicYearLabel(yr, activeAcademicYearId);
+          return `<option value="${escapeHtml(yr)}" ${selectedYear === yr ? 'selected' : ''}>${escapeHtml(cleanYr)} (${cnt})</option>`;
         })
       ].join('');
 
@@ -2882,7 +2900,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         return `<tr class="hover:bg-indigo-50/70 transition-colors odd:bg-white even:bg-slate-50/40">
           <td class="border border-slate-200 p-2.5 text-center font-bold text-slate-500">${idx + 1}</td>
           <td class="border border-slate-200 p-2.5 font-semibold">
-            <button type="button" class="text-blue-700 hover:underline font-extrabold class-filter-btn cursor-pointer" data-class="${escapeHtml(cls)}">Class ${escapeHtml(cls)}</button>
+            <button type="button" class="text-blue-700 hover:underline font-extrabold class-filter-btn cursor-pointer" data-class="${escapeHtml(cls)}">${escapeHtml(cls)}</button>
           </td>
           <td class="border border-slate-200 p-2.5 text-center font-semibold">${row.boys}</td>
           <td class="border border-slate-200 p-2.5 text-center font-semibold">${row.girls}</td>
@@ -2956,7 +2974,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const selectedYearValue = officialFilters.academicYearId || activeAcademicYearId || '';
       const yearOptionsHtml = academicYears.length
-        ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${selectedYearValue === y.id ? 'selected' : ''}>Academic Year: ${escapeHtml(y.name || y.id)}${y.id === activeAcademicYearId ? ' (Active)' : ''}</option>`).join('')
+        ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${selectedYearValue === y.id ? 'selected' : ''}>${escapeHtml(formatAcademicYearLabel(y, activeAcademicYearId))}</option>`).join('')
         : `<option value="">Current Academic Year</option>`;
 
       summaryTarget.innerHTML = `
@@ -4367,7 +4385,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
 
       const yearStudents = getStudentsForBuilderYear();
       const dutyScope = getEffectiveStaffAssignedClasses();
-      const rawClassOptions = [...new Set(yearStudents.map(getStudentClass))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const rawClassOptions = getAvailableClassesList();
       const classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : rawClassOptions;
       if (dutyScope.length > 0 && builderConfig.classId && builderConfig.classId !== 'ALL' && !isClassInDutyScope(builderConfig.classId, dutyScope)) {
         builderConfig.classId = classOptions[0] || 'ALL';
@@ -4968,16 +4986,16 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">2. Academic Year</label>
                 <select id="builder-academic-year" class="excel-input-ribbon w-32">
                   ${academicYears.length > 0
-                    ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${builderConfig.academicYearId === y.id ? 'selected' : ''}>${escapeHtml(y.name || y.label || y.id)}${y.isActive ? ' (Active)' : ''}</option>`).join('')
+                    ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${builderConfig.academicYearId === y.id ? 'selected' : ''}>${escapeHtml(formatAcademicYearLabel(y, activeAcademicYearId))}</option>`).join('')
                     : '<option value="">Active Year</option>'}
                 </select>
               </div>
               <div class="flex flex-col">
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">3. Select Class</label>
                 <select id="builder-class" class="excel-input-ribbon w-36 font-bold">
-                  <option value="ALL" ${builderConfig.classId === 'ALL' ? 'selected' : ''}>All Classes (${yearStudents.length})</option>
-                  <option value="" ${builderConfig.classId === '' ? 'selected' : ''}>-- Blank Sheet --</option>
-                  ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${builderConfig.classId === className ? 'selected' : ''}>Class ${escapeHtml(className)}</option>`).join('')}
+                  <option value="" ${builderConfig.classId === '' ? 'selected' : ''}>Select Class (Blank)</option>
+                  <option value="ALL" ${builderConfig.classId === 'ALL' ? 'selected' : ''}>All Classes</option>
+                  ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${builderConfig.classId === className ? 'selected' : ''}>${escapeHtml(className)}</option>`).join('')}
                 </select>
               </div>
               ` : `
@@ -5052,17 +5070,6 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               </button>
             </div>
             <span class="ribbon-label">Template Studio</span>
-          </div>
-
-          <div class="ribbon-group">
-            <div class="ribbon-row h-full items-center gap-1">
-              <button class="excel-btn-ribbon text-indigo-700 preset-template-btn" data-preset="attendance" title="Load Monthly Attendance Grid"><i class="fas fa-calendar-check"></i><span>Attendance</span></button>
-              <button class="excel-btn-ribbon text-sky-700 preset-template-btn" data-preset="student_register" title="Load Full Student Register"><i class="fas fa-user-graduate"></i><span>Student Reg</span></button>
-              <button class="excel-btn-ribbon text-amber-700 preset-template-btn" data-preset="fee_defaulters" title="Load Fee Collection & Due Sheet"><i class="fas fa-rupee-sign"></i><span>Fee Sheet</span></button>
-              <button class="excel-btn-ribbon text-purple-700 preset-template-btn" data-preset="exam_marklist" title="Load Exam Mark List"><i class="fas fa-award"></i><span>Mark List</span></button>
-              <button class="excel-btn-ribbon text-teal-700 preset-template-btn" data-preset="staff_register" title="Load Staff & Management Register"><i class="fas fa-chalkboard-teacher"></i><span>Staff Reg</span></button>
-            </div>
-            <span class="ribbon-label">1-Click Smart Templates</span>
           </div>
         </div>
       `;
@@ -7470,6 +7477,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         authConfigSnap,
         pageAccessSnap,
         academicYearsSnap,
+        classesSnap,
         paymentsSnap,
         examsSnap,
         marksSnap
@@ -7483,6 +7491,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         getDoc(doc(db, `${BASE_PATH}/settings`, 'categoryAuthConfig')),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'pageAccess')),
         getDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears')),
+        getDoc(doc(db, `${BASE_PATH}/settings`, 'classes')).catch(() => null),
         getDocs(collection(db, `${BASE_PATH}/payments`)).catch(() => ({ docs: [] })),
         getDocs(collection(db, `${BASE_PATH}/resultSchemas`)).catch(() => ({ docs: [] })),
         getDocs(collection(db, `${BASE_PATH}/examResults`)).catch(() => ({ docs: [] }))
@@ -7492,6 +7501,10 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       syncLiveStaffSession();
       studentGroups = groupsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       directoryEntries = dirSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      if (classesSnap && classesSnap.exists && classesSnap.exists()) {
+        const cd = classesSnap.data() || {};
+        adminConfiguredClasses = Array.isArray(cd.list) ? cd.list : (Array.isArray(cd.classes) ? cd.classes : []);
+      }
       const configData = configSnap.exists() ? (configSnap.data() || {}) : {};
       const rawFeeItems = Array.isArray(configData.feeItems) ? configData.feeItems : [];
       allFeeItems = rawFeeItems.map((fi) => ({ id: fi.key || fi.id, name: fi.name || fi.label, ...fi }));
@@ -7690,9 +7703,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         if (isWorksheetPage) {
           syncFilteredRows();
           renderWorksheet();
+          renderStudents();
+          buildClassSummary();
         } else {
           renderDashboard();
         }
+      }, () => {});
+
+      onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
+        if (!snap.exists()) return;
+        const cd = snap.data() || {};
+        adminConfiguredClasses = Array.isArray(cd.list) ? cd.list : (Array.isArray(cd.classes) ? cd.classes : []);
+        renderAll();
       }, () => {});
 
       onSnapshot(doc(db, `${BASE_PATH}/settings`, 'sessionControl'), (snap) => {

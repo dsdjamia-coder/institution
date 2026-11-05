@@ -359,10 +359,14 @@
     .official-student-card{display:none;margin-bottom:10px}
     .official-profile-card{width:100%;min-height:auto}
     
+    .stu-reg-scroll-wrap{ display: block !important; overflow-x: auto !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; width: 100% !important; }
+    .official-mobile-card-list{ display: none !important; }
+    .official-student-card{ display: none !important; }
+
     @media (max-width: 767px){
-      .stu-reg-scroll-wrap{ display: none !important; }
-      .official-mobile-card-list{ display: block !important; }
-      .official-student-card{ display: flex !important; }
+      .stu-reg-scroll-wrap{ display: block !important; }
+      .official-mobile-card-list{ display: none !important; }
+      .official-student-card{ display: none !important; }
       .official-tab table{ font-size: 11px; }
     }
     @media (min-width: 768px){
