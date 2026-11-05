@@ -290,7 +290,10 @@
             <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 h-16 shrink-0">
                 <div class="drawer-header-title flex items-center gap-2 overflow-hidden">
                     <i class="fas fa-wallet text-blue-600 text-lg shrink-0"></i>
-                    <span class="font-bold text-base text-gray-800 truncate">Fee Collection</span>
+                    <div class="flex flex-col min-w-0">
+                        <span class="font-bold text-base text-gray-800 truncate">Fee Collection</span>
+                        <span id="staff-name-display" class="text-[10px] font-bold text-blue-600 truncate">Staff</span>
+                    </div>
                 </div>
                 <button type="button" id="sidebar-collapse-btn" class="text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition flex items-center justify-center shrink-0 cursor-pointer" title="Collapse / Expand sidebar">
                     <i id="sidebar-toggle-icon" class="fas fa-angles-left text-base transition-transform duration-300 pointer-events-none"></i>
@@ -1416,37 +1419,37 @@
                 </button>
             </div>
             <div id="collection-more-sheet-items" class="grid grid-cols-2 gap-2.5">
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile" data-target="monthly-collected-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="monthly-collected-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-chart-bar"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Monthly Report</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile" data-target="fee-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-emerald-600 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-list"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Status</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile" data-target="master-ledger-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="master-ledger-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-indigo-600 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-table-cells"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Master Ledger</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile" data-target="bulk-upload-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="bulk-upload-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-500 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-file-excel"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Bulk Upload</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile" data-target="donation-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="donation-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-rose-500 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-hand-holding-heart"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Donation Entry</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile" data-target="conc-group-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="conc-group-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-purple-600 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-users-viewfinder"></i>
                     </div>

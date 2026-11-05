@@ -5268,7 +5268,7 @@ onAuthStateChanged(auth, async (user) => {
     setResultPageNavVisibility(isCurrentAdmin || staffAccess?.result === true);
     document.getElementById('collector-wise-monthly-tab')?.classList.toggle('hidden', !isCurrentAdmin);
     applyTabVisibilityPreferences();
-    if (isCurrentAdmin) { displayEl.textContent = "ADMINISTRATOR"; }
+    if (isCurrentAdmin && displayEl) { displayEl.textContent = "ADMINISTRATOR"; }
 
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -5277,7 +5277,7 @@ onAuthStateChanged(auth, async (user) => {
             if(myData && myData.isActive && myData.canCollect !== false) {
                 currentUserEmail = normalizeEmail(myData.email || currentUserEmail || getEffectiveStaffEmail());
                 currentCollectorKey = normalizeEmail(window.AppSession?.getStaffAccess?.()?.userKey || myData.email || currentUserEmail);
-                displayEl.textContent = myData.name;
+                if (displayEl) displayEl.textContent = myData.name;
                 window.AppSession?.startStaff(myData.name, currentUserEmail);
                 const serverDutyClasses = Array.isArray(myData.dutyClasses) ? myData.dutyClasses.filter(Boolean) : [];
                 selectedDutyClasses = serverDutyClasses;
@@ -5289,7 +5289,7 @@ onAuthStateChanged(auth, async (user) => {
                 setResultPageNavVisibility(myData.canManageResults === true || staffAccess?.result === true);
             } else {
                 if (isDirectoryCollector) {
-                    displayEl.textContent = window.AppSession?.getStaffName?.() || 'COLLECTOR';
+                    if (displayEl) displayEl.textContent = window.AppSession?.getStaffName?.() || 'COLLECTOR';
                     setDutyPaymentDetailsInputs(collectorPaymentDetails);
                     renderStaffDirectory();
                     return;
@@ -5300,7 +5300,7 @@ onAuthStateChanged(auth, async (user) => {
             }
         }
         if (isCurrentAdmin) setResultPageNavVisibility(true);
-        if (isDirectoryCollector) {
+        if (isDirectoryCollector && displayEl) {
             displayEl.textContent = window.AppSession?.getStaffName?.() || 'COLLECTOR';
         }
         setDutyPaymentDetailsInputs(collectorPaymentDetails);
