@@ -113,12 +113,18 @@
       #official-app:not(.sidebar-collapsed) .worksheet-sticky-header {
         margin-left: 16rem !important;
         width: calc(100% - 16rem) !important;
+        max-width: calc(100% - 16rem) !important;
+        box-sizing: border-box !important;
+        min-width: 0 !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
       #official-app.sidebar-collapsed .worksheet-main-wrapper,
       #official-app.sidebar-collapsed .worksheet-sticky-header {
         margin-left: 4.5rem !important;
         width: calc(100% - 4.5rem) !important;
+        max-width: calc(100% - 4.5rem) !important;
+        box-sizing: border-box !important;
+        min-width: 0 !important;
         transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
       #official-app.sidebar-collapsed #side-drawer .nav-text,
@@ -404,25 +410,30 @@
     html[data-session-guard="worksheet"] #official-app {
         width: 100% !important;
         max-width: 100% !important;
+        box-sizing: border-box !important;
     }
 
     body[data-page-type="worksheet"] header,
     body.collection-shell[data-page-type="worksheet"] header,
     html[data-session-guard="worksheet"] header {
-        max-width: 99vw !important;
-        width: 99vw !important;
-        margin: 10px auto !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
     }
 
     body[data-page-type="worksheet"] main,
     body.collection-shell[data-page-type="worksheet"] main,
     html[data-session-guard="worksheet"] body main,
     #official-app main#app {
-        max-width: 99vw !important;
-        width: 99vw !important;
-        margin: 0 auto 10px auto !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
         padding: 0 !important;
         flex-grow: 1;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
     }
 
     body[data-page-type="worksheet"] #page-content,
@@ -432,11 +443,13 @@
     html[data-session-guard="worksheet"] .official-tab {
         max-width: 100% !important;
         width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
     }
 
-    /* Fullscreen Mode */
-    body.worksheet-fullscreen-mode header.no-print {
-        display: none !important;
+    /* Fullscreen Mode Overrides */
+    body.worksheet-fullscreen-mode {
+        overflow: hidden !important;
     }
     body.worksheet-fullscreen-mode #official-app {
         height: 100vh !important;
@@ -445,6 +458,21 @@
         max-width: 100vw !important;
         padding: 0 !important;
         margin: 0 !important;
+    }
+    body.worksheet-fullscreen-mode .worksheet-sticky-header,
+    body.worksheet-fullscreen-mode #side-drawer,
+    body.worksheet-fullscreen-mode #drawer-overlay,
+    body.worksheet-fullscreen-mode #worksheet-bottom-nav,
+    body.worksheet-fullscreen-mode #worksheet-more-sheet {
+        display: none !important;
+    }
+    body.worksheet-fullscreen-mode .worksheet-main-wrapper {
+        margin-left: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        padding: 0 !important;
     }
     body.worksheet-fullscreen-mode #official-app main#app,
     body.worksheet-fullscreen-mode #official-tab-export {
@@ -456,6 +484,43 @@
         max-height: 100vh !important;
         border-radius: 0 !important;
     }
+    body.worksheet-fullscreen-mode .excel-studio-container {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+    body.worksheet-fullscreen-mode .excel-ribbon-bar {
+        display: flex !important;
+        visibility: visible !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+    body.worksheet-fullscreen-mode .excel-ribbon-content:not(.hidden) {
+        display: flex !important;
+    }
+    body.worksheet-fullscreen-mode .slim-formula-bar {
+        display: flex !important;
+        visibility: visible !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+    body.worksheet-fullscreen-mode .excel-workspace {
+        display: block !important;
+        visibility: visible !important;
+        flex-grow: 1 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        overflow: auto !important;
+    }
+    body.worksheet-fullscreen-mode .excel-status-bar {
+        display: flex !important;
+        visibility: visible !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
 
     /* =========================================================
        EXCEL TOP RIBBON & WORKSPACE STYLING (Microsoft Excel UI)
@@ -464,7 +529,10 @@
         display: flex;
         flex-direction: column;
         height: 100%;
-        width: 100%;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
         overflow: hidden;
         background: #f3f2f1;
         font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
@@ -476,6 +544,10 @@
         flex-shrink: 0;
         position: relative;
         z-index: 40;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
     }
 
     .excel-ribbon-header-row {
@@ -486,6 +558,10 @@
         background: #f3f2f1;
         border-bottom: 1px solid #c8c6c4;
         gap: 8px;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
     }
 
     .excel-ribbon-tabs {

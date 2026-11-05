@@ -5125,18 +5125,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
       if (!exportTarget) return;
 
       exportTarget.innerHTML = `
-        <div class="excel-studio-container flex flex-col h-full w-full overflow-hidden bg-[#f3f2f1] select-none">
+        <div class="excel-studio-container flex flex-col h-full w-full overflow-hidden bg-[#f3f2f1] select-none box-border">
           <!-- 1. TOP EXCEL RIBBON BAR -->
-          <header class="excel-ribbon-bar bg-[#f3f2f1] border-b border-[#cbd5e1] shrink-0 no-print flex flex-col">
+          <div class="excel-ribbon-bar bg-[#f3f2f1] border-b border-[#cbd5e1] shrink-0 flex flex-col w-full box-border">
             <!-- Row 1: Ribbon Tab Headers & Global Action Buttons -->
-            <div class="excel-ribbon-header-row flex items-center justify-between px-3 pt-1 border-b border-[#cbd5e1]">
-              <div class="flex items-center gap-1">
-                <div class="flex items-center gap-1.5 px-2 py-1 mr-2 text-emerald-700 font-extrabold text-xs">
+            <div class="excel-ribbon-header-row flex items-center justify-between px-2 sm:px-3 pt-1 border-b border-[#cbd5e1] gap-1 sm:gap-2 min-w-0 w-full box-border">
+              <div class="flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-none py-0.5">
+                <div class="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 mr-1 text-emerald-700 font-extrabold text-xs shrink-0 select-none">
                   <i class="fas fa-file-excel text-base text-emerald-600"></i>
-                  <span class="tracking-wide">Worksheet Studio</span>
+                  <span class="tracking-wide hidden md:inline">Worksheet Studio</span>
                 </div>
                 <!-- Ribbon Tabs -->
-                <div class="excel-ribbon-tabs flex items-center gap-0.5">
+                <div class="excel-ribbon-tabs flex items-center gap-0.5 shrink-0">
                   <button type="button" class="excel-tab ${builderConfig.activeTab === 'data' ? 'active' : ''}" data-ribbon="data">
                     <i class="fas fa-database text-xs mr-1"></i><span>Data</span>
                   </button>
@@ -5153,18 +5153,18 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               </div>
 
               <!-- Quick Action Buttons on Top Right -->
-              <div class="flex items-center gap-1.5 pb-1">
-                <button type="button" id="btn-export-print" class="premium-export-btn btn-pdf-red !py-1 !px-2.5 text-xs font-bold shadow-xs cursor-pointer" title="Print or Save as PDF">
-                  <i class="fas fa-print"></i> <span>Print</span>
+              <div class="flex items-center gap-1 sm:gap-1.5 pb-1 shrink-0 ml-auto">
+                <button type="button" id="btn-export-print" class="premium-export-btn btn-pdf-red !py-1 !px-2 sm:!px-2.5 text-xs font-bold shadow-xs cursor-pointer shrink-0" title="Print or Save as PDF">
+                  <i class="fas fa-print"></i> <span class="hidden sm:inline">Print</span>
                 </button>
-                <button type="button" id="btn-export-excel" class="premium-export-btn btn-excel-green !py-1 !px-2.5 text-xs font-bold shadow-xs cursor-pointer" title="Export as Excel Sheet (.xlsx)">
-                  <i class="fas fa-file-excel"></i> <span>Export XLSX</span>
+                <button type="button" id="btn-export-excel" class="premium-export-btn btn-excel-green !py-1 !px-2 sm:!px-2.5 text-xs font-bold shadow-xs cursor-pointer shrink-0" title="Export as Excel Sheet (.xlsx)">
+                  <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">Export XLSX</span>
                 </button>
-                <button type="button" id="btn-toggle-fullscreen" class="premium-export-btn bg-slate-800 hover:bg-slate-900 !py-1 !px-2.5 text-xs font-bold shadow-xs cursor-pointer" title="Toggle Fullscreen Mode (Esc to exit)">
+                <button type="button" id="btn-toggle-fullscreen" class="premium-export-btn bg-slate-800 hover:bg-slate-900 !py-1 !px-2 sm:!px-2.5 text-xs font-bold shadow-xs cursor-pointer shrink-0" title="Toggle Fullscreen Mode (Esc to exit)">
                   <i class="fas ${document.body.classList.contains('worksheet-fullscreen-mode') ? 'fa-compress' : 'fa-expand'} fullscreen-icon-toggle"></i>
                   <span class="fullscreen-text-toggle">${document.body.classList.contains('worksheet-fullscreen-mode') ? 'Exit Fullscreen' : 'Fullscreen'}</span>
                 </button>
-                <button type="button" id="btn-toggle-ribbon-collapse" class="excel-btn-small hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-600 ml-1 cursor-pointer" title="Collapse / Expand Ribbon">
+                <button type="button" id="btn-toggle-ribbon-collapse" class="excel-btn-small hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-600 ml-0.5 cursor-pointer shrink-0" title="Collapse / Expand Ribbon">
                   <i class="fas ${builderConfig.ribbonCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'} text-xs ribbon-toggle-icon"></i>
                 </button>
               </div>
@@ -5177,14 +5177,14 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
               ${ribbonInsert}
               ${ribbonLayout}
             </div>
-          </header>
+          </div>
 
           <!-- 2. FORMULA BAR (Compact 34px Bar) -->
-          <div class="slim-formula-bar bg-white border-b border-[#cbd5e1] px-3 py-1 flex items-center gap-2 shrink-0 no-print">
-            <div id="active-cell-id" class="formula-name-box">A1</div>
-            <div class="formula-divider"></div>
-            <div class="formula-icon">fx</div>
-            <input type="text" id="formula-input" class="formula-input" placeholder="Click any cell or box to edit, or drag across cells to format / merge..." />
+          <div class="slim-formula-bar bg-white border-b border-[#cbd5e1] px-2 sm:px-3 py-1 flex items-center gap-2 shrink-0 w-full box-border">
+            <div id="active-cell-id" class="formula-name-box shrink-0">A1</div>
+            <div class="formula-divider shrink-0"></div>
+            <div class="formula-icon shrink-0">fx</div>
+            <input type="text" id="formula-input" class="formula-input flex-grow min-w-0" placeholder="Click any cell or box to edit, or drag across cells to format / merge..." />
           </div>
 
           <!-- 3. SPREADSHEET WORKSPACE / CANVAS -->
