@@ -1090,6 +1090,57 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       return Array.from(classesSet).map((c) => c.trim()).filter(Boolean);
     }
 
+    function renderOfficialProfileHeader() {
+      const role = window.AppSession?.getRole?.() || '';
+      const isStaffSession = userSession?.source === 'staff' || role === 'staff' || Boolean(window.AppSession?.getStaffAccess?.());
+      const isMasterAdmin = !isStaffSession && (role === 'admin' || userSession?.source === 'firebase' || userSession?.source === 'legacy-admin' || userSession?.type === 'Admin');
+
+      const profile = getCurrentSessionProfile() || {};
+      const isDirectory = userSession?.source === 'directory';
+      const resolvedName = isDirectory
+        ? (profile.values?.name || userSession?.name || 'Staff Member')
+        : (profile.name || userSession?.name || (isMasterAdmin ? 'Administrator' : 'Staff Member'));
+      const userRole = isMasterAdmin ? 'Super Admin' : (profile.role || profile.type || userSession?.type || 'Staff');
+      const rawPhoto = isDirectory
+        ? (profile.values?.photo || profile.values?.image || '')
+        : (profile.photo || profile.image || profile.customValues?.photo || '');
+      const hasValidPhoto = Boolean(rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('assets/images/logo.png'));
+
+      const userLineEl = document.getElementById('official-user-line');
+      if (userLineEl) userLineEl.textContent = `${resolvedName} (${userRole})`;
+
+      const staffNameDisplay = document.getElementById('staff-name-display');
+      if (staffNameDisplay) staffNameDisplay.textContent = resolvedName;
+      const staffRoleDisplay = document.getElementById('staff-role-display');
+      if (staffRoleDisplay) staffRoleDisplay.textContent = userRole;
+
+      // Dropdown menu profile header card (Name on top, Role below)
+      const menuUserName = document.getElementById('official-dropdown-user-name');
+      if (menuUserName) menuUserName.textContent = resolvedName;
+      const menuUserRole = document.getElementById('official-dropdown-user-role');
+      if (menuUserRole) menuUserRole.textContent = userRole;
+
+      const headerAvatarBox = document.getElementById('official-header-avatar-box');
+      const dropdownAvatarBox = document.getElementById('official-dropdown-avatar');
+      const initialChar = String(resolvedName || 'S').trim().charAt(0).toUpperCase() || 'S';
+
+      if (headerAvatarBox) {
+        if (hasValidPhoto) {
+          headerAvatarBox.innerHTML = `<img src="${escapeHtml(rawPhoto)}" alt="${escapeHtml(resolvedName)}" class="w-full h-full object-cover rounded-full" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-xs font-extrabold text-indigo-700\\'>${escapeHtml(initialChar)}</span>';">`;
+        } else {
+          headerAvatarBox.innerHTML = `<span class="text-xs font-extrabold text-indigo-700">${escapeHtml(initialChar)}</span>`;
+        }
+      }
+
+      if (dropdownAvatarBox) {
+        if (hasValidPhoto) {
+          dropdownAvatarBox.innerHTML = `<img src="${escapeHtml(rawPhoto)}" alt="${escapeHtml(resolvedName)}" class="w-full h-full object-cover rounded-full" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-xs font-black text-indigo-700\\'>${escapeHtml(initialChar)}</span>';">`;
+        } else {
+          dropdownAvatarBox.innerHTML = `<span class="text-xs font-black text-indigo-700">${escapeHtml(initialChar)}</span>`;
+        }
+      }
+    }
+
     function syncLiveStaffSession() {
       const profile = getCurrentSessionProfile() || {};
       if (profile && profile.id && window.AppSession?.updateStaffAccess) {
@@ -1114,6 +1165,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
           role: profile.role || profile.type || 'Staff'
         });
       }
+      renderOfficialProfileHeader();
     }
 
     const getMobileToggle = () => document.getElementById('official-my-profile-btn') || document.getElementById('mobile-menu-btn');
@@ -3687,7 +3739,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
     };
 
     const openMyProfileModal = () => {
-      const profile = getCurrentSessionProfile();
+      const profile = getCurrentSessionProfile() || {};
       const isDirectory = userSession?.source === 'directory';
       const label = isDirectory ? (profile.values?.name || userSession?.name || 'Staff Member') : (profile.name || userSession?.name || 'Staff Member');
       const userType = isDirectory ? (getDirectoryCategory(profile.categoryId)?.name || userSession?.type || 'Staff') : (profile.role || profile.designation || profile.type || userSession?.type || 'Staff');
@@ -3695,64 +3747,49 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       const rawPhoto = isDirectory ? (profile.values?.photo || profile.values?.image) : (profile.photo || profile.image || profile.customValues?.photo);
       const hasPhoto = Boolean(rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('assets/images/logo.png'));
 
-      const access = getAllowedPageLabels();
       const instName = resolveInstitutionName(institutionConfig) || 'Institution Name';
       const instReg = institutionConfig?.regNo || institutionConfig?.code || '';
       const initialChar = String(label || 'S').trim().charAt(0).toUpperCase() || 'S';
 
-      const detailEntries = isDirectory
-        ? getDirectoryProfileEntries(profile)
-        : getStaffProfileEntries(profile);
-      const filteredDetails = detailEntries.filter((item) => item && item.key !== 'name' && valueToDisplay(item.value) !== '--');
-
-      const detailsRowsHtml = filteredDetails.length
-        ? filteredDetails.map((item) => {
-            const valStr = valueToDisplay(item.value);
-            const isLong = item.key === 'address' || valStr.length > 34;
-            return isLong
-              ? `<div class="py-1.5 border-b border-slate-200/60 last:border-b-0">
-                   <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(item.label || toLabel(item.key))}</div>
-                   <div class="font-bold text-slate-800 text-xs mt-0.5 break-words whitespace-pre-line">${escapeHtml(valStr)}</div>
-                 </div>`
-              : `<div class="flex items-start justify-between gap-3 py-1.5 border-b border-slate-200/60 last:border-b-0 text-xs">
-                   <span class="text-slate-500 font-semibold shrink-0">${escapeHtml(item.label || toLabel(item.key))}</span>
-                   <span class="font-bold ${item.key === 'status' ? 'text-emerald-600 uppercase text-[11px]' : 'text-slate-800'} text-right break-all">${escapeHtml(valStr)}</span>
-                 </div>`;
-          }).join('')
-        : `<div class="text-xs text-slate-400 text-center py-2">No additional profile details found.</div>`;
+      const staffIdVal = profile.msr || profile.customValues?.msr || profile.id || userSession?.id || 'STAFF';
+      const deptVal = profile.subject || profile.customValues?.subject || profile.department || profile.type || '--';
+      const phoneVal = profile.phone || profile.mobile || profile.customValues?.phone || userSession?.phone || '--';
+      const yearVal = activeAcademicYearId || institutionConfig?.academicYear || '--';
+      const bloodVal = profile.bloodGroup || profile.blood || profile.customValues?.bloodGroup || profile.customValues?.blood || '';
+      const joinVal = profile.joiningDate || profile.customValues?.joiningDate || '';
 
       const photoHtml = hasPhoto
-        ? `<div class="relative mx-auto -mt-14 w-24 h-24 rounded-2xl p-1 bg-white shadow-xl border border-slate-200">
-             <img src="${escapeHtml(rawPhoto)}" class="w-full h-full rounded-xl object-cover bg-slate-100" alt="${escapeHtml(label)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-2xl font-black\\'>${escapeHtml(initialChar)}</div>';">
+        ? `<div class="relative mx-auto -mt-14 w-28 h-28 rounded-3xl p-1 bg-white shadow-xl ring-4 ring-slate-100 flex items-center justify-center">
+             <img src="${escapeHtml(rawPhoto)}" class="w-full h-full rounded-2xl object-cover bg-slate-100" alt="${escapeHtml(label)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 text-3xl font-black\\'>${escapeHtml(initialChar)}</div>';">
            </div>`
-        : `<div class="relative mx-auto -mt-14 w-24 h-24 rounded-2xl p-1 bg-white shadow-xl border border-slate-200">
-             <div class="w-full h-full rounded-xl bg-indigo-50 border border-indigo-100 flex flex-col items-center justify-center text-indigo-600">
+        : `<div class="relative mx-auto -mt-14 w-28 h-28 rounded-3xl p-1 bg-white shadow-xl ring-4 ring-slate-100 flex items-center justify-center">
+             <div class="w-full h-full rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 flex flex-col items-center justify-center text-indigo-700">
                <span class="text-3xl font-black leading-none">${escapeHtml(initialChar)}</span>
              </div>
            </div>`;
 
       const idCardHtml = `
         <div class="w-full bg-white select-none">
-          <!-- Top Lanyard Slot Cutout Bar -->
+          <!-- Top Lanyard Cutout Slot -->
           <div class="bg-slate-900 pt-3 pb-2 px-4 flex justify-center">
             <div class="w-14 h-2 rounded-full bg-slate-800 border border-slate-700/80 shadow-inner"></div>
           </div>
 
           <!-- Institution Header Banner -->
-          <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white px-5 pt-2.5 pb-16 text-center relative">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/10 text-emerald-300 border border-white/10 mb-1">
-              <i class="fas fa-id-badge text-emerald-400"></i> Official Identity Card
+          <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white px-5 pt-3 pb-16 text-center relative">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/10 text-emerald-300 border border-white/10 mb-1.5">
+              <i class="fas fa-id-badge text-emerald-400"></i> Staff Identity Card
             </div>
-            <h4 class="text-sm sm:text-base font-black tracking-tight text-white uppercase">${escapeHtml(instName)}</h4>
-            ${instReg ? `<p class="text-[10px] font-semibold text-slate-400 tracking-wider">Reg No: ${escapeHtml(instReg)}</p>` : ''}
+            <h4 class="text-sm sm:text-base font-black tracking-tight text-white uppercase leading-snug">${escapeHtml(instName)}</h4>
+            ${instReg ? `<p class="text-[10px] font-semibold text-slate-400 tracking-wider mt-0.5">Reg No: ${escapeHtml(instReg)}</p>` : ''}
           </div>
 
           <!-- Photo Container & Body Content -->
-          <div class="px-5 pb-5">
+          <div class="px-5 pb-6">
             ${photoHtml}
 
             <!-- Identity Core -->
-            <div class="text-center mt-2.5">
+            <div class="text-center mt-3">
               <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">${escapeHtml(label)}</h3>
               <div class="mt-1">
                 <span class="inline-block px-3 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -3761,46 +3798,67 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
               </div>
             </div>
 
-            <!-- Complete Admin-Configured Details List -->
-            <div class="mt-4 text-left bg-slate-50/90 px-3.5 py-2.5 rounded-2xl border border-slate-200/80 max-h-60 overflow-y-auto">
-              ${detailsRowsHtml}
-            </div>
-
-            <!-- Department Access Badges -->
-            <div class="mt-3.5 text-center">
-              <div class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5">Authorized Portal Access</div>
-              <div class="flex flex-wrap gap-1.5 justify-center">
-                ${access.map((item) => `
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                    <i class="fas fa-check-circle text-emerald-500 text-[9px]"></i>
-                    ${escapeHtml(item)}
-                  </span>
-                `).join('')}
+            <!-- Clean 2-Column Institutional Information Grid -->
+            <div class="mt-4 bg-slate-50/80 rounded-2xl p-3 border border-slate-200/80 text-xs text-left">
+              <div class="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Staff ID</div>
+                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(staffIdVal)}">${escapeHtml(staffIdVal)}</div>
+                </div>
+                <div>
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Department</div>
+                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(deptVal)}">${escapeHtml(deptVal)}</div>
+                </div>
+                <div>
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Contact</div>
+                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(phoneVal)}">${escapeHtml(phoneVal)}</div>
+                </div>
+                <div>
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Academic Year</div>
+                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(yearVal)}">${escapeHtml(yearVal)}</div>
+                </div>
+                ${bloodVal ? `
+                <div>
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Blood Group</div>
+                  <div class="font-extrabold text-rose-600 truncate">${escapeHtml(bloodVal)}</div>
+                </div>` : ''}
+                ${joinVal ? `
+                <div>
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Joining Date</div>
+                  <div class="font-extrabold text-slate-800 truncate">${escapeHtml(joinVal)}</div>
+                </div>` : ''}
               </div>
             </div>
 
-            <!-- Action Buttons: Logout & Close at Bottom of ID Card -->
-            <div class="mt-5 pt-3.5 border-t border-slate-100 flex items-center gap-2.5">
-              <button type="button" id="official-id-card-logout-btn" class="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm active:scale-95 transition-all cursor-pointer border-none flex items-center justify-center gap-1.5">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-              </button>
-              <button type="button" id="official-id-card-done-btn" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl active:scale-95 transition-all cursor-pointer border border-slate-200">
-                Close
-              </button>
+            <!-- Security Verification & Signature -->
+            <div class="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 p-1 flex items-center justify-center text-slate-600">
+                  <i class="fas fa-qrcode text-2xl"></i>
+                </div>
+                <div class="text-left">
+                  <div class="text-[9px] font-extrabold uppercase tracking-widest text-emerald-600 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active Staff
+                  </div>
+                  <div class="text-[9px] font-mono font-semibold text-slate-400 truncate max-w-[90px]">SEC: ${escapeHtml(staffIdVal)}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="h-6 flex items-end justify-end">
+                  <span class="font-serif italic text-xs text-indigo-950 font-bold border-b border-slate-300 pb-0.5 px-1">Institutional Seal</span>
+                </div>
+                <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">Authorized Signatory</div>
+              </div>
+            </div>
+
+            <div class="mt-3 text-center text-[8px] font-semibold text-slate-400 uppercase tracking-widest">
+              Property of Institution &bull; Non-Transferable
             </div>
           </div>
         </div>
       `;
 
       openIdCardModal(idCardHtml);
-
-      document.getElementById('official-id-card-done-btn')?.addEventListener('click', closeIdCardModal);
-      document.getElementById('official-id-card-logout-btn')?.addEventListener('click', () => {
-        localStorage.removeItem(OFFICIAL_SESSION_KEY);
-        window.AppSession?.clearAll?.();
-        window.location.href = 'index.html';
-      });
     };
 
     const renderHome = () => {
@@ -7626,54 +7684,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       document.getElementById('official-login-screen')?.classList.add('hidden');
       document.getElementById('official-app')?.classList.remove('hidden');
 
-      const role = window.AppSession?.getRole?.() || '';
-      const isStaffSession = userSession?.source === 'staff' || role === 'staff' || Boolean(window.AppSession?.getStaffAccess?.());
-      const isMasterAdmin = !isStaffSession && (role === 'admin' || userSession?.source === 'firebase' || userSession?.source === 'legacy-admin' || userSession?.type === 'Admin');
-
-      const profile = getCurrentSessionProfile() || {};
-      const isDirectory = userSession?.source === 'directory';
-      const resolvedName = isDirectory
-        ? (profile.values?.name || userSession?.name || 'Staff Member')
-        : (profile.name || userSession?.name || (isMasterAdmin ? 'Administrator' : 'Staff Member'));
-      const userRole = isMasterAdmin ? 'Super Admin' : (profile.role || profile.type || userSession?.type || 'Staff');
-      const rawPhoto = isDirectory
-        ? (profile.values?.photo || profile.values?.image || '')
-        : (profile.photo || profile.image || profile.customValues?.photo || '');
-      const hasValidPhoto = Boolean(rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('assets/images/logo.png'));
-
-      const userLineEl = document.getElementById('official-user-line');
-      if (userLineEl) userLineEl.textContent = `${resolvedName} (${userRole})`;
-
-      const staffNameDisplay = document.getElementById('staff-name-display');
-      if (staffNameDisplay) staffNameDisplay.textContent = resolvedName;
-      const staffRoleDisplay = document.getElementById('staff-role-display');
-      if (staffRoleDisplay) staffRoleDisplay.textContent = userRole;
-
-      // Dropdown menu profile header card (Name on top, Role below)
-      const menuUserName = document.getElementById('official-dropdown-user-name');
-      if (menuUserName) menuUserName.textContent = resolvedName;
-      const menuUserRole = document.getElementById('official-dropdown-user-role');
-      if (menuUserRole) menuUserRole.textContent = userRole;
-
-      const headerAvatarBox = document.getElementById('official-header-avatar-box');
-      const dropdownAvatarBox = document.getElementById('official-dropdown-avatar');
-      const initialChar = String(resolvedName || 'S').trim().charAt(0).toUpperCase() || 'S';
-      
-      if (headerAvatarBox) {
-        if (hasValidPhoto) {
-          headerAvatarBox.innerHTML = `<img src="${escapeHtml(rawPhoto)}" alt="${escapeHtml(resolvedName)}" class="w-full h-full object-cover rounded-full" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-xs font-extrabold text-indigo-700\\'>${escapeHtml(initialChar)}</span>';">`;
-        } else {
-          headerAvatarBox.innerHTML = `<span class="text-xs font-extrabold text-indigo-700">${escapeHtml(initialChar)}</span>`;
-        }
-      }
-
-      if (dropdownAvatarBox) {
-        if (hasValidPhoto) {
-          dropdownAvatarBox.innerHTML = `<img src="${escapeHtml(rawPhoto)}" alt="${escapeHtml(resolvedName)}" class="w-full h-full object-cover rounded-full" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-xs font-black text-indigo-700\\'>${escapeHtml(initialChar)}</span>';">`;
-        } else {
-          dropdownAvatarBox.innerHTML = `<span class="text-xs font-black text-indigo-700">${escapeHtml(initialChar)}</span>`;
-        }
-      }
+      renderOfficialProfileHeader();
 
       renderAll();
 
