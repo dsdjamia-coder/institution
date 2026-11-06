@@ -1384,10 +1384,10 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         });
 
         document.getElementById('login-username')?.addEventListener('input', (e) => {
-            if (e.target.value.length > 25) e.target.value = e.target.value.slice(0, 25);
+            if (e.target.value.length > 60) e.target.value = e.target.value.slice(0, 60);
         });
         document.getElementById('login-password')?.addEventListener('input', (e) => {
-            if (e.target.value.length > 25) e.target.value = e.target.value.slice(0, 25);
+            if (e.target.value.length > 60) e.target.value = e.target.value.slice(0, 60);
         });
 
         const sessionNotice = window.AppSession?.consumeFlash?.();

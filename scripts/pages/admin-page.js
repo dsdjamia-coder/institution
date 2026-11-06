@@ -3821,9 +3821,9 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
         normalizedEmail = rawInput.toLowerCase();
         username = normalizedEmail.split('@')[0];
     } else {
-        const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+        const usernameRegex = /^[a-zA-Z0-9_]{3,60}$/;
         if (!usernameRegex.test(rawInput)) {
-            alert('Username must be 3-30 characters using only letters, numbers, and underscores (no spaces).');
+            alert('Username must be 3-60 characters using only letters, numbers, and underscores (no spaces).');
             return;
         }
         username = rawInput.toLowerCase();
