@@ -52,22 +52,21 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             list.innerHTML = accounts.length ? accounts.map((account) => {
                 const isActive = (account.studentId === activeId);
                 return `
-                <div class="border ${isActive ? 'border-blue-300 bg-blue-50/60 shadow-xs' : 'border-gray-200 bg-white'} rounded-xl p-2.5 flex items-center justify-between gap-2 transition hover:border-blue-300">
-                    <button type="button" class="text-left flex-grow saved-student-select cursor-pointer" data-id="${account.studentId}">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-gray-800">${escapeHtml(account.name || 'Student')}</span>
-                            ${isActive ? '<span class="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs"><i class="fas fa-check-circle text-emerald-600"></i> Active</span>' : ''}
+                <div class="relative rounded-2xl border ${isActive ? 'border-emerald-400 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow-xs'} p-3.5 flex items-center justify-between gap-3 transition cursor-pointer saved-student-card" data-id="${escapeHtml(account.studentId || '')}">
+                    ${isActive ? `
+                        <span class="absolute top-2.5 right-14 inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <i class="fas fa-check-circle text-emerald-600"></i> Active
+                        </span>
+                    ` : ''}
+                    <div class="flex-grow min-w-0 pr-2">
+                        <div class="font-black text-slate-800 text-sm truncate">${escapeHtml(account.name || 'Student')}</div>
+                        <div class="text-xs text-slate-500 font-medium mt-1 truncate">
+                            <span class="font-semibold text-slate-700">Class ${escapeHtml(account.class || '--')}</span> • Adm: <span class="font-mono text-slate-700">${escapeHtml(account.adm || '--')}</span>
                         </div>
-                        <div class="text-xs text-gray-500 mt-0.5">${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}</div>
-                    </button>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                        <button type="button" class="text-blue-600 hover:text-blue-800 text-xs font-bold saved-student-select px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 cursor-pointer" data-id="${account.studentId}">
-                            ${isActive ? 'Open' : 'Switch'}
-                        </button>
-                        <button type="button" class="text-rose-600 hover:text-rose-700 text-xs font-bold saved-student-remove px-2.5 py-1 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1 border border-rose-200 transition shadow-2xs" data-id="${account.studentId}" title="Logout this account">
-                            <i class="fas fa-sign-out-alt text-[10px]"></i> Logout
-                        </button>
                     </div>
+                    <button type="button" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer shadow-2xs saved-student-remove" data-id="${escapeHtml(account.studentId || '')}" title="Logout this account" aria-label="Logout">
+                        <i class="fas fa-sign-out-alt text-xs"></i>
+                    </button>
                 </div>
             `;
             }).join('') : '<p class="text-sm text-gray-500">No saved student accounts.</p>';
@@ -85,8 +84,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             }
             document.getElementById('login-modal').style.display = 'flex'; 
             setMobileMenuState(false);
-            switchLoginTab('student');
-            resetStudentLoginForm();
+            resetUniversalLoginForm();
             const sessionNotice = window.AppSession?.consumeFlash?.();
             if (sessionNotice) showLoginMessage(sessionNotice);
         };
@@ -240,26 +238,27 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 icon.style.color = "#94a3b8";
             }
         }
-        document.getElementById('toggle-student-pass').addEventListener('click', () => togglePassword('login-phone', 'toggle-student-pass'));
         document.getElementById('saved-student-add-btn')?.addEventListener('click', () => {
             document.getElementById('saved-student-modal').style.display = 'none';
             openStudentLoginModal();
         });
         document.getElementById('saved-student-list')?.addEventListener('click', (e) => {
-            const selectBtn = e.target.closest('.saved-student-select');
             const removeBtn = e.target.closest('.saved-student-remove');
-            if (selectBtn) {
+            const card = e.target.closest('.saved-student-card');
+            if (removeBtn) {
+                e.stopPropagation();
+                if (!confirm('Remove this account?')) return;
+                window.AppSession?.logoutStudent(removeBtn.dataset.id, { removeAccount: true });
+                renderSavedStudents();
+                return;
+            }
+            if (card) {
                 if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
                     showToast("Student Portal is currently disabled by institution administration.", "error");
                     return;
                 }
-                const switched = window.AppSession?.switchStudent?.(selectBtn.dataset.id);
+                const switched = window.AppSession?.switchStudent?.(card.dataset.id);
                 if (switched) window.location.href = 'student.html';
-            }
-            if (removeBtn) {
-                if (!confirm('Remove this account?')) return;
-                window.AppSession?.logoutStudent(removeBtn.dataset.id, { removeAccount: true });
-                renderSavedStudents();
             }
         });
 
@@ -922,49 +921,17 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             });
         });
         
-        // State for 2-step student verification
-        let currentVerifiedStudent = null;
-
-        const tabStudentBtn = document.getElementById('tab-student-login');
-        const tabStaffBtn = document.getElementById('tab-staff-login');
-        const studentPanel = document.getElementById('student-login-panel');
-        const staffPanel = document.getElementById('staff-login-panel');
-        const loginTitle = document.getElementById('login-title');
-
-        const switchLoginTab = (tab) => {
-            showLoginMessage('');
-            if (tab === 'staff') {
-                tabStaffBtn?.classList.add('border-blue-600', 'text-blue-600');
-                tabStaffBtn?.classList.remove('border-transparent', 'text-gray-500');
-                tabStudentBtn?.classList.remove('border-blue-600', 'text-blue-600');
-                tabStudentBtn?.classList.add('border-transparent', 'text-gray-500');
-                studentPanel?.classList.add('hidden');
-                staffPanel?.classList.remove('hidden');
-                if (loginTitle) loginTitle.textContent = 'Staff / Admin Login';
-                document.getElementById('login-staff-id')?.focus();
-            } else {
-                tabStudentBtn?.classList.add('border-blue-600', 'text-blue-600');
-                tabStudentBtn?.classList.remove('border-transparent', 'text-gray-500');
-                tabStaffBtn?.classList.remove('border-blue-600', 'text-blue-600');
-                tabStaffBtn?.classList.add('border-transparent', 'text-gray-500');
-                staffPanel?.classList.add('hidden');
-                studentPanel?.classList.remove('hidden');
-                if (loginTitle) loginTitle.textContent = 'Student Login';
-                document.getElementById('login-student-adm')?.focus();
-            }
-        };
-
-        tabStudentBtn?.addEventListener('click', () => switchLoginTab('student'));
-        tabStaffBtn?.addEventListener('click', () => switchLoginTab('staff'));
+        // State for unified smart verification & login
+        let verifiedUser = null;
 
         const loginModalEl = document.getElementById('login-modal');
         loginModalEl?.addEventListener('click', (e) => {
             if (e.target === loginModalEl) loginModalEl.style.display = 'none';
         });
 
-        document.getElementById('toggle-student-pass')?.addEventListener('click', () => {
-            const passEl = document.getElementById('login-student-phone');
-            const icon = document.getElementById('toggle-student-pass');
+        document.getElementById('toggle-universal-pass')?.addEventListener('click', () => {
+            const passEl = document.getElementById('login-password');
+            const icon = document.getElementById('toggle-universal-pass');
             if (passEl) {
                 const isPass = passEl.type === 'password';
                 passEl.type = isPass ? 'text' : 'password';
@@ -973,174 +940,221 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             }
         });
 
-        document.getElementById('toggle-staff-pass')?.addEventListener('click', () => {
-            const passEl = document.getElementById('login-staff-password');
-            const icon = document.getElementById('toggle-staff-pass');
-            if (passEl) {
-                const isPass = passEl.type === 'password';
-                passEl.type = isPass ? 'text' : 'password';
-                icon?.classList.toggle('fa-eye', !isPass);
-                icon?.classList.toggle('fa-eye-slash', isPass);
+        const resetUniversalLoginForm = () => {
+            verifiedUser = null;
+            document.getElementById('login-step-2')?.classList.add('hidden');
+            document.getElementById('login-step-1')?.classList.remove('hidden');
+            const userInput = document.getElementById('login-username');
+            if (userInput) {
+                userInput.value = '';
+                userInput.focus();
             }
-        });
-
-        const resetStudentLoginForm = () => {
-            currentVerifiedStudent = null;
-            document.getElementById('student-step-2')?.classList.add('hidden');
-            document.getElementById('student-step-1')?.classList.remove('hidden');
-            const admInput = document.getElementById('login-student-adm');
-            if (admInput) {
-                admInput.value = '';
-                admInput.focus();
-            }
-            const phoneInput = document.getElementById('login-student-phone');
-            if (phoneInput) phoneInput.value = '';
+            const passInput = document.getElementById('login-password');
+            if (passInput) passInput.value = '';
             showLoginMessage('');
         };
 
-        document.getElementById('btn-change-student-adm')?.addEventListener('click', () => {
-            document.getElementById('student-step-2')?.classList.add('hidden');
-            document.getElementById('student-step-1')?.classList.remove('hidden');
-            document.getElementById('login-student-adm')?.focus();
+        document.getElementById('btn-change-user')?.addEventListener('click', () => {
+            verifiedUser = null;
+            document.getElementById('login-step-2')?.classList.add('hidden');
+            document.getElementById('login-step-1')?.classList.remove('hidden');
+            document.getElementById('login-username')?.focus();
             showLoginMessage('');
         });
 
-        const verifyStudentAdmissionNumber = async () => {
-            const admInput = document.getElementById('login-student-adm');
-            const rawAdm = admInput?.value?.trim() || '';
-            if (!rawAdm) {
-                showLoginMessage('Please enter student Admission Number.');
-                admInput?.focus();
+        const verifyUniversalIdentifier = async () => {
+            const userInput = document.getElementById('login-username');
+            const rawInput = (userInput?.value || '').trim();
+            if (!rawInput) {
+                showLoginMessage('Please enter your Username, Admission Number, or Email.');
+                userInput?.focus();
                 return;
             }
 
-            const btn = document.getElementById('btn-verify-student-adm');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            }
-            showLoginMessage('');
-
-            try {
-                const cleanAdm = rawAdm.toLowerCase().replace(/[\\/\\s]+/g, '_');
-
-                let lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${cleanAdm}`));
-                let matched = lookupSnap.exists() ? lookupSnap.data() : null;
-
-                if (!matched) {
-                    lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, cleanAdm));
-                    if (lookupSnap.exists()) matched = lookupSnap.data();
-                }
-
-                if (matched) {
-                    currentVerifiedStudent = matched;
-                    const nameEl = document.getElementById('verified-student-name');
-                    const metaEl = document.getElementById('verified-student-meta');
-                    if (nameEl) nameEl.textContent = matched.name || 'Verified Student';
-                    if (metaEl) metaEl.textContent = `Class ${matched.class || '-'} • Adm: ${matched.adm || rawAdm}`;
-
-                    document.getElementById('student-step-1')?.classList.add('hidden');
-                    document.getElementById('student-step-2')?.classList.remove('hidden');
-                    const phoneEl = document.getElementById('login-student-phone');
-                    if (phoneEl) {
-                        phoneEl.value = '';
-                        phoneEl.focus();
-                    }
-                } else {
-                    showLoginMessage(`Admission Number "${rawAdm}" not found. Please verify your Admission Number or contact school administration.`);
-                    admInput?.focus();
-                }
-            } catch (err) {
-                console.error('Admission lookup error:', err);
-                showLoginMessage('Verification error: ' + err.message);
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span>Verify</span>';
-                }
-            }
-        };
-
-        document.getElementById('btn-verify-student-adm')?.addEventListener('click', verifyStudentAdmissionNumber);
-        document.getElementById('login-student-adm')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                verifyStudentAdmissionNumber();
-            }
-        });
-
-        document.getElementById('btn-student-login-submit')?.addEventListener('click', async () => {
-            if (!currentVerifiedStudent) {
-                resetStudentLoginForm();
-                return;
-            }
-
-            const phoneInput = document.getElementById('login-student-phone');
-            const enteredPhone = normalizePhone(phoneInput?.value?.trim() || '');
-            if (!enteredPhone) {
-                showLoginMessage('Please enter your registered mobile number.');
-                phoneInput?.focus();
-                return;
-            }
-
-            const btn = document.getElementById('btn-student-login-submit');
+            const btn = document.getElementById('btn-verify-user');
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...';
             }
+            showLoginMessage('');
 
             try {
-                const phones = Array.isArray(currentVerifiedStudent.phones)
-                    ? currentVerifiedStudent.phones
-                    : [normalizePhone(currentVerifiedStudent.phone || '')];
+                const cleanAdm = rawInput.toLowerCase().replace(/[\\/\\s]+/g, '_');
+                const cleanEmail = rawInput.toLowerCase();
 
-                const isMatch = phones.some(p => p && (p === enteredPhone || p.endsWith(enteredPhone) || enteredPhone.endsWith(p)));
-                if (isMatch) {
-                    showLoginMessage('');
-                    if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading Dashboard...';
-                    if (!auth.currentUser) {
-                        try { await signInAnonymously(auth); } catch (_) {}
+                let matched = null;
+
+                // 1. Check Student Auth Lookup
+                try {
+                    let lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${cleanAdm}`));
+                    if (lookupSnap.exists()) {
+                        matched = {
+                            type: 'student',
+                            data: lookupSnap.data(),
+                            displayName: lookupSnap.data().name || 'Student',
+                            meta: `Student • Class ${lookupSnap.data().class || '-'} (Adm: ${lookupSnap.data().adm || rawInput})`
+                        };
+                    } else {
+                        lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, cleanAdm));
+                        if (lookupSnap.exists()) {
+                            matched = {
+                                type: 'student',
+                                data: lookupSnap.data(),
+                                displayName: lookupSnap.data().name || 'Student',
+                                meta: `Student • Class ${lookupSnap.data().class || '-'} (Adm: ${lookupSnap.data().adm || rawInput})`
+                            };
+                        }
                     }
-                    window.AppSession?.startStudent(currentVerifiedStudent.studentId, {
-                        name: currentVerifiedStudent.name || '',
-                        class: currentVerifiedStudent.class || '',
-                        adm: currentVerifiedStudent.adm || ''
+                } catch (e) {
+                    console.warn('Student lookup notice:', e);
+                }
+
+                // 2. Check Admin Registry
+                if (!matched) {
+                    try {
+                        const adminSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID));
+                        if (adminSnap.exists()) {
+                            const adminData = adminSnap.data();
+                            const primaryEmail = (adminData.email || '').toLowerCase();
+                            const primaryUsername = (adminData.username || '').toLowerCase();
+                            const adminList = Array.isArray(adminData.admins) ? adminData.admins : [];
+
+                            let isMatchedAdmin = false;
+                            let adminName = adminData.name || 'Institution Administrator';
+                            let targetEmail = primaryEmail || cleanEmail;
+
+                            if ((primaryEmail && primaryEmail === cleanEmail) || (primaryUsername && primaryUsername === cleanAdm)) {
+                                isMatchedAdmin = true;
+                            } else {
+                                const foundSubAdmin = adminList.find(a => 
+                                    a && a.isActive !== false && 
+                                    (((a.email || '').toLowerCase() === cleanEmail) || ((a.username || '').toLowerCase() === cleanAdm))
+                                );
+                                if (foundSubAdmin) {
+                                    isMatchedAdmin = true;
+                                    adminName = foundSubAdmin.name || 'Institution Administrator';
+                                    targetEmail = (foundSubAdmin.email || cleanEmail).toLowerCase();
+                                }
+                            }
+
+                            if (isMatchedAdmin) {
+                                matched = {
+                                    type: 'admin',
+                                    data: adminData,
+                                    displayName: adminName,
+                                    meta: 'Administrator',
+                                    loginEmail: targetEmail
+                                };
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Admin check notice:', e);
+                    }
+                }
+
+                // 3. Check Staff Access Registry
+                if (!matched) {
+                    try {
+                        let staffDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, cleanEmail));
+                        if (!staffDoc.exists() && !cleanEmail.includes('@')) {
+                            staffDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, `${cleanEmail}@school.internal`));
+                        }
+                        if (staffDoc.exists() && staffDoc.data()?.isActive !== false) {
+                            const staffData = staffDoc.data();
+                            matched = {
+                                type: 'staff',
+                                data: staffData,
+                                displayName: staffData.name || 'Staff Member',
+                                meta: staffData.role || staffData.type || 'Staff Member',
+                                loginEmail: staffDoc.id
+                            };
+                        }
+                    } catch (e) {
+                        console.warn('Staff access lookup notice:', e);
+                    }
+                }
+
+                // 4. Check Directory Login Registry
+                if (!matched) {
+                    const dirMatch = (Array.isArray(directoryEntries) ? directoryEntries : []).find(e => {
+                        const u = String(e?.authMeta?.username || '').toLowerCase();
+                        return u && (u === cleanAdm || u === cleanEmail);
                     });
-                    window.location.href = 'student.html';
-                    return;
-                } else {
-                    showLoginMessage('Incorrect registered mobile number. Please check and try again.');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login to Student Portal';
+                    if (dirMatch) {
+                        matched = {
+                            type: 'directory',
+                            data: dirMatch,
+                            displayName: dirMatch.name || String(dirMatch.authMeta?.usernameRaw || 'Staff Member'),
+                            meta: dirMatch.role || 'Staff Member',
+                            loginId: cleanEmail
+                        };
                     }
+                }
+
+                if (matched) {
+                    verifiedUser = matched;
+                    const nameEl = document.getElementById('verified-user-name');
+                    const metaEl = document.getElementById('verified-user-meta');
+                    const passLabel = document.getElementById('login-password-label');
+                    const passInput = document.getElementById('login-password');
+                    const passHint = document.getElementById('login-password-hint');
+
+                    if (nameEl) nameEl.textContent = matched.displayName;
+                    if (metaEl) metaEl.textContent = matched.meta;
+
+                    if (matched.type === 'student') {
+                        if (passLabel) passLabel.textContent = 'Registered Mobile Number (Password)';
+                        if (passInput) {
+                            passInput.placeholder = '10-digit mobile number';
+                            passInput.type = 'password';
+                        }
+                        if (passHint) passHint.textContent = 'Enter the mobile phone number registered with the school.';
+                    } else {
+                        if (passLabel) passLabel.textContent = 'Password';
+                        if (passInput) {
+                            passInput.placeholder = 'Enter account password';
+                            passInput.type = 'password';
+                        }
+                        if (passHint) passHint.textContent = 'Enter your account credentials to log in.';
+                    }
+
+                    document.getElementById('login-step-1')?.classList.add('hidden');
+                    document.getElementById('login-step-2')?.classList.remove('hidden');
+                    if (passInput) {
+                        passInput.value = '';
+                        passInput.focus();
+                    }
+                } else {
+                    showLoginMessage(`User "${rawInput}" not found. Please verify your Username or Admission Number.`);
+                    userInput?.focus();
                 }
             } catch (err) {
-                console.error('Student login submit error:', err);
-                showLoginMessage('Login error: ' + err.message);
+                console.error('Universal verification error:', err);
+                showLoginMessage('Verification error: ' + err.message);
+            } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login to Student Portal';
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> <span>Verify Account</span>';
                 }
             }
-        });
+        };
 
-        document.getElementById('login-student-phone')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('btn-student-login-submit')?.click();
-            }
-        });
-
-        document.getElementById('btn-staff-login-submit')?.addEventListener('click', async () => {
-            const loginId = document.getElementById('login-staff-id')?.value?.trim() || '';
-            const staffPassword = document.getElementById('login-staff-password')?.value?.trim() || '';
-            if (!loginId || !staffPassword) {
-                showLoginMessage('Enter Email/Username and Password.');
+        const handleUniversalLoginSubmit = async () => {
+            if (!verifiedUser) {
+                resetUniversalLoginForm();
                 return;
             }
 
-            const btn = document.getElementById('btn-staff-login-submit');
+            const passInput = document.getElementById('login-password');
+            const enteredPass = (passInput?.value || '').trim();
+            if (!enteredPass) {
+                const isStudent = verifiedUser.type === 'student';
+                showLoginMessage(isStudent ? 'Please enter registered mobile number.' : 'Please enter your password.');
+                passInput?.focus();
+                return;
+            }
+
+            const btn = document.getElementById('btn-login-submit');
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Authenticating...';
@@ -1148,37 +1162,73 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             showLoginMessage('');
 
             try {
+                if (verifiedUser.type === 'student') {
+                    const enteredPhone = normalizePhone(enteredPass);
+                    const st = verifiedUser.data;
+                    const phones = Array.isArray(st.phones)
+                        ? st.phones
+                        : [normalizePhone(st.phone || '')];
+
+                    const isMatch = phones.some(p => p && (p === enteredPhone || p.endsWith(enteredPhone) || enteredPhone.endsWith(p)));
+                    if (isMatch) {
+                        showLoginMessage('');
+                        if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading Dashboard...';
+                        if (!auth.currentUser) {
+                            try { await signInAnonymously(auth); } catch (_) {}
+                        }
+                        window.AppSession?.startStudent(st.studentId, {
+                            name: st.name || '',
+                            class: st.class || '',
+                            adm: st.adm || ''
+                        });
+                        window.location.href = 'student.html';
+                        return;
+                    } else {
+                        showLoginMessage('Incorrect registered mobile number. Please check and try again.');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                        }
+                    }
+                    return;
+                }
+
+                // If Admin or Staff
                 await window.AppSession?.clearAll();
-                const userLogin = loginId.toLowerCase();
+                const loginEmail = verifiedUser.loginEmail || (verifiedUser.data?.email || '').toLowerCase();
+                const userLogin = loginEmail || verifiedUser.displayName.toLowerCase();
 
                 let userCred = null;
                 try {
-                    userCred = await signInWithEmailAndPassword(auth, loginId, staffPassword);
+                    userCred = await signInWithEmailAndPassword(auth, loginEmail, enteredPass);
                 } catch (authError) {
-                    if (!loginId.includes('@')) {
+                    if (!loginEmail.includes('@')) {
                         try {
-                            userCred = await signInWithEmailAndPassword(auth, `${userLogin}@school.internal`, staffPassword);
+                            userCred = await signInWithEmailAndPassword(auth, `${loginEmail}@school.internal`, enteredPass);
                         } catch (_) {}
                     }
                 }
 
                 if (userCred?.user) {
-                    const authedEmail = (userCred.user.email || userLogin).toLowerCase();
+                    const authedEmail = (userCred.user.email || loginEmail).toLowerCase();
 
-                    let isAdmin = false;
-                    try {
-                        const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
-                        const adminSnap = await getDoc(adminRef);
-                        if (adminSnap.exists()) {
-                            const adminData = adminSnap.data();
-                            const adminEmail = (adminData.email || '').toLowerCase();
-                            const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
-                            if (adminEmail === authedEmail || adminAccounts.some((account) => (account.email || '').toLowerCase() === authedEmail && account.isActive !== false)) {
-                                isAdmin = true;
+                    // Check if Admin
+                    let isAdmin = (verifiedUser.type === 'admin');
+                    if (!isAdmin) {
+                        try {
+                            const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
+                            const adminSnap = await getDoc(adminRef);
+                            if (adminSnap.exists()) {
+                                const adminData = adminSnap.data();
+                                const adminEmail = (adminData.email || '').toLowerCase();
+                                const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+                                if (adminEmail === authedEmail || adminAccounts.some((a) => (a.email || '').toLowerCase() === authedEmail && a.isActive !== false)) {
+                                    isAdmin = true;
+                                }
                             }
+                        } catch (e) {
+                            console.warn('Admin check notice:', e);
                         }
-                    } catch (adminErr) {
-                        console.warn('Admin check notice:', adminErr.message);
                     }
 
                     if (isAdmin) {
@@ -1187,6 +1237,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         return;
                     }
 
+                    // Check Staff Access
                     try {
                         const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
                         if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
@@ -1241,12 +1292,13 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                             window.location.href = 'official.html';
                             return;
                         }
-                    } catch (staffAccessErr) {
-                        console.warn('Staff access notice:', staffAccessErr.message);
+                    } catch (e) {
+                        console.warn('Staff access notice:', e);
                     }
                 }
 
-                const directoryLogin = await resolveDirectoryLogin(userLogin, staffPassword);
+                // Check directory login fallback
+                const directoryLogin = await resolveDirectoryLogin(userLogin, enteredPass);
                 if (directoryLogin?.entry) {
                     const access = directoryLogin.access || {};
                     const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
@@ -1255,25 +1307,33 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     return;
                 }
 
-                showLoginMessage('Invalid username/email or password. Please verify credentials.');
+                showLoginMessage('Incorrect password. Please verify your credentials.');
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                 }
             } catch (err) {
-                console.error('Staff login error:', err);
+                console.error('Universal login error:', err);
                 showLoginMessage('Login failed: ' + (err.message || 'Invalid credentials.'));
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                 }
             }
-        });
+        };
 
-        document.getElementById('login-staff-password')?.addEventListener('keydown', (e) => {
+        document.getElementById('btn-verify-user')?.addEventListener('click', verifyUniversalIdentifier);
+        document.getElementById('login-username')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                document.getElementById('btn-staff-login-submit')?.click();
+                verifyUniversalIdentifier();
+            }
+        });
+        document.getElementById('btn-login-submit')?.addEventListener('click', handleUniversalLoginSubmit);
+        document.getElementById('login-password')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleUniversalLoginSubmit();
             }
         });
 
