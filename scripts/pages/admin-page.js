@@ -3741,7 +3741,10 @@ window.resetStaffCredentials = (id) => {
 
     const emailInput = document.getElementById('staff-cred-email');
     const passInput = document.getElementById('staff-cred-password');
-    if (emailInput) emailInput.value = staffRecord.email || '';
+    if (emailInput) {
+        const rawSaved = staffRecord.username || staffRecord.email || '';
+        emailInput.value = rawSaved.endsWith('@school.internal') ? rawSaved.replace('@school.internal', '') : rawSaved;
+    }
     if (passInput) {
         passInput.value = staffRecord.password || '';
         passInput.type = 'password';
@@ -3787,16 +3790,37 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
     const staffRecord = allStaff.find((st) => st.id === staffId);
     if (!staffRecord) return;
 
-    const rawEmail = document.getElementById('staff-cred-email')?.value || '';
-    const rawPassword = document.getElementById('staff-cred-password')?.value || '';
+    const rawInput = (document.getElementById('staff-cred-email')?.value || '').trim();
+    const rawPassword = (document.getElementById('staff-cred-password')?.value || '').trim();
 
-    const normalizedNextEmail = normalizeEmail(rawEmail);
-    if (!normalizedNextEmail) {
-        alert('A valid email address is required.');
+    if (!rawInput) {
+        alert('Username or Email is required.');
         return;
     }
-    if (!rawPassword.trim()) {
-        alert('Password cannot be empty.');
+
+    let normalizedEmail = '';
+    let username = '';
+
+    if (rawInput.includes('@')) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(rawInput)) {
+            alert('Please enter a valid email address.');
+            return;
+        }
+        normalizedEmail = rawInput.toLowerCase();
+        username = normalizedEmail.split('@')[0];
+    } else {
+        const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+        if (!usernameRegex.test(rawInput)) {
+            alert('Username must be 3-30 characters using only letters, numbers, and underscores (no spaces).');
+            return;
+        }
+        username = rawInput.toLowerCase();
+        normalizedEmail = `${username}@school.internal`;
+    }
+
+    if (rawPassword.length < 6) {
+        alert('Password must be at least 6 characters long.');
         return;
     }
 
@@ -3810,23 +3834,36 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
     try {
         const nextStaffPayload = {
             ...staffRecord,
-            email: normalizedNextEmail,
-
+            email: normalizedEmail,
+            username: username
         };
 
-        await provisionStaffAuthUser(normalizedNextEmail, rawPassword.trim());
+        await provisionStaffAuthUser(normalizedEmail, rawPassword);
         await updateDoc(doc(db, `${BASE_PATH}/staff`, staffId), {
-            email: normalizedNextEmail,
-
+            email: normalizedEmail,
+            username: username,
             updatedAt: new Date().toISOString()
         });
 
-        if (staffRecord.email && normalizeEmail(staffRecord.email) !== normalizedNextEmail) {
+        if (staffRecord.email && normalizeEmail(staffRecord.email) !== normalizedEmail) {
             await removeStaffAccessRecord(staffRecord.email);
         }
         await syncStaffAccessRecord(nextStaffPayload);
 
-        staffRecord.email = normalizedNextEmail;
+        // Also index under username in staffAccess
+        if (username) {
+            try {
+                await setDoc(doc(db, `${BASE_PATH}/staffAccess`, username), {
+                    ...nextStaffPayload,
+                    email: normalizedEmail,
+                    username: username,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            } catch (_) {}
+        }
+
+        staffRecord.email = normalizedEmail;
+        staffRecord.username = username;
         delete staffRecord.password;
 
         await logAuditEvent({
@@ -3834,7 +3871,7 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
             action: 'staff.credentials.rotate',
             entityType: 'staff',
             entityId: staffId,
-            message: `Login credentials updated for ${staffRecord.name || normalizedNextEmail}`
+            message: `Login credentials updated for ${staffRecord.name || username || normalizedEmail}`
         });
 
         closeStaffCredentialsModal();
@@ -3842,7 +3879,7 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
         showToast?.('Login credentials updated successfully!', 'success');
     } catch (err) {
         console.error('Failed to save staff credentials:', err);
-        alert('Failed to save credentials. Please check your network connection.');
+        alert('Failed to save credentials: ' + (err.message || 'Please check your network connection.'));
     } finally {
         if (saveBtn) {
             saveBtn.disabled = false;
@@ -13356,6 +13393,17 @@ onAuthStateChanged(auth, async (user) => {
         const adminRef = getAdminAuthRef();
         const snap = await getDoc(adminRef);
         currentAdminEmail = normalizeEmail(user.email || '');
+        if (snap.exists()) {
+            const aData = snap.data();
+            const aEmail = normalizeEmail(aData.email || currentAdminEmail);
+            setDoc(doc(db, `${BASE_PATH}/settings`, 'config'), {
+                adminProfile: {
+                    email: aEmail,
+                    username: aData.username || aEmail.split('@')[0],
+                    name: aData.name || 'Institution Administrator'
+                }
+            }, { merge: true }).catch(() => {});
+        }
         const legacyEmail = normalizeEmail(snap.exists() ? snap.data().email : 'admin@institute.com');
         const availableAdmins = SINGLE_ADMIN_MODE ? normalizeAdminAccounts([], legacyEmail) : normalizeAdminAccounts(snap.exists() ? snap.data().admins || [] : [], legacyEmail);
         const matchingAdmin = availableAdmins.find((account) => account.email === currentAdminEmail && account.isActive);

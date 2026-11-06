@@ -52,15 +52,13 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             list.innerHTML = accounts.length ? accounts.map((account) => {
                 const isActive = (account.studentId === activeId);
                 return `
-                <div class="relative rounded-2xl border ${isActive ? 'border-emerald-400 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow-xs'} p-3.5 flex items-center justify-between gap-3 transition cursor-pointer saved-student-card" data-id="${escapeHtml(account.studentId || '')}">
-                    ${isActive ? `
-                        <span class="absolute top-2.5 right-14 inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                            <i class="fas fa-check-circle text-emerald-600"></i> Active
-                        </span>
-                    ` : ''}
-                    <div class="flex-grow min-w-0 pr-2">
-                        <div class="font-black text-slate-800 text-sm truncate">${escapeHtml(account.name || 'Student')}</div>
-                        <div class="text-xs text-slate-500 font-medium mt-1 truncate">
+                <div class="rounded-2xl border ${isActive ? 'border-emerald-400 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow-xs'} p-3.5 flex items-center justify-between gap-3 transition cursor-pointer text-left saved-student-card" data-id="${escapeHtml(account.studentId || '')}">
+                    <div class="flex-grow min-w-0 pr-2 text-left">
+                        <div class="flex items-center gap-1.5 text-left truncate">
+                            <span class="font-black text-slate-800 text-sm truncate">${escapeHtml(account.name || 'Student')}</span>
+                            ${isActive ? '<i class="fas fa-check-circle text-emerald-500 text-xs shrink-0" title="Active Account"></i>' : ''}
+                        </div>
+                        <div class="text-xs text-slate-500 font-medium mt-1 text-left truncate">
                             <span class="font-semibold text-slate-700">Class ${escapeHtml(account.class || '--')}</span> • Adm: <span class="font-mono text-slate-700">${escapeHtml(account.adm || '--')}</span>
                         </div>
                     </div>
@@ -570,6 +568,11 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     } catch (_) {}
                 }
                 
+                const institutionName = conf.institutionName || conf.schoolName || conf.name || '';
+                if (institutionName) {
+                    const loginTitleEl = document.getElementById('login-title');
+                    if (loginTitleEl) loginTitleEl.textContent = institutionName;
+                }
                 applyInstitutionBranding(conf, {
                     defaultAppName: 'Institution',
                     primaryTitleIds: ['hero-main-title'],
@@ -981,10 +984,11 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             try {
                 const cleanAdm = rawInput.toLowerCase().replace(/[\\/\\s]+/g, '_');
                 const cleanEmail = rawInput.toLowerCase();
+                const cleanPhone = normalizePhone(rawInput);
 
                 let matched = null;
 
-                // 1. Check Student Auth Lookup
+                // 1. Check Student Auth Lookup (public)
                 try {
                     let lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${cleanAdm}`));
                     if (lookupSnap.exists()) {
@@ -1009,68 +1013,57 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     console.warn('Student lookup notice:', e);
                 }
 
-                // 2. Check Admin Registry
+                // 2. Check Staff Registry (from in-memory public cachedActiveStaff)
                 if (!matched) {
-                    try {
-                        const adminSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID));
-                        if (adminSnap.exists()) {
-                            const adminData = adminSnap.data();
-                            const primaryEmail = (adminData.email || '').toLowerCase();
-                            const primaryUsername = (adminData.username || '').toLowerCase();
-                            const adminList = Array.isArray(adminData.admins) ? adminData.admins : [];
+                    const staffMember = (cachedActiveStaff || []).find((s) => {
+                        if (!s || s.isActive === false) return false;
+                        const sEmail = String(s.email || '').toLowerCase().trim();
+                        const sUsername = String(s.username || sEmail.split('@')[0] || '').toLowerCase().trim();
+                        const sPhone = normalizePhone(s.phone || '');
+                        return sEmail === cleanEmail || sUsername === cleanAdm || (cleanPhone && sPhone === cleanPhone);
+                    });
 
-                            let isMatchedAdmin = false;
-                            let adminName = adminData.name || 'Institution Administrator';
-                            let targetEmail = primaryEmail || cleanEmail;
+                    if (staffMember) {
+                        const loginEmail = staffMember.email && staffMember.email.includes('@')
+                            ? staffMember.email.toLowerCase().trim()
+                            : `${(staffMember.username || staffMember.email || cleanAdm).toLowerCase().trim()}@school.internal`;
 
-                            if ((primaryEmail && primaryEmail === cleanEmail) || (primaryUsername && primaryUsername === cleanAdm)) {
-                                isMatchedAdmin = true;
-                            } else {
-                                const foundSubAdmin = adminList.find(a => 
-                                    a && a.isActive !== false && 
-                                    (((a.email || '').toLowerCase() === cleanEmail) || ((a.username || '').toLowerCase() === cleanAdm))
-                                );
-                                if (foundSubAdmin) {
-                                    isMatchedAdmin = true;
-                                    adminName = foundSubAdmin.name || 'Institution Administrator';
-                                    targetEmail = (foundSubAdmin.email || cleanEmail).toLowerCase();
-                                }
-                            }
-
-                            if (isMatchedAdmin) {
-                                matched = {
-                                    type: 'admin',
-                                    data: adminData,
-                                    displayName: adminName,
-                                    meta: 'Administrator',
-                                    loginEmail: targetEmail
-                                };
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('Admin check notice:', e);
+                        matched = {
+                            type: 'staff',
+                            data: staffMember,
+                            displayName: staffMember.name || 'Staff Member',
+                            meta: staffMember.role || staffMember.type || 'Staff Member',
+                            loginEmail: loginEmail
+                        };
                     }
                 }
 
-                // 3. Check Staff Access Registry
+                // 3. Check Admin Registry
                 if (!matched) {
-                    try {
-                        let staffDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, cleanEmail));
-                        if (!staffDoc.exists() && !cleanEmail.includes('@')) {
-                            staffDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, `${cleanEmail}@school.internal`));
-                        }
-                        if (staffDoc.exists() && staffDoc.data()?.isActive !== false) {
-                            const staffData = staffDoc.data();
-                            matched = {
-                                type: 'staff',
-                                data: staffData,
-                                displayName: staffData.name || 'Staff Member',
-                                meta: staffData.role || staffData.type || 'Staff Member',
-                                loginEmail: staffDoc.id
-                            };
-                        }
-                    } catch (e) {
-                        console.warn('Staff access lookup notice:', e);
+                    const adminProfile = globalInstitutionConfig?.adminProfile || {};
+                    const adminEmail = (adminProfile.email || '').toLowerCase().trim();
+                    const adminUsername = (adminProfile.username || 'admin').toLowerCase().trim();
+                    const isAdminMatch = (adminEmail && adminEmail === cleanEmail) ||
+                                         (adminUsername && adminUsername === cleanAdm) ||
+                                         cleanAdm === 'admin';
+
+                    if (isAdminMatch) {
+                        matched = {
+                            type: 'admin',
+                            data: adminProfile,
+                            displayName: adminProfile.name || 'Institution Administrator',
+                            meta: 'Administrator',
+                            loginEmail: adminEmail || (cleanEmail.includes('@') ? cleanEmail : `${cleanAdm}@school.internal`)
+                        };
+                    } else if (cleanEmail.includes('@')) {
+                        // Email fallback for administrative accounts
+                        matched = {
+                            type: 'admin',
+                            data: { email: cleanEmail },
+                            displayName: 'Administrator / Staff',
+                            meta: 'Account Verification',
+                            loginEmail: cleanEmail
+                        };
                     }
                 }
 
@@ -1134,7 +1127,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-check-circle"></i> <span>Verify Account</span>';
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> <span>Verify</span>';
                 }
             }
         };
@@ -1209,105 +1202,140 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     }
                 }
 
-                if (userCred?.user) {
-                    const authedEmail = (userCred.user.email || loginEmail).toLowerCase();
-
-                    // Check if Admin
-                    let isAdmin = (verifiedUser.type === 'admin');
-                    if (!isAdmin) {
-                        try {
-                            const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
-                            const adminSnap = await getDoc(adminRef);
-                            if (adminSnap.exists()) {
-                                const adminData = adminSnap.data();
-                                const adminEmail = (adminData.email || '').toLowerCase();
-                                const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
-                                if (adminEmail === authedEmail || adminAccounts.some((a) => (a.email || '').toLowerCase() === authedEmail && a.isActive !== false)) {
-                                    isAdmin = true;
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('Admin check notice:', e);
-                        }
-                    }
-
-                    if (isAdmin) {
-                        window.AppSession?.startAdmin();
+                if (!userCred?.user) {
+                    // Try directory login fallback
+                    const directoryLogin = await resolveDirectoryLogin(userLogin, enteredPass);
+                    if (directoryLogin?.entry) {
+                        const access = directoryLogin.access || {};
+                        const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
+                        window.AppSession?.startStaff(rawName, userLogin, { ...access, worksheet: true, userKey: userLogin, loginId: userLogin, source: 'directory' });
                         window.location.href = 'official.html';
                         return;
                     }
 
-                    // Check Staff Access
-                    try {
-                        const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
-                        if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
-                            const activeCollector = staffAccessDoc.data();
-                            const collectorKey = authedEmail;
-                            const staffAccess = {
-                                collection: activeCollector.canCollect === true,
-                                worksheet: activeCollector.canAccessWorksheet === true,
-                                result: activeCollector.canManageResults === true,
-                                attendance: activeCollector.canAccessAttendance === true,
-                                academicPlan: activeCollector.canAccessAcademicPlan === true,
-                                studentActivity: activeCollector.canAccessActivity === true,
-                                classroomEvaluation: activeCollector.canAccessEvaluation === true,
-                                evaluation: activeCollector.canAccessEvaluation === true,
-                                admin: activeCollector.canAccessAdmin === true,
-                                canAccessAdmin: activeCollector.canAccessAdmin === true,
-                                actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                                staffId: activeCollector.staffId || '',
-                                name: activeCollector.name || '',
-                                phone: activeCollector.phone || '',
-                                role: activeCollector.role || activeCollector.type || 'Staff',
-                                type: activeCollector.type || 'Staff',
-                                photo: activeCollector.photo || '',
-                                source: 'staff',
-                                userKey: collectorKey,
-                                loginId: userLogin
-                            };
-                            window.AppSession?.startStaff(activeCollector.name || '', collectorKey, staffAccess);
-
-                            const officialSessionObj = {
-                                id: activeCollector.staffId || '',
-                                name: activeCollector.name || '',
-                                username: collectorKey,
-                                email: authedEmail,
-                                phone: activeCollector.phone || '',
-                                role: activeCollector.role || activeCollector.type || 'Staff',
-                                type: activeCollector.type || 'Staff',
-                                photo: activeCollector.photo || '',
-                                canAccessAdmin: activeCollector.canAccessAdmin === true,
-                                actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                                canCollect: activeCollector.canCollect === true,
-                                canAccessWorksheet: activeCollector.canAccessWorksheet === true,
-                                canManageResults: activeCollector.canManageResults === true,
-                                canAccessAttendance: activeCollector.canAccessAttendance === true,
-                                canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
-                                canAccessActivity: activeCollector.canAccessActivity === true,
-                                canAccessEvaluation: activeCollector.canAccessEvaluation === true,
-                                source: 'staff',
-                                access: staffAccess
-                            };
-                            localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
-                            window.location.href = 'official.html';
-                            return;
-                        }
-                    } catch (e) {
-                        console.warn('Staff access notice:', e);
+                    showLoginMessage('Incorrect password. Please verify your credentials.');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                     }
+                    return;
                 }
 
-                // Check directory login fallback
-                const directoryLogin = await resolveDirectoryLogin(userLogin, enteredPass);
-                if (directoryLogin?.entry) {
-                    const access = directoryLogin.access || {};
-                    const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
-                    window.AppSession?.startStaff(rawName, userLogin, { ...access, worksheet: true, userKey: userLogin, loginId: userLogin, source: 'directory' });
+                const authedEmail = (userCred.user.email || loginEmail).toLowerCase();
+                const authedUsername = authedEmail.includes('@school.internal') ? authedEmail.replace('@school.internal', '') : authedEmail.split('@')[0];
+
+                // 1. Check if Admin
+                let isAdmin = (verifiedUser.type === 'admin');
+                try {
+                    const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
+                    const adminSnap = await getDoc(adminRef);
+                    if (adminSnap.exists()) {
+                        const adminData = adminSnap.data();
+                        const adminEmail = (adminData.email || '').toLowerCase();
+                        const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+                        if (adminEmail === authedEmail || adminAccounts.some((a) => (a.email || '').toLowerCase() === authedEmail && a.isActive !== false)) {
+                            isAdmin = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Admin check notice:', e);
+                }
+
+                if (isAdmin) {
+                    window.AppSession?.startAdmin();
                     window.location.href = 'official.html';
                     return;
                 }
 
-                showLoginMessage('Incorrect password. Please verify your credentials.');
+                // 2. Check Staff Access
+                try {
+                    let staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
+                    if (!staffAccessDoc.exists() && authedUsername) {
+                        staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedUsername));
+                    }
+
+                    if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
+                        const activeCollector = staffAccessDoc.data();
+                        const collectorKey = authedEmail;
+                        const staffAccess = {
+                            collection: activeCollector.canCollect === true,
+                            worksheet: activeCollector.canAccessWorksheet === true,
+                            result: activeCollector.canManageResults === true,
+                            attendance: activeCollector.canAccessAttendance === true,
+                            academicPlan: activeCollector.canAccessAcademicPlan === true,
+                            studentActivity: activeCollector.canAccessActivity === true,
+                            classroomEvaluation: activeCollector.canAccessEvaluation === true,
+                            evaluation: activeCollector.canAccessEvaluation === true,
+                            admin: activeCollector.canAccessAdmin === true,
+                            canAccessAdmin: activeCollector.canAccessAdmin === true,
+                            actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                            staffId: activeCollector.staffId || '',
+                            name: activeCollector.name || verifiedUser.displayName || '',
+                            phone: activeCollector.phone || '',
+                            role: activeCollector.role || activeCollector.type || 'Staff',
+                            type: activeCollector.type || 'Staff',
+                            photo: activeCollector.photo || '',
+                            source: 'staff',
+                            userKey: collectorKey,
+                            loginId: authedUsername || userLogin
+                        };
+                        window.AppSession?.startStaff(activeCollector.name || verifiedUser.displayName || '', collectorKey, staffAccess);
+
+                        const officialSessionObj = {
+                            id: activeCollector.staffId || '',
+                            name: activeCollector.name || verifiedUser.displayName || '',
+                            username: collectorKey,
+                            email: authedEmail,
+                            phone: activeCollector.phone || '',
+                            role: activeCollector.role || activeCollector.type || 'Staff',
+                            type: activeCollector.type || 'Staff',
+                            photo: activeCollector.photo || '',
+                            canAccessAdmin: activeCollector.canAccessAdmin === true,
+                            actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                            canCollect: activeCollector.canCollect === true,
+                            canAccessWorksheet: activeCollector.canAccessWorksheet === true,
+                            canManageResults: activeCollector.canManageResults === true,
+                            canAccessAttendance: activeCollector.canAccessAttendance === true,
+                            canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
+                            canAccessActivity: activeCollector.canAccessActivity === true,
+                            canAccessEvaluation: activeCollector.canAccessEvaluation === true,
+                            source: 'staff',
+                            access: staffAccess
+                        };
+                        localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
+                        window.location.href = 'official.html';
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('Staff access notice:', e);
+                }
+
+                // If authenticated and in verified staff record
+                if (verifiedUser.data) {
+                    const staffData = verifiedUser.data;
+                    const staffAccess = {
+                        collection: staffData.canCollect === true,
+                        worksheet: staffData.canAccessWorksheet !== false,
+                        result: staffData.canManageResults === true,
+                        attendance: staffData.canAccessAttendance === true,
+                        academicPlan: staffData.canAccessAcademicPlan === true,
+                        studentActivity: staffData.canAccessActivity === true,
+                        classroomEvaluation: staffData.canAccessEvaluation === true,
+                        evaluation: staffData.canAccessEvaluation === true,
+                        admin: staffData.canAccessAdmin === true,
+                        canAccessAdmin: staffData.canAccessAdmin === true,
+                        actLikeSuperAdmin: staffData.actLikeSuperAdmin === true,
+                        staffId: staffData.id || '',
+                        name: staffData.name || '',
+                        role: staffData.role || 'Staff',
+                        source: 'staff'
+                    };
+                    window.AppSession?.startStaff(staffData.name || '', authedEmail, staffAccess);
+                    window.location.href = 'official.html';
+                    return;
+                }
+
+                showLoginMessage('Incorrect credentials or account not active.');
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';

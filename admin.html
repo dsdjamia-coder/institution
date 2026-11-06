@@ -2849,9 +2849,21 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">
-                        <i class="fas fa-envelope text-blue-600 mr-1"></i> Login Email Address <span class="text-red-500">*</span>
+                        <i class="fas fa-user-circle text-violet-600 mr-1"></i> Login Username or Email <span class="text-red-500">*</span>
                     </label>
-                    <input type="email" id="staff-cred-email" class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-violet-500" placeholder="e.g. teacher@institution.com" autocomplete="off">
+                    <input type="text" id="staff-cred-email" class="w-full p-2.5 border rounded-lg text-sm bg-white font-mono focus:ring-2 focus:ring-violet-500" placeholder="e.g. rashid or teacher@school.com" autocomplete="off">
+                    <div class="mt-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
+                        <div class="font-bold text-slate-800 text-[11px]">Format Requirements:</div>
+                        <div class="text-slate-600 text-[11px] flex items-center gap-1.5">
+                            <i class="fas fa-check text-emerald-600"></i>
+                            <span>Allowed: letters (a-z), numbers (0-9), underscores (_), or email</span>
+                        </div>
+                        <div class="text-slate-600 text-[11px] flex items-center gap-1.5">
+                            <i class="fas fa-times text-rose-500"></i>
+                            <span>Not allowed: spaces or special symbols (@ allowed only for email)</span>
+                        </div>
+                        <div class="text-slate-500 text-[10px]">Min 3 chars for username; min 6 chars for password.</div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">

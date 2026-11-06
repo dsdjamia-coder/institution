@@ -194,21 +194,19 @@
         <div class="modal-box">
             <button type="button" class="modal-close-btn" aria-label="Close login modal" onclick="document.getElementById('login-modal').style.display='none'">&times;</button>
             <div class="icon-badge"><i class="fas fa-shield-halved"></i></div>
-            <h3 id="login-title" class="modal-title">Institutional Portal</h3>
-            <p class="text-xs text-gray-500 -mt-2 mb-4 text-center font-medium">Unified access for students, staff, and administration.</p>
+            <h3 id="login-title" class="modal-title mb-4">Portal Login</h3>
 
             <!-- Step 1: Identifier Input (Green-accented card) -->
-            <div id="login-step-1" class="space-y-3">
-                <div class="p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/40 shadow-2xs space-y-2">
-                    <label for="login-username" class="block text-xs font-black text-emerald-950 uppercase tracking-wide">
+            <div id="login-step-1" class="space-y-3 text-left">
+                <div class="p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/40 shadow-2xs space-y-1.5 text-left">
+                    <label for="login-username" class="block text-xs font-black text-emerald-950 uppercase tracking-wide text-left">
                         <i class="fas fa-user-circle mr-1 text-emerald-600"></i> Username
                     </label>
-                    <input type="text" id="login-username" class="form-input bg-white border-emerald-400 focus:border-emerald-600 focus:ring-emerald-500 tracking-wide font-medium" placeholder="Admission No / Username / Email" autocomplete="username">
-                    <p class="text-[11px] text-emerald-800/80 font-medium">Enter your admission number, username, or registered email address.</p>
+                    <input type="text" id="login-username" class="form-input bg-white border-emerald-400 focus:border-emerald-600 focus:ring-emerald-500 tracking-wide font-medium text-left" placeholder="Username / Admission No" autocomplete="username">
                 </div>
                 <button type="button" id="btn-verify-user" class="main-login-btn w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
                     <i class="fas fa-check-circle"></i>
-                    <span>Verify Account</span>
+                    <span>Verify</span>
                 </button>
             </div>
 
