@@ -1,6 +1,7 @@
-import { signOut, onAuthStateChanged, signInAnonymously, EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { signOut, onAuthStateChanged,  EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword, createUserWithEmailAndPassword, getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, where, writeBatch, getDocs, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { db, auth } from '../../config/firebase-config.js';
+import { db, auth, firebaseConfig } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
 import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatDateDisplay, hardenExternalLinks, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
@@ -16,6 +17,27 @@ if (typeof window !== 'undefined' && window.location && window.location.hash) {
     try {
         history.replaceState(null, '', window.location.pathname + window.location.search);
     } catch (_) {}
+}
+
+async function provisionStaffAuthUser(email, password) {
+    if (!email || !password) return null;
+    try {
+        const secondaryAppName = 'SecondaryStaffProvisioner';
+        let secondaryApp = getApps().find(a => a.name === secondaryAppName);
+        if (!secondaryApp) {
+            secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+        }
+        const secondaryAuth = getAuth(secondaryApp);
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        await signOut(secondaryAuth);
+        return cred.user;
+    } catch (err) {
+        if (err.code === 'auth/email-already-in-use') {
+            return { email, exists: true };
+        }
+        console.warn('Staff Auth provisioning notice:', err.message);
+        return null;
+    }
 }
 
 let isStaffAdminSession = false;
@@ -1405,9 +1427,9 @@ const updateAdminSessionRegistry = async () => {
 const startSessionRegistryHeartbeat = () => {
     if (sessionRegistryHeartbeat) clearInterval(sessionRegistryHeartbeat);
     updateAdminSessionRegistry().catch((error) => console.error('Failed to update session registry.', error));
-    sessionRegistryHeartbeat = setInterval(() => {
-        updateAdminSessionRegistry().catch((error) => console.error('Failed to update session registry.', error));
-    }, 60000);
+    // Heartbeat disabled to protect Firebase quota - single check on entry
+
+
 };
 const renderAuditLogList = () => {
     const actionFilter = document.getElementById('audit-filter-action')?.value || 'all';
@@ -2911,7 +2933,7 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
         role: String(values.role || '').trim(),
         phone: String(values.phone || '').trim(),
         email: String(values.email || '').trim(),
-        password: String(values.password || '').trim(),
+        _initialAuthPassword: String(effectivePassword || '').trim(),
         msr: String(values.msr || '').trim(),
         address: String(values.address || '').trim(),
         photo: String(values.photo || '').trim(),
@@ -2974,6 +2996,11 @@ document.getElementById('add-staff-btn').addEventListener('click', async () => {
     if(!confirm("Add new staff member?")) return;
     const btn = document.getElementById('add-staff-btn'); btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
 
+    const initialAuthPass = staffRecord._initialAuthPassword;
+    delete staffRecord._initialAuthPassword;
+    if (staffRecord.email && initialAuthPass) {
+        await provisionStaffAuthUser(staffRecord.email, initialAuthPass);
+    }
     const staffDoc = await addDoc(collection(db, `${BASE_PATH}/staff`), staffRecord);
     await syncStaffAccessRecord(staffRecord);
     await logAuditEvent({ category: 'security', action: 'staff.create', entityType: 'staff', entityId: staffDoc.id, message: `Staff added: ${staffRecord.name}.` });
@@ -3572,12 +3599,13 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
         const nextStaffPayload = {
             ...staffRecord,
             email: normalizedNextEmail,
-            password: rawPassword.trim()
+
         };
 
+        await provisionStaffAuthUser(normalizedNextEmail, rawPassword.trim());
         await updateDoc(doc(db, `${BASE_PATH}/staff`, staffId), {
             email: normalizedNextEmail,
-            password: rawPassword.trim(),
+
             updatedAt: new Date().toISOString()
         });
 
@@ -3587,7 +3615,7 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
         await syncStaffAccessRecord(nextStaffPayload);
 
         staffRecord.email = normalizedNextEmail;
-        staffRecord.password = rawPassword.trim();
+        delete staffRecord.password;
 
         await logAuditEvent({
             category: 'security',
@@ -13091,7 +13119,7 @@ populateAcademicYearPresetSelector();
 // --- AUTH & FIREBASE INIT ---
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
-        await signInAnonymously(auth);
+        window.location.replace('index.html');
         return;
     }
     const requestedTab = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
@@ -13274,7 +13302,7 @@ onAuthStateChanged(auth, async (user) => {
                 window.logoutAdmin();
             }
         });
-        onSnapshot(sessionRegistryRef, (sessionRegistrySnap) => {
+        getDoc(sessionRegistryRef).then((sessionRegistrySnap) => {
             sessionRegistry = sessionRegistrySnap.exists() ? sessionRegistrySnap.data() : { sessions: {} };
             renderSessionMonitor();
         });
@@ -13462,9 +13490,9 @@ onAuthStateChanged(auth, async (user) => {
             renderBackupCategoryCounts();
         });
 
-        onSnapshot(collection(db, `${BASE_PATH}/staff`), async (snap) => {
+        onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
             allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
-            await rebuildStaffAccessIndex(allStaff);
+
             renderDashboard();
             renderAcademicYears();
             if(!document.getElementById('staff-management-page')?.classList.contains('hidden') || !document.getElementById('manage-staff-page')?.classList.contains('hidden')) renderStaffList();

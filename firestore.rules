@@ -2,16 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // INTERNAL MODEL (plain staff password in Firestore):
-    // staff sessions may use anonymous Firebase auth.
-    // So authentication checks should rely on request.auth != null,
-    // while admin checks still rely on email-based auth.
+    // --- HELPER FUNCTIONS ---
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Authenticated non-anonymous user (Admin / Staff)
+    function isAuthenticated() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     function hasEmailIdentity() {
-      return isSignedIn() && request.auth.token.email != null;
+      return isAuthenticated() && request.auth.token.email != null;
     }
 
     function adminAuthRef(institutionId) {
@@ -36,19 +38,45 @@ service cloud.firestore {
       return hasEmailIdentity() && (isLegacyAdmin(institutionId) || isIndexedAdmin(institutionId));
     }
 
-    function isCollectionSession() {
-      // Require authenticated email or verified collector identity
-      return hasEmailIdentity() || (isSignedIn() && !request.auth.token.firebase.sign_in_provider.matches('anonymous'));
-    }
-
-    function isResultOperator(institutionId) {
-      return isSignedIn();
-    }
-
     function staffAccessRef(institutionId) {
       return /databases/$(database)/documents/institutions/$(institutionId)/staffAccess/$(request.auth.token.email);
     }
 
+    function isStaff(institutionId) {
+      return hasEmailIdentity() && exists(staffAccessRef(institutionId));
+    }
+
+    function staffData(institutionId) {
+      return get(staffAccessRef(institutionId)).data;
+    }
+
+    function isCollector(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && staffData(institutionId).canCollect == true);
+    }
+
+    function isResultOperator(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && (staffData(institutionId).canManageResults == true || staffData(institutionId).result == true));
+    }
+
+    function canManageAttendance(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && (staffData(institutionId).canAccessAttendance == true || staffData(institutionId).attendance == true));
+    }
+
+    function canManageAcademicPlan(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && (staffData(institutionId).canAccessAcademicPlan == true || staffData(institutionId).academicPlan == true));
+    }
+
+    function canManageActivity(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && (staffData(institutionId).canAccessActivity == true || staffData(institutionId).studentActivity == true));
+    }
+
+    function canManageEvaluation(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && (staffData(institutionId).canAccessEvaluation == true || staffData(institutionId).evaluation == true));
+    }
+
+    function canManageWorksheet(institutionId) {
+      return isAdmin(institutionId) || (isStaff(institutionId) && (staffData(institutionId).canAccessWorksheet == true || staffData(institutionId).worksheet == true));
+    }
 
     function isIsoTimestamp(value) {
       return value is timestamp;
@@ -75,43 +103,59 @@ service cloud.firestore {
       return request.resource.data.studentId is string
         && request.resource.data.amount is number
         && request.resource.data.amount >= 0
-        // Collection UI stores dates as YYYY-MM-DD strings for reports.
         && request.resource.data.paymentDate is string
         && (!('timestamp' in request.resource.data) || request.resource.data.timestamp is number)
-        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp || request.resource.data.updatedAt is string);
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp || request.resource.data.updatedAt is string || request.resource.data.updatedAt is number);
     }
 
-    function hasResultStaffAccess(institutionId) {
-      return isSignedIn();
-    }
+    // --- INSTITUTION RULES ---
 
+    // 1. Settings Collection
     match /institutions/{institutionId}/settings/{docId} {
+      // Sensitive admin auth doc is STRICTLY Admin only
+      allow read, write: if docId == 'adminAuth' && isAdmin(institutionId);
+
+      // Public settings: institution config, announcements, public category permissions
+      allow read: if docId in ['config', 'content', 'categoryAuthConfig', 'pageAccess', 'websiteContent', 'institutionConfig'];
+      allow write: if isAdmin(institutionId) && docId in ['config', 'content', 'categoryAuthConfig', 'pageAccess', 'websiteContent', 'institutionConfig'];
+
+      // Module specific configuration
       allow read: if true;
       allow write: if isAdmin(institutionId)
         || (isResultOperator(institutionId) && docId == 'resultCenter')
-        || (isCollectionSession() && (docId == 'sessionRegistry' && validSessionRegistryWrite() || docId == 'receiptSequence'))
-        || (isSignedIn() && (docId == 'attendanceConfig' || docId == 'timetableStructure' || docId == 'yearPlanConfig' || docId.matches('evaluationConfig_.*')));
+        || (isCollector(institutionId) && docId in ['sessionRegistry', 'receiptSequence'])
+        || (canManageAttendance(institutionId) && (docId == 'attendanceConfig' || docId == 'timetableStructure'))
+        || (canManageAcademicPlan(institutionId) && (docId == 'yearPlanConfig' || docId == 'academicPlanningConfig'))
+        || (canManageEvaluation(institutionId) && docId.matches('evaluationConfig_.*'));
     }
 
+    // 2. Staff Profiles
     match /institutions/{institutionId}/staff/{docId} {
-      allow read: if true;
-      allow create, delete, update: if isAdmin(institutionId);
+      // Reading full staff records requires authentication (public profiles are exposed through publicDirectory)
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(institutionId);
     }
 
+    // 3. Staff Access (Roles & Permissions)
     match /institutions/{institutionId}/staffAccess/{docId} {
-      allow read, write: if isAdmin(institutionId);
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(institutionId);
     }
 
+    // 4. Students
     match /institutions/{institutionId}/students/{docId} {
-      allow read: if true;
-      allow write: if isAdmin(institutionId) || isCollectionSession();
+      // Staff/Admins can read all students; individual students can read their own profile
+      allow read: if isAuthenticated() || (isSignedIn() && request.auth.uid == docId);
+      allow write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
+    // 5. Student Groups
     match /institutions/{institutionId}/studentGroups/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isCollectionSession();
+      allow write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
+    // 6. Student Notification State
     match /institutions/{institutionId}/studentNotificationState/{docId} {
       allow read: if true;
       allow write: if hasOnlyKeys(request.resource.data, ['lastMarkedAllReadAt', 'readIds'])
@@ -119,96 +163,110 @@ service cloud.firestore {
         && (!('readIds' in request.resource.data) || request.resource.data.readIds is list);
     }
 
+    // 7. System Notifications
     match /institutions/{institutionId}/systemNotifications/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isSignedIn();
+      allow write: if isAdmin(institutionId) || isAuthenticated();
     }
 
+    // 8. Payments
     match /institutions/{institutionId}/payments/{docId} {
-      allow read: if isAdmin(institutionId) || isCollectionSession();
-      allow read: if isSignedIn();
-      allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
+      allow read: if isCollector(institutionId) || isAdmin(institutionId) || isSignedIn();
+      allow create, update: if (isAdmin(institutionId) || isCollector(institutionId)) && validPaymentWrite();
       allow delete: if isAdmin(institutionId);
     }
 
+    // 9. Donations
     match /institutions/{institutionId}/donations/{docId} {
-      allow read, write: if isAdmin(institutionId) || isCollectionSession();
+      allow read, write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
+    // 10. Attendance
     match /institutions/{institutionId}/attendance/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageAttendance(institutionId);
     }
 
+    // 11. Timetables & Classes
     match /institutions/{institutionId}/timetables/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageAcademicPlan(institutionId);
     }
 
     match /institutions/{institutionId}/classSubjects/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageAcademicPlan(institutionId);
     }
 
     match /institutions/{institutionId}/yearPlans/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageAcademicPlan(institutionId);
     }
 
     match /institutions/{institutionId}/syllabusDailyLogs/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageAcademicPlan(institutionId);
     }
 
     match /institutions/{institutionId}/examTimetables/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageAcademicPlan(institutionId);
     }
 
+    // 12. Activities, Ibadah, Tasks
     match /institutions/{institutionId}/activities/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if canManageActivity(institutionId);
     }
 
     match /institutions/{institutionId}/ibadah/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if canManageActivity(institutionId);
     }
 
     match /institutions/{institutionId}/taskCompletions/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if canManageActivity(institutionId);
     }
 
     match /institutions/{institutionId}/studentCustomBadges/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageActivity(institutionId);
     }
 
     match /institutions/{institutionId}/studentBonusPoints/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageActivity(institutionId);
     }
 
     match /institutions/{institutionId}/rewardSettings/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageActivity(institutionId);
     }
 
     match /institutions/{institutionId}/prayerSettings/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if canManageActivity(institutionId);
     }
 
+    // 13. Evaluations & Impositions
     match /institutions/{institutionId}/evaluations/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if canManageEvaluation(institutionId);
     }
 
     match /institutions/{institutionId}/impositions/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if canManageEvaluation(institutionId);
     }
 
+    // 14. Worksheets
     match /institutions/{institutionId}/worksheets/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if canManageWorksheet(institutionId);
     }
 
+    // 15. Public Directory
     match /institutions/{institutionId}/publicDirectory/{docId} {
       allow read: if true;
       allow write: if isAdmin(institutionId);
@@ -222,29 +280,31 @@ service cloud.firestore {
       allow read, write: if isAdmin(institutionId);
     }
 
+    // 16. Results & Promotion
     match /institutions/{institutionId}/resultSchemas/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isResultOperator(institutionId);
+      allow write: if isResultOperator(institutionId);
     }
 
     match /institutions/{institutionId}/examResults/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isResultOperator(institutionId);
+      allow write: if isResultOperator(institutionId);
     }
 
     match /institutions/{institutionId}/promotionDecisions/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isResultOperator(institutionId);
+      allow write: if isResultOperator(institutionId);
     }
 
     match /institutions/{institutionId}/studentPhotoSubmissions/{docId} {
-      allow read, write: if isAdmin(institutionId) || isCollectionSession();
+      allow read, write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
     match /institutions/{institutionId}/collectorPreferences/{docId} {
-      allow read, write: if isAdmin(institutionId) || isCollectionSession();
+      allow read, write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
+    // 17. Academic Years Subcollections
     match /institutions/{institutionId}/academicYears/{yearId}/classes/{docId} {
       allow read: if true;
       allow write: if isAdmin(institutionId);
@@ -252,7 +312,7 @@ service cloud.firestore {
 
     match /institutions/{institutionId}/academicYears/{yearId}/enrollments/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isCollectionSession();
+      allow write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
     match /institutions/{institutionId}/academicYears/{yearId}/feeItems/{docId} {
@@ -262,24 +322,26 @@ service cloud.firestore {
 
     match /institutions/{institutionId}/academicYears/{yearId}/payments/{docId} {
       allow read: if isSignedIn();
-      allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
+      allow create, update: if (isAdmin(institutionId) || isCollector(institutionId)) && validPaymentWrite();
       allow delete: if isAdmin(institutionId);
     }
 
     match /institutions/{institutionId}/years/{yearId}/payments/{docId} {
       allow read: if isSignedIn();
-      allow create, update: if isAdmin(institutionId) || (isCollectionSession() && validPaymentWrite());
+      allow create, update: if (isAdmin(institutionId) || isCollector(institutionId)) && validPaymentWrite();
       allow delete: if isAdmin(institutionId);
     }
 
     match /institutions/{institutionId}/academicYears/{yearId}/results/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isResultOperator(institutionId);
+      allow write: if isResultOperator(institutionId);
     }
 
+    // 18. Audit Logs (Append-only, Admin read-only)
     match /institutions/{institutionId}/auditLogs/{docId} {
       allow read: if isAdmin(institutionId);
-      allow write: if isAdmin(institutionId) || isCollectionSession();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
     }
 
     match /institutions/{institutionId}/transferCertificates/{docId} {
@@ -287,6 +349,7 @@ service cloud.firestore {
       allow write: if isAdmin(institutionId);
     }
 
+    // Default Deny on all other paths
     match /institutions/{institutionId}/{document=**} {
       allow read, write: if false;
     }

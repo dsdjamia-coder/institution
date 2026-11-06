@@ -33,5 +33,8 @@ const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true
 }, firebaseConfig.firestoreDatabaseId);
 const auth = getAuth(app);
+if (typeof window !== 'undefined') {
+  window.__firebaseAuth = auth;
+}
 
-export { db, auth, appCheck, canEnableAppCheck };
+export { app, db, auth, appCheck, canEnableAppCheck, firebaseConfig };

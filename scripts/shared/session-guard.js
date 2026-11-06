@@ -6,13 +6,12 @@
         } catch (_) {}
     }
 
-    const DEFAULT_SESSION_MAX_AGE_MS = 1000 * 60 * 15;
-    const DEFAULT_SESSION_IDLE_MAX_AGE_MS = 1000 * 60 * 10;
+    const DEFAULT_SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 8;
+    const DEFAULT_SESSION_IDLE_MAX_AGE_MS = 1000 * 60 * 45;
     const ROLE_SESSION_POLICY = {
-        student: { maxAgeMs: 1000 * 60 * 30, idleMs: 1000 * 60 * 20 },
-        // Collection/staff and admin access should remain signed in until the user explicitly logs out.
-        staff: { maxAgeMs: 0, idleMs: 0 },
-        admin: { maxAgeMs: 0, idleMs: 0 }
+        student: { maxAgeMs: 1000 * 60 * 60 * 2, idleMs: 1000 * 60 * 30 },
+        staff: { maxAgeMs: 1000 * 60 * 60 * 12, idleMs: 1000 * 60 * 60 },
+        admin: { maxAgeMs: 1000 * 60 * 60 * 8, idleMs: 1000 * 60 * 45 }
     };
     const STAFF_STATE_KEY = 'app_session_staff_state';
     const ADMIN_STATE_KEY = 'app_session_admin_state';
@@ -184,6 +183,22 @@
         SESSION_IDLE_MAX_AGE_MS: DEFAULT_SESSION_IDLE_MAX_AGE_MS,
         SESSION_POLICY: ROLE_SESSION_POLICY,
         clearAll,
+        async signOut(authInstance, options = {}) {
+            try {
+                if (authInstance && typeof authInstance.signOut === 'function') {
+                    await authInstance.signOut();
+                } else if (window.__firebaseAuth && typeof window.__firebaseAuth.signOut === 'function') {
+                    await window.__firebaseAuth.signOut();
+                }
+            } catch (err) {
+                console.warn('Firebase sign out failed:', err);
+            }
+            await clearAll({ purgeClientData: true, ...options });
+            const redirectUrl = options.redirectUrl !== undefined ? options.redirectUrl : 'index.html';
+            if (redirectUrl) {
+                window.location.href = redirectUrl;
+            }
+        },
         consumeFlash() {
             const message = sessionStorage.getItem(FLASH_KEY) || '';
             if (message) sessionStorage.removeItem(FLASH_KEY);

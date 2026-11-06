@@ -13,8 +13,13 @@ const cleanUrlsPlugin = (): Plugin => {
     if (req.url) {
       const [pathname, search] = req.url.split('?');
       const query = search ? `?${search}` : '';
-      if (pathname === '/studentmanagement') {
+      if (pathname === '/studentmanagement' || pathname === '/student-fee-system') {
         res.writeHead(302, { Location: `/student.html${query}` });
+        res.end();
+        return;
+      }
+      if (pathname === '/official-dashboard') {
+        res.writeHead(302, { Location: `/official.html${query}` });
         res.end();
         return;
       }
@@ -26,10 +31,8 @@ const cleanUrlsPlugin = (): Plugin => {
         'evaluation',
         'collection',
         'official',
-        'official-dashboard',
         'result',
         'student',
-        'student-fee-system',
         'worksheet'
       ];
       const trimmed = pathname.replace(/^\/+|\/+$/g, '');
@@ -55,14 +58,12 @@ const cleanUrlsPlugin = (): Plugin => {
 export default defineConfig({
   plugins: [react(), tailwindcss(), cleanUrlsPlugin()],
   server: {
-    host: '0.0.0.0',
+    host: 'localhost',
     port: 3000,
-    allowedHosts: true,
   },
   preview: {
-    host: '0.0.0.0',
+    host: 'localhost',
     port: 3000,
-    allowedHosts: true,
   },
   build: {
     rollupOptions: {
@@ -71,10 +72,8 @@ export default defineConfig({
         admin: resolve(__dirname, 'admin.html'),
         collection: resolve(__dirname, 'collection.html'),
         official: resolve(__dirname, 'official.html'),
-        officialDashboard: resolve(__dirname, 'official-dashboard.html'),
         result: resolve(__dirname, 'result.html'),
         student: resolve(__dirname, 'student.html'),
-        studentFeeSystem: resolve(__dirname, 'student-fee-system.html'),
         worksheet: resolve(__dirname, 'worksheet.html'),
         attendance: resolve(__dirname, 'attendance.html'),
         academicPlan: resolve(__dirname, 'academic-plan.html'),

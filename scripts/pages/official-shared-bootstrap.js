@@ -1,4 +1,4 @@
-import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
     import { collection, doc, getDoc, getDocs, onSnapshot, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
     import { db, auth } from '../../config/firebase-config.js';
     import { BASE_PATH, applyCachedInstitutionLogo, escapeHtml, rememberInstitutionLogo, sanitizeUrl } from '../shared/app-common.js';
@@ -2313,7 +2313,7 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
         : `<option value="">Current Academic Year</option>`;
 
       const emptyStudentMessage = !officialFilters.studentClass
-        ? 'വിദ്യാർത്ഥികളുടെ ലിസ്റ്റ് കാണുന്നതിനായി ഒരു ക്ലാസ്സ് തിരഞ്ഞെടുക്കുക അല്ലെങ്കിൽ "All Classes" സെലക്ട് ചെയ്യുക (Please select a class or choose "All Classes" to view student records).'
+        ? 'Please select a class or choose "All Classes" to view student records.'
         : 'No student records match the selected filters.';
 
       stuTarget.innerHTML = `
@@ -7783,15 +7783,17 @@ import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } fro
     };
 
     onAuthStateChanged(auth, async (user) => {
-      if (!user) await signInAnonymously(auth);
+      if (!user) {
+        window.location.replace('index.html');
+        return;
+      }
       authReady = true;
     });
 
     document.querySelectorAll('#official-logout-btn, .official-logout-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         localStorage.removeItem(OFFICIAL_SESSION_KEY);
-        window.AppSession?.clearAll?.();
-        window.location.href = 'index.html';
+        window.AppSession?.signOut?.(auth, { redirectUrl: 'index.html' });
       });
     });
 

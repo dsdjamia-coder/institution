@@ -1,4 +1,4 @@
-import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js';
@@ -790,46 +790,25 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         loaded.staff = true; triggerAnim();
                     });
 
-                    onSnapshot(collection(db, `${BASE_PATH}/students`), snap => {
-                        // Project only public non-sensitive fields to prevent student PII leakage in public memory
-                        allStudents = snap.docs.map(d => {
-                            const raw = d.data() || {};
-                            return {
-                                id: d.id,
-                                name: raw.name || '',
-                                class: raw.class || '',
-                                adm: raw.adm || raw.admNo || '',
-                                gender: raw.gender || '',
-                                status: raw.status || 'Active',
-                                isAlumni: raw.isAlumni === true
-                            };
-                        });
-                        const distinctClasses = [...new Set(allStudents.map(s => s.class).filter(Boolean))];
-                        const regularClasses = distinctClasses
-                            .filter(c => String(c).trim().toLowerCase() !== 'alumni')
-                            .sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
-                        const hasAlumniStudents = distinctClasses.some(c => String(c).trim().toLowerCase() === 'alumni');
-                        
-                        let classOptions = regularClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-                        if (hasAlumniStudents || distinctClasses.length > 0) {
-                            classOptions += `<option value="Alumni">🎓 Alumni</option>`;
-                        }
-                        document.getElementById('login-class').innerHTML = '<option value="">Select Class</option>' + classOptions;
-                        
-                        const activeStudents = allStudents.filter((s) => {
-                            const cls = String(s.class || '').trim().toLowerCase();
-                            const st = String(s.status || '').trim().toLowerCase();
-                            return cls !== 'alumni' && st !== 'alumni' && st !== 'graduated' && st !== 'discontinued';
-                        });
-                        document.getElementById('stat-total').textContent = activeStudents.length;
-                        document.getElementById('stat-male').textContent = activeStudents.filter(s => s.gender === 'Male').length;
-                        document.getElementById('stat-female').textContent = activeStudents.filter(s => s.gender === 'Female').length;
-
-                        loaded.students = true; triggerAnim();
-                    });
+                    // Populate class selector from config without downloading full student collection
+                    const configClasses = Array.isArray(globalInstitutionConfig?.classes) && globalInstitutionConfig.classes.length > 0
+                        ? globalInstitutionConfig.classes
+                        : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+                    let classOptions = configClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+                    classOptions += `<option value="Alumni">🎓 Alumni</option>`;
+                    const loginClassEl = document.getElementById('login-class');
+                    if (loginClassEl) loginClassEl.innerHTML = '<option value="">Select Class</option>' + classOptions;
+                    const stats = globalInstitutionConfig?.stats || {};
+                    const statTotal = document.getElementById('stat-total');
+                    const statMale = document.getElementById('stat-male');
+                    const statFemale = document.getElementById('stat-female');
+                    if (statTotal) statTotal.textContent = stats.total || '-';
+                    if (statMale) statMale.textContent = stats.male || '-';
+                    if (statFemale) statFemale.textContent = stats.female || '-';
+                    loaded.students = true; triggerAnim();
                 }
             });
-            signInAnonymously(auth);
+            // Public landing page does not require anonymous auth session
         }
 
         const lName = document.getElementById('login-student-name');
@@ -964,60 +943,75 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             const hasStaffAttempt = !selectedClass && Boolean(lName.value.trim() || passwordInput);
 
             if (hasStudentAttempt) {
-                if (!selectedLoginStudent) {
-                    const typedIdentifier = lName.value.trim().toLowerCase();
-                    if (typedIdentifier) {
-                        const isAlumniCls = String(selectedClass).trim().toLowerCase() === 'alumni';
-                        const classMatches = allStudents.filter((student) => {
-                            const sCls = String(student.class || '').trim().toLowerCase();
-                            const sSt = String(student.status || '').trim().toLowerCase();
-                            return isAlumniCls
-                                ? (sCls === 'alumni' || sSt === 'alumni' || sSt === 'graduated' || student.isAlumni === true)
-                                : (student.class === selectedClass);
-                        });
-                        const matchedStudents = classMatches.filter((student) => {
-                            const studentName = String(student.name || '').trim().toLowerCase();
-                            const studentAdm = String(student.adm || '').trim().toLowerCase();
-                            return studentName === typedIdentifier || studentAdm === typedIdentifier;
-                        });
-                        if (matchedStudents.length === 1) {
-                            [selectedLoginStudent] = matchedStudents;
-                        }
-                    }
-                }
+                const typedIdentifier = lName.value.trim();
                 const studentPassword = normalizePhone(passwordInput);
                 if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
                     showLoginMessage("Student Portal is currently disabled by institution administration.");
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                     return;
                 }
-                if(!selectedLoginStudent || !studentPassword) { showLoginMessage("Select student and enter the registered mobile number"); return; }
+                if (!typedIdentifier || !studentPassword) {
+                    showLoginMessage("Enter student Admission Number or Name, and registered mobile number");
+                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                    return;
+                }
                 if (!confirmRoleSwitch('Student')) return;
 
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...';
-                let studentData = {};
                 try {
-                    const studentSnap = await getDoc(doc(db, `${BASE_PATH}/students`, selectedLoginStudent.id));
-                    studentData = studentSnap.exists() ? (studentSnap.data() || {}) : {};
-                } catch (fetchErr) {
-                    console.warn('Student credential lookup error:', fetchErr);
-                }
+                    let targetStudent = null;
+                    const isAlumni = String(selectedClass).toLowerCase() === 'alumni';
 
-                const studentPhone = normalizePhone(studentData.mobile || studentData.phone || '');
-                if(!studentPhone) { showLoginMessage("This student does not have a registered mobile number. Please contact the office."); btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely'; return; }
-                if(studentPhone === studentPassword) {
-                    showLoginMessage(''); btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading...';
-                    window.AppSession?.startStudent(selectedLoginStudent.id, {
-                        name: selectedLoginStudent.name || studentData.name || '',
-                        class: selectedLoginStudent.class || studentData.class || '',
-                        adm: selectedLoginStudent.adm || studentData.adm || ''
-                    });
-                    window.location.href = 'student.html';
-                } else {
+                    // Targeted lookup by adm number in selected class
+                    const qAdm = isAlumni
+                        ? query(collection(db, `${BASE_PATH}/students`), where("adm", "==", typedIdentifier), limit(5))
+                        : query(collection(db, `${BASE_PATH}/students`), where("class", "==", selectedClass), where("adm", "==", typedIdentifier), limit(1));
+                    let snap = await getDocs(qAdm);
+
+                    if (snap.empty) {
+                        const qAdmNo = isAlumni
+                            ? query(collection(db, `${BASE_PATH}/students`), where("admNo", "==", typedIdentifier), limit(5))
+                            : query(collection(db, `${BASE_PATH}/students`), where("class", "==", selectedClass), where("admNo", "==", typedIdentifier), limit(1));
+                        snap = await getDocs(qAdmNo);
+                    }
+
+                    if (snap.empty) {
+                        const qName = isAlumni
+                            ? query(collection(db, `${BASE_PATH}/students`), where("name", "==", typedIdentifier), limit(5))
+                            : query(collection(db, `${BASE_PATH}/students`), where("class", "==", selectedClass), where("name", "==", typedIdentifier), limit(5));
+                        snap = await getDocs(qName);
+                    }
+
+                    if (!snap.empty) {
+                        const matched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        targetStudent = matched.find(st => {
+                            const p1 = normalizePhone(st.mobile || st.phone || '');
+                            const p2 = normalizePhone(st.fatherPhone || st.motherPhone || '');
+                            return p1 === studentPassword || p2 === studentPassword;
+                        }) || null;
+                    }
+
+                    if (targetStudent) {
+                        showLoginMessage('');
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading...';
+                        window.AppSession?.startStudent(targetStudent.id, {
+                            name: targetStudent.name || '',
+                            class: targetStudent.class || '',
+                            adm: targetStudent.adm || targetStudent.admNo || ''
+                        });
+                        window.location.href = 'student.html';
+                        return;
+                    } else {
+                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                        showLoginMessage("Student not found or incorrect registered mobile number.");
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Student login error:', err);
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                    showLoginMessage("Incorrect registered mobile number");
+                    showLoginMessage("Login verification failed. Please try again.");
+                    return;
                 }
-                return;
             }
 
             if (hasStaffAttempt) {
@@ -1048,27 +1042,19 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         window.location.href = 'official.html';
                         return;
                     }
-                    const staffSnap = await getDocs(collection(db, `${BASE_PATH}/staff`));
-                    const activeCollector = staffSnap.docs
-                        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-                        .find((staffMember) => {
-                            if (staffMember.isActive === false) return false;
-                            const byEmail = (staffMember.email || '').toLowerCase() === userLogin;
-                            const byUsername = (staffMember.username || '').toLowerCase() === userLogin;
-                            return byEmail || byUsername;
-                        });
-                    if (activeCollector) {
-                        if (!(activeCollector.password || '').trim()) {
-                            showLoginMessage("Staff password not configured. Contact admin.");
-                            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                            return;
-                        }
-                        if (String(activeCollector.password || '').trim() !== String(staffPassword).trim()) {
-                            showLoginMessage("Incorrect staff password");
-                            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                            return;
-                        }
-                        const collectorKey = String(activeCollector.email || activeCollector.username || userLogin).trim().toLowerCase();
+                    // Authenticate staff with Firebase Authentication
+                    let userCred = null;
+                    try {
+                        userCred = await signInWithEmailAndPassword(auth, loginId, staffPassword);
+                    } catch (authError) {
+                        console.warn('Firebase staff auth notice:', authError.message);
+                    }
+
+                    const authedEmail = userCred?.user?.email ? userCred.user.email.toLowerCase() : userLogin;
+                    const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
+                    if (userCred?.user && staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
+                        const activeCollector = staffAccessDoc.data();
+                        const collectorKey = authedEmail;
                         const staffAccess = {
                             collection: activeCollector.canCollect === true,
                             worksheet: activeCollector.canAccessWorksheet === true,
@@ -1079,7 +1065,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                             admin: activeCollector.canAccessAdmin === true,
                             canAccessAdmin: activeCollector.canAccessAdmin === true,
                             actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                            staffId: activeCollector.id,
+                            staffId: activeCollector.staffId || '',
                             name: activeCollector.name || '',
                             phone: activeCollector.phone || '',
                             role: activeCollector.role || activeCollector.type || 'Staff',
@@ -1092,10 +1078,10 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         window.AppSession?.startStaff(activeCollector.name || '', collectorKey, staffAccess);
 
                         const officialSessionObj = {
-                            id: activeCollector.id,
+                            id: activeCollector.staffId || '',
                             name: activeCollector.name || '',
                             username: collectorKey,
-                            email: activeCollector.email || '',
+                            email: authedEmail,
                             phone: activeCollector.phone || '',
                             role: activeCollector.role || activeCollector.type || 'Staff',
                             type: activeCollector.type || 'Staff',

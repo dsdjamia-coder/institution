@@ -1,4 +1,4 @@
-import { signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
@@ -354,14 +354,10 @@ const initApp = async () => {
 
     updateUserHeaderDisplays();
 
-    // Sign in anonymously to Firebase if not signed in
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
-            try {
-                await signInAnonymously(auth);
-            } catch (err) {
-                console.warn('Anonymous auth failed:', err);
-            }
+            window.location.replace('index.html');
+            return;
         }
     });
 

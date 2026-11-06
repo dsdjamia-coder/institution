@@ -1341,9 +1341,9 @@ const studentPwa = registerPortalForPwa('student', {
         const startStudentSessionHeartbeat = (profile = {}) => {
             if (sessionRegistryHeartbeat) clearInterval(sessionRegistryHeartbeat);
             updateStudentSessionRegistry(profile).catch((error) => console.warn('Student session registry update failed.', error));
-            sessionRegistryHeartbeat = setInterval(() => {
-                updateStudentSessionRegistry(profile).catch((error) => console.warn('Student session registry update failed.', error));
-            }, 60000);
+            // Student heartbeat disabled to protect Firebase quota
+
+
         };
         const defaultCollectorLabel = 'School Office';
         const getCollectorPaymentContext = (classLabel = '') => {

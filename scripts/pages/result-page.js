@@ -1,4 +1,4 @@
-import { signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
@@ -826,14 +826,6 @@ const bootstrapSessionAccess = () => {
 // --- Authentication & Guard (Username Based) in Background ---
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
-        if (window.AppSession && window.AppSession.isFresh()) {
-            try {
-                await signInAnonymously(auth);
-                return;
-            } catch (_err) {
-                console.warn('Anonymous session recovery failed', _err);
-            }
-        }
         window.location.replace('index.html');
         return;
     }
@@ -4605,7 +4597,7 @@ const checkAndFinalizeScheduledPublishes = async () => {
         updateDashboard();
     }
 };
-setInterval(checkAndFinalizeScheduledPublishes, 15000);
+checkAndFinalizeScheduledPublishes();
 
 document.getElementById('run-publish-action-btn')?.addEventListener('click', runPublishAction);
 document.getElementById('cancel-publish-edit-btn')?.addEventListener('click', cancelEditingPublishRecord);

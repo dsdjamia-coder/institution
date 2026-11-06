@@ -1,4 +1,4 @@
-import { signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
@@ -516,11 +516,8 @@ const initApp = async () => {
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
-            try {
-                await signInAnonymously(auth);
-            } catch (err) {
-                console.warn('Anonymous auth failed, checking session store:', err);
-            }
+            window.location.replace('index.html');
+            return;
         }
         await restoreSessionContext();
         await loadYearPlanCalendarSettings();

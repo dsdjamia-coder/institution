@@ -1,4 +1,4 @@
-import { signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js';
@@ -586,9 +586,9 @@ const updateCollectionSessionRegistry = async () => {
 const startCollectionSessionHeartbeat = () => {
     if (sessionRegistryHeartbeat) clearInterval(sessionRegistryHeartbeat);
     updateCollectionSessionRegistry().catch((error) => console.error('Failed to update collection session registry.', error));
-    sessionRegistryHeartbeat = setInterval(() => {
-        updateCollectionSessionRegistry().catch((error) => console.error('Failed to update collection session registry.', error));
-    }, 60000);
+    // Heartbeat disabled to protect Firebase quota - single register on entry
+
+
 };
 const getAcademicYearRecord = (label = '') => academicYearSettings.find((year) => year?.label === label) || null;
 const getAcademicYearStatus = (label = '') => String(getAcademicYearRecord(label)?.status || 'active').toLowerCase();
@@ -5219,14 +5219,6 @@ document.getElementById('stu-info-search')?.addEventListener('input', renderStud
 // --- INIT LISTENER ---
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
-        if (window.AppSession && window.AppSession.isFresh()) {
-            try {
-                await signInAnonymously(auth);
-                return;
-            } catch (authErr) {
-                console.warn('Anonymous session recovery failed:', authErr);
-            }
-        }
         window.location.href = 'index.html';
         return;
     }
@@ -5324,7 +5316,7 @@ onAuthStateChanged(auth, async (user) => {
         pageAccessConfig = payload && typeof payload === 'object' ? { categories: {}, overrides: {}, ...payload } : { categories: {}, overrides: {} };
         renderStaffDirectory();
     });
-    onSnapshot(getSessionRegistryRef(), (sessionSnap) => {
+    getDoc(getSessionRegistryRef()).then((sessionSnap) => {
         const registry = sessionSnap.exists() ? sessionSnap.data() : {};
         const deviceId = getLocalDeviceId();
         const sessionEntry = registry?.sessions?.[deviceId] || null;

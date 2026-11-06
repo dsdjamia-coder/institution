@@ -1,4 +1,4 @@
-import { signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { db, auth } from '../../config/firebase-config.js';
 import { BASE_PATH, applyCachedInstitutionLogo, escapeHtml, rememberInstitutionLogo, sanitizeUrl } from '../shared/app-common.js';
 import { appLog } from '../shared/logger.js';
@@ -1034,7 +1034,10 @@ const tryLogin = async () => {
 };
 
 onAuthStateChanged(auth, async (user) => {
-  if (!user) await signInAnonymously(auth);
+  if (!user) {
+    window.location.replace('index.html');
+    return;
+  }
   authReady = true;
 });
 
