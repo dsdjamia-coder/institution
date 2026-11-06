@@ -3,7 +3,7 @@ import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.
 import { doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, where, writeBatch, getDocs, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth, firebaseConfig } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
-import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatDateDisplay, hardenExternalLinks, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
+import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatDateDisplay, hardenExternalLinks, normalizePhone, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -92,6 +92,7 @@ const PAGE_PERMISSIONS = {
     'add-students': 'students.manage',
     'manage-students': 'students.manage',
     'student-continuity': 'students.manage',
+    'student-counts': 'students.manage',
     'manage-classes': 'classes.manage',
     'manage-groups': 'groups.manage',
     results: 'results.manage',
@@ -1179,10 +1180,10 @@ const buildBackupPayload = async (targetCategories = null) => {
 // Student Auth Lookup Helpers
 const syncSingleStudentLookup = async (studentId, studentData) => {
     if (!studentId || !studentData) return;
-    const sClass = String(studentData.class || '').trim().toLowerCase();
-    const sAdm = String(studentData.adm || studentData.admNo || '').trim().toLowerCase();
-    if (!sClass || !sAdm) return;
-    const lookupKey = `${sClass}_${sAdm}`.replace(/[\\/\\s]+/g, '_');
+    const sAdm = String(studentData.adm || studentData.admNo || '').trim().toLowerCase().replace(/[\\/\\s]+/g, '_');
+    const sClass = String(studentData.class || '').trim().toLowerCase().replace(/[\\/\\s]+/g, '_');
+    if (!sAdm) return;
+
     const phones = [
         normalizePhone(studentData.mobile || ''),
         normalizePhone(studentData.phone || ''),
@@ -1192,25 +1193,31 @@ const syncSingleStudentLookup = async (studentId, studentData) => {
         normalizePhone(studentData.motherMobile || '')
     ].filter(Boolean);
 
+    const lookupPayload = {
+        studentId,
+        name: studentData.name || '',
+        class: studentData.class || '',
+        adm: studentData.adm || studentData.admNo || '',
+        phones: Array.from(new Set(phones)),
+        updatedAt: Date.now()
+    };
+
     try {
-        await setDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey), {
-            studentId,
-            name: studentData.name || '',
-            class: studentData.class || '',
-            adm: studentData.adm || studentData.admNo || '',
-            phones: Array.from(new Set(phones)),
-            updatedAt: Date.now()
-        }, { merge: true });
+        await setDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${sAdm}`), lookupPayload, { merge: true });
+        if (sClass) {
+            await setDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `${sClass}_${sAdm}`), lookupPayload, { merge: true });
+        }
     } catch (err) {
-        console.warn('Failed to sync student lookup doc:', lookupKey, err);
+        console.warn('Failed to sync student lookup doc:', sAdm, err);
     }
 };
 
 const removeSingleStudentLookup = async (sClass, sAdm) => {
-    if (!sClass || !sAdm) return;
-    const lookupKey = `${String(sClass).trim().toLowerCase()}_${String(sAdm).trim().toLowerCase()}`.replace(/[\\/\\s]+/g, '_');
+    const cleanAdm = String(sAdm || '').trim().toLowerCase().replace(/[\\/\\s]+/g, '_');
+    const cleanClass = String(sClass || '').trim().toLowerCase().replace(/[\\/\\s]+/g, '_');
     try {
-        await deleteDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey));
+        if (cleanAdm) await deleteDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${cleanAdm}`));
+        if (cleanClass && cleanAdm) await deleteDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `${cleanClass}_${cleanAdm}`));
     } catch (_) {}
 };
 
@@ -1219,10 +1226,10 @@ const syncAllStudentsLookupIndex = async (studentsList = rawStudents, onProgress
     const operations = [];
     for (const st of studentsList) {
         if (!st || !st.id) continue;
-        const sClass = String(st.class || '').trim().toLowerCase();
-        const sAdm = String(st.adm || st.admNo || '').trim().toLowerCase();
-        if (!sClass || !sAdm) continue;
-        const lookupKey = `${sClass}_${sAdm}`.replace(/[\\/\\s]+/g, '_');
+        const sAdm = String(st.adm || st.admNo || '').trim().toLowerCase().replace(/[\\/\\s]+/g, '_');
+        const sClass = String(st.class || '').trim().toLowerCase().replace(/[\\/\\s]+/g, '_');
+        if (!sAdm) continue;
+
         const phones = [
             normalizePhone(st.mobile || ''),
             normalizePhone(st.phone || ''),
@@ -1232,20 +1239,144 @@ const syncAllStudentsLookupIndex = async (studentsList = rawStudents, onProgress
             normalizePhone(st.motherMobile || '')
         ].filter(Boolean);
 
-        operations.push((batch) => batch.set(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey), {
+        const payload = {
             studentId: st.id,
             name: st.name || '',
             class: st.class || '',
             adm: st.adm || st.admNo || '',
             phones: Array.from(new Set(phones)),
             updatedAt: Date.now()
-        }, { merge: true }));
+        };
+
+        operations.push((batch) => batch.set(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${sAdm}`), payload, { merge: true }));
+        if (sClass) {
+            operations.push((batch) => batch.set(doc(db, `${BASE_PATH}/studentAuthLookup`, `${sClass}_${sAdm}`), payload, { merge: true }));
+        }
     }
     if (operations.length > 0) {
         onProgress?.(`Syncing ${operations.length} student lookup records...`);
         await runBatchedWrites(operations);
     }
     return operations.length;
+};
+
+// Institutional Student Statistics Helpers
+const computeInstitutionalStats = (targetYear = null) => {
+    const activeYear = targetYear || getActiveAcademicYearLabel();
+    const studentsInYear = rawStudents.filter((st) => {
+        if (!st || st.status === 'Discontinued') return false;
+        const sYear = st.academicYear || activeYear;
+        return sYear === activeYear;
+    });
+
+    let totalMale = 0;
+    let totalFemale = 0;
+    const byClass = {};
+
+    studentsInYear.forEach((st) => {
+        const g = String(st.gender || '').trim().toLowerCase();
+        const isMale = g === 'male' || g === 'boy' || g === 'm';
+        const isFemale = g === 'female' || g === 'girl' || g === 'f';
+        if (isMale) totalMale++;
+        else if (isFemale) totalFemale++;
+
+        const className = String(st.class || 'Unassigned').trim();
+        if (!byClass[className]) {
+            byClass[className] = { male: 0, female: 0, total: 0 };
+        }
+        byClass[className].total++;
+        if (isMale) byClass[className].male++;
+        if (isFemale) byClass[className].female++;
+    });
+
+    return {
+        academicYear: activeYear,
+        total: studentsInYear.length,
+        male: totalMale,
+        female: totalFemale,
+        byClass,
+        updatedAt: Date.now()
+    };
+};
+
+const publishInstitutionalStats = async (auto = false) => {
+    const statsPayload = computeInstitutionalStats();
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/settings`, 'config'), { stats: statsPayload }, { merge: true });
+        if (!auto) {
+            showToast(`Published student statistics to website (${statsPayload.total} students).`, 'success');
+        }
+    } catch (err) {
+        if (!auto) {
+            showToast('Failed to publish statistics: ' + err.message, 'error');
+        }
+        console.warn('Auto publish stats notice:', err);
+    }
+};
+
+const renderStudentCountsTab = () => {
+    const pageEl = document.getElementById('student-counts-page');
+    if (!pageEl || pageEl.classList.contains('hidden')) return;
+
+    const yearSelect = document.getElementById('stats-year-select');
+    if (yearSelect && yearSelect.options.length === 0) {
+        const activeLabel = getActiveAcademicYearLabel();
+        const yearOptions = (academicYears || []).map((y) => {
+            const lbl = typeof y === 'string' ? y : (y?.label || y?.name || '');
+            return `<option value="${escapeHtml(lbl)}" ${lbl === activeLabel ? 'selected' : ''}>${escapeHtml(lbl)}</option>`;
+        }).join('');
+        yearSelect.innerHTML = yearOptions || `<option value="${escapeHtml(activeLabel)}">${escapeHtml(activeLabel)}</option>`;
+        yearSelect.addEventListener('change', renderStudentCountsTab);
+    }
+
+    const selectedYear = yearSelect?.value || getActiveAcademicYearLabel();
+    const stats = computeInstitutionalStats(selectedYear);
+
+    const totalEl = document.getElementById('count-stat-total');
+    const maleEl = document.getElementById('count-stat-male');
+    const femaleEl = document.getElementById('count-stat-female');
+    const classCountEl = document.getElementById('count-stat-classes');
+
+    if (totalEl) totalEl.textContent = stats.total;
+    if (maleEl) maleEl.textContent = stats.male;
+    if (femaleEl) femaleEl.textContent = stats.female;
+
+    const registeredClasses = getClassesForActiveYear() || [];
+    const studentClasses = Object.keys(stats.byClass);
+    const allClasses = Array.from(new Set([...registeredClasses, ...studentClasses]));
+    const sortedClasses = sortClassLabels(allClasses);
+
+    if (classCountEl) classCountEl.textContent = sortedClasses.length;
+
+    const tbody = document.getElementById('stats-table-body');
+    if (!tbody) return;
+
+    if (sortedClasses.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500 italic">No classes or students found for ${escapeHtml(selectedYear)}.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = sortedClasses.map((cls, idx) => {
+        const item = stats.byClass[cls] || { male: 0, female: 0, total: 0 };
+        const pct = stats.total > 0 ? ((item.total / stats.total) * 100).toFixed(1) : 0;
+        return `
+            <tr class="border-b border-gray-100 hover:bg-blue-50/40 transition">
+                <td class="p-3 text-center text-xs font-semibold text-gray-500">${idx + 1}</td>
+                <td class="p-3 text-sm font-bold text-gray-900">${escapeHtml(cls)}</td>
+                <td class="p-3 text-center"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800"><i class="fas fa-person mr-1 text-[10px]"></i> ${item.male}</span></td>
+                <td class="p-3 text-center"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800"><i class="fas fa-person-dress mr-1 text-[10px]"></i> ${item.female}</span></td>
+                <td class="p-3 text-center font-black text-sm text-gray-900">${item.total}</td>
+                <td class="p-3 text-center text-xs text-gray-500 font-medium">${pct}%</td>
+            </tr>
+        `;
+    }).join('');
+
+    const footTotal = document.getElementById('stats-foot-total');
+    const footMale = document.getElementById('stats-foot-male');
+    const footFemale = document.getElementById('stats-foot-female');
+    if (footTotal) footTotal.textContent = stats.total;
+    if (footMale) footMale.textContent = stats.male;
+    if (footFemale) footFemale.textContent = stats.female;
 };
 
 const restoreCollectionFromPayload = async (collectionName, records = []) => {
@@ -2328,6 +2459,7 @@ const activateAdminPage = (targetId, options = {}) => {
     if(targetId === 'academic-years') renderAcademicYears();
     if(targetId === 'workflow-modules') renderWorkflowModules();
     if(targetId === 'manage-students') { populateManageAcademicYearDropdown(); populateClassDropdowns(); renderStudentList(); }
+    if(targetId === 'student-counts') renderStudentCountsTab();
     if(targetId === 'promote-students') { window.location.href = 'result.html'; return; }
     if(targetId === 'student-continuity') renderContinuityPage();
     if(targetId === 'manage-classes') { populateClassDropdowns(); renderClassList(); }
@@ -13581,8 +13713,11 @@ onAuthStateChanged(auth, async (user) => {
             renderBackupCategoryCounts();
             if (rawStudents.length > 0) {
                 syncAllStudentsLookupIndex(rawStudents).catch((e) => console.warn('Background student lookup sync notice:', e));
+                publishInstitutionalStats(true).catch((e) => console.warn('Background stats publish notice:', e));
             }
         });
+
+        document.getElementById('btn-publish-stats')?.addEventListener('click', () => publishInstitutionalStats(false));
 
         document.getElementById('btn-sync-student-lookup')?.addEventListener('click', async () => {
             const btn = document.getElementById('btn-sync-student-lookup');

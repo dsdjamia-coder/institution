@@ -77,6 +77,7 @@
                 <a href="#add-students" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Add Students"><i class="fas fa-user-plus w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Add Students</span></a>
                 <a href="#manage-students" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Manage Students"><i class="fas fa-users-cog w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Manage Students</span></a>
                 <a href="#manage-classes" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Classes & Divisions"><i class="fas fa-chalkboard text-center w-5 shrink-0"></i><span class="text-sm nav-text truncate">Classes & Divisions</span></a>
+                <a href="#student-counts" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Student Counts by Class"><i class="fas fa-chart-bar text-center w-5 shrink-0"></i><span class="text-sm nav-text truncate">Student Counts</span></a>
                 
                 <div class="drawer-heading">Continuity &amp; Transfers</div>
                 <a href="#student-continuity" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Discontinue &amp; Re-admission"><i class="fas fa-user-clock w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Discontinue &amp; Re-admission</span></a>
@@ -1240,6 +1241,84 @@
                 </div>
             </section>
             
+            <!-- Student Counts by Class Section -->
+            <section id="student-counts-page" class="page hidden space-y-6">
+                <div class="card p-5 rounded-2xl shadow-sm border border-slate-200 bg-white">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg shrink-0 shadow-xs">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-black text-slate-900 leading-tight">Class-wise Student Statistics</h2>
+                                <p class="text-xs text-slate-500 font-medium">Real-time gender distribution and enrollment counts across all classes.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select id="stats-year-select" class="form-input text-xs font-bold py-1.5 px-3 rounded-lg border-slate-300">
+                                <!-- Populated dynamically with academic years -->
+                            </select>
+                            <button type="button" id="btn-publish-stats" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer" title="Publish latest statistics to website homepage">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>Publish to Website</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 4 Summary KPI Cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+                        <div class="p-4 rounded-xl border border-blue-100 bg-blue-50/50">
+                            <div class="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-1">Total Enrolled</div>
+                            <div class="text-2xl font-black text-blue-950" id="count-stat-total">0</div>
+                            <div class="text-[10px] text-blue-600 font-medium mt-0.5">Active Academic Year</div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-sky-100 bg-sky-50/50">
+                            <div class="text-[11px] font-bold text-sky-700 uppercase tracking-wider mb-1">Boys (Male)</div>
+                            <div class="text-2xl font-black text-sky-950" id="count-stat-male">0</div>
+                            <div class="text-[10px] text-sky-600 font-medium mt-0.5">Total Boys</div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-teal-100 bg-teal-50/50">
+                            <div class="text-[11px] font-bold text-teal-700 uppercase tracking-wider mb-1">Girls (Female)</div>
+                            <div class="text-2xl font-black text-teal-950" id="count-stat-female">0</div>
+                            <div class="text-[10px] text-teal-600 font-medium mt-0.5">Total Girls</div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-indigo-100 bg-indigo-50/50">
+                            <div class="text-[11px] font-bold text-indigo-700 uppercase tracking-wider mb-1">Active Classes</div>
+                            <div class="text-2xl font-black text-indigo-950" id="count-stat-classes">0</div>
+                            <div class="text-[10px] text-indigo-600 font-medium mt-0.5">Standard Divisions</div>
+                        </div>
+                    </div>
+
+                    <!-- Class breakdown table -->
+                    <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                                    <th class="p-3 text-center w-12">#</th>
+                                    <th class="p-3">Class / Division</th>
+                                    <th class="p-3 text-center">Boys (Male)</th>
+                                    <th class="p-3 text-center">Girls (Female)</th>
+                                    <th class="p-3 text-center">Total Students</th>
+                                    <th class="p-3 text-center w-24">Share</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stats-table-body" class="divide-y divide-slate-100 text-sm">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-slate-100/80 font-black text-sm text-slate-900 border-t-2 border-slate-300">
+                                    <td class="p-3 text-center text-xs">TOTAL</td>
+                                    <td class="p-3 font-bold uppercase tracking-wide">Grand Total (All Classes)</td>
+                                    <td class="p-3 text-center text-blue-700 font-black" id="stats-foot-male">0</td>
+                                    <td class="p-3 text-center text-teal-700 font-black" id="stats-foot-female">0</td>
+                                    <td class="p-3 text-center text-slate-950 text-base font-black" id="stats-foot-total">0</td>
+                                    <td class="p-3 text-center text-xs text-slate-500">100%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </section>
             <!-- 4. Manage Classes -->
             <section id="manage-classes-page" class="page hidden space-y-6">
                 <div class="card p-5 rounded-xl shadow-sm bg-indigo-50/40 border-indigo-100">

@@ -193,27 +193,79 @@
     <div id="login-modal" class="modal-overlay">
         <div class="modal-box">
             <button type="button" class="modal-close-btn" aria-label="Close login modal" onclick="document.getElementById('login-modal').style.display='none'">&times;</button>
-            <div class="icon-badge"><i class="fas fa-lock"></i></div>
-            <h3 id="login-title" class="modal-title">Student Login</h3>
-            
-            <div id="student-login-form">
-                <select id="login-class" class="form-input">
-                    <option value="">Select Class</option>
-                    <option value="Alumni">🎓 Alumni</option>
-                </select>
-                <div class="input-with-icon">
-                    <input type="text" id="login-student-name" class="form-input form-input-tight" placeholder="Search Name or Adm No" autocomplete="off">
-                    <div id="student-suggestions" class="suggestions-box"></div>
+            <div class="icon-badge"><i class="fas fa-shield-halved"></i></div>
+            <h3 id="login-title" class="modal-title">Institutional Portal</h3>
+
+            <!-- Tab Switcher -->
+            <div class="flex items-center border-b border-gray-200 mb-4">
+                <button type="button" id="tab-student-login" class="flex-1 py-2 text-center font-bold text-xs sm:text-sm border-b-2 border-blue-600 text-blue-600 transition cursor-pointer">
+                    <i class="fas fa-user-graduate mr-1"></i> Student Portal
+                </button>
+                <button type="button" id="tab-staff-login" class="flex-1 py-2 text-center font-bold text-xs sm:text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition cursor-pointer">
+                    <i class="fas fa-user-shield mr-1"></i> Staff / Admin
+                </button>
+            </div>
+
+            <!-- 1. Student Login Panel -->
+            <div id="student-login-panel" class="space-y-3">
+                <!-- Step 1: Admission Number Verification -->
+                <div id="student-step-1" class="space-y-2">
+                    <label class="block text-xs font-bold text-gray-700">Admission Number</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="login-student-adm" class="form-input flex-1 uppercase tracking-wide font-mono" placeholder="e.g. 101, ADM_05" autocomplete="off">
+                        <button type="button" id="btn-verify-student-adm" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 rounded-xl text-xs shadow-xs transition flex items-center justify-center shrink-0 cursor-pointer">
+                            <span>Verify</span>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-gray-500">Enter your admission number and click Verify to confirm your student profile.</p>
                 </div>
-                <div class="input-with-icon">
-                    <input type="password" id="login-phone" class="form-input form-input-with-trailing-icon" placeholder="Password (Mobile Number)">
-                    <i class="fas fa-eye trailing-icon" id="toggle-student-pass"></i>
+
+                <!-- Step 2: Password (Registered Mobile) - Initially Hidden -->
+                <div id="student-step-2" class="space-y-3 hidden">
+                    <div class="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i class="fas fa-check-circle text-emerald-600 shrink-0 text-base"></i>
+                            <div class="truncate">
+                                <div class="text-xs font-black text-emerald-950 truncate" id="verified-student-name">Student Name</div>
+                                <div class="text-[10px] text-emerald-700 font-bold" id="verified-student-meta">Class 5 • Adm: 101</div>
+                            </div>
+                        </div>
+                        <button type="button" id="btn-change-student-adm" class="text-[11px] text-emerald-800 hover:underline font-bold shrink-0 ml-2">Change</button>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="block text-xs font-bold text-gray-700">Registered Mobile Number (Password)</label>
+                        <div class="input-with-icon">
+                            <input type="password" id="login-student-phone" class="form-input form-input-with-trailing-icon font-mono" placeholder="10-digit mobile number">
+                            <i class="fas fa-eye trailing-icon" id="toggle-student-pass"></i>
+                        </div>
+                    </div>
+
+                    <button type="button" id="btn-student-login-submit" class="main-login-btn w-full rounded-xl">
+                        <i class="fas fa-sign-in-alt"></i> Login to Student Portal
+                    </button>
                 </div>
             </div>
 
-            <p id="login-msg" class="auth-alert"></p>
-            <button id="login-submit" class="main-login-btn w-full rounded-xl"><i class="fas fa-sign-in-alt"></i> Login Securely</button>
+            <!-- 2. Staff / Admin Login Panel (Initially Hidden) -->
+            <div id="staff-login-panel" class="space-y-3 hidden">
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-gray-700">Email or Username</label>
+                    <input type="text" id="login-staff-id" class="form-input" placeholder="admin@school.com or username" autocomplete="username">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-gray-700">Password</label>
+                    <div class="input-with-icon">
+                        <input type="password" id="login-staff-password" class="form-input form-input-with-trailing-icon" placeholder="Password" autocomplete="current-password">
+                        <i class="fas fa-eye trailing-icon" id="toggle-staff-pass"></i>
+                    </div>
+                </div>
+                <button type="button" id="btn-staff-login-submit" class="main-login-btn w-full rounded-xl">
+                    <i class="fas fa-sign-in-alt"></i> Login Securely
+                </button>
+            </div>
 
+            <p id="login-msg" class="auth-alert"></p>
         </div>
     </div>
 

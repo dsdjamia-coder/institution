@@ -85,7 +85,8 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             }
             document.getElementById('login-modal').style.display = 'flex'; 
             setMobileMenuState(false);
-            showLoginMessage('');
+            switchLoginTab('student');
+            resetStudentLoginForm();
             const sessionNotice = window.AppSession?.consumeFlash?.();
             if (sessionNotice) showLoginMessage(sessionNotice);
         };
@@ -597,9 +598,9 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 const statTotal = document.getElementById('stat-total');
                 const statMale = document.getElementById('stat-male');
                 const statFemale = document.getElementById('stat-female');
-                if (statTotal) statTotal.textContent = stats.total || '-';
-                if (statMale) statMale.textContent = stats.male || '-';
-                if (statFemale) statFemale.textContent = stats.female || '-';
+                if (statTotal) statTotal.textContent = (stats.total !== undefined && stats.total !== null) ? stats.total : '-';
+                if (statMale) statMale.textContent = (stats.male !== undefined && stats.male !== null) ? stats.male : '-';
+                if (statFemale) statFemale.textContent = (stats.female !== undefined && stats.female !== null) ? stats.female : '-';
                 loaded.config = true;
                 loaded.students = true;
                 triggerAnim();
@@ -921,279 +922,359 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             });
         });
         
-        lName.addEventListener('input', () => {
-            const cls = lClass.value; const txt = lName.value.toLowerCase(); lSugg.innerHTML = '';
-            if(!cls) { selectedLoginStudent = null; lSugg.classList.remove('active'); return; }
-            if(txt.length < 1) { lSugg.classList.remove('active'); return; }
-            
-            const isAlumniCls = String(cls).trim().toLowerCase() === 'alumni';
-            const matches = allStudents.filter(s => {
-                const sCls = String(s.class || '').trim().toLowerCase();
-                const sSt = String(s.status || '').trim().toLowerCase();
-                const belongsToCls = isAlumniCls
-                    ? (sCls === 'alumni' || sSt === 'alumni' || sSt === 'graduated' || s.isAlumni === true)
-                    : (s.class === cls);
-                return belongsToCls && (String(s.name || '').toLowerCase().includes(txt) || (s.adm && String(s.adm).toLowerCase().includes(txt)));
-            });
-            if(matches.length > 0) {
-                lSugg.classList.add('active');
-                matches.forEach(s => {
-                    const d = document.createElement('div');
-                    d.className = 'suggestion-item';
-                    const nameSpan = document.createElement('span');
-                    nameSpan.textContent = s.name;
-                    const admSpan = document.createElement('span');
-                    admSpan.className = 'text-gray-400 text-xs font-mono';
-                    admSpan.textContent = `Adm: ${s.adm || '-'}`;
-                    d.append(nameSpan, admSpan);
-                    d.onclick = () => { selectedLoginStudent = s; lName.value = s.name; lSugg.classList.remove('active'); };
-                    lSugg.appendChild(d);
-                });
-            } else { lSugg.innerHTML = '<div class="suggestion-item text-gray-500">No students found</div>'; lSugg.classList.add('active'); }
-        });
-        const updateIdentifierInputMode = () => {
-            const hasClass = Boolean(lClass.value);
-            if (hasClass) {
-                lName.placeholder = 'Admission Number';
-                document.getElementById('login-title').textContent = 'Student Login';
+        // State for 2-step student verification
+        let currentVerifiedStudent = null;
+
+        const tabStudentBtn = document.getElementById('tab-student-login');
+        const tabStaffBtn = document.getElementById('tab-staff-login');
+        const studentPanel = document.getElementById('student-login-panel');
+        const staffPanel = document.getElementById('staff-login-panel');
+        const loginTitle = document.getElementById('login-title');
+
+        const switchLoginTab = (tab) => {
+            showLoginMessage('');
+            if (tab === 'staff') {
+                tabStaffBtn?.classList.add('border-blue-600', 'text-blue-600');
+                tabStaffBtn?.classList.remove('border-transparent', 'text-gray-500');
+                tabStudentBtn?.classList.remove('border-blue-600', 'text-blue-600');
+                tabStudentBtn?.classList.add('border-transparent', 'text-gray-500');
+                studentPanel?.classList.add('hidden');
+                staffPanel?.classList.remove('hidden');
+                if (loginTitle) loginTitle.textContent = 'Staff / Admin Login';
+                document.getElementById('login-staff-id')?.focus();
             } else {
-                lName.placeholder = 'Email (Admin / Staff)';
-                document.getElementById('login-title').textContent = 'Secure Login';
+                tabStudentBtn?.classList.add('border-blue-600', 'text-blue-600');
+                tabStudentBtn?.classList.remove('border-transparent', 'text-gray-500');
+                tabStaffBtn?.classList.remove('border-blue-600', 'text-blue-600');
+                tabStaffBtn?.classList.add('border-transparent', 'text-gray-500');
+                staffPanel?.classList.add('hidden');
+                studentPanel?.classList.remove('hidden');
+                if (loginTitle) loginTitle.textContent = 'Student Login';
+                document.getElementById('login-student-adm')?.focus();
             }
         };
-        lClass.addEventListener('change', () => { selectedLoginStudent = null; lName.value = ''; lSugg.classList.remove('active'); updateIdentifierInputMode(); });
-        updateIdentifierInputMode();
 
-document.getElementById('login-submit').addEventListener('click', async () => {
-            const btn = document.getElementById('login-submit');
-            const activeRole = window.AppSession?.getRole?.() || '';
-            const confirmRoleSwitch = (targetRoleLabel) => {
-                if (!activeRole) return true;
-                const activeRoleLabel = activeRole.charAt(0).toUpperCase() + activeRole.slice(1);
-                return window.confirm(`You are currently signed in as ${activeRoleLabel}. Continue and switch to ${targetRoleLabel} mode?`);
-            };
+        tabStudentBtn?.addEventListener('click', () => switchLoginTab('student'));
+        tabStaffBtn?.addEventListener('click', () => switchLoginTab('staff'));
 
-            const selectedClass = document.getElementById('login-class').value.trim();
-            const passwordInput = document.getElementById('login-phone').value.trim();
-            const hasStudentAttempt = Boolean(selectedClass);
-            const hasStaffAttempt = !selectedClass && Boolean(lName.value.trim() || passwordInput);
+        const loginModalEl = document.getElementById('login-modal');
+        loginModalEl?.addEventListener('click', (e) => {
+            if (e.target === loginModalEl) loginModalEl.style.display = 'none';
+        });
 
-            if (hasStudentAttempt) {
-                const typedIdentifier = lName.value.trim();
-                const studentPassword = normalizePhone(passwordInput);
-                if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
-                    showLoginMessage("Student Portal is currently disabled by institution administration.");
-                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                    return;
-                }
-                if (!typedIdentifier || !studentPassword) {
-                    showLoginMessage("Enter student Admission Number and registered mobile number.");
-                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                    return;
-                }
-                if (!confirmRoleSwitch('Student')) return;
+        document.getElementById('toggle-student-pass')?.addEventListener('click', () => {
+            const passEl = document.getElementById('login-student-phone');
+            const icon = document.getElementById('toggle-student-pass');
+            if (passEl) {
+                const isPass = passEl.type === 'password';
+                passEl.type = isPass ? 'text' : 'password';
+                icon?.classList.toggle('fa-eye', !isPass);
+                icon?.classList.toggle('fa-eye-slash', isPass);
+            }
+        });
 
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...';
-                try {
-                    const cleanClass = selectedClass.trim().toLowerCase();
-                    const cleanAdm = typedIdentifier.trim().toLowerCase();
-                    const lookupKey = `${cleanClass}_${cleanAdm}`.replace(/[\/\s]+/g, '_');
+        document.getElementById('toggle-staff-pass')?.addEventListener('click', () => {
+            const passEl = document.getElementById('login-staff-password');
+            const icon = document.getElementById('toggle-staff-pass');
+            if (passEl) {
+                const isPass = passEl.type === 'password';
+                passEl.type = isPass ? 'text' : 'password';
+                icon?.classList.toggle('fa-eye', !isPass);
+                icon?.classList.toggle('fa-eye-slash', isPass);
+            }
+        });
 
-                    let lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey));
-                    let matchedData = lookupSnap.exists() ? lookupSnap.data() : null;
+        const resetStudentLoginForm = () => {
+            currentVerifiedStudent = null;
+            document.getElementById('student-step-2')?.classList.add('hidden');
+            document.getElementById('student-step-1')?.classList.remove('hidden');
+            const admInput = document.getElementById('login-student-adm');
+            if (admInput) {
+                admInput.value = '';
+                admInput.focus();
+            }
+            const phoneInput = document.getElementById('login-student-phone');
+            if (phoneInput) phoneInput.value = '';
+            showLoginMessage('');
+        };
 
-                    if (!matchedData && !cleanClass.includes('alumni')) {
-                        const altKey = `${encodeURIComponent(selectedClass.trim())}_${encodeURIComponent(typedIdentifier.trim())}`;
-                        if (altKey !== lookupKey) {
-                            lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, altKey));
-                            if (lookupSnap.exists()) matchedData = lookupSnap.data();
-                        }
-                    }
+        document.getElementById('btn-change-student-adm')?.addEventListener('click', () => {
+            document.getElementById('student-step-2')?.classList.add('hidden');
+            document.getElementById('student-step-1')?.classList.remove('hidden');
+            document.getElementById('login-student-adm')?.focus();
+            showLoginMessage('');
+        });
 
-                    if (matchedData) {
-                        const enteredPhone = normalizePhone(passwordInput);
-                        const phones = Array.isArray(matchedData.phones) ? [...matchedData.phones] : [normalizePhone(matchedData.phone || '')];
-                        if (matchedData.fatherPhone) phones.push(normalizePhone(matchedData.fatherPhone));
-                        if (matchedData.motherPhone) phones.push(normalizePhone(matchedData.motherPhone));
-                        if (matchedData.mobile) phones.push(normalizePhone(matchedData.mobile));
-
-                        const isPhoneMatch = phones.some(p => p && (p === enteredPhone || p.endsWith(enteredPhone) || enteredPhone.endsWith(p)));
-                        if (isPhoneMatch) {
-                            showLoginMessage('');
-                            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading...';
-                            if (!auth.currentUser) {
-                                try {
-                                    await signInAnonymously(auth);
-                                } catch (_) {}
-                            }
-                            window.AppSession?.startStudent(matchedData.studentId, {
-                                name: matchedData.name || '',
-                                class: matchedData.class || selectedClass,
-                                adm: matchedData.adm || typedIdentifier
-                            });
-                            window.location.href = 'student.html';
-                            return;
-                        } else {
-                            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                            showLoginMessage("Student found, but the registered mobile number does not match.");
-                            return;
-                        }
-                    }
-
-                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                    showLoginMessage(`Student record not found for Class ${selectedClass} and Adm No ${typedIdentifier}. Please check with administration.`);
-                    return;
-                } catch (err) {
-                    console.error('Student login error:', err);
-                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                    showLoginMessage("Login verification failed. Please try again.");
-                    return;
-                }
+        const verifyStudentAdmissionNumber = async () => {
+            const admInput = document.getElementById('login-student-adm');
+            const rawAdm = admInput?.value?.trim() || '';
+            if (!rawAdm) {
+                showLoginMessage('Please enter student Admission Number.');
+                admInput?.focus();
+                return;
             }
 
-            if (hasStaffAttempt) {
-                const loginId = lName.value.trim();
-                const staffPassword = passwordInput;
-                if (!loginId || !staffPassword) {
-                    showLoginMessage("Enter Username/Email and Password.");
-                    return;
+            const btn = document.getElementById('btn-verify-student-adm');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
+            showLoginMessage('');
+
+            try {
+                const cleanAdm = rawAdm.toLowerCase().replace(/[\\/\\s]+/g, '_');
+
+                let lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, `adm_${cleanAdm}`));
+                let matched = lookupSnap.exists() ? lookupSnap.data() : null;
+
+                if (!matched) {
+                    lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, cleanAdm));
+                    if (lookupSnap.exists()) matched = lookupSnap.data();
                 }
-                if (!confirmRoleSwitch('Staff/Admin')) return;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Authenticating...';
 
-                try {
-                    await window.AppSession?.clearAll();
-                    const userLogin = loginId.toLowerCase();
+                if (matched) {
+                    currentVerifiedStudent = matched;
+                    const nameEl = document.getElementById('verified-student-name');
+                    const metaEl = document.getElementById('verified-student-meta');
+                    if (nameEl) nameEl.textContent = matched.name || 'Verified Student';
+                    if (metaEl) metaEl.textContent = `Class ${matched.class || '-'} • Adm: ${matched.adm || rawAdm}`;
 
-                    // Step 1: Firebase Authentication FIRST
-                    let userCred = null;
-                    let loginError = null;
-
-                    try {
-                        userCred = await signInWithEmailAndPassword(auth, loginId, staffPassword);
-                    } catch (authError) {
-                        loginError = authError;
+                    document.getElementById('student-step-1')?.classList.add('hidden');
+                    document.getElementById('student-step-2')?.classList.remove('hidden');
+                    const phoneEl = document.getElementById('login-student-phone');
+                    if (phoneEl) {
+                        phoneEl.value = '';
+                        phoneEl.focus();
                     }
+                } else {
+                    showLoginMessage(`Admission Number "${rawAdm}" not found. Please verify your Admission Number or contact school administration.`);
+                    admInput?.focus();
+                }
+            } catch (err) {
+                console.error('Admission lookup error:', err);
+                showLoginMessage('Verification error: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Verify</span>';
+                }
+            }
+        };
 
-                    if (!userCred && !loginId.includes('@')) {
+        document.getElementById('btn-verify-student-adm')?.addEventListener('click', verifyStudentAdmissionNumber);
+        document.getElementById('login-student-adm')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                verifyStudentAdmissionNumber();
+            }
+        });
+
+        document.getElementById('btn-student-login-submit')?.addEventListener('click', async () => {
+            if (!currentVerifiedStudent) {
+                resetStudentLoginForm();
+                return;
+            }
+
+            const phoneInput = document.getElementById('login-student-phone');
+            const enteredPhone = normalizePhone(phoneInput?.value?.trim() || '');
+            if (!enteredPhone) {
+                showLoginMessage('Please enter your registered mobile number.');
+                phoneInput?.focus();
+                return;
+            }
+
+            const btn = document.getElementById('btn-student-login-submit');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...';
+            }
+
+            try {
+                const phones = Array.isArray(currentVerifiedStudent.phones)
+                    ? currentVerifiedStudent.phones
+                    : [normalizePhone(currentVerifiedStudent.phone || '')];
+
+                const isMatch = phones.some(p => p && (p === enteredPhone || p.endsWith(enteredPhone) || enteredPhone.endsWith(p)));
+                if (isMatch) {
+                    showLoginMessage('');
+                    if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading Dashboard...';
+                    if (!auth.currentUser) {
+                        try { await signInAnonymously(auth); } catch (_) {}
+                    }
+                    window.AppSession?.startStudent(currentVerifiedStudent.studentId, {
+                        name: currentVerifiedStudent.name || '',
+                        class: currentVerifiedStudent.class || '',
+                        adm: currentVerifiedStudent.adm || ''
+                    });
+                    window.location.href = 'student.html';
+                    return;
+                } else {
+                    showLoginMessage('Incorrect registered mobile number. Please check and try again.');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login to Student Portal';
+                    }
+                }
+            } catch (err) {
+                console.error('Student login submit error:', err);
+                showLoginMessage('Login error: ' + err.message);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login to Student Portal';
+                }
+            }
+        });
+
+        document.getElementById('login-student-phone')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-student-login-submit')?.click();
+            }
+        });
+
+        document.getElementById('btn-staff-login-submit')?.addEventListener('click', async () => {
+            const loginId = document.getElementById('login-staff-id')?.value?.trim() || '';
+            const staffPassword = document.getElementById('login-staff-password')?.value?.trim() || '';
+            if (!loginId || !staffPassword) {
+                showLoginMessage('Enter Email/Username and Password.');
+                return;
+            }
+
+            const btn = document.getElementById('btn-staff-login-submit');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Authenticating...';
+            }
+            showLoginMessage('');
+
+            try {
+                await window.AppSession?.clearAll();
+                const userLogin = loginId.toLowerCase();
+
+                let userCred = null;
+                try {
+                    userCred = await signInWithEmailAndPassword(auth, loginId, staffPassword);
+                } catch (authError) {
+                    if (!loginId.includes('@')) {
                         try {
                             userCred = await signInWithEmailAndPassword(auth, `${userLogin}@school.internal`, staffPassword);
-                            loginError = null;
                         } catch (_) {}
                     }
+                }
 
-                    if (userCred?.user) {
-                        const authedEmail = (userCred.user.email || userLogin).toLowerCase();
+                if (userCred?.user) {
+                    const authedEmail = (userCred.user.email || userLogin).toLowerCase();
 
-                        // Step 2: Now authenticated, check if Admin
-                        let isAdmin = false;
-                        try {
-                            const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
-                            const adminSnap = await getDoc(adminRef);
-                            if (adminSnap.exists()) {
-                                const adminData = adminSnap.data();
-                                const adminEmail = (adminData.email || '').toLowerCase();
-                                const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
-                                if (adminEmail === authedEmail || adminAccounts.some((account) => (account.email || '').toLowerCase() === authedEmail && account.isActive !== false)) {
-                                    isAdmin = true;
-                                }
+                    let isAdmin = false;
+                    try {
+                        const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
+                        const adminSnap = await getDoc(adminRef);
+                        if (adminSnap.exists()) {
+                            const adminData = adminSnap.data();
+                            const adminEmail = (adminData.email || '').toLowerCase();
+                            const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+                            if (adminEmail === authedEmail || adminAccounts.some((account) => (account.email || '').toLowerCase() === authedEmail && account.isActive !== false)) {
+                                isAdmin = true;
                             }
-                        } catch (adminCheckErr) {
-                            console.warn('Admin check notice:', adminCheckErr.message);
                         }
-
-                        if (isAdmin) {
-                            window.AppSession?.startAdmin();
-                            window.location.href = 'official.html';
-                            return;
-                        }
-
-                        // Step 3: Check staffAccess
-                        try {
-                            const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
-                            if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
-                                const activeCollector = staffAccessDoc.data();
-                                const collectorKey = authedEmail;
-                                const staffAccess = {
-                                    collection: activeCollector.canCollect === true,
-                                    worksheet: activeCollector.canAccessWorksheet === true,
-                                    result: activeCollector.canManageResults === true,
-                                    attendance: activeCollector.canAccessAttendance === true,
-                                    academicPlan: activeCollector.canAccessAcademicPlan === true,
-                                    studentActivity: activeCollector.canAccessActivity === true,
-                                    classroomEvaluation: activeCollector.canAccessEvaluation === true,
-                                    evaluation: activeCollector.canAccessEvaluation === true,
-                                    admin: activeCollector.canAccessAdmin === true,
-                                    canAccessAdmin: activeCollector.canAccessAdmin === true,
-                                    actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                                    staffId: activeCollector.staffId || '',
-                                    name: activeCollector.name || '',
-                                    phone: activeCollector.phone || '',
-                                    role: activeCollector.role || activeCollector.type || 'Staff',
-                                    type: activeCollector.type || 'Staff',
-                                    photo: activeCollector.photo || '',
-                                    source: 'staff',
-                                    userKey: collectorKey,
-                                    loginId: userLogin
-                                };
-                                window.AppSession?.startStaff(activeCollector.name || '', collectorKey, staffAccess);
-
-                                const officialSessionObj = {
-                                    id: activeCollector.staffId || '',
-                                    name: activeCollector.name || '',
-                                    username: collectorKey,
-                                    email: authedEmail,
-                                    phone: activeCollector.phone || '',
-                                    role: activeCollector.role || activeCollector.type || 'Staff',
-                                    type: activeCollector.type || 'Staff',
-                                    photo: activeCollector.photo || '',
-                                    canAccessAdmin: activeCollector.canAccessAdmin === true,
-                                    actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                                    canCollect: activeCollector.canCollect === true,
-                                    canAccessWorksheet: activeCollector.canAccessWorksheet === true,
-                                    canManageResults: activeCollector.canManageResults === true,
-                                    canAccessAttendance: activeCollector.canAccessAttendance === true,
-                                    canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
-                                    canAccessActivity: activeCollector.canAccessActivity === true,
-                                    canAccessEvaluation: activeCollector.canAccessEvaluation === true,
-                                    source: 'staff',
-                                    access: staffAccess
-                                };
-                                localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
-                                window.location.href = 'official.html';
-                                return;
-                            }
-                        } catch (staffAccessErr) {
-                            console.warn('Staff access check notice:', staffAccessErr.message);
-                        }
+                    } catch (adminErr) {
+                        console.warn('Admin check notice:', adminErr.message);
                     }
 
-                    // Step 4: Fallback for custom Directory Login
-                    const directoryLogin = await resolveDirectoryLogin(userLogin, staffPassword);
-                    if (directoryLogin?.blocked) {
-                        showLoginMessage('This account is blocked. Contact admin.');
-                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                        return;
-                    }
-                    if (directoryLogin?.entry) {
-                        const access = directoryLogin.access || {};
-                        const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
-                        window.AppSession?.startStaff(rawName, userLogin, { ...access, worksheet: true, userKey: userLogin, loginId: userLogin, source: 'directory' });
+                    if (isAdmin) {
+                        window.AppSession?.startAdmin();
                         window.location.href = 'official.html';
                         return;
                     }
 
-                    showLoginMessage("Invalid email or password. Please verify your credentials.");
-                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                } catch (error) {
-                    console.error('Staff login error:', error);
-                    showLoginMessage("Login failed: " + (error.message || "Invalid credentials."));
+                    try {
+                        const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
+                        if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
+                            const activeCollector = staffAccessDoc.data();
+                            const collectorKey = authedEmail;
+                            const staffAccess = {
+                                collection: activeCollector.canCollect === true,
+                                worksheet: activeCollector.canAccessWorksheet === true,
+                                result: activeCollector.canManageResults === true,
+                                attendance: activeCollector.canAccessAttendance === true,
+                                academicPlan: activeCollector.canAccessAcademicPlan === true,
+                                studentActivity: activeCollector.canAccessActivity === true,
+                                classroomEvaluation: activeCollector.canAccessEvaluation === true,
+                                evaluation: activeCollector.canAccessEvaluation === true,
+                                admin: activeCollector.canAccessAdmin === true,
+                                canAccessAdmin: activeCollector.canAccessAdmin === true,
+                                actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                                staffId: activeCollector.staffId || '',
+                                name: activeCollector.name || '',
+                                phone: activeCollector.phone || '',
+                                role: activeCollector.role || activeCollector.type || 'Staff',
+                                type: activeCollector.type || 'Staff',
+                                photo: activeCollector.photo || '',
+                                source: 'staff',
+                                userKey: collectorKey,
+                                loginId: userLogin
+                            };
+                            window.AppSession?.startStaff(activeCollector.name || '', collectorKey, staffAccess);
+
+                            const officialSessionObj = {
+                                id: activeCollector.staffId || '',
+                                name: activeCollector.name || '',
+                                username: collectorKey,
+                                email: authedEmail,
+                                phone: activeCollector.phone || '',
+                                role: activeCollector.role || activeCollector.type || 'Staff',
+                                type: activeCollector.type || 'Staff',
+                                photo: activeCollector.photo || '',
+                                canAccessAdmin: activeCollector.canAccessAdmin === true,
+                                actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                                canCollect: activeCollector.canCollect === true,
+                                canAccessWorksheet: activeCollector.canAccessWorksheet === true,
+                                canManageResults: activeCollector.canManageResults === true,
+                                canAccessAttendance: activeCollector.canAccessAttendance === true,
+                                canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
+                                canAccessActivity: activeCollector.canAccessActivity === true,
+                                canAccessEvaluation: activeCollector.canAccessEvaluation === true,
+                                source: 'staff',
+                                access: staffAccess
+                            };
+                            localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
+                            window.location.href = 'official.html';
+                            return;
+                        }
+                    } catch (staffAccessErr) {
+                        console.warn('Staff access notice:', staffAccessErr.message);
+                    }
+                }
+
+                const directoryLogin = await resolveDirectoryLogin(userLogin, staffPassword);
+                if (directoryLogin?.entry) {
+                    const access = directoryLogin.access || {};
+                    const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
+                    window.AppSession?.startStaff(rawName, userLogin, { ...access, worksheet: true, userKey: userLogin, loginId: userLogin, source: 'directory' });
+                    window.location.href = 'official.html';
+                    return;
+                }
+
+                showLoginMessage('Invalid username/email or password. Please verify credentials.');
+                if (btn) {
+                    btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                 }
-                return;
+            } catch (err) {
+                console.error('Staff login error:', err);
+                showLoginMessage('Login failed: ' + (err.message || 'Invalid credentials.'));
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                }
             }
+        });
 
-            showLoginMessage("Select class for student login, or enter email and password for staff/admin login.");
+        document.getElementById('login-staff-password')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-staff-login-submit')?.click();
+            }
         });
 
         const sessionNotice = window.AppSession?.consumeFlash?.();
