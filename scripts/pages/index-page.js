@@ -1,5 +1,5 @@
-import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { doc, onSnapshot, collection, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { doc, onSnapshot, collection, getDoc, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js';
 import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, normalizePhone, registerServiceWorker, renderVersionInfo, sanitizePhone, sanitizeUrl } from '../shared/app-common.js';
@@ -542,274 +542,310 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         };
         window.addEventListener('resize', fitNoticeViewportForFourCards);
 
-        async function init() {
-            onAuthStateChanged(auth, user => {
-                if(user) {
-                    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), snap => {
-                        const conf = snap.exists() ? snap.data() : {};
-                        globalInstitutionConfig = conf;
-                        if (conf.enabledModules && typeof conf.enabledModules === 'object') {
-                            try {
-                                localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
-                            } catch (_) {}
-                        }
-                        
-                        applyInstitutionBranding(conf, {
-                            defaultAppName: 'Institution',
-                            primaryTitleIds: ['hero-main-title'],
-                            subtitleIds: ['hero-subtitle'],
-                            logoIds: ['splash-logo-img', 'hero-logo-img', 'header-logo']
-                        });
 
-                        setTimeout(() => { fitHeroTitle(); }, 50);
-
-                        if(conf.logoUrl) {
-                            document.getElementById('splash-logo-img').src = conf.logoUrl;
-                            document.getElementById('hero-logo-img').src = conf.logoUrl;
-                            document.getElementById('header-logo').src = conf.logoUrl;
-                            document.getElementById('header-logo').style.opacity = '1';
-                        }
-                        
-                        renderVersionInfo();
-                        loaded.config = true; triggerAnim();
-                    });
-
-                    // Array validation logic for notices & gallery fixed
-                    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'content'), snap => {
-                        const content = snap.exists() ? snap.data() : {};
-                        const rawDirCats = Array.isArray(content.directoryCategories) ? content.directoryCategories : [];
-                        allStaffCategories = rawDirCats;
-                        directoryCategories = rawDirCats.filter((c) => c && !['Teacher', 'Management'].includes(String(c.id || '').trim()));
-                        const aboutDescEl = document.getElementById('about-desc');
-                        if (aboutDescEl) {
-                            aboutDescEl.innerHTML = renderNoticeTextWithLinks(content.description || 'Welcome to our institution.', 25);
-                        }
-                        
-                        // Notices Display Logic
-                        const notices = Array.isArray(content.notices) ? content.notices : [];
-                        const noticesCont = document.getElementById('notices-container');
-                        const navNoticesLink = document.getElementById('nav-notices-link');
-                        const heroBtnNotice = document.getElementById('hero-btn-notice');
-                        
-                        if (notices.length === 0) {
-                            noticesCont.classList.add('hidden');
-                            if(navNoticesLink) navNoticesLink.classList.add('hidden');
-                            if(heroBtnNotice) heroBtnNotice.classList.add('hidden');
-                        } else {
-                            noticesCont.classList.remove('hidden');
-                            if(navNoticesLink) navNoticesLink.classList.remove('hidden');
-                            if(heroBtnNotice) heroBtnNotice.classList.remove('hidden');
-                            
-                            const sortedNotices = notices
-                                .map((notice, originalIndex) => ({ notice, originalIndex }))
-                                .sort((a, b) => {
-                                    const pinWeight = Number(b.notice?.pinned === true) - Number(a.notice?.pinned === true);
-                                    if (pinWeight !== 0) return pinWeight;
-                                    const dateA = new Date(a.notice?.date || 0).getTime() || 0;
-                                    const dateB = new Date(b.notice?.date || 0).getTime() || 0;
-                                    if (dateA !== dateB) return dateB - dateA;
-                                    return b.originalIndex - a.originalIndex;
-                                })
-                                .map((entry) => entry.notice);
-
-                            latestNoticeCache = sortedNotices.map((notice, index) => {
-                                const text = String(notice?.text || '').trim();
-                                const rawImg = String(notice?.image || notice?.imageUrl || '').trim();
-                                const safeImage = (rawImg && rawImg.startsWith('data:image/')) ? rawImg : sanitizeUrl(rawImg);
-                                return {
-                                    heading: deriveNoticeHeading(notice, index),
-                                    text,
-                                    image: safeImage || '',
-                                    date: String(notice?.date || ''),
-                                    pinned: notice?.pinned === true
-                                };
-                            });
-
-                            noticeListEl.innerHTML = latestNoticeCache.map((notice, index) => {
-                                const longNotice = isNoticeLong(notice.text);
-                                const hasHeading = Boolean(notice.heading);
-                                const hasText = Boolean(notice.text);
-                                const hasImage = Boolean(notice.image);
-                                return `
-                                <article class="notice-card">
-                                    <div class="notice-card-content">
-                                        ${hasHeading ? `<h4 class="notice-title">${notice.pinned ? '<i class="fas fa-thumbtack text-amber-500 mr-1" title="Pinned"></i>' : ''}${escapeHtml(notice.heading)}</h4>` : (notice.pinned ? `<div class="text-xs font-bold text-amber-600 flex items-center justify-center gap-1"><i class="fas fa-thumbtack"></i> Pinned Notice</div>` : '')}
-                                        ${hasImage ? `<div class="notice-image-wrap cursor-pointer" data-notice-card-img="1" data-notice-index="${index}"><img src="${notice.image}" alt="${escapeHtml(notice.heading || 'Notification image')}" loading="lazy"></div>` : ''}
-                                        ${hasText ? `<p class="notice-body ${longNotice ? 'notice-preview-clamp' : ''}">${renderNoticeTextWithLinks(notice.text, 25)}</p>` : ''}
-                                    </div>
-                                    <div class="notice-footer">
-                                        <span class="notice-date"><i class="far fa-calendar-alt"></i> ${escapeHtml(notice.date || 'Date unavailable')}</span>
-                                        ${(longNotice || hasImage) ? `<button type="button" class="notice-expand-btn" data-notice-index="${index}">${longNotice ? 'Expand' : 'View'}</button>` : ''}
-                                    </div>
-                                </article>
-                            `;
-                            }).join('');
-                            fitNoticeViewportForFourCards();
-                            noticeListEl.querySelectorAll('img').forEach((img) => {
-                                img.addEventListener('load', fitNoticeViewportForFourCards, { once: true });
-                            });
-                        }
-
-                        // Gallery Display Logic
-                        const gallery = Array.isArray(content.gallery) ? content.gallery : [];
-                        const galleryCont = document.getElementById('gallery-container');
-                        const navGalleryLink = document.getElementById('nav-gallery-link');
-                        const heroBtnGallery = document.getElementById('hero-btn-gallery');
-                        
-                        if (gallery.length === 0) {
-                            galleryCont.classList.add('hidden');
-                            if(navGalleryLink) navGalleryLink.classList.add('hidden');
-                            if(heroBtnGallery) heroBtnGallery.classList.add('hidden');
-                        } else {
-                            galleryCont.classList.remove('hidden');
-                            if(navGalleryLink) navGalleryLink.classList.remove('hidden');
-                            if(heroBtnGallery) heroBtnGallery.classList.remove('hidden');
-                            
-                            galleryUrls = gallery
-                                .map((item, originalIndex) => {
-                                    const parsedOrder = Number(item?.order);
-                                    return {
-                                        url: typeof item === 'string' ? item : (item?.url || item?.imageUrl || item?.src || ''),
-                                        order: Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : originalIndex + 1,
-                                        originalIndex
-                                    };
-                                })
-                                .sort((a, b) => (a.order - b.order) || (a.originalIndex - b.originalIndex))
-                                .map((item) => sanitizeUrl(item.url))
-                                .filter(Boolean);
-                            document.getElementById('gallery-list').innerHTML = galleryUrls.map((safeUrl, index) => {
-                                return `<button type="button" class="gallery-item" data-gallery-index="${index}" data-gallery-url="${escapeHtml(safeUrl)}" aria-label="View photo ${index + 1}"><img src="${safeUrl}" alt="Gallery image ${index + 1}" loading="lazy"></button>`;
-                            }).join('');
-                        }
-                        
-                        loaded.content = true; triggerAnim();
-                        renderDynamicDirectory();
-                        if (typeof renderStaffDirectory === 'function') renderStaffDirectory();
-                    });
-
-                    onSnapshot(collection(db, `${BASE_PATH}/publicDirectory`), snap => {
-                        directoryEntries = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-                        renderDynamicDirectory();
-                    });
-                    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'categoryAuthConfig'), snap => {
-                        const payload = snap.exists() ? snap.data() : {};
-                        categoryAuthConfig = payload && typeof payload.categories === 'object' ? payload : { categories: {} };
-                    });
-                    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'pageAccess'), snap => {
-                        const payload = snap.exists() ? snap.data() : {};
-                        pageAccessConfig = (payload && typeof payload === 'object') ? payload : { categories: {}, overrides: {} };
-                    });
-
-                    const isCategoryPubliclyVisible = (categoryId = '') => {
-                        const target = String(categoryId || '').trim().toLowerCase();
-                        const match = allStaffCategories.find((c) => c && (String(c.id || '').trim().toLowerCase() === target || String(c.name || '').trim().toLowerCase() === target));
-                        // Default categories (Teacher & Management) and all categories are shown by default unless explicitly set to false
-                        return match ? match.showPublic !== false : true;
-                    };
-
-                    const renderStaffDirectory = () => {
-                        const isTeacherPublic = isCategoryPubliclyVisible('Teacher');
-                        const isMgmtPublic = isCategoryPubliclyVisible('Management');
-
-                        staffDirectoryEntries = cachedActiveStaff
-                            .filter((staffMember) => staffMember.showPublic !== false && directoryCategories.some((category) => category.id === staffMember.type && category.showPublic !== false))
-                            .map((staffMember) => ({
-                                id: `staff:${staffMember.id}`,
-                                categoryId: staffMember.type,
-                                displayOrder: staffMember.displayOrder || 999,
-                                updatedAt: staffMember.updatedAt || 0,
-                                values: {
-                                    name: staffMember.name || '',
-                                    role: staffMember.role || '',
-                                    phone: staffMember.phone || '',
-                                    photo: staffMember.photo || '',
-                                    address: staffMember.address || ''
-                                }
-                            }));
-                        renderDynamicDirectory();
-                        const sortByDisplayOrder = (list = []) => [...list].sort((a, b) => {
-                            const orderDiff = Number(a?.displayOrder || 999) - Number(b?.displayOrder || 999);
-                            if (orderDiff !== 0) return orderDiff;
-                            return String(a?.name || '').localeCompare(String(b?.name || ''));
-                        });
-                        const publicStaff = cachedActiveStaff.filter((staffMember) => staffMember.showPublic !== false);
-                        const teachers = sortByDisplayOrder(publicStaff.filter(s => s.type === 'Teacher'));
-                        const mgmt = sortByDisplayOrder(publicStaff.filter(s => s.type === 'Management'));
-                        
-                        const renderStaffList = (id, list, contId, linkId, btnId, isCategoryVisible) => {
-                            const cont = document.getElementById(contId);
-                            const navLink = linkId ? document.getElementById(linkId) : null;
-                            const heroBtn = btnId ? document.getElementById(btnId) : null;
-                            if (!cont) return;
-
-                            // If category is configured not to show publicly, hide container, nav menu link, and hero button
-                            if (!isCategoryVisible) {
-                                cont.classList.add('hidden');
-                                if (navLink) navLink.classList.add('hidden');
-                                if (heroBtn) heroBtn.classList.add('hidden');
-                                return;
-                            }
-
-                            const forceShow = id === 'teachers-list';
-                            if (!list.length) { 
-                                if (forceShow) {
-                                    cont.classList.remove('hidden');
-                                    if (navLink) navLink.classList.remove('hidden');
-                                    if (heroBtn) heroBtn.classList.remove('hidden');
-                                    document.getElementById(id).innerHTML = '<p class="text-sm text-gray-500 italic">No profiles available.</p>';
-                                } else {
-                                    cont.classList.add('hidden'); 
-                                    if (navLink) navLink.classList.add('hidden'); 
-                                    if (heroBtn) heroBtn.classList.add('hidden'); 
-                                }
-                            } else { 
-                                cont.classList.remove('hidden'); 
-                                if (navLink) navLink.classList.remove('hidden'); 
-                                if (heroBtn) heroBtn.classList.remove('hidden'); 
-                                
-                                document.getElementById(id).innerHTML = list.map((p) => {
-                                    const safePhoto = (p.photo && p.photo.startsWith('data:')) ? p.photo : (sanitizeUrl(p.photo) || 'https://via.placeholder.com/150?text=User');
-                                    return `<button type="button" class="person-card" data-person-name="${escapeHtml(p.name || '')}" data-person-role="${escapeHtml(p.role || '')}" data-person-phone="${escapeHtml(p.phone || '')}" data-person-img="${escapeHtml(safePhoto)}" data-person-address="${escapeHtml(p.address || '')}"><img src="${safePhoto}" class="person-img" alt="${escapeHtml(p.name || 'Staff member')}"><div class="person-name">${escapeHtml(p.name)}</div><div class="person-role">${escapeHtml(p.role)}</div></button>`;
-                                }).join('');
-                            }
-                        };
-                        
-                        renderStaffList('teachers-list', teachers, 'teachers-container', 'nav-teachers-link', 'hero-btn-teachers', isTeacherPublic);
-                        renderStaffList('comm-list', mgmt, 'management-container', 'nav-management-link', null, isMgmtPublic);
-                        
-                        const statStaffEl = document.getElementById('stat-staff');
-                        if (statStaffEl) {
-                            statStaffEl.textContent = isTeacherPublic ? teachers.length : 0;
-                        }
-                    };
-
-                    onSnapshot(collection(db, `${BASE_PATH}/staff`), snap => {
-                        const allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                        cachedActiveStaff = allStaff.filter(s => s.isActive);
-                        renderStaffDirectory();
-                        loaded.staff = true; triggerAnim();
-                    });
-
-                    // Populate class selector from config without downloading full student collection
-                    const configClasses = Array.isArray(globalInstitutionConfig?.classes) && globalInstitutionConfig.classes.length > 0
-                        ? globalInstitutionConfig.classes
-                        : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-                    let classOptions = configClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-                    classOptions += `<option value="Alumni">🎓 Alumni</option>`;
-                    const loginClassEl = document.getElementById('login-class');
-                    if (loginClassEl) loginClassEl.innerHTML = '<option value="">Select Class</option>' + classOptions;
-                    const stats = globalInstitutionConfig?.stats || {};
-                    const statTotal = document.getElementById('stat-total');
-                    const statMale = document.getElementById('stat-male');
-                    const statFemale = document.getElementById('stat-female');
-                    if (statTotal) statTotal.textContent = stats.total || '-';
-                    if (statMale) statMale.textContent = stats.male || '-';
-                    if (statFemale) statFemale.textContent = stats.female || '-';
-                    loaded.students = true; triggerAnim();
-                }
-            });
-            // Public landing page does not require anonymous auth session
+        function populateClassDropdown(conf = globalInstitutionConfig) {
+            const configClasses = Array.isArray(conf?.classes) && conf.classes.length > 0
+                ? conf.classes
+                : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+            let classOptions = configClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            classOptions += `<option value="Alumni">🎓 Alumni</option>`;
+            const loginClassEl = document.getElementById('login-class');
+            if (loginClassEl) {
+                const currentVal = loginClassEl.value;
+                loginClassEl.innerHTML = '<option value="">Select Class</option>' + classOptions;
+                if (currentVal) loginClassEl.value = currentVal;
+            }
         }
+
+        async function init() {
+            populateClassDropdown();
+
+            // 1. Institution Config snapshot (Public)
+            onSnapshot(doc(db, `${BASE_PATH}/settings`, 'config'), snap => {
+                const conf = snap.exists() ? snap.data() : {};
+                globalInstitutionConfig = conf;
+                if (conf.enabledModules && typeof conf.enabledModules === 'object') {
+                    try {
+                        localStorage.setItem('app_enabled_modules', JSON.stringify(conf.enabledModules));
+                    } catch (_) {}
+                }
+                
+                applyInstitutionBranding(conf, {
+                    defaultAppName: 'Institution',
+                    primaryTitleIds: ['hero-main-title'],
+                    subtitleIds: ['hero-subtitle'],
+                    logoIds: ['splash-logo-img', 'hero-logo-img', 'header-logo']
+                });
+
+                setTimeout(() => { fitHeroTitle(); }, 50);
+
+                if (conf.logoUrl) {
+                    const splashLogo = document.getElementById('splash-logo-img');
+                    if (splashLogo) splashLogo.src = conf.logoUrl;
+                    const heroLogo = document.getElementById('hero-logo-img');
+                    if (heroLogo) heroLogo.src = conf.logoUrl;
+                    const headerLogo = document.getElementById('header-logo');
+                    if (headerLogo) {
+                        headerLogo.src = conf.logoUrl;
+                        headerLogo.style.opacity = '1';
+                    }
+                }
+                
+                renderVersionInfo();
+                populateClassDropdown(conf);
+                const stats = conf.stats || {};
+                const statTotal = document.getElementById('stat-total');
+                const statMale = document.getElementById('stat-male');
+                const statFemale = document.getElementById('stat-female');
+                if (statTotal) statTotal.textContent = stats.total || '-';
+                if (statMale) statMale.textContent = stats.male || '-';
+                if (statFemale) statFemale.textContent = stats.female || '-';
+                loaded.config = true;
+                loaded.students = true;
+                triggerAnim();
+            }, err => {
+                console.warn('Config snapshot notice:', err);
+                loaded.config = true;
+                loaded.students = true;
+                triggerAnim();
+            });
+
+            // 2. Institution Content snapshot (Notices & Gallery) (Public)
+            onSnapshot(doc(db, `${BASE_PATH}/settings`, 'content'), snap => {
+                const content = snap.exists() ? snap.data() : {};
+                const rawDirCats = Array.isArray(content.directoryCategories) ? content.directoryCategories : [];
+                allStaffCategories = rawDirCats;
+                directoryCategories = rawDirCats.filter((c) => c && !['Teacher', 'Management'].includes(String(c.id || '').trim()));
+                const aboutDescEl = document.getElementById('about-desc');
+                if (aboutDescEl) {
+                    aboutDescEl.innerHTML = renderNoticeTextWithLinks(content.description || 'Welcome to our institution.', 25);
+                }
+                
+                // Notices Display Logic
+                const notices = Array.isArray(content.notices) ? content.notices : [];
+                const noticesCont = document.getElementById('notices-container');
+                const navNoticesLink = document.getElementById('nav-notices-link');
+                const heroBtnNotice = document.getElementById('hero-btn-notice');
+                
+                if (notices.length === 0) {
+                    noticesCont.classList.add('hidden');
+                    if (navNoticesLink) navNoticesLink.classList.add('hidden');
+                    if (heroBtnNotice) heroBtnNotice.classList.add('hidden');
+                } else {
+                    noticesCont.classList.remove('hidden');
+                    if (navNoticesLink) navNoticesLink.classList.remove('hidden');
+                    if (heroBtnNotice) heroBtnNotice.classList.remove('hidden');
+                    
+                    const sortedNotices = notices
+                        .map((notice, originalIndex) => ({ notice, originalIndex }))
+                        .sort((a, b) => {
+                            const pinWeight = Number(b.notice?.pinned === true) - Number(a.notice?.pinned === true);
+                            if (pinWeight !== 0) return pinWeight;
+                            const dateA = new Date(a.notice?.date || 0).getTime() || 0;
+                            const dateB = new Date(b.notice?.date || 0).getTime() || 0;
+                            if (dateA !== dateB) return dateB - dateA;
+                            return b.originalIndex - a.originalIndex;
+                        })
+                        .map((entry) => entry.notice);
+
+                    latestNoticeCache = sortedNotices.map((notice, index) => {
+                        const text = String(notice?.text || '').trim();
+                        const rawImg = String(notice?.image || notice?.imageUrl || '').trim();
+                        const safeImage = (rawImg && rawImg.startsWith('data:image/')) ? rawImg : sanitizeUrl(rawImg);
+                        return {
+                            heading: deriveNoticeHeading(notice, index),
+                            text,
+                            image: safeImage || '',
+                            date: String(notice?.date || ''),
+                            pinned: notice?.pinned === true
+                        };
+                    });
+
+                    noticeListEl.innerHTML = latestNoticeCache.map((notice, index) => {
+                        const longNotice = isNoticeLong(notice.text);
+                        const hasHeading = Boolean(notice.heading);
+                        const hasText = Boolean(notice.text);
+                        const hasImage = Boolean(notice.image);
+                        return `
+                        <article class="notice-card">
+                            <div class="notice-card-content">
+                                ${hasHeading ? `<h4 class="notice-title">${notice.pinned ? '<i class="fas fa-thumbtack text-amber-500 mr-1" title="Pinned"></i>' : ''}${escapeHtml(notice.heading)}</h4>` : (notice.pinned ? `<div class="text-xs font-bold text-amber-600 flex items-center justify-center gap-1"><i class="fas fa-thumbtack"></i> Pinned Notice</div>` : '')}
+                                ${hasImage ? `<div class="notice-image-wrap cursor-pointer" data-notice-card-img="1" data-notice-index="${index}"><img src="${notice.image}" alt="${escapeHtml(notice.heading || 'Notification image')}" loading="lazy"></div>` : ''}
+                                ${hasText ? `<p class="notice-body ${longNotice ? 'notice-preview-clamp' : ''}">${renderNoticeTextWithLinks(notice.text, 25)}</p>` : ''}
+                            </div>
+                            <div class="notice-footer">
+                                <span class="notice-date"><i class="far fa-calendar-alt"></i> ${escapeHtml(notice.date || 'Date unavailable')}</span>
+                                ${(longNotice || hasImage) ? `<button type="button" class="notice-expand-btn" data-notice-index="${index}">${longNotice ? 'Expand' : 'View'}</button>` : ''}
+                            </div>
+                        </article>
+                    `;
+                    }).join('');
+                    fitNoticeViewportForFourCards();
+                    noticeListEl.querySelectorAll('img').forEach((img) => {
+                        img.addEventListener('load', fitNoticeViewportForFourCards, { once: true });
+                    });
+                }
+
+                // Gallery Display Logic
+                const gallery = Array.isArray(content.gallery) ? content.gallery : [];
+                const galleryCont = document.getElementById('gallery-container');
+                const navGalleryLink = document.getElementById('nav-gallery-link');
+                const heroBtnGallery = document.getElementById('hero-btn-gallery');
+                
+                if (gallery.length === 0) {
+                    galleryCont.classList.add('hidden');
+                    if (navGalleryLink) navGalleryLink.classList.add('hidden');
+                    if (heroBtnGallery) heroBtnGallery.classList.add('hidden');
+                } else {
+                    galleryCont.classList.remove('hidden');
+                    if (navGalleryLink) navGalleryLink.classList.remove('hidden');
+                    if (heroBtnGallery) heroBtnGallery.classList.remove('hidden');
+                    
+                    galleryUrls = gallery
+                        .map((item, originalIndex) => {
+                            const parsedOrder = Number(item?.order);
+                            return {
+                                url: typeof item === 'string' ? item : (item?.url || item?.imageUrl || item?.src || ''),
+                                order: Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : originalIndex + 1,
+                                originalIndex
+                            };
+                        })
+                        .sort((a, b) => (a.order - b.order) || (a.originalIndex - b.originalIndex))
+                        .map((item) => sanitizeUrl(item.url))
+                        .filter(Boolean);
+                    document.getElementById('gallery-list').innerHTML = galleryUrls.map((safeUrl, index) => {
+                        return `<button type="button" class="gallery-item" data-gallery-index="${index}" data-gallery-url="${escapeHtml(safeUrl)}" aria-label="View photo ${index + 1}"><img src="${safeUrl}" alt="Gallery image ${index + 1}" loading="lazy"></button>`;
+                    }).join('');
+                }
+                
+                loaded.content = true;
+                triggerAnim();
+                renderDynamicDirectory();
+                if (typeof renderStaffDirectory === 'function') renderStaffDirectory();
+            }, err => {
+                console.warn('Content snapshot notice:', err);
+                loaded.content = true;
+                triggerAnim();
+            });
+
+            // 3. Public Directory snapshot
+            onSnapshot(collection(db, `${BASE_PATH}/publicDirectory`), snap => {
+                directoryEntries = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+                renderDynamicDirectory();
+            }, err => {
+                console.warn('Public directory notice:', err);
+            });
+
+            // 4. Category Auth & Page Access settings
+            onSnapshot(doc(db, `${BASE_PATH}/settings`, 'categoryAuthConfig'), snap => {
+                const payload = snap.exists() ? snap.data() : {};
+                categoryAuthConfig = payload && typeof payload.categories === 'object' ? payload : { categories: {} };
+            }, err => {
+                console.warn('Category auth notice:', err);
+            });
+
+            onSnapshot(doc(db, `${BASE_PATH}/settings`, 'pageAccess'), snap => {
+                const payload = snap.exists() ? snap.data() : {};
+                pageAccessConfig = (payload && typeof payload === 'object') ? payload : { categories: {}, overrides: {} };
+            }, err => {
+                console.warn('Page access notice:', err);
+            });
+
+            const isCategoryPubliclyVisible = (categoryId = '') => {
+                const target = String(categoryId || '').trim().toLowerCase();
+                const match = allStaffCategories.find((c) => c && (String(c.id || '').trim().toLowerCase() === target || String(c.name || '').trim().toLowerCase() === target));
+                return match ? match.showPublic !== false : true;
+            };
+
+            const renderStaffDirectory = () => {
+                const isTeacherPublic = isCategoryPubliclyVisible('Teacher');
+                const isMgmtPublic = isCategoryPubliclyVisible('Management');
+
+                staffDirectoryEntries = cachedActiveStaff
+                    .filter((staffMember) => staffMember.showPublic !== false && directoryCategories.some((category) => category.id === staffMember.type && category.showPublic !== false))
+                    .map((staffMember) => ({
+                        id: `staff:${staffMember.id}`,
+                        categoryId: staffMember.type,
+                        displayOrder: staffMember.displayOrder || 999,
+                        updatedAt: staffMember.updatedAt || 0,
+                        values: {
+                            name: staffMember.name || '',
+                            role: staffMember.role || '',
+                            phone: staffMember.phone || '',
+                            photo: staffMember.photo || '',
+                            address: staffMember.address || ''
+                        }
+                    }));
+                renderDynamicDirectory();
+                const sortByDisplayOrder = (list = []) => [...list].sort((a, b) => {
+                    const orderDiff = Number(a?.displayOrder || 999) - Number(b?.displayOrder || 999);
+                    if (orderDiff !== 0) return orderDiff;
+                    return String(a?.name || '').localeCompare(String(b?.name || ''));
+                });
+                const publicStaff = cachedActiveStaff.filter((staffMember) => staffMember.showPublic !== false);
+                const teachers = sortByDisplayOrder(publicStaff.filter(s => s.type === 'Teacher'));
+                const mgmt = sortByDisplayOrder(publicStaff.filter(s => s.type === 'Management'));
+                
+                const renderStaffList = (id, list, contId, linkId, btnId, isCategoryVisible) => {
+                    const cont = document.getElementById(contId);
+                    const navLink = linkId ? document.getElementById(linkId) : null;
+                    const heroBtn = btnId ? document.getElementById(btnId) : null;
+                    if (!cont) return;
+
+                    if (!isCategoryVisible) {
+                        cont.classList.add('hidden');
+                        if (navLink) navLink.classList.add('hidden');
+                        if (heroBtn) heroBtn.classList.add('hidden');
+                        return;
+                    }
+
+                    const forceShow = id === 'teachers-list';
+                    if (!list.length) { 
+                        if (forceShow) {
+                            cont.classList.remove('hidden');
+                            if (navLink) navLink.classList.remove('hidden');
+                            if (heroBtn) heroBtn.classList.remove('hidden');
+                            document.getElementById(id).innerHTML = '<p class="text-sm text-gray-500 italic">No profiles available.</p>';
+                        } else {
+                            cont.classList.add('hidden'); 
+                            if (navLink) navLink.classList.add('hidden'); 
+                            if (heroBtn) heroBtn.classList.add('hidden'); 
+                        }
+                    } else { 
+                        cont.classList.remove('hidden'); 
+                        if (navLink) navLink.classList.remove('hidden'); 
+                        if (heroBtn) heroBtn.classList.remove('hidden'); 
+                        
+                        document.getElementById(id).innerHTML = list.map((p) => {
+                            const safePhoto = (p.photo && p.photo.startsWith('data:')) ? p.photo : (sanitizeUrl(p.photo) || 'https://via.placeholder.com/150?text=User');
+                            return `<button type="button" class="person-card" data-person-name="${escapeHtml(p.name || '')}" data-person-role="${escapeHtml(p.role || '')}" data-person-phone="${escapeHtml(p.phone || '')}" data-person-img="${escapeHtml(safePhoto)}" data-person-address="${escapeHtml(p.address || '')}"><img src="${safePhoto}" class="person-img" alt="${escapeHtml(p.name || 'Staff member')}"><div class="person-name">${escapeHtml(p.name)}</div><div class="person-role">${escapeHtml(p.role)}</div></button>`;
+                        }).join('');
+                    }
+                };
+                
+                renderStaffList('teachers-list', teachers, 'teachers-container', 'nav-teachers-link', 'hero-btn-teachers', isTeacherPublic);
+                renderStaffList('comm-list', mgmt, 'management-container', 'nav-management-link', null, isMgmtPublic);
+                
+                const statStaffEl = document.getElementById('stat-staff');
+                if (statStaffEl) {
+                    statStaffEl.textContent = isTeacherPublic ? teachers.length : 0;
+                }
+            };
+
+            // 5. Staff Directory snapshot (Public profiles)
+            onSnapshot(collection(db, `${BASE_PATH}/staff`), snap => {
+                const allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                cachedActiveStaff = allStaff.filter(s => s.isActive);
+                renderStaffDirectory();
+                loaded.staff = true;
+                triggerAnim();
+            }, err => {
+                console.warn('Staff listener notice:', err);
+                loaded.staff = true;
+                triggerAnim();
+            });
+        }
+
 
         const lName = document.getElementById('login-student-name');
         const lClass = document.getElementById('login-class');
@@ -918,7 +954,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         const updateIdentifierInputMode = () => {
             const hasClass = Boolean(lClass.value);
             if (hasClass) {
-                lName.placeholder = 'Search Name or Adm No';
+                lName.placeholder = 'Admission Number';
                 document.getElementById('login-title').textContent = 'Student Login';
             } else {
                 lName.placeholder = 'Email (Admin / Staff)';
@@ -928,7 +964,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
         lClass.addEventListener('change', () => { selectedLoginStudent = null; lName.value = ''; lSugg.classList.remove('active'); updateIdentifierInputMode(); });
         updateIdentifierInputMode();
 
-        document.getElementById('login-submit').addEventListener('click', async () => {
+document.getElementById('login-submit').addEventListener('click', async () => {
             const btn = document.getElementById('login-submit');
             const activeRole = window.AppSession?.getRole?.() || '';
             const confirmRoleSwitch = (targetRoleLabel) => {
@@ -951,7 +987,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     return;
                 }
                 if (!typedIdentifier || !studentPassword) {
-                    showLoginMessage("Enter student Admission Number or Name, and registered mobile number");
+                    showLoginMessage("Enter student Admission Number and registered mobile number.");
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                     return;
                 }
@@ -959,53 +995,54 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
 
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...';
                 try {
-                    let targetStudent = null;
-                    const isAlumni = String(selectedClass).toLowerCase() === 'alumni';
+                    const cleanClass = selectedClass.trim().toLowerCase();
+                    const cleanAdm = typedIdentifier.trim().toLowerCase();
+                    const lookupKey = `${cleanClass}_${cleanAdm}`.replace(/[\/\s]+/g, '_');
 
-                    // Targeted lookup by adm number in selected class
-                    const qAdm = isAlumni
-                        ? query(collection(db, `${BASE_PATH}/students`), where("adm", "==", typedIdentifier), limit(5))
-                        : query(collection(db, `${BASE_PATH}/students`), where("class", "==", selectedClass), where("adm", "==", typedIdentifier), limit(1));
-                    let snap = await getDocs(qAdm);
+                    let lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey));
+                    let matchedData = lookupSnap.exists() ? lookupSnap.data() : null;
 
-                    if (snap.empty) {
-                        const qAdmNo = isAlumni
-                            ? query(collection(db, `${BASE_PATH}/students`), where("admNo", "==", typedIdentifier), limit(5))
-                            : query(collection(db, `${BASE_PATH}/students`), where("class", "==", selectedClass), where("admNo", "==", typedIdentifier), limit(1));
-                        snap = await getDocs(qAdmNo);
+                    if (!matchedData && !cleanClass.includes('alumni')) {
+                        const altKey = `${encodeURIComponent(selectedClass.trim())}_${encodeURIComponent(typedIdentifier.trim())}`;
+                        if (altKey !== lookupKey) {
+                            lookupSnap = await getDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, altKey));
+                            if (lookupSnap.exists()) matchedData = lookupSnap.data();
+                        }
                     }
 
-                    if (snap.empty) {
-                        const qName = isAlumni
-                            ? query(collection(db, `${BASE_PATH}/students`), where("name", "==", typedIdentifier), limit(5))
-                            : query(collection(db, `${BASE_PATH}/students`), where("class", "==", selectedClass), where("name", "==", typedIdentifier), limit(5));
-                        snap = await getDocs(qName);
+                    if (matchedData) {
+                        const enteredPhone = normalizePhone(passwordInput);
+                        const phones = Array.isArray(matchedData.phones) ? [...matchedData.phones] : [normalizePhone(matchedData.phone || '')];
+                        if (matchedData.fatherPhone) phones.push(normalizePhone(matchedData.fatherPhone));
+                        if (matchedData.motherPhone) phones.push(normalizePhone(matchedData.motherPhone));
+                        if (matchedData.mobile) phones.push(normalizePhone(matchedData.mobile));
+
+                        const isPhoneMatch = phones.some(p => p && (p === enteredPhone || p.endsWith(enteredPhone) || enteredPhone.endsWith(p)));
+                        if (isPhoneMatch) {
+                            showLoginMessage('');
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading...';
+                            if (!auth.currentUser) {
+                                try {
+                                    await signInAnonymously(auth);
+                                } catch (_) {}
+                            }
+                            window.AppSession?.startStudent(matchedData.studentId, {
+                                name: matchedData.name || '',
+                                class: matchedData.class || selectedClass,
+                                adm: matchedData.adm || typedIdentifier
+                            });
+                            window.location.href = 'student.html';
+                            return;
+                        } else {
+                            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                            showLoginMessage("Student found, but the registered mobile number does not match.");
+                            return;
+                        }
                     }
 
-                    if (!snap.empty) {
-                        const matched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                        targetStudent = matched.find(st => {
-                            const p1 = normalizePhone(st.mobile || st.phone || '');
-                            const p2 = normalizePhone(st.fatherPhone || st.motherPhone || '');
-                            return p1 === studentPassword || p2 === studentPassword;
-                        }) || null;
-                    }
-
-                    if (targetStudent) {
-                        showLoginMessage('');
-                        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading...';
-                        window.AppSession?.startStudent(targetStudent.id, {
-                            name: targetStudent.name || '',
-                            class: targetStudent.class || '',
-                            adm: targetStudent.adm || targetStudent.admNo || ''
-                        });
-                        window.location.href = 'student.html';
-                        return;
-                    } else {
-                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                        showLoginMessage("Student not found or incorrect registered mobile number.");
-                        return;
-                    }
+                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                    showLoginMessage(`Student record not found for Class ${selectedClass} and Adm No ${typedIdentifier}. Please check with administration.`);
+                    return;
                 } catch (err) {
                     console.error('Student login error:', err);
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
@@ -1017,136 +1054,140 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             if (hasStaffAttempt) {
                 const loginId = lName.value.trim();
                 const staffPassword = passwordInput;
-                if(!loginId || !staffPassword) { showLoginMessage("Enter Username and Password"); return; }
+                if (!loginId || !staffPassword) {
+                    showLoginMessage("Enter Username/Email and Password.");
+                    return;
+                }
                 if (!confirmRoleSwitch('Staff/Admin')) return;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Authenticating...';
+
                 try {
                     await window.AppSession?.clearAll();
                     const userLogin = loginId.toLowerCase();
-                    const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
-                    const adminSnap = await getDoc(adminRef);
-                    const adminData = adminSnap.exists() ? adminSnap.data() : {};
-                    const adminEmail = (adminData.email || '').toLowerCase();
-                    const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
-                    const isActiveAdmin = adminEmail === userLogin || adminAccounts.some((account) => (account.email || '').toLowerCase() === userLogin && account.isActive !== false);
-                    if (isActiveAdmin) {
-                        try {
-                            const userCred = await signInWithEmailAndPassword(auth, loginId, staffPassword);
-                            if (!userCred?.user) throw new Error('Admin auth failed');
-                        } catch (adminAuthError) {
-                            const legacyPassword = String(adminData.password || '').trim();
-                            const legacyMatched = legacyPassword && legacyPassword === String(staffPassword).trim();
-                            if (!legacyMatched) throw adminAuthError;
-                        }
-                        window.AppSession?.startAdmin();
-                        window.location.href = 'official.html';
-                        return;
-                    }
-                    // Authenticate staff with Firebase Authentication
+
+                    // Step 1: Firebase Authentication FIRST
                     let userCred = null;
+                    let loginError = null;
+
                     try {
                         userCred = await signInWithEmailAndPassword(auth, loginId, staffPassword);
                     } catch (authError) {
-                        console.warn('Firebase staff auth notice:', authError.message);
+                        loginError = authError;
                     }
 
-                    const authedEmail = userCred?.user?.email ? userCred.user.email.toLowerCase() : userLogin;
-                    const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
-                    if (userCred?.user && staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
-                        const activeCollector = staffAccessDoc.data();
-                        const collectorKey = authedEmail;
-                        const staffAccess = {
-                            collection: activeCollector.canCollect === true,
-                            worksheet: activeCollector.canAccessWorksheet === true,
-                            result: activeCollector.canManageResults === true,
-                            attendance: activeCollector.canAccessAttendance === true,
-                            academicPlan: activeCollector.canAccessAcademicPlan === true,
-                            studentActivity: activeCollector.canAccessActivity === true,
-                            admin: activeCollector.canAccessAdmin === true,
-                            canAccessAdmin: activeCollector.canAccessAdmin === true,
-                            actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                            staffId: activeCollector.staffId || '',
-                            name: activeCollector.name || '',
-                            phone: activeCollector.phone || '',
-                            role: activeCollector.role || activeCollector.type || 'Staff',
-                            type: activeCollector.type || 'Staff',
-                            photo: activeCollector.photo || '',
-                            source: 'staff',
-                            userKey: collectorKey,
-                            loginId: userLogin
-                        };
-                        window.AppSession?.startStaff(activeCollector.name || '', collectorKey, staffAccess);
+                    if (!userCred && !loginId.includes('@')) {
+                        try {
+                            userCred = await signInWithEmailAndPassword(auth, `${userLogin}@school.internal`, staffPassword);
+                            loginError = null;
+                        } catch (_) {}
+                    }
 
-                        const officialSessionObj = {
-                            id: activeCollector.staffId || '',
-                            name: activeCollector.name || '',
-                            username: collectorKey,
-                            email: authedEmail,
-                            phone: activeCollector.phone || '',
-                            role: activeCollector.role || activeCollector.type || 'Staff',
-                            type: activeCollector.type || 'Staff',
-                            photo: activeCollector.photo || '',
-                            canAccessAdmin: activeCollector.canAccessAdmin === true,
-                            actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
-                            canCollect: activeCollector.canCollect === true,
-                            canAccessWorksheet: activeCollector.canAccessWorksheet === true,
-                            canManageResults: activeCollector.canManageResults === true,
-                            canAccessAttendance: activeCollector.canAccessAttendance === true,
-                            canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
-                            canAccessActivity: activeCollector.canAccessActivity === true,
-                            source: 'staff',
-                            access: staffAccess
-                        };
-                        localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
-                        window.location.href = 'official.html';
-                        return;
-                    } else {
-                        const directoryLogin = await resolveDirectoryLogin(userLogin, staffPassword);
-                        if (directoryLogin?.blocked) {
-                            showLoginMessage('This account is blocked. Contact admin.');
-                            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                            return;
-                        }
-                        if (directoryLogin?.entry) {
-                            const access = directoryLogin.access || {};
-                            const targetPage = directoryLogin.targetPage === 'student' ? 'student' : 'collection';
-                            const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
-                            const studentId = String(
-                                directoryLogin.entry?.values?.studentId ||
-                                directoryLogin.entry?.values?.student_id ||
-                                directoryLogin.entry?.values?.uid ||
-                                ''
-                            ).trim();
-                            if (targetPage === 'student') {
-                                if (!access.student) {
-                                    showLoginMessage('Student page access is not enabled for this account.');
-                                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                                    return;
+                    if (userCred?.user) {
+                        const authedEmail = (userCred.user.email || userLogin).toLowerCase();
+
+                        // Step 2: Now authenticated, check if Admin
+                        let isAdmin = false;
+                        try {
+                            const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
+                            const adminSnap = await getDoc(adminRef);
+                            if (adminSnap.exists()) {
+                                const adminData = adminSnap.data();
+                                const adminEmail = (adminData.email || '').toLowerCase();
+                                const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+                                if (adminEmail === authedEmail || adminAccounts.some((account) => (account.email || '').toLowerCase() === authedEmail && account.isActive !== false)) {
+                                    isAdmin = true;
                                 }
-                                if (!studentId) {
-                                    showLoginMessage('Student login mapping is incomplete (studentId missing). Contact admin.');
-                                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
-                                    return;
-                                }
-                                const mappedStudent = allStudents.find((item) => item.id === studentId);
-                                window.AppSession?.startStudent(studentId, {
-                                    name: mappedStudent?.name || rawName,
-                                    class: mappedStudent?.class || '',
-                                    adm: mappedStudent?.adm || ''
-                                });
-                                window.location.href = 'student.html';
-                                return;
                             }
-                            window.AppSession?.startStaff(rawName, userLogin.toLowerCase(), { ...access, worksheet: true, userKey: userLogin.toLowerCase(), loginId: userLogin.toLowerCase(), source: 'directory' });
+                        } catch (adminCheckErr) {
+                            console.warn('Admin check notice:', adminCheckErr.message);
+                        }
+
+                        if (isAdmin) {
+                            window.AppSession?.startAdmin();
                             window.location.href = 'official.html';
                             return;
                         }
-                        showLoginMessage("Access Denied. Account not recognized.");
-                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+
+                        // Step 3: Check staffAccess
+                        try {
+                            const staffAccessDoc = await getDoc(doc(db, `${BASE_PATH}/staffAccess`, authedEmail));
+                            if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
+                                const activeCollector = staffAccessDoc.data();
+                                const collectorKey = authedEmail;
+                                const staffAccess = {
+                                    collection: activeCollector.canCollect === true,
+                                    worksheet: activeCollector.canAccessWorksheet === true,
+                                    result: activeCollector.canManageResults === true,
+                                    attendance: activeCollector.canAccessAttendance === true,
+                                    academicPlan: activeCollector.canAccessAcademicPlan === true,
+                                    studentActivity: activeCollector.canAccessActivity === true,
+                                    classroomEvaluation: activeCollector.canAccessEvaluation === true,
+                                    evaluation: activeCollector.canAccessEvaluation === true,
+                                    admin: activeCollector.canAccessAdmin === true,
+                                    canAccessAdmin: activeCollector.canAccessAdmin === true,
+                                    actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                                    staffId: activeCollector.staffId || '',
+                                    name: activeCollector.name || '',
+                                    phone: activeCollector.phone || '',
+                                    role: activeCollector.role || activeCollector.type || 'Staff',
+                                    type: activeCollector.type || 'Staff',
+                                    photo: activeCollector.photo || '',
+                                    source: 'staff',
+                                    userKey: collectorKey,
+                                    loginId: userLogin
+                                };
+                                window.AppSession?.startStaff(activeCollector.name || '', collectorKey, staffAccess);
+
+                                const officialSessionObj = {
+                                    id: activeCollector.staffId || '',
+                                    name: activeCollector.name || '',
+                                    username: collectorKey,
+                                    email: authedEmail,
+                                    phone: activeCollector.phone || '',
+                                    role: activeCollector.role || activeCollector.type || 'Staff',
+                                    type: activeCollector.type || 'Staff',
+                                    photo: activeCollector.photo || '',
+                                    canAccessAdmin: activeCollector.canAccessAdmin === true,
+                                    actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                                    canCollect: activeCollector.canCollect === true,
+                                    canAccessWorksheet: activeCollector.canAccessWorksheet === true,
+                                    canManageResults: activeCollector.canManageResults === true,
+                                    canAccessAttendance: activeCollector.canAccessAttendance === true,
+                                    canAccessAcademicPlan: activeCollector.canAccessAcademicPlan === true,
+                                    canAccessActivity: activeCollector.canAccessActivity === true,
+                                    canAccessEvaluation: activeCollector.canAccessEvaluation === true,
+                                    source: 'staff',
+                                    access: staffAccess
+                                };
+                                localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
+                                window.location.href = 'official.html';
+                                return;
+                            }
+                        } catch (staffAccessErr) {
+                            console.warn('Staff access check notice:', staffAccessErr.message);
+                        }
                     }
+
+                    // Step 4: Fallback for custom Directory Login
+                    const directoryLogin = await resolveDirectoryLogin(userLogin, staffPassword);
+                    if (directoryLogin?.blocked) {
+                        showLoginMessage('This account is blocked. Contact admin.');
+                        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
+                        return;
+                    }
+                    if (directoryLogin?.entry) {
+                        const access = directoryLogin.access || {};
+                        const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
+                        window.AppSession?.startStaff(rawName, userLogin, { ...access, worksheet: true, userKey: userLogin, loginId: userLogin, source: 'directory' });
+                        window.location.href = 'official.html';
+                        return;
+                    }
+
+                    showLoginMessage("Invalid email or password. Please verify your credentials.");
+                    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                 } catch (error) {
-                    console.error(error);
-                    showLoginMessage("Invalid Username or Password");
+                    console.error('Staff login error:', error);
+                    showLoginMessage("Login failed: " + (error.message || "Invalid credentials."));
                     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login Securely';
                 }
                 return;

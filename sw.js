@@ -60,6 +60,14 @@ self.addEventListener('fetch', (event) => {
   const isImageRequest = event.request.destination === 'image';
 
   if (isImageRequest) {
+    const isPiiImage = requestUrl.pathname.includes('/students/')
+      || requestUrl.pathname.includes('studentPhotoSubmissions')
+      || requestUrl.searchParams.has('token')
+      || requestUrl.hostname.includes('firestore.googleapis.com');
+    if (isPiiImage) {
+      event.respondWith(fetch(event.request).catch(() => new Response('', { status: 404 })));
+      return;
+    }
     event.respondWith(
       caches.open(IMAGE_CACHE_NAME).then(async (imageCache) => {
         const cachedImage = await imageCache.match(event.request);

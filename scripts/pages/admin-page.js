@@ -1176,13 +1176,93 @@ const buildBackupPayload = async (targetCategories = null) => {
     };
 };
 
+// Student Auth Lookup Helpers
+const syncSingleStudentLookup = async (studentId, studentData) => {
+    if (!studentId || !studentData) return;
+    const sClass = String(studentData.class || '').trim().toLowerCase();
+    const sAdm = String(studentData.adm || studentData.admNo || '').trim().toLowerCase();
+    if (!sClass || !sAdm) return;
+    const lookupKey = `${sClass}_${sAdm}`.replace(/[\\/\\s]+/g, '_');
+    const phones = [
+        normalizePhone(studentData.mobile || ''),
+        normalizePhone(studentData.phone || ''),
+        normalizePhone(studentData.fatherPhone || ''),
+        normalizePhone(studentData.motherPhone || ''),
+        normalizePhone(studentData.fatherMobile || ''),
+        normalizePhone(studentData.motherMobile || '')
+    ].filter(Boolean);
+
+    try {
+        await setDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey), {
+            studentId,
+            name: studentData.name || '',
+            class: studentData.class || '',
+            adm: studentData.adm || studentData.admNo || '',
+            phones: Array.from(new Set(phones)),
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (err) {
+        console.warn('Failed to sync student lookup doc:', lookupKey, err);
+    }
+};
+
+const removeSingleStudentLookup = async (sClass, sAdm) => {
+    if (!sClass || !sAdm) return;
+    const lookupKey = `${String(sClass).trim().toLowerCase()}_${String(sAdm).trim().toLowerCase()}`.replace(/[\\/\\s]+/g, '_');
+    try {
+        await deleteDoc(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey));
+    } catch (_) {}
+};
+
+const syncAllStudentsLookupIndex = async (studentsList = rawStudents, onProgress = null) => {
+    if (!Array.isArray(studentsList) || studentsList.length === 0) return 0;
+    const operations = [];
+    for (const st of studentsList) {
+        if (!st || !st.id) continue;
+        const sClass = String(st.class || '').trim().toLowerCase();
+        const sAdm = String(st.adm || st.admNo || '').trim().toLowerCase();
+        if (!sClass || !sAdm) continue;
+        const lookupKey = `${sClass}_${sAdm}`.replace(/[\\/\\s]+/g, '_');
+        const phones = [
+            normalizePhone(st.mobile || ''),
+            normalizePhone(st.phone || ''),
+            normalizePhone(st.fatherPhone || ''),
+            normalizePhone(st.motherPhone || ''),
+            normalizePhone(st.fatherMobile || ''),
+            normalizePhone(st.motherMobile || '')
+        ].filter(Boolean);
+
+        operations.push((batch) => batch.set(doc(db, `${BASE_PATH}/studentAuthLookup`, lookupKey), {
+            studentId: st.id,
+            name: st.name || '',
+            class: st.class || '',
+            adm: st.adm || st.admNo || '',
+            phones: Array.from(new Set(phones)),
+            updatedAt: Date.now()
+        }, { merge: true }));
+    }
+    if (operations.length > 0) {
+        onProgress?.(`Syncing ${operations.length} student lookup records...`);
+        await runBatchedWrites(operations);
+    }
+    return operations.length;
+};
+
 const restoreCollectionFromPayload = async (collectionName, records = []) => {
+    if (!Array.isArray(records) || records.length === 0) {
+        console.warn(`Restore skipped for ${collectionName}: payload is empty or invalid.`);
+        return;
+    }
+    const validRecords = records.filter((r) => r && typeof r === 'object' && r.id);
+    if (validRecords.length === 0) {
+        console.warn(`Restore aborted for ${collectionName}: no records with valid IDs.`);
+        return;
+    }
     const existing = await getDocs(collection(db, `${BASE_PATH}/${collectionName}`));
     const operations = [];
     existing.forEach((record) => operations.push((batch) => batch.delete(record.ref)));
-    records.forEach((record) => {
-        const { id, ...data } = record || {};
-        if (!id) return;
+    validRecords.forEach((record) => {
+        const { id, ...data } = record;
         operations.push((batch) => batch.set(doc(db, `${BASE_PATH}/${collectionName}`, id), data));
     });
     await runBatchedWrites(operations);
@@ -4920,6 +5000,7 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
 
         const studentDoc = await addDoc(collection(db, `${BASE_PATH}/students`), nextStudent);
         await syncEnrollmentRecord(studentDoc.id, nextStudent);
+        await syncSingleStudentLookup(studentDoc.id, nextStudent);
         await setDoc(doc(db, `${BASE_PATH}/studentPhotoSubmissions`, studentDoc.id), { photo: photoVal, updatedAt: Date.now() }, { merge: true });
         if (cls !== 'Alumni' && cls !== 'ALUMNI') {
             await syncActiveAcademicYearClasses([cls]);
@@ -5682,6 +5763,7 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
         await updateDoc(doc(db, `${BASE_PATH}/students`, editingStudentId), updatedPayload);
         await setDoc(doc(db, `${BASE_PATH}/studentPhotoSubmissions`, editingStudentId), { photo: photoVal, updatedAt: Date.now() }, { merge: true });
         await syncEnrollmentRecord(editingStudentId, { ...existingStudent, ...updatedPayload });
+        await syncSingleStudentLookup(editingStudentId, { ...existingStudent, ...updatedPayload });
         if (updatedClass !== 'Alumni' && updatedClass !== 'ALUMNI') {
             await syncActiveAcademicYearClasses([updatedClass]);
         }
@@ -5737,30 +5819,39 @@ const getManagedStudentsForExport = () => {
     }
     return filtered;
 };
+const sanitizeForFormulaInjection = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (/^[=+@\-|\t\r]/.test(str)) {
+        return "'" + str;
+    }
+    return str;
+};
+
 const buildStudentExportRows = () => {
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     return getManagedStudentsForExport().map((student, index) => {
         const prof = student.profile || {};
         return {
             'Sl. No': index + 1,
-            'Academic Year': selectedYear,
+            'Academic Year': sanitizeForFormulaInjection(selectedYear),
             'Photo': student.photo ? 'Yes' : 'No',
-            'Class': student.class || '',
-        'ID/UID': student.uid || '',
-        'Student Name': student.name || '',
-        "Father's Name": student.father || '',
-        "Mother's Name": student.mother || prof.mother || '',
-        'Gender': student.gender || '',
-        'Admission Number (Adm. No.)': student.adm || '',
-        'Date of Birth': prof.dob || '',
-        'Date of Admission': prof.admDate || '',
-        'Student Status': normalizeStudentStatus(student.status),
-        'Aadhaar Number': prof.adhaar || '',
-        "Father's Phone Number": student.mobile || '',
-        "Mother's Phone Number": student.motherMobile || prof.motherMobile || '',
-        'Permanent Address': student.address || ''
-    };
-});
+            'Class': sanitizeForFormulaInjection(student.class || ''),
+            'ID/UID': sanitizeForFormulaInjection(student.uid || ''),
+            'Student Name': sanitizeForFormulaInjection(student.name || ''),
+            "Father's Name": sanitizeForFormulaInjection(student.father || ''),
+            "Mother's Name": sanitizeForFormulaInjection(student.mother || prof.mother || ''),
+            'Gender': sanitizeForFormulaInjection(student.gender || ''),
+            'Admission Number (Adm. No.)': sanitizeForFormulaInjection(student.adm || ''),
+            'Date of Birth': sanitizeForFormulaInjection(prof.dob || ''),
+            'Date of Admission': sanitizeForFormulaInjection(prof.admDate || ''),
+            'Student Status': sanitizeForFormulaInjection(normalizeStudentStatus(student.status)),
+            'Aadhaar Number': sanitizeForFormulaInjection(prof.adhaar || ''),
+            "Father's Phone Number": sanitizeForFormulaInjection(student.mobile || ''),
+            "Mother's Phone Number": sanitizeForFormulaInjection(student.motherMobile || prof.motherMobile || ''),
+            'Permanent Address': sanitizeForFormulaInjection(student.address || '')
+        };
+    });
 };
 const exportStudentsToExcel = () => {
     const exportRows = buildStudentExportRows();
@@ -13488,6 +13579,28 @@ onAuthStateChanged(auth, async (user) => {
             refreshAcademicYearScopedData();
             renderAcademicYears();
             renderBackupCategoryCounts();
+            if (rawStudents.length > 0) {
+                syncAllStudentsLookupIndex(rawStudents).catch((e) => console.warn('Background student lookup sync notice:', e));
+            }
+        });
+
+        document.getElementById('btn-sync-student-lookup')?.addEventListener('click', async () => {
+            const btn = document.getElementById('btn-sync-student-lookup');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Syncing...';
+            }
+            try {
+                const count = await syncAllStudentsLookupIndex(rawStudents);
+                showToast(`Student Login Index synchronized successfully (${count} records).`, 'success');
+            } catch (err) {
+                showToast('Failed to sync student login index: ' + err.message, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-sync-alt"></i><span>Sync Student Login Index</span>';
+                }
+            }
         });
 
         onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {

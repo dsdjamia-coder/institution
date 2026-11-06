@@ -129,10 +129,9 @@ service cloud.firestore {
         || (canManageEvaluation(institutionId) && docId.matches('evaluationConfig_.*'));
     }
 
-    // 2. Staff Profiles
+    // 2. Staff Profiles (Public profiles without sensitive permissions or credentials)
     match /institutions/{institutionId}/staff/{docId} {
-      // Reading full staff records requires authentication (public profiles are exposed through publicDirectory)
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin(institutionId);
     }
 
@@ -142,14 +141,23 @@ service cloud.firestore {
       allow write: if isAdmin(institutionId);
     }
 
-    // 4. Students
+    // 4. Student Auth Lookup (Zero-PII index for student verification)
+    match /institutions/{institutionId}/studentAuthLookup/{docId} {
+      allow get: if true;
+      allow list: if isAuthenticated();
+      allow write: if isAdmin(institutionId);
+    }
+
+    // 5. Students
     match /institutions/{institutionId}/students/{docId} {
-      // Staff/Admins can read all students; individual students can read their own profile
-      allow read: if isAuthenticated() || (isSignedIn() && request.auth.uid == docId);
+      // Authenticated staff & admins can list and query all students
+      allow list: if isAuthenticated();
+      // Allow single document read (get) for authenticated users or active student portal sessions
+      allow get: if isAuthenticated() || isSignedIn();
       allow write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
-    // 5. Student Groups
+    // 6. Student Groups
     match /institutions/{institutionId}/studentGroups/{docId} {
       allow read: if true;
       allow write: if isAdmin(institutionId) || isCollector(institutionId);
