@@ -1190,21 +1190,35 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 await window.AppSession?.clearAll();
                 const loginEmail = verifiedUser.loginEmail || (verifiedUser.data?.email || '').toLowerCase();
                 const userLogin = loginEmail || verifiedUser.displayName.toLowerCase();
+                const enteredPassword = enteredPass.trim();
+                const storedPassword = (verifiedUser.data?.password || '').trim();
 
+                let isAuthenticated = false;
                 let userCred = null;
-                try {
-                    userCred = await signInWithEmailAndPassword(auth, loginEmail, enteredPass);
-                } catch (authError) {
-                    if (!loginEmail.includes('@')) {
-                        try {
-                            userCred = await signInWithEmailAndPassword(auth, `${loginEmail}@school.internal`, enteredPass);
-                        } catch (_) {}
+
+                // 1. Check direct password match for staff
+                if (storedPassword && storedPassword === enteredPassword) {
+                    isAuthenticated = true;
+                }
+
+                // 2. Firebase Auth login attempt
+                if (!isAuthenticated) {
+                    try {
+                        userCred = await signInWithEmailAndPassword(auth, loginEmail, enteredPassword);
+                        if (userCred?.user) isAuthenticated = true;
+                    } catch (authError) {
+                        if (!loginEmail.includes('@')) {
+                            try {
+                                userCred = await signInWithEmailAndPassword(auth, `${loginEmail}@school.internal`, enteredPassword);
+                                if (userCred?.user) isAuthenticated = true;
+                            } catch (_) {}
+                        }
                     }
                 }
 
-                if (!userCred?.user) {
-                    // Try directory login fallback
-                    const directoryLogin = await resolveDirectoryLogin(userLogin, enteredPass);
+                // 3. Try directory login fallback
+                if (!isAuthenticated) {
+                    const directoryLogin = await resolveDirectoryLogin(userLogin, enteredPassword);
                     if (directoryLogin?.entry) {
                         const access = directoryLogin.access || {};
                         const rawName = String(directoryLogin.entry?.authMeta?.usernameRaw || userLogin || 'User');
@@ -1221,7 +1235,11 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     return;
                 }
 
-                const authedEmail = (userCred.user.email || loginEmail).toLowerCase();
+                if (!auth.currentUser) {
+                    try { await signInAnonymously(auth); } catch (_) {}
+                }
+
+                const authedEmail = (userCred?.user?.email || loginEmail).toLowerCase();
                 const authedUsername = authedEmail.includes('@school.internal') ? authedEmail.replace('@school.internal', '') : authedEmail.split('@')[0];
 
                 // 1. Check if Admin
@@ -1363,6 +1381,13 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 e.preventDefault();
                 handleUniversalLoginSubmit();
             }
+        });
+
+        document.getElementById('login-username')?.addEventListener('input', (e) => {
+            if (e.target.value.length > 25) e.target.value = e.target.value.slice(0, 25);
+        });
+        document.getElementById('login-password')?.addEventListener('input', (e) => {
+            if (e.target.value.length > 25) e.target.value = e.target.value.slice(0, 25);
         });
 
         const sessionNotice = window.AppSession?.consumeFlash?.();

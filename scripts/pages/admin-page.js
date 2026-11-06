@@ -215,8 +215,10 @@ const getStaffAccessRef = (email = '') => doc(db, STAFF_ACCESS_COLLECTION, norma
 const syncStaffAccessRecord = async (staffRecord = {}) => {
     const email = normalizeEmail(staffRecord.email || '');
     if (!email) return;
-    await setDoc(getStaffAccessRef(email), {
+    const payload = {
         email,
+        username: staffRecord.username || '',
+        password: staffRecord.password || '',
         isActive: staffRecord.isActive !== false,
         canCollect: staffRecord.canCollect === true,
         canAccessWorksheet: staffRecord.canAccessWorksheet === true,
@@ -236,7 +238,13 @@ const syncStaffAccessRecord = async (staffRecord = {}) => {
         role: staffRecord.role || '',
         type: staffRecord.type || '',
         updatedAt: new Date().toISOString()
-    }, { merge: true });
+    };
+    await setDoc(getStaffAccessRef(email), payload, { merge: true });
+    if (staffRecord.username) {
+        try {
+            await setDoc(doc(db, STAFF_ACCESS_COLLECTION, staffRecord.username), payload, { merge: true });
+        } catch (_) {}
+    }
 };
 const removeStaffAccessRecord = async (email = '') => {
     const normalized = normalizeEmail(email);
@@ -3210,6 +3218,9 @@ document.getElementById('add-staff-btn').addEventListener('click', async () => {
 
     const initialAuthPass = staffRecord._initialAuthPassword;
     delete staffRecord._initialAuthPassword;
+    if (initialAuthPass) {
+        staffRecord.password = initialAuthPass;
+    }
     if (staffRecord.email && initialAuthPass) {
         await provisionStaffAuthUser(staffRecord.email, initialAuthPass);
     }
@@ -3835,13 +3846,15 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
         const nextStaffPayload = {
             ...staffRecord,
             email: normalizedEmail,
-            username: username
+            username: username,
+            password: rawPassword
         };
 
         await provisionStaffAuthUser(normalizedEmail, rawPassword);
         await updateDoc(doc(db, `${BASE_PATH}/staff`, staffId), {
             email: normalizedEmail,
             username: username,
+            password: rawPassword,
             updatedAt: new Date().toISOString()
         });
 
@@ -3850,21 +3863,9 @@ document.getElementById('staff-cred-save-btn')?.addEventListener('click', async 
         }
         await syncStaffAccessRecord(nextStaffPayload);
 
-        // Also index under username in staffAccess
-        if (username) {
-            try {
-                await setDoc(doc(db, `${BASE_PATH}/staffAccess`, username), {
-                    ...nextStaffPayload,
-                    email: normalizedEmail,
-                    username: username,
-                    updatedAt: new Date().toISOString()
-                }, { merge: true });
-            } catch (_) {}
-        }
-
         staffRecord.email = normalizedEmail;
         staffRecord.username = username;
-        delete staffRecord.password;
+        staffRecord.password = rawPassword;
 
         await logAuditEvent({
             category: 'security',

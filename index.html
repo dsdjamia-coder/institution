@@ -202,7 +202,7 @@
                     <label for="login-username" class="block text-xs font-black text-emerald-950 uppercase tracking-wide text-left">
                         <i class="fas fa-user-circle mr-1 text-emerald-600"></i> Username
                     </label>
-                    <input type="text" id="login-username" class="form-input bg-white border-emerald-400 focus:border-emerald-600 focus:ring-emerald-500 tracking-wide font-medium text-left" placeholder="Username / Admission No" autocomplete="username">
+                    <input type="text" id="login-username" maxlength="25" class="form-input bg-white border-emerald-400 focus:border-emerald-600 focus:ring-emerald-500 tracking-wide font-medium text-left" placeholder="Username / Admission No" autocomplete="username">
                 </div>
                 <button type="button" id="btn-verify-user" class="main-login-btn w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
                     <i class="fas fa-check-circle"></i>
@@ -228,7 +228,7 @@
                 <div class="space-y-1">
                     <label id="login-password-label" for="login-password" class="block text-xs font-bold text-gray-700">Password</label>
                     <div class="input-with-icon">
-                        <input type="password" id="login-password" class="form-input form-input-with-trailing-icon font-mono" placeholder="Password" autocomplete="current-password">
+                        <input type="password" id="login-password" maxlength="25" class="form-input form-input-with-trailing-icon font-mono" placeholder="Password" autocomplete="current-password">
                         <i class="fas fa-eye trailing-icon cursor-pointer" id="toggle-universal-pass"></i>
                     </div>
                     <p id="login-password-hint" class="text-[11px] text-gray-500">Enter your credentials to continue.</p>
