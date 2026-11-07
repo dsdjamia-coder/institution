@@ -37,7 +37,7 @@ let selectedFeeAcademicYear = '';
 let selectedDutyClasses = [];
 const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
 const isClassInDutyScope = (clsName = '', dutyList = []) => {
-    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
     const targetNorm = normalizeClassLabel(clsName);
     return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
 };
@@ -309,11 +309,17 @@ const getTargetFromHash = (hashValue) => {
 
 const syncMasterLedgerState = () => {
     try {
+        const effectiveStudents = isMasterSuperAdmin()
+            ? (Array.isArray(students) ? students : [])
+            : (Array.isArray(students) && selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : []);
+        const effectiveClasses = isMasterSuperAdmin()
+            ? (Array.isArray(classes) ? classes : [])
+            : getClassOptionsForCollector();
         updateMasterLedgerData({
-            students: Array.isArray(students) ? students : [],
+            students: effectiveStudents,
             groups: Array.isArray(studentGroups) ? studentGroups : [],
             payments: Array.isArray(allPayments) ? allPayments : [],
-            classes: Array.isArray(classes) ? classes : [],
+            classes: effectiveClasses,
             defaultFee: typeof defaultFee === 'number' ? defaultFee : 200,
             academicYear: currentWorkingAcademicYear || '',
             academicYearSettings: Array.isArray(academicYearSettings) ? academicYearSettings : []
@@ -457,16 +463,117 @@ const setResultPageNavVisibility = (canAccess = false) => {
     if (!navItem) return;
     navItem.classList.toggle('hidden', !canAccess);
 };
+const getOfficialSession = () => {
+    try {
+        const raw = localStorage.getItem('official_portal_session_v1');
+        return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+        return null;
+    }
+};
+
 const normalizeEmail = (email = '') => String(email || '').trim().toLowerCase();
-const getEffectiveStaffEmail = () => normalizeEmail(currentUserEmail || window.AppSession?.getStaffEmail?.() || auth.currentUser?.email || '');
+const getEffectiveStaffEmail = () => normalizeEmail(currentUserEmail || window.AppSession?.getStaffEmail?.() || auth?.currentUser?.email || '');
 const getCollectorKey = () => normalizeEmail(currentCollectorKey || window.AppSession?.getStaffAccess?.()?.userKey || window.AppSession?.getStaffAccess?.()?.loginId || getEffectiveStaffEmail());
+
+const isMasterSuperAdmin = () => {
+    const staffAccess = window.AppSession?.getStaffAccess?.();
+    if (staffAccess && (staffAccess.source === 'staff' || staffAccess.staffId || staffAccess.userKey)) {
+        return false;
+    }
+    const officialSession = getOfficialSession();
+    if (officialSession && (officialSession.source === 'staff' || (officialSession.id && officialSession.id !== 'admin'))) {
+        return false;
+    }
+    return Boolean(isCurrentAdmin || window.AppSession?.getRole?.() === 'admin');
+};
+
+const findCurrentStaffMember = (staffList = []) => {
+    if (!Array.isArray(staffList) || !staffList.length) return null;
+    const staffAccess = window.AppSession?.getStaffAccess?.() || null;
+    const officialSession = getOfficialSession();
+
+    const targetStaffId = staffAccess?.staffId || officialSession?.id || officialSession?.access?.staffId || '';
+    const targetEmail = normalizeEmail(staffAccess?.email || officialSession?.email || currentUserEmail || auth?.currentUser?.email || '');
+    const targetUsername = String(staffAccess?.loginId || staffAccess?.userKey || officialSession?.username || '').toLowerCase().trim();
+    const targetName = String(staffAccess?.name || officialSession?.name || window.AppSession?.getStaffName?.() || auth?.currentUser?.displayName || '').toLowerCase().trim();
+
+    if (targetStaffId) {
+        const found = staffList.find((s) => s.id === targetStaffId);
+        if (found) return found;
+    }
+
+    if (targetEmail) {
+        const found = staffList.find((s) => {
+            const sEmail = normalizeEmail(s.email);
+            return sEmail && sEmail === targetEmail;
+        });
+        if (found) return found;
+
+        const emailPrefix = targetEmail.split('@')[0];
+        if (emailPrefix) {
+            const prefixFound = staffList.find((s) => {
+                const sUsername = String(s.username || '').toLowerCase().trim();
+                const sEmail = normalizeEmail(s.email);
+                return sUsername === emailPrefix || (sEmail && sEmail.split('@')[0] === emailPrefix);
+            });
+            if (prefixFound) return prefixFound;
+        }
+    }
+
+    if (targetUsername) {
+        const cleanUser = targetUsername.includes('@') ? targetUsername.split('@')[0] : targetUsername;
+        const found = staffList.find((s) => {
+            const sUsername = String(s.username || '').toLowerCase().trim();
+            const sEmailPrefix = normalizeEmail(s.email).split('@')[0];
+            return sUsername === cleanUser || sEmailPrefix === cleanUser;
+        });
+        if (found) return found;
+    }
+
+    if (targetName) {
+        const found = staffList.find((s) => String(s.name || '').toLowerCase().trim() === targetName);
+        if (found) return found;
+    }
+
+    return null;
+};
+
+const resolveStaffDutyClasses = (staffRecord = null) => {
+    if (staffRecord) {
+        if (Array.isArray(staffRecord.dutyClasses) && staffRecord.dutyClasses.length) {
+            return staffRecord.dutyClasses.filter(Boolean);
+        }
+        if (Array.isArray(staffRecord.assignedClasses) && staffRecord.assignedClasses.length) {
+            return staffRecord.assignedClasses.filter(Boolean);
+        }
+        if (staffRecord.customValues && Array.isArray(staffRecord.customValues.dutyClasses) && staffRecord.customValues.dutyClasses.length) {
+            return staffRecord.customValues.dutyClasses.filter(Boolean);
+        }
+    }
+    const staffAccess = window.AppSession?.getStaffAccess?.();
+    if (Array.isArray(staffAccess?.dutyClasses) && staffAccess.dutyClasses.length) {
+        return staffAccess.dutyClasses.filter(Boolean);
+    }
+    const officialSession = getOfficialSession();
+    if (Array.isArray(officialSession?.dutyClasses) && officialSession.dutyClasses.length) {
+        return officialSession.dutyClasses.filter(Boolean);
+    }
+    const localSaved = readDutyClassesFromLocal();
+    if (Array.isArray(localSaved) && localSaved.length) {
+        return localSaved.filter(Boolean);
+    }
+    return [];
+};
+
+const getCurrentCollectorName = () => {
+    if (isMasterSuperAdmin()) return 'Administrator';
+    const myStaff = findCurrentStaffMember(allStaff);
+    return myStaff?.name || window.AppSession?.getStaffName?.() || currentUserEmail || 'Collector';
+};
+
 const getCollectorDisplayName = () => {
-    const key = getCollectorKey();
-    const staffMatch = allStaff.find(s => normalizeEmail(s.email) === key || String(s.loginId || '').trim().toLowerCase() === key || normalizeEmail(s.name) === key);
-    if (staffMatch?.name) return staffMatch.name;
-    if (window.AppSession?.getStaffName?.()) return window.AppSession.getStaffName();
-    if (isCurrentAdmin && !window.AppSession?.getStaffAccess?.()) return 'Administrator';
-    return currentUserEmail || key || 'Collector';
+    return getCurrentCollectorName();
 };
 window.getCollectorKey = getCollectorKey;
 window.getCollectorDisplayName = getCollectorDisplayName;
@@ -663,9 +770,14 @@ const buildFeeStatusMatrix = () => {
     const fCls = document.getElementById('filter-class')?.value || 'all';
     const fGen = document.getElementById('filter-gender')?.value || 'all';
     const fYear = document.getElementById('filter-academic-year')?.value || currentWorkingAcademicYear;
-    const dutyFilteredStudents = (!isCurrentAdmin && selectedDutyClasses.length)
-        ? students.filter((student) => isClassInDutyScope(student.class, selectedDutyClasses))
-        : students;
+    let dutyFilteredStudents = [];
+    if (isMasterSuperAdmin()) {
+        dutyFilteredStudents = students;
+    } else if (selectedDutyClasses && selectedDutyClasses.length > 0) {
+        dutyFilteredStudents = students.filter((student) => isClassInDutyScope(student.class, selectedDutyClasses));
+    } else {
+        dutyFilteredStudents = [];
+    }
     const list = dutyFilteredStudents.filter(s => (fCls === 'all' || s.class === fCls) && (fGen === 'all' || s.gender === fGen));
     const items = feeItems.filter((i) => {
         if (i.isVisible === false) return false;
@@ -932,7 +1044,15 @@ const isSameCollectorRecord = (recordCollector = '') => {
     const myEmail = getEffectiveStaffEmail();
     const rec = normalizeEmail(recordCollector);
     if (!rec) return false;
-    return rec === myKey || (myEmail && rec === myEmail);
+    if (rec === myKey || (myEmail && rec === myEmail)) return true;
+    const myStaff = findCurrentStaffMember(allStaff);
+    if (myStaff) {
+        if (myStaff.id && normalizeEmail(myStaff.id) === rec) return true;
+        if (myStaff.email && normalizeEmail(myStaff.email) === rec) return true;
+        if (myStaff.username && String(myStaff.username).toLowerCase() === rec) return true;
+        if (myStaff.name && String(myStaff.name).toLowerCase() === rec) return true;
+    }
+    return false;
 };
 
 const isFeeItemMatch = (paymentItemKey = '', targetItem = {}) => {
@@ -985,15 +1105,15 @@ window.resolveCanonicalFeeItem = resolveCanonicalFeeItem;
 window.resolveCanonicalFeeItemKey = resolveCanonicalFeeItem;
 
 const getVisiblePayments = () => {
-    if(isCurrentAdmin) return allPayments;
+    if (isMasterSuperAdmin()) return allPayments;
+    if (!selectedDutyClasses || !selectedDutyClasses.length) return [];
     return allPayments.filter((payment) => {
         if (!isSameCollectorRecord(payment.collectedBy)) return false;
-        if (!selectedDutyClasses.length) return true;
         const paymentClass = payment.classLabel || payment.studentClass || getStudentById(payment.studentId)?.class || '';
         return isClassInDutyScope(paymentClass, selectedDutyClasses);
     });
 };
-const getVisibleDonations = () => isCurrentAdmin
+const getVisibleDonations = () => isMasterSuperAdmin()
     ? [...allDonations]
     : allDonations.filter((donation) => isSameCollectorRecord(donation.collectedBy));
 const getAcademicYearFromDate = (dateObj = new Date()) => {
@@ -1210,13 +1330,23 @@ const renderDashboardStudentClassTable = () => {
     const tableHost = document.getElementById('dash-students-class-table');
     if (!tableHost) return;
 
-    const classNames = [...new Set([
-        ...classes,
-        ...students.map((student) => student.class).filter(Boolean)
-    ])].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+    if (!isMasterSuperAdmin() && (!selectedDutyClasses || !selectedDutyClasses.length)) {
+        tableHost.innerHTML = '<div class="p-4 text-center text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg border border-amber-200">No duty classes assigned to your account.</div>';
+        return;
+    }
+
+    const visibleClasses = isMasterSuperAdmin()
+        ? [...new Set([...classes, ...students.map((student) => student.class).filter(Boolean)])]
+        : getClassOptionsForCollector();
+
+    const dutyStudents = isMasterSuperAdmin()
+        ? students
+        : (selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : []);
+
+    const classNames = [...visibleClasses].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
 
     const rows = classNames.map((className) => {
-        const classStudents = students.filter((student) => student.class === className);
+        const classStudents = dutyStudents.filter((student) => student.class === className);
         const boys = classStudents.filter((student) => String(student.gender || '').toLowerCase().startsWith('male')).length;
         const girls = classStudents.filter((student) => String(student.gender || '').toLowerCase().startsWith('female')).length;
         return { className, boys, girls, total: classStudents.length };
@@ -1285,7 +1415,10 @@ const updateDashboardMetrics = () => {
     document.getElementById('dash-today-amt').textContent = todayTotal.toFixed(0);
     document.getElementById('dash-month-amt').textContent = monthTotal.toFixed(0);
     document.getElementById('dash-today-receipts').textContent = todayReceipts.size;
-    document.getElementById('dash-students-count').textContent = students.length;
+    const effectiveStudentsCount = isMasterSuperAdmin()
+        ? students.length
+        : (selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)).length : 0);
+    document.getElementById('dash-students-count').textContent = effectiveStudentsCount;
     renderDashboardStudentClassTable();
 };
 
@@ -1329,7 +1462,8 @@ const renderFeeYearSwitcher = () => {
 };
 
 const getClassOptionsForCollector = () => {
-    if (isCurrentAdmin || !selectedDutyClasses.length) return classes;
+    if (isMasterSuperAdmin()) return classes;
+    if (!selectedDutyClasses || !selectedDutyClasses.length) return [];
     return classes.filter((cls) => isClassInDutyScope(cls, selectedDutyClasses));
 };
 
@@ -1441,7 +1575,7 @@ document.getElementById('save-my-class-btn')?.addEventListener('click', async ()
     
     const msg = document.getElementById('my-class-save-msg');
     
-    if (isCurrentAdmin) {
+    if (isMasterSuperAdmin()) {
         alert("Admin account cannot be assigned specific classes. Please log in as a staff member to take class duty.");
         return;
     }
@@ -1451,9 +1585,7 @@ document.getElementById('save-my-class-btn')?.addEventListener('click', async ()
         btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Saving...`;
         btn.disabled = true;
 
-        // Find Exact Firestore Document ID for this Staff
-        const searchKey = getCollectorKey(); // This could be email OR directory loginId
-        const myStaffRecord = allStaff.find(s => normalizeEmail(s.email) === searchKey || String(s.loginId).toLowerCase() === searchKey);
+        const myStaffRecord = findCurrentStaffMember(allStaff);
 
         if (myStaffRecord?.id) {
             // Securely update the central database
@@ -1629,7 +1761,7 @@ document.getElementById('save-donation-btn')?.addEventListener('click', async ()
             return;
         }
     }
-    const collectorLabel = isCurrentAdmin ? 'Administrator' : (allStaff.find((staff) => normalizeEmail(staff.email) === normalizeEmail(currentUserEmail))?.name || currentUserEmail);
+    const collectorLabel = getCurrentCollectorName();
     const donationDoc = {
         donorName,
         receiptNo,
@@ -1978,20 +2110,36 @@ const editMultiEntryItem = (index = -1) => {
 // --- FEE ENTRY & LOGIC ---
 const populateClassDropdowns = () => {
     classes = [...new Set(students.map(s => s.class).filter(Boolean))].sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+    const isSuperAdmin = isMasterSuperAdmin();
     const classOptions = getClassOptionsForCollector();
-    const opts = classOptions.map(c => `<option value="${c}">${c}</option>`).join('');
-    const allClassOpts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-    document.getElementById('filter-class').innerHTML = `<option value="all">All Classes</option>` + opts;
-    document.getElementById('entry-class').innerHTML = `<option value="">All Classes (Whole School)</option>` + opts;
-    if (userExplicitClass) {
-        document.getElementById('entry-class').value = userExplicitClass;
+
+    const filterClassEl = document.getElementById('filter-class');
+    const entryClassEl = document.getElementById('entry-class');
+    const stuInfoClassEl = document.getElementById('stu-info-class');
+    const bulkClassEl = document.getElementById('bulk-class');
+
+    if (isSuperAdmin) {
+        const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts;
+        if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts;
+        if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
+        if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
+    } else if (classOptions.length > 0) {
+        const opts = classOptions.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts;
+        if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts;
+        if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
+        if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
+    } else {
+        const noClassOpt = `<option value="">No classes assigned</option>`;
+        if (filterClassEl) filterClassEl.innerHTML = noClassOpt;
+        if (entryClassEl) entryClassEl.innerHTML = noClassOpt;
+        if (stuInfoClassEl) stuInfoClassEl.innerHTML = noClassOpt;
+        if (bulkClassEl) bulkClassEl.innerHTML = noClassOpt;
     }
-    document.getElementById('stu-info-class').innerHTML = `<option value="">-- Select Class --</option>` + allClassOpts;
-    
-    // Also populate bulk upload class dropdown
-    const bulkClassDropdown = document.getElementById('bulk-class');
-    if (bulkClassDropdown) {
-        bulkClassDropdown.innerHTML = `<option value="">-- Select Class --</option>` + allClassOpts;
+
+    if (userExplicitClass && classOptions.includes(userExplicitClass)) {
+        if (entryClassEl) entryClassEl.value = userExplicitClass;
     }
 
     renderMyClassTab();
@@ -2070,13 +2218,24 @@ document.getElementById('fee-status-row-limit')?.addEventListener('change', (e) 
 });
 
 const populateStudentSuggestions = (searchTerm = '') => {
-    const cls = document.getElementById('entry-class').value;
-    const gen = document.getElementById('entry-gender').value;
+    const cls = document.getElementById('entry-class')?.value || '';
+    const gen = document.getElementById('entry-gender')?.value || '';
     const lSugg = document.getElementById('student-suggestions');
     if (!lSugg) return;
 
+    if (!isMasterSuperAdmin() && (!selectedDutyClasses || !selectedDutyClasses.length)) {
+        lSugg.innerHTML = `<div class="p-4 text-center text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg border border-amber-200">
+            <i class="fas fa-exclamation-circle mr-1"></i> No duty classes assigned to your account. Please ask the administrator to assign classes in Staff Management.
+        </div>`;
+        lSugg.classList.remove('hidden');
+        return;
+    }
+
     const lowerTerm = (searchTerm || '').trim().toLowerCase();
-    const studentPool = Array.isArray(students) && students.length > 0 ? students : (Array.isArray(allStudentsRaw) ? allStudentsRaw : []);
+    const rawPool = Array.isArray(students) && students.length > 0 ? students : (Array.isArray(allStudentsRaw) ? allStudentsRaw : []);
+    const studentPool = isMasterSuperAdmin()
+        ? rawPool
+        : rawPool.filter(s => isClassInDutyScope(s.class, selectedDutyClasses));
 
     const fil = studentPool.filter(s => {
         const classMatch = !cls || cls === 'all' || s.class === cls;
@@ -2742,7 +2901,7 @@ const processPaymentSubmit = async (isUpdate) => {
                 });
             }
 
-            const currentStaffName = isCurrentAdmin ? 'Administrator' : (allStaff.find(s=>s.email===currentUserEmail)?.name || currentUserEmail);
+            const currentStaffName = getCurrentCollectorName();
             const writtenGroupedMonthlyItems = new Set();
 
             allEntries.forEach((entry) => {
@@ -2879,6 +3038,11 @@ document.getElementById('bulk-download-btn')?.addEventListener('click', () => {
         return;
     }
 
+    if (!isMasterSuperAdmin() && (!selectedDutyClasses.length || !isClassInDutyScope(targetClass, selectedDutyClasses))) {
+        alert("You do not have permission to download templates for this class.");
+        return;
+    }
+
     const filteredStudents = allStudentsRaw.filter(s => s.class === targetClass && (s.academicYear || currentWorkingAcademicYear) === year);
     if (filteredStudents.length === 0) {
         alert("No students found in this class for the selected academic year.");
@@ -2954,6 +3118,12 @@ const handleBulkFileSelection = (file) => {
 
     if (!year || !targetClass) {
         alert("Please select both Academic Year and Target Class before uploading.");
+        document.getElementById('bulk-file-input').value = '';
+        return;
+    }
+
+    if (!isMasterSuperAdmin() && (!selectedDutyClasses.length || !isClassInDutyScope(targetClass, selectedDutyClasses))) {
+        alert("You do not have permission to upload payments for this class.");
         document.getElementById('bulk-file-input').value = '';
         return;
     }
@@ -3034,7 +3204,7 @@ document.getElementById('bulk-start-upload-btn')?.addEventListener('click', asyn
     const progressText = document.getElementById('bulk-progress-text');
     
     const { rows, headers, monthlyItems, year, targetClass } = window.bulkUploadParsedData;
-    const collectorName = isCurrentAdmin ? 'Administrator' : (allStaff.find(s => s.email === currentUserEmail)?.name || currentUserEmail);
+    const collectorName = getCurrentCollectorName();
     const collectorUserKey = getCollectorKey();
 
     let paymentOperations = [];
@@ -3383,7 +3553,13 @@ const renderFeeTable = () => {
     if (!cont) return;
     const { list, items: rawItems } = buildFeeStatusMatrix();
     const items = sortFeeItemsForDisplay(rawItems);
-    if(list.length === 0) { cont.innerHTML = `<p class="text-gray-500 text-center py-6">No data found.</p>`; return; }
+    if(list.length === 0) {
+        const emptyMsg = (!isMasterSuperAdmin() && (!selectedDutyClasses || !selectedDutyClasses.length))
+            ? '<div class="py-8 text-center"><i class="fas fa-chalkboard text-slate-300 text-3xl mb-2"></i><p class="text-amber-700 font-semibold text-sm">No duty classes assigned to your account.</p><p class="text-slate-400 text-xs mt-1">Please ask the administrator to assign classes in Staff Management.</p></div>'
+            : '<p class="text-gray-500 text-center py-6">No data found.</p>';
+        cont.innerHTML = emptyMsg;
+        return;
+    }
 
     if (items.length === 0) { cont.innerHTML = `<p class="text-gray-500 text-center py-6">No fee items configured.</p>`; return; }
 
@@ -5046,10 +5222,25 @@ const renderStudentInfoList = () => {
 
     // Strict single-class view requirement: A specific class must be selected
     if (!fCls) {
-        if (emptyState) emptyState.classList.remove('hidden');
+        if (emptyState) {
+            emptyState.innerHTML = (!isMasterSuperAdmin() && (!selectedDutyClasses || !selectedDutyClasses.length))
+                ? '<div class="p-4 text-center text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg border border-amber-200"><i class="fas fa-exclamation-circle mr-1"></i> No duty classes assigned to your account. Please ask the administrator to assign classes in Staff Management.</div>'
+                : '<i class="fas fa-user-graduate text-3xl mb-2 text-slate-300"></i><p>Please select a specific class above to view the student list.</p>';
+            emptyState.classList.remove('hidden');
+        }
         if (cont) cont.classList.add('hidden');
         return;
     }
+
+    if (!isMasterSuperAdmin() && (!selectedDutyClasses || !selectedDutyClasses.length || !isClassInDutyScope(fCls, selectedDutyClasses))) {
+        if (emptyState) {
+            emptyState.innerHTML = `<div class="p-4 text-center text-xs font-semibold text-rose-700 bg-rose-50 rounded-lg border border-rose-200"><i class="fas fa-ban mr-1"></i> You do not have permission to view Class "${escapeHtml(fCls)}". Only assigned duty classes are accessible.</div>`;
+            emptyState.classList.remove('hidden');
+        }
+        if (cont) cont.classList.add('hidden');
+        return;
+    }
+
     if (emptyState) emptyState.classList.add('hidden');
     if (cont) cont.classList.remove('hidden');
 
@@ -5224,22 +5415,28 @@ onAuthStateChanged(auth, async (user) => {
     }
     hideLoader();
     const staffAccess = window.AppSession?.getStaffAccess?.() || null;
+    const officialSession = getOfficialSession();
     const isDirectoryCollector = staffAccess?.source === 'directory';
+    const isStaffSession = Boolean(staffAccess || (officialSession && officialSession.source === 'staff'));
+
     currentUserEmail = getEffectiveStaffEmail();
     currentCollectorKey = getCollectorKey();
     setupDonationEntryUI();
     selectedDutyClasses = [];
     collectorPaymentDetails = { accountName: '', upiNumber: '', upiId: '' };
     if (currentUserEmail) {
-        selectedDutyClasses = readDutyClassesFromLocal();
+        selectedDutyClasses = resolveStaffDutyClasses(null);
         const savedDutyPayment = readDutyPaymentFromLocal();
         if (savedDutyPayment && typeof savedDutyPayment === 'object') {
             collectorPaymentDetails = { ...collectorPaymentDetails, ...savedDutyPayment };
         }
     }
 
-    if (isDirectoryCollector) {
+    if (isDirectoryCollector || isStaffSession) {
         isCurrentAdmin = false;
+        if (!staffAccess && officialSession?.access) {
+            window.AppSession?.startStaff(officialSession.name || '', officialSession.email || currentUserEmail, officialSession.access);
+        }
     } else {
         const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
         const adminSnap = await getDoc(adminRef);
@@ -5247,38 +5444,50 @@ onAuthStateChanged(auth, async (user) => {
         const adminData = adminSnap.exists() ? adminSnap.data() : {};
         const adminEmail = (adminData.email || '').toLowerCase();
         const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
-        if(adminEmail === (currentUserEmail || '').toLowerCase() || adminAccounts.some((account) => (account.email || '').toLowerCase() === (currentUserEmail || '').toLowerCase() && account.isActive !== false)) {
+        if(adminEmail === (currentUserEmail || '').toLowerCase() || adminAccounts.some((account) => (account.email || '').toLowerCase() === (currentUserEmail || '').toLowerCase() && account.isActive !== false) || window.AppSession?.getRole?.() === 'admin') {
             isCurrentAdmin = true;
             window.AppSession?.startAdmin();
         } else {
             isCurrentAdmin = false;
-            window.AppSession?.startStaff(window.AppSession?.getStaffName?.() || '', currentUserEmail);
         }
     }
 
     const displayEl = document.getElementById('staff-name-display');
-    setResultPageNavVisibility(isCurrentAdmin || staffAccess?.result === true);
-    document.getElementById('collector-wise-monthly-tab')?.classList.toggle('hidden', !isCurrentAdmin);
+    setResultPageNavVisibility(isMasterSuperAdmin() || staffAccess?.result === true);
+    document.getElementById('collector-wise-monthly-tab')?.classList.toggle('hidden', !isMasterSuperAdmin());
     applyTabVisibilityPreferences();
-    if (isCurrentAdmin && displayEl) { displayEl.textContent = "ADMINISTRATOR"; }
+    if (isMasterSuperAdmin() && displayEl) { displayEl.textContent = "ADMINISTRATOR"; }
 
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
-        if (!isCurrentAdmin) {
-            const myData = allStaff.find((staff) => normalizeEmail(staff.email) === normalizeEmail(currentUserEmail));
-            if(myData && myData.isActive && myData.canCollect !== false) {
+        if (!isMasterSuperAdmin()) {
+            const myData = findCurrentStaffMember(allStaff);
+            if(myData && myData.isActive !== false && myData.canCollect !== false) {
                 currentUserEmail = normalizeEmail(myData.email || currentUserEmail || getEffectiveStaffEmail());
                 currentCollectorKey = normalizeEmail(window.AppSession?.getStaffAccess?.()?.userKey || myData.email || currentUserEmail);
                 if (displayEl) displayEl.textContent = myData.name;
-                window.AppSession?.startStaff(myData.name, currentUserEmail);
-                const serverDutyClasses = Array.isArray(myData.dutyClasses) ? myData.dutyClasses.filter(Boolean) : [];
-                selectedDutyClasses = serverDutyClasses;
+                
+                const existingAccess = window.AppSession?.getStaffAccess?.() || {};
+                const resolvedDuty = resolveStaffDutyClasses(myData);
+                window.AppSession?.startStaff(myData.name, currentUserEmail, {
+                    ...existingAccess,
+                    staffId: myData.id || existingAccess.staffId,
+                    name: myData.name,
+                    role: myData.role || existingAccess.role,
+                    dutyClasses: resolvedDuty
+                });
+                
+                selectedDutyClasses = resolvedDuty;
                 localStorage.setItem(getDutyStorageKey(), JSON.stringify(selectedDutyClasses));
 
                 const serverDutyPayment = (myData.dutyPaymentDetails && typeof myData.dutyPaymentDetails === 'object') ? myData.dutyPaymentDetails : {};
                 collectorPaymentDetails = serverDutyPayment;
                 localStorage.setItem(getDutyPaymentStorageKey(), JSON.stringify(collectorPaymentDetails));
                 setResultPageNavVisibility(myData.canManageResults === true || staffAccess?.result === true);
+            } else if (myData && (myData.isActive === false || myData.canCollect === false)) {
+                alert("Your collection access is not active. Please contact administrator.");
+                window.location.href = 'index.html';
+                return;
             } else {
                 if (isDirectoryCollector) {
                     if (displayEl) displayEl.textContent = window.AppSession?.getStaffName?.() || 'COLLECTOR';
@@ -5286,12 +5495,14 @@ onAuthStateChanged(auth, async (user) => {
                     renderStaffDirectory();
                     return;
                 }
-                window.AppSession?.clearAll({ purgeClientData: true });
-                signOut(auth).finally(() => { window.location.href = 'index.html'; });
-                return;
+                selectedDutyClasses = resolveStaffDutyClasses(null);
+                if (displayEl) displayEl.textContent = window.AppSession?.getStaffName?.() || 'STAFF';
             }
+        } else {
+            selectedDutyClasses = [];
+            if (displayEl) displayEl.textContent = "ADMINISTRATOR";
+            setResultPageNavVisibility(true);
         }
-        if (isCurrentAdmin) setResultPageNavVisibility(true);
         if (isDirectoryCollector && displayEl) {
             displayEl.textContent = window.AppSession?.getStaffName?.() || 'COLLECTOR';
         }
@@ -5299,6 +5510,8 @@ onAuthStateChanged(auth, async (user) => {
         populateClassDropdowns();
         renderStaffDirectory();
         updateHistoryStaffFilter();
+        updateDashboardMetrics();
+        if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('history-page').classList.contains('hidden') === false) prepareHistoryData();
         if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
     });

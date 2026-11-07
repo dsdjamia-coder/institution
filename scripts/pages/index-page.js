@@ -1305,6 +1305,9 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                     if (staffAccessDoc.exists() && staffAccessDoc.data()?.isActive !== false) {
                         const activeCollector = staffAccessDoc.data();
                         const collectorKey = authedEmail;
+                        const dutyClasses = Array.isArray(activeCollector.dutyClasses) && activeCollector.dutyClasses.length
+                            ? activeCollector.dutyClasses.filter(Boolean)
+                            : (Array.isArray(activeCollector.assignedClasses) ? activeCollector.assignedClasses.filter(Boolean) : []);
                         const staffAccess = {
                             collection: activeCollector.canCollect === true,
                             worksheet: activeCollector.canAccessWorksheet === true,
@@ -1317,6 +1320,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                             admin: activeCollector.canAccessAdmin === true,
                             canAccessAdmin: activeCollector.canAccessAdmin === true,
                             actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
+                            dutyClasses,
                             staffId: activeCollector.staffId || '',
                             name: activeCollector.name || verifiedUser.displayName || '',
                             phone: activeCollector.phone || '',
@@ -1338,6 +1342,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                             role: activeCollector.role || activeCollector.type || 'Staff',
                             type: activeCollector.type || 'Staff',
                             photo: activeCollector.photo || '',
+                            dutyClasses,
                             canAccessAdmin: activeCollector.canAccessAdmin === true,
                             actLikeSuperAdmin: activeCollector.actLikeSuperAdmin === true,
                             canCollect: activeCollector.canCollect === true,
@@ -1361,6 +1366,9 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 // If authenticated and in verified staff record
                 if (verifiedUser.data) {
                     const staffData = verifiedUser.data;
+                    const staffDutyClasses = Array.isArray(staffData.dutyClasses) && staffData.dutyClasses.length
+                        ? staffData.dutyClasses.filter(Boolean)
+                        : (Array.isArray(staffData.assignedClasses) ? staffData.assignedClasses.filter(Boolean) : []);
                     const staffAccess = {
                         collection: staffData.canCollect === true,
                         worksheet: staffData.canAccessWorksheet !== false,
@@ -1373,12 +1381,42 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                         admin: staffData.canAccessAdmin === true,
                         canAccessAdmin: staffData.canAccessAdmin === true,
                         actLikeSuperAdmin: staffData.actLikeSuperAdmin === true,
+                        dutyClasses: staffDutyClasses,
                         staffId: staffData.id || '',
                         name: staffData.name || '',
                         role: staffData.role || 'Staff',
-                        source: 'staff'
+                        type: staffData.type || 'Staff',
+                        phone: staffData.phone || '',
+                        photo: staffData.photo || '',
+                        source: 'staff',
+                        userKey: authedEmail,
+                        loginId: authedUsername || userLogin
                     };
                     window.AppSession?.startStaff(staffData.name || '', authedEmail, staffAccess);
+
+                    const officialSessionObj = {
+                        id: staffData.id || '',
+                        name: staffData.name || '',
+                        username: authedUsername || authedEmail,
+                        email: staffData.email || authedEmail,
+                        phone: staffData.phone || '',
+                        role: staffData.role || 'Staff',
+                        type: staffData.type || 'Staff',
+                        photo: staffData.photo || '',
+                        dutyClasses: staffDutyClasses,
+                        canAccessAdmin: staffData.canAccessAdmin === true,
+                        actLikeSuperAdmin: staffData.actLikeSuperAdmin === true,
+                        canCollect: staffData.canCollect === true,
+                        canAccessWorksheet: staffData.canAccessWorksheet !== false,
+                        canManageResults: staffData.canManageResults === true,
+                        canAccessAttendance: staffData.canAccessAttendance === true,
+                        canAccessAcademicPlan: staffData.canAccessAcademicPlan === true,
+                        canAccessActivity: staffData.canAccessActivity === true,
+                        canAccessEvaluation: staffData.canAccessEvaluation === true,
+                        source: 'staff',
+                        access: staffAccess
+                    };
+                    localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
                     window.location.href = 'official.html';
                     return;
                 }

@@ -324,6 +324,7 @@
         startStaff(name = '', email = '', access = null) {
             writeJson(STAFF_STATE_KEY, buildState({ name, email, role: 'staff', access: access && typeof access === 'object' ? access : null }));
             const staffId = access?.staffId || email || name;
+            const dutyClasses = Array.isArray(access?.dutyClasses) ? access.dutyClasses.filter(Boolean) : [];
             registerRememberedAccount({
                 id: `staff_${staffId}`,
                 role: 'staff',
@@ -331,7 +332,8 @@
                 name: name || 'Staff Member',
                 email: email || '',
                 roleTitle: access?.role || access?.type || 'Staff Member',
-                access: access && typeof access === 'object' ? access : null
+                access: access && typeof access === 'object' ? access : null,
+                dutyClasses
             });
             setCurrentRole('staff');
         },
@@ -377,13 +379,20 @@
             }
 
             if (account.role === 'staff') {
+                const dutyClasses = Array.isArray(account.dutyClasses) && account.dutyClasses.length
+                    ? account.dutyClasses
+                    : (Array.isArray(account.access?.dutyClasses) ? account.access.dutyClasses : []);
                 const staffAccess = account.access || {
                     staffId: account.staffId || '',
                     name: account.name || 'Staff Member',
                     role: account.roleTitle || 'Staff',
+                    dutyClasses,
                     source: 'staff',
                     worksheet: true
                 };
+                if (!staffAccess.dutyClasses || !staffAccess.dutyClasses.length) {
+                    staffAccess.dutyClasses = dutyClasses;
+                }
                 this.startStaff(account.name, account.email, staffAccess);
 
                 const officialSessionObj = {
@@ -395,6 +404,7 @@
                     role: account.roleTitle || staffAccess.role || 'Staff',
                     type: staffAccess.type || 'Staff',
                     photo: staffAccess.photo || '',
+                    dutyClasses,
                     canAccessAdmin: staffAccess.admin === true || staffAccess.canAccessAdmin === true,
                     actLikeSuperAdmin: staffAccess.actLikeSuperAdmin === true,
                     canCollect: staffAccess.collection === true,
