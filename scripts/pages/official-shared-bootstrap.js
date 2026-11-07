@@ -3748,22 +3748,35 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       const hasPhoto = Boolean(rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('assets/images/logo.png'));
 
       const instName = resolveInstitutionName(institutionConfig) || 'Institution Name';
+      const instPlace = institutionConfig?.place || institutionConfig?.address || institutionConfig?.subtitle || '';
       const instReg = institutionConfig?.regNo || institutionConfig?.code || '';
       const initialChar = String(label || 'S').trim().charAt(0).toUpperCase() || 'S';
 
-      const staffIdVal = profile.msr || profile.customValues?.msr || profile.id || userSession?.id || 'STAFF';
-      const deptVal = profile.subject || profile.customValues?.subject || profile.department || profile.type || '--';
       const phoneVal = profile.phone || profile.mobile || profile.customValues?.phone || userSession?.phone || '--';
-      const yearVal = activeAcademicYearId || institutionConfig?.academicYear || '--';
-      const bloodVal = profile.bloodGroup || profile.blood || profile.customValues?.bloodGroup || profile.customValues?.blood || '';
-      const joinVal = profile.joiningDate || profile.customValues?.joiningDate || '';
+      const addressVal = profile.address || profile.customValues?.address || '--';
+      const dutyClassesArr = Array.isArray(profile.dutyClasses)
+        ? profile.dutyClasses
+        : (profile.dutyClasses ? [profile.dutyClasses] : (profile.customValues?.dutyClasses ? [profile.customValues.dutyClasses] : []));
+      const dutyClassesVal = dutyClassesArr.length ? dutyClassesArr.join(', ') : (profile.dutyClasses || profile.customValues?.dutyClasses || '--');
+
+      const perms = evaluateModulePermissions();
+      const accessItems = [];
+      if (perms.collection) accessItems.push({ label: 'Collection', icon: 'fa-receipt', color: 'text-emerald-600' });
+      if (perms.worksheet) accessItems.push({ label: 'Worksheet', icon: 'fa-file-invoice', color: 'text-blue-600' });
+      if (perms.result) accessItems.push({ label: 'Results', icon: 'fa-award', color: 'text-amber-600' });
+      if (perms.attendance) accessItems.push({ label: 'Attendance', icon: 'fa-clipboard-user', color: 'text-indigo-600' });
+      if (perms.academicPlan) accessItems.push({ label: 'Academic Plan', icon: 'fa-book-open', color: 'text-purple-600' });
+      if (perms.studentActivity || perms.activity) accessItems.push({ label: 'Activity', icon: 'fa-star', color: 'text-rose-600' });
+      if (perms.evaluation) accessItems.push({ label: 'Evaluation', icon: 'fa-chart-pie', color: 'text-teal-600' });
+      if (perms.admin) accessItems.push({ label: 'Admin', icon: 'fa-user-shield', color: 'text-violet-600' });
+      if (!accessItems.length) accessItems.push({ label: 'Portal', icon: 'fa-check-circle', color: 'text-indigo-600' });
 
       const photoHtml = hasPhoto
-        ? `<div class="relative mx-auto -mt-14 w-28 h-28 rounded-3xl p-1 bg-white shadow-xl ring-4 ring-slate-100 flex items-center justify-center">
-             <img src="${escapeHtml(rawPhoto)}" class="w-full h-full rounded-2xl object-cover bg-slate-100" alt="${escapeHtml(label)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 text-3xl font-black\\'>${escapeHtml(initialChar)}</div>';">
+        ? `<div class="relative mx-auto -mt-14 w-28 h-28 rounded-full p-1 bg-white shadow-xl ring-4 ring-slate-100 flex items-center justify-center overflow-hidden">
+             <img src="${escapeHtml(rawPhoto)}" class="w-full h-full rounded-full object-cover bg-slate-100" alt="${escapeHtml(label)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 text-3xl font-black\\'>${escapeHtml(initialChar)}</div>';">
            </div>`
-        : `<div class="relative mx-auto -mt-14 w-28 h-28 rounded-3xl p-1 bg-white shadow-xl ring-4 ring-slate-100 flex items-center justify-center">
-             <div class="w-full h-full rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 flex flex-col items-center justify-center text-indigo-700">
+        : `<div class="relative mx-auto -mt-14 w-28 h-28 rounded-full p-1 bg-white shadow-xl ring-4 ring-slate-100 flex items-center justify-center overflow-hidden">
+             <div class="w-full h-full rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 flex flex-col items-center justify-center text-indigo-700">
                <span class="text-3xl font-black leading-none">${escapeHtml(initialChar)}</span>
              </div>
            </div>`;
@@ -3775,20 +3788,18 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
             <div class="w-14 h-2 rounded-full bg-slate-800 border border-slate-700/80 shadow-inner"></div>
           </div>
 
-          <!-- Institution Header Banner -->
+          <!-- Institution Header Banner (Name, Place, Reg No) -->
           <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white px-5 pt-3 pb-16 text-center relative">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/10 text-emerald-300 border border-white/10 mb-1.5">
-              <i class="fas fa-id-badge text-emerald-400"></i> Staff Identity Card
-            </div>
             <h4 class="text-sm sm:text-base font-black tracking-tight text-white uppercase leading-snug">${escapeHtml(instName)}</h4>
+            ${instPlace ? `<p class="text-xs font-semibold text-slate-300 mt-0.5">${escapeHtml(instPlace)}</p>` : ''}
             ${instReg ? `<p class="text-[10px] font-semibold text-slate-400 tracking-wider mt-0.5">Reg No: ${escapeHtml(instReg)}</p>` : ''}
           </div>
 
-          <!-- Photo Container & Body Content -->
+          <!-- Circular Photo Container & Body Content -->
           <div class="px-5 pb-6">
             ${photoHtml}
 
-            <!-- Identity Core -->
+            <!-- Identity Core: Name & Role -->
             <div class="text-center mt-3">
               <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">${escapeHtml(label)}</h3>
               <div class="mt-1">
@@ -3798,61 +3809,38 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
               </div>
             </div>
 
-            <!-- Clean 2-Column Institutional Information Grid -->
-            <div class="mt-4 bg-slate-50/80 rounded-2xl p-3 border border-slate-200/80 text-xs text-left">
-              <div class="grid grid-cols-2 gap-2.5">
-                <div>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Staff ID</div>
-                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(staffIdVal)}">${escapeHtml(staffIdVal)}</div>
-                </div>
-                <div>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Department</div>
-                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(deptVal)}">${escapeHtml(deptVal)}</div>
-                </div>
-                <div>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Contact</div>
-                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(phoneVal)}">${escapeHtml(phoneVal)}</div>
-                </div>
-                <div>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Academic Year</div>
-                  <div class="font-extrabold text-slate-800 truncate" title="${escapeHtml(yearVal)}">${escapeHtml(yearVal)}</div>
-                </div>
-                ${bloodVal ? `
-                <div>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Blood Group</div>
-                  <div class="font-extrabold text-rose-600 truncate">${escapeHtml(bloodVal)}</div>
-                </div>` : ''}
-                ${joinVal ? `
-                <div>
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Joining Date</div>
-                  <div class="font-extrabold text-slate-800 truncate">${escapeHtml(joinVal)}</div>
-                </div>` : ''}
+            <!-- Key Details Section: Phone Number, Address, Duty Classes -->
+            <div class="mt-4 bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 text-xs text-left space-y-2.5">
+              <div class="flex items-start justify-between gap-3 border-b border-slate-200/60 pb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 shrink-0">Phone Number</span>
+                <span class="font-extrabold text-slate-800 text-right break-all">${escapeHtml(phoneVal)}</span>
+              </div>
+              <div class="border-b border-slate-200/60 pb-2">
+                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Address</div>
+                <div class="font-bold text-slate-800 text-xs break-words leading-snug">${escapeHtml(addressVal)}</div>
+              </div>
+              <div>
+                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Duty Classes</div>
+                <div class="font-bold text-slate-800 text-xs break-words leading-snug">${escapeHtml(dutyClassesVal)}</div>
               </div>
             </div>
 
-            <!-- Security Verification & Signature -->
-            <div class="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2">
-                <div class="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 p-1 flex items-center justify-center text-slate-600">
-                  <i class="fas fa-qrcode text-2xl"></i>
-                </div>
-                <div class="text-left">
-                  <div class="text-[9px] font-extrabold uppercase tracking-widest text-emerald-600 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active Staff
-                  </div>
-                  <div class="text-[9px] font-mono font-semibold text-slate-400 truncate max-w-[90px]">SEC: ${escapeHtml(staffIdVal)}</div>
+            <!-- Bottom Section: QR Scanner Icon & Authorized Page Badges -->
+            <div class="mt-4 pt-3 border-t border-slate-200 flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 p-1.5 flex items-center justify-center text-slate-700 shrink-0 shadow-2xs">
+                <i class="fas fa-qrcode text-2xl"></i>
+              </div>
+              <div class="flex-1 min-w-0 text-left">
+                <div class="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Authorized Access</div>
+                <div class="flex flex-wrap gap-1">
+                  ${accessItems.map((item) => `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      <i class="fas ${item.icon} ${item.color} text-[9px]"></i>
+                      <span>${escapeHtml(item.label)}</span>
+                    </span>
+                  `).join('')}
                 </div>
               </div>
-              <div class="text-right">
-                <div class="h-6 flex items-end justify-end">
-                  <span class="font-serif italic text-xs text-indigo-950 font-bold border-b border-slate-300 pb-0.5 px-1">Institutional Seal</span>
-                </div>
-                <div class="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">Authorized Signatory</div>
-              </div>
-            </div>
-
-            <div class="mt-3 text-center text-[8px] font-semibold text-slate-400 uppercase tracking-widest">
-              Property of Institution &bull; Non-Transferable
             </div>
           </div>
         </div>

@@ -3711,7 +3711,12 @@ const studentPwa = registerPortalForPwa('student', {
             }
 
             // ID / UID
-            const uidVal = st.uid || prof.uid || st.id || prof.id || '-';
+            const rawUid = (st.uid !== undefined && st.uid !== null && String(st.uid).trim() !== '')
+                ? String(st.uid).trim()
+                : (prof.uid !== undefined && prof.uid !== null && String(prof.uid).trim() !== '')
+                    ? String(prof.uid).trim()
+                    : '';
+            const uidVal = rawUid || '-';
             const uidEl = document.getElementById('dash-uid');
             if (uidEl) uidEl.textContent = uidVal;
             const uidValEl = document.getElementById('dash-uid-val');

@@ -17,6 +17,7 @@
     const ADMIN_STATE_KEY = 'app_session_admin_state';
     const STUDENT_STATE_KEY = 'app_session_student_state';
     const STUDENT_ACCOUNTS_KEY = 'app_student_accounts';
+    const REMEMBERED_ACCOUNTS_KEY = 'app_remembered_accounts';
     const CURRENT_ROLE_KEY = 'app_session_current_role';
     const FLASH_KEY = 'app_session_flash';
 
@@ -86,6 +87,47 @@
     };
     const saveStudentAccounts = (accounts = []) => writeJson(STUDENT_ACCOUNTS_KEY, accounts);
 
+    const getRememberedAccounts = () => {
+        let accounts = readJson(REMEMBERED_ACCOUNTS_KEY);
+        if (!Array.isArray(accounts)) {
+            const legacyStudents = getStudentAccounts();
+            accounts = legacyStudents.map((st) => ({
+                id: st.studentId,
+                role: 'student',
+                studentId: st.studentId,
+                name: st.name || '',
+                class: st.class || '',
+                adm: st.adm || '',
+                updatedAt: st.updatedAt || now()
+            }));
+            if (accounts.length) writeJson(REMEMBERED_ACCOUNTS_KEY, accounts);
+        }
+        return Array.isArray(accounts) ? accounts : [];
+    };
+
+    const saveRememberedAccounts = (accounts = []) => {
+        writeJson(REMEMBERED_ACCOUNTS_KEY, accounts);
+        const studentOnly = accounts.filter((a) => a.role === 'student');
+        saveStudentAccounts(studentOnly.map((s) => ({
+            studentId: s.studentId || s.id,
+            name: s.name,
+            class: s.class,
+            adm: s.adm,
+            updatedAt: s.updatedAt
+        })));
+    };
+
+    const registerRememberedAccount = (accountData = {}) => {
+        if (!accountData || !accountData.id || !accountData.role) return;
+        const currentAccounts = getRememberedAccounts();
+        const nextAccount = {
+            ...accountData,
+            updatedAt: now()
+        };
+        const updatedAccounts = [nextAccount, ...currentAccounts.filter((a) => a.id !== accountData.id)].slice(0, 10);
+        saveRememberedAccounts(updatedAccounts);
+    };
+
     const getStateByRole = (role) => {
         if (role === 'staff') return getStaffState();
         if (role === 'admin') return getAdminState();
@@ -102,6 +144,8 @@
             const preserve = {};
             const savedStudentAccounts = localStorage.getItem(STUDENT_ACCOUNTS_KEY);
             if (savedStudentAccounts) preserve[STUDENT_ACCOUNTS_KEY] = savedStudentAccounts;
+            const savedRemembered = localStorage.getItem(REMEMBERED_ACCOUNTS_KEY);
+            if (savedRemembered) preserve[REMEMBERED_ACCOUNTS_KEY] = savedRemembered;
             localStorage.clear();
             Object.entries(preserve).forEach(([key, value]) => localStorage.setItem(key, value));
         } catch (error) {
@@ -249,16 +293,14 @@
         hasAdminSession,
         startStudent(studentId, profile = {}) {
             writeJson(STUDENT_STATE_KEY, buildState({ studentId, role: 'student' }));
-            const accounts = getStudentAccounts();
-            const nextAccount = {
+            registerRememberedAccount({
+                id: studentId,
+                role: 'student',
                 studentId,
                 name: profile.name || '',
                 class: profile.class || '',
-                adm: profile.adm || '',
-                updatedAt: now()
-            };
-            const nextAccounts = [nextAccount, ...accounts.filter((acc) => acc.studentId !== studentId)].slice(0, 8);
-            saveStudentAccounts(nextAccounts);
+                adm: profile.adm || ''
+            });
             setCurrentRole('student');
         },
         getStudentAccounts() {
@@ -281,6 +323,16 @@
         },
         startStaff(name = '', email = '', access = null) {
             writeJson(STAFF_STATE_KEY, buildState({ name, email, role: 'staff', access: access && typeof access === 'object' ? access : null }));
+            const staffId = access?.staffId || email || name;
+            registerRememberedAccount({
+                id: `staff_${staffId}`,
+                role: 'staff',
+                staffId: access?.staffId || '',
+                name: name || 'Staff Member',
+                email: email || '',
+                roleTitle: access?.role || access?.type || 'Staff Member',
+                access: access && typeof access === 'object' ? access : null
+            });
             setCurrentRole('staff');
         },
         getStaffAccess() {
@@ -300,9 +352,100 @@
             const updatedAccess = { ...currentAccess, ...partialAccess };
             writeJson(STAFF_STATE_KEY, { ...state, access: updatedAccess });
         },
-        startAdmin() {
+        startAdmin(adminProfile = {}) {
             writeJson(ADMIN_STATE_KEY, buildState({ role: 'admin' }));
+            registerRememberedAccount({
+                id: 'admin_master',
+                role: 'admin',
+                name: adminProfile?.name || 'Administrator',
+                roleTitle: 'Super Admin',
+                email: adminProfile?.email || 'admin'
+            });
             setCurrentRole('admin');
+        },
+        getRememberedAccounts() {
+            return getRememberedAccounts();
+        },
+        switchAccount(accountId = '') {
+            const account = getRememberedAccounts().find((a) => a.id === accountId);
+            if (!account) return false;
+
+            if (account.role === 'student') {
+                this.startStudent(account.studentId || account.id, account);
+                window.location.href = 'student.html';
+                return true;
+            }
+
+            if (account.role === 'staff') {
+                const staffAccess = account.access || {
+                    staffId: account.staffId || '',
+                    name: account.name || 'Staff Member',
+                    role: account.roleTitle || 'Staff',
+                    source: 'staff',
+                    worksheet: true
+                };
+                this.startStaff(account.name, account.email, staffAccess);
+
+                const officialSessionObj = {
+                    id: account.staffId || '',
+                    name: account.name || 'Staff Member',
+                    username: account.email || 'staff',
+                    email: account.email || '',
+                    phone: staffAccess.phone || '',
+                    role: account.roleTitle || staffAccess.role || 'Staff',
+                    type: staffAccess.type || 'Staff',
+                    photo: staffAccess.photo || '',
+                    canAccessAdmin: staffAccess.admin === true || staffAccess.canAccessAdmin === true,
+                    actLikeSuperAdmin: staffAccess.actLikeSuperAdmin === true,
+                    canCollect: staffAccess.collection === true,
+                    canAccessWorksheet: staffAccess.worksheet !== false,
+                    canManageResults: staffAccess.result === true,
+                    canAccessAttendance: staffAccess.attendance === true,
+                    canAccessAcademicPlan: staffAccess.academicPlan === true,
+                    canAccessActivity: staffAccess.studentActivity === true || staffAccess.activity === true,
+                    canAccessEvaluation: staffAccess.evaluation === true,
+                    source: 'staff',
+                    access: staffAccess
+                };
+                localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
+                window.location.href = 'official.html';
+                return true;
+            }
+
+            if (account.role === 'admin') {
+                this.startAdmin(account);
+                const officialSessionObj = {
+                    id: 'admin',
+                    name: account.name || 'Administrator',
+                    username: account.email || 'admin',
+                    email: account.email || 'admin',
+                    role: 'Super Admin',
+                    type: 'Admin',
+                    source: 'legacy-admin',
+                    canAccessAdmin: true,
+                    actLikeSuperAdmin: true,
+                    canCollect: true,
+                    canAccessWorksheet: true,
+                    canManageResults: true,
+                    canAccessAttendance: true,
+                    canAccessAcademicPlan: true,
+                    canAccessActivity: true,
+                    canAccessEvaluation: true
+                };
+                localStorage.setItem('official_portal_session_v1', JSON.stringify(officialSessionObj));
+                window.location.href = 'official.html';
+                return true;
+            }
+
+            return false;
+        },
+        removeRememberedAccount(accountId = '') {
+            if (!accountId) return;
+            const updated = getRememberedAccounts().filter((a) => a.id !== accountId);
+            saveRememberedAccounts(updated);
+            if (getStudentState()?.studentId === accountId) {
+                removeKey(STUDENT_STATE_KEY);
+            }
         },
         touchSession,
         guardStudentPage() {

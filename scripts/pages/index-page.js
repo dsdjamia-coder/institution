@@ -44,34 +44,71 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             loginMessageEl.style.display = 'block';
         };
 
-        const renderSavedStudents = () => {
+        const renderSavedAccounts = () => {
             const list = document.getElementById('saved-student-list');
-            const accounts = window.AppSession?.getStudentAccounts?.() || [];
-            const activeId = window.AppSession?.getStudentId?.() || '';
+            const accounts = window.AppSession?.getRememberedAccounts?.() || window.AppSession?.getStudentAccounts?.() || [];
             if (!list) return;
-            list.innerHTML = accounts.length ? accounts.map((account) => {
-                const isActive = (account.studentId === activeId);
+
+            if (!accounts.length) {
+                list.innerHTML = '<p class="text-sm text-gray-500 py-3 text-center">No saved accounts found on this device.</p>';
+                return;
+            }
+
+            list.innerHTML = accounts.map((account) => {
+                const isStudent = account.role === 'student' || (!account.role && account.studentId);
+                const isStaff = account.role === 'staff';
+                const isAdmin = account.role === 'admin';
+
+                let roleBadgeHtml = '';
+                let metaText = '';
+                let avatarIcon = 'fa-user-graduate';
+                let avatarBg = 'bg-blue-100 text-blue-700';
+
+                if (isStudent) {
+                    roleBadgeHtml = '<span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">Student</span>';
+                    metaText = `Class ${escapeHtml(account.class || '--')} • Adm: ${escapeHtml(account.adm || '--')}`;
+                    avatarIcon = 'fa-user-graduate';
+                    avatarBg = 'bg-blue-100 text-blue-700';
+                } else if (isStaff) {
+                    roleBadgeHtml = `<span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">${escapeHtml(account.roleTitle || 'Staff')}</span>`;
+                    metaText = escapeHtml(account.email || 'Staff Portal Access');
+                    avatarIcon = 'fa-chalkboard-user';
+                    avatarBg = 'bg-emerald-100 text-emerald-700';
+                } else if (isAdmin) {
+                    roleBadgeHtml = '<span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">Super Admin</span>';
+                    metaText = 'Full Institutional Administration';
+                    avatarIcon = 'fa-user-shield';
+                    avatarBg = 'bg-purple-100 text-purple-700';
+                }
+
                 return `
-                <div class="rounded-2xl border ${isActive ? 'border-emerald-400 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow-xs'} p-3.5 flex items-center justify-between gap-3 transition cursor-pointer text-left saved-student-card" data-id="${escapeHtml(account.studentId || '')}">
-                    <div class="flex-grow min-w-0 pr-2 text-left">
-                        <div class="flex items-center gap-1.5 text-left truncate">
-                            <span class="font-black text-slate-800 text-sm truncate">${escapeHtml(account.name || 'Student')}</span>
-                            ${isActive ? '<i class="fas fa-check-circle text-emerald-500 text-xs shrink-0" title="Active Account"></i>' : ''}
+                <div class="rounded-2xl border border-slate-200 bg-white hover:border-emerald-400 hover:shadow-xs p-3 flex items-center justify-between gap-3 transition cursor-pointer text-left saved-account-card group" data-id="${escapeHtml(account.id || account.studentId || '')}">
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div class="w-10 h-10 rounded-xl ${avatarBg} flex items-center justify-center shrink-0 text-base shadow-2xs">
+                            <i class="fas ${avatarIcon}"></i>
                         </div>
-                        <div class="text-xs text-slate-500 font-medium mt-1 text-left truncate">
-                            <span class="font-semibold text-slate-700">Class ${escapeHtml(account.class || '--')}</span> • Adm: <span class="font-mono text-slate-700">${escapeHtml(account.adm || '--')}</span>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-extrabold text-slate-800 text-sm truncate group-hover:text-emerald-700 transition-colors">${escapeHtml(account.name || 'Account')}</span>
+                                ${roleBadgeHtml}
+                            </div>
+                            <div class="text-xs text-slate-500 font-medium mt-0.5 truncate">
+                                ${metaText}
+                            </div>
                         </div>
                     </div>
-                    <button type="button" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer shadow-2xs saved-student-remove" data-id="${escapeHtml(account.studentId || '')}" title="Logout this account" aria-label="Logout">
-                        <i class="fas fa-sign-out-alt text-xs"></i>
+                    <button type="button" class="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition cursor-pointer shadow-2xs saved-account-remove" data-id="${escapeHtml(account.id || account.studentId || '')}" title="Remove this account" aria-label="Remove">
+                        <i class="fas fa-trash-alt text-xs"></i>
                     </button>
                 </div>
-            `;
-            }).join('') : '<p class="text-sm text-gray-500">No saved student accounts.</p>';
+                `;
+            }).join('');
         };
+        const renderSavedStudents = renderSavedAccounts;
+
         let globalInstitutionConfig = {};
         const openSavedStudentModal = () => {
-            renderSavedStudents();
+            renderSavedAccounts();
             document.getElementById('saved-student-modal').style.display = 'flex';
         };
         const openStudentLoginModal = () => {
@@ -91,15 +128,8 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 window.location.href = 'official.html';
                 return;
             }
-            if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
-                showToast("Student Portal is currently disabled by institution administration.", "error");
-                document.getElementById('login-modal').style.display = 'flex';
-                setMobileMenuState(false);
-                showLoginMessage("Student Portal is currently disabled by institution administration.");
-                return;
-            }
-            const accounts = window.AppSession?.getStudentAccounts?.() || [];
-            const forceAdd = new URLSearchParams(window.location.search).get('addStudent') === '1';
+            const accounts = window.AppSession?.getRememberedAccounts?.() || window.AppSession?.getStudentAccounts?.() || [];
+            const forceAdd = new URLSearchParams(window.location.search).get('addStudent') === '1' || new URLSearchParams(window.location.search).get('login') === 'new';
             if (!forceAdd && (accounts.length > 0 || window.AppSession?.hasStudentSession?.())) {
                 openSavedStudentModal();
                 return;
@@ -241,22 +271,22 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             openStudentLoginModal();
         });
         document.getElementById('saved-student-list')?.addEventListener('click', (e) => {
-            const removeBtn = e.target.closest('.saved-student-remove');
-            const card = e.target.closest('.saved-student-card');
+            const removeBtn = e.target.closest('.saved-account-remove') || e.target.closest('.saved-student-remove');
+            const card = e.target.closest('.saved-account-card') || e.target.closest('.saved-student-card');
             if (removeBtn) {
                 e.stopPropagation();
-                if (!confirm('Remove this account?')) return;
-                window.AppSession?.logoutStudent(removeBtn.dataset.id, { removeAccount: true });
-                renderSavedStudents();
+                if (!confirm('Remove this account from this device?')) return;
+                window.AppSession?.removeRememberedAccount?.(removeBtn.dataset.id);
+                renderSavedAccounts();
                 return;
             }
             if (card) {
-                if (globalInstitutionConfig?.enabledModules?.student === false || window.AppSession?.isModuleEnabled('student') === false) {
-                    showToast("Student Portal is currently disabled by institution administration.", "error");
-                    return;
+                const accountId = card.dataset.id;
+                const switched = window.AppSession?.switchAccount?.(accountId);
+                if (!switched) {
+                    const stSwitched = window.AppSession?.switchStudent?.(accountId);
+                    if (stSwitched) window.location.href = 'student.html';
                 }
-                const switched = window.AppSession?.switchStudent?.(card.dataset.id);
-                if (switched) window.location.href = 'student.html';
             }
         });
 
@@ -1260,7 +1290,7 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
                 }
 
                 if (isAdmin) {
-                    window.AppSession?.startAdmin();
+                    window.AppSession?.startAdmin({ name: verifiedUser.displayName, email: authedEmail });
                     window.location.href = 'official.html';
                     return;
                 }
