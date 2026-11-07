@@ -91,7 +91,8 @@ const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
 const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
 const isClassInDutyScope = (clsName = '', dutyList = []) => {
-    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    if (isSuperAdmin) return true;
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
     const targetNorm = normalizeClassLabel(clsName);
     return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
 };
@@ -440,8 +441,10 @@ const restoreSessionContext = async () => {
     if (userRoleEl) userRoleEl.textContent = currentStaffRole;
     if (welcomeHeadingEl) welcomeHeadingEl.textContent = `Welcome, ${currentStaffName}`;
     if (dutySummaryEl) {
-        if (isSuperAdmin || teacherAssignedClasses.length === 0) {
+        if (isSuperAdmin) {
             dutySummaryEl.textContent = 'All Classes Available (Administrator)';
+        } else if (teacherAssignedClasses.length === 0) {
+            dutySummaryEl.textContent = 'No Classes Assigned (Contact Administrator)';
         } else {
             dutySummaryEl.textContent = `Duty Classes: Class ${teacherAssignedClasses.join(', Class ')}`;
         }
@@ -667,11 +670,14 @@ const setupRealtimeListeners = () => {
 };
 
 const getAllowedClassesForTeacher = () => {
-    if (isSuperAdmin || teacherAssignedClasses.length === 0) {
+    if (isSuperAdmin) {
         return allClasses;
     }
-    const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
-    return filtered.length ? filtered : teacherAssignedClasses;
+    if (teacherAssignedClasses && teacherAssignedClasses.length > 0) {
+        const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
+        return filtered.length ? filtered : teacherAssignedClasses;
+    }
+    return [];
 };
 
 const populateClassDropdowns = () => {
@@ -696,6 +702,8 @@ const populateClassDropdowns = () => {
             select.value = prev;
         } else if (allowed.length > 0) {
             select.value = allowed[0];
+        } else {
+            select.value = '';
         }
     });
 
@@ -709,8 +717,10 @@ const populateStudentSelect = () => {
     const sel = document.getElementById('modal-award-student-select');
     if (!sel) return;
     const allowed = getAllowedClassesForTeacher();
-    const students = allStudents.filter(s => isClassInDutyScope(s.class, allowed) && s.status !== 'alumni');
-    sel.innerHTML = students.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (Class ${s.class}, Adm: ${s.adm || s.admNo || '--'})</option>`).join('');
+    const students = (!isSuperAdmin && !allowed.length) ? [] : allStudents.filter(s => isClassInDutyScope(s.class, allowed) && s.status !== 'alumni');
+    sel.innerHTML = students.length > 0
+        ? students.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (Class ${s.class}, Adm: ${s.adm || s.admNo || '--'})</option>`).join('')
+        : '<option value="">No students available</option>';
 };
 
 // =========================================================================
@@ -1366,7 +1376,7 @@ const loadTasksRoster = async () => {
 
 const saveTasksCompletionsToFirestore = async () => {
     if (!selectedTasksClass) return alert('Please select a class first.');
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedTasksClass, teacherAssignedClasses)) {
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedTasksClass, teacherAssignedClasses))) {
         return alert('You can only save task completions for your assigned classes.');
     }
 
@@ -1539,7 +1549,7 @@ const loadPrayerRoster = async () => {
 
 const savePrayerRecords = async () => {
     if (!selectedPrayerClass) return alert('Please select a class first.');
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedPrayerClass, teacherAssignedClasses)) {
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedPrayerClass, teacherAssignedClasses))) {
         return alert('You can only save prayer records for your assigned classes.');
     }
 
@@ -1796,7 +1806,7 @@ const openStudentSelfLoggingModal = async () => {
     } else {
         targetClasses = (teacherAssignedClasses && teacherAssignedClasses.length)
             ? [...teacherAssignedClasses]
-            : [...allClasses];
+            : [];
         if (adminActions) adminActions.classList.add('hidden');
         if (roleScope) roleScope.textContent = `Staff Scope: ${targetClasses.length} Assigned Class(es)`;
     }
@@ -2164,7 +2174,7 @@ const awardBonusPoints = async () => {
     const studentId = document.getElementById('modal-award-student-select')?.value;
     const student = allStudents.find(s => s.id === studentId);
     if (!studentId || !student) return alert('Please select a student.');
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(student.class, teacherAssignedClasses)) {
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(student.class, teacherAssignedClasses))) {
         return alert('You can only award points to students in your assigned classes.');
     }
     const points = Number(document.getElementById('modal-award-points-input')?.value || 10);

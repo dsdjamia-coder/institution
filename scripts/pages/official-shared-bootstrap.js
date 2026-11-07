@@ -1049,17 +1049,29 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       return String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
     }
 
+    function isStaffClassRestricted() {
+      const role = window.AppSession?.getRole?.() || '';
+      const isStaffSession = userSession?.source === 'staff' || role === 'staff' || Boolean(window.AppSession?.getStaffAccess?.());
+      const isMasterAdmin = !isStaffSession && (role === 'admin' || userSession?.source === 'firebase' || userSession?.source === 'legacy-admin' || userSession?.type === 'Admin');
+      if (isMasterAdmin) return false;
+
+      const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
+      const staffProfile = getCurrentSessionProfile() || {};
+      if (staffAccess?.actLikeSuperAdmin === true || staffProfile?.actLikeSuperAdmin === true || staffAccess?.canAccessAdmin === true) {
+        return false;
+      }
+      return true;
+    }
+
     function isClassInDutyScope(clsName = '', dutyList = []) {
-      if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+      if (!isStaffClassRestricted()) return true;
+      if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
       const targetNorm = normalizeClassLabel(clsName);
       return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
     }
 
     function getEffectiveStaffAssignedClasses() {
-      const role = window.AppSession?.getRole?.() || '';
-      const isStaffSession = userSession?.source === 'staff' || role === 'staff' || Boolean(window.AppSession?.getStaffAccess?.());
-      const isMasterAdmin = !isStaffSession && (role === 'admin' || userSession?.source === 'firebase' || userSession?.source === 'legacy-admin' || userSession?.type === 'Admin');
-      if (isMasterAdmin) return [];
+      if (!isStaffClassRestricted()) return [];
 
       const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
       const staffProfile = getCurrentSessionProfile() || {};
@@ -1970,12 +1982,16 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       if (!officialFilters.studentClass) {
         return [];
       }
-      const yearStudents = getStudentsForCurrentAcademicYear();
+      const isRestricted = isStaffClassRestricted();
       const dutyScope = getEffectiveStaffAssignedClasses();
+      if (isRestricted && dutyScope.length === 0) {
+        return [];
+      }
+      const yearStudents = getStudentsForCurrentAcademicYear();
       return yearStudents
         .filter((student) => {
           const cls = getStudentClass(student);
-          if (dutyScope.length > 0 && !isClassInDutyScope(cls, dutyScope)) return false;
+          if (isRestricted && !isClassInDutyScope(cls, dutyScope)) return false;
           const gender = normalizeText(student.gender);
           const status = normalizeText(getStudentStatus(student));
           const searchable = Object.entries(student || {})
@@ -2258,11 +2274,17 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
 
     const renderStudents = () => {
       const yearStudents = getStudentsForCurrentAcademicYear();
+      const isRestricted = isStaffClassRestricted();
       const dutyScope = getEffectiveStaffAssignedClasses();
       const rawClassOptions = getAvailableClassesList();
-      const classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : rawClassOptions;
-      if (dutyScope.length > 0 && officialFilters.studentClass && officialFilters.studentClass !== 'ALL' && !isClassInDutyScope(officialFilters.studentClass, dutyScope)) {
-        officialFilters.studentClass = 'ALL';
+      let classOptions = rawClassOptions;
+      if (isRestricted) {
+        classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : [];
+      }
+      if (isRestricted && dutyScope.length === 0) {
+        officialFilters.studentClass = '';
+      } else if (isRestricted && officialFilters.studentClass && officialFilters.studentClass !== 'ALL' && !isClassInDutyScope(officialFilters.studentClass, dutyScope)) {
+        officialFilters.studentClass = classOptions[0] || '';
       }
       const filteredStudents = getFilteredStudentsList();
 
@@ -2364,9 +2386,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
         ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${selectedYearValue === y.id ? 'selected' : ''}>${escapeHtml(formatAcademicYearLabel(y, activeAcademicYearId))}</option>`).join('')
         : `<option value="">Current Academic Year</option>`;
 
-      const emptyStudentMessage = !officialFilters.studentClass
-        ? 'Please select a class or choose "All Classes" to view student records.'
-        : 'No student records match the selected filters.';
+      const emptyStudentMessage = isRestricted && classOptions.length === 0
+        ? 'No classes have been assigned to your account. Please contact an administrator to assign your classes.'
+        : (!officialFilters.studentClass
+            ? 'Please select a class or choose "All Classes" to view student records.'
+            : 'No student records match the selected filters.');
 
       stuTarget.innerHTML = `
         <div class="card p-2.5 sm:p-3.5 lg:p-4 rounded-2xl shadow-sm w-full max-w-none">
@@ -2415,9 +2439,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
             <div>
               <label class="block text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-0.5 sm:mb-1">Class</label>
               <select id="official-student-class" class="w-full py-1.5 sm:py-2 px-2 sm:px-2.5 rounded-lg sm:rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs focus:border-blue-500">
+                ${isRestricted && classOptions.length === 0 ? '<option value="">No classes assigned</option>' : `
                 <option value="" ${!officialFilters.studentClass ? 'selected' : ''}>Select Class</option>
-                <option value="ALL" ${officialFilters.studentClass === 'ALL' ? 'selected' : ''}>All Classes</option>
+                <option value="ALL" ${officialFilters.studentClass === 'ALL' ? 'selected' : ''}>${isRestricted ? `All Assigned Classes (${classOptions.length})` : 'All Classes'}</option>
                 ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${officialFilters.studentClass === className ? 'selected' : ''}>${escapeHtml(className)}</option>`).join('')}
+                `}
               </select>
             </div>
             <div>
@@ -2886,8 +2912,22 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
     };
 
     const buildClassSummary = () => {
-      const yearStudents = getStudentsForCurrentAcademicYear();
+      const isRestricted = isStaffClassRestricted();
       const dutyScope = getEffectiveStaffAssignedClasses();
+      const summaryTarget = document.getElementById('official-tab-summary');
+      if (isRestricted && dutyScope.length === 0) {
+        if (summaryTarget) {
+          summaryTarget.innerHTML = `
+            <div class="card p-6 rounded-2xl shadow-sm w-full text-center">
+              <div class="p-8 text-center text-slate-500 font-semibold">
+                <i class="fas fa-chalkboard-user mr-2 text-2xl text-slate-400 block mb-2"></i>
+                No classes have been assigned to your account. Please contact an administrator to assign your classes.
+              </div>
+            </div>`;
+        }
+        return;
+      }
+      const yearStudents = getStudentsForCurrentAcademicYear();
       const isAvailableMode = officialFilters.summaryAvailabilityMode !== 'missing';
       const field1Key = officialFilters.summaryCustomField1 || 'mobile';
       const field2Key = officialFilters.summaryCustomField2 || 'uid';
@@ -2898,7 +2938,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       const map = new Map();
       yearStudents.forEach((student) => {
         const cls = getStudentClass(student);
-        if (dutyScope.length > 0 && !isClassInDutyScope(cls, dutyScope)) return;
+        if (isRestricted && !isClassInDutyScope(cls, dutyScope)) return;
         if (!map.has(cls)) {
           map.set(cls, {
             boys: 0,
@@ -3021,7 +3061,6 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
         </tr>`;
       }).join('');
 
-      const summaryTarget = document.getElementById('official-tab-summary');
       if (!summaryTarget) return;
 
       const selectedYearValue = officialFilters.academicYearId || activeAcademicYearId || '';
@@ -4257,9 +4296,12 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
         return staffRows;
       }
 
-      const yearStudents = getStudentsForBuilderYear();
+      const isRestricted = isStaffClassRestricted();
       const dutyScope = getEffectiveStaffAssignedClasses();
-      const scopedStudents = dutyScope.length > 0 ? yearStudents.filter((s) => isClassInDutyScope(getStudentClass(s), dutyScope)) : yearStudents;
+      const yearStudents = getStudentsForBuilderYear();
+      const scopedStudents = isRestricted
+        ? (dutyScope.length > 0 ? yearStudents.filter((s) => isClassInDutyScope(getStudentClass(s), dutyScope)) : [])
+        : yearStudents;
       let filteredStudents = [];
       if (!builderConfig.classId) {
         filteredStudents = [];
@@ -4429,12 +4471,17 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
         builderConfig.academicYearId = officialFilters.academicYearId || activeAcademicYearId;
       }
 
-      const yearStudents = getStudentsForBuilderYear();
+      const isRestricted = isStaffClassRestricted();
       const dutyScope = getEffectiveStaffAssignedClasses();
       const rawClassOptions = getAvailableClassesList();
-      const classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : rawClassOptions;
-      if (dutyScope.length > 0 && builderConfig.classId && builderConfig.classId !== 'ALL' && !isClassInDutyScope(builderConfig.classId, dutyScope)) {
-        builderConfig.classId = classOptions[0] || 'ALL';
+      let classOptions = rawClassOptions;
+      if (isRestricted) {
+        classOptions = dutyScope.length > 0 ? rawClassOptions.filter((c) => isClassInDutyScope(c, dutyScope)) : [];
+      }
+      if (isRestricted && dutyScope.length === 0) {
+        builderConfig.classId = '';
+      } else if (isRestricted && builderConfig.classId && builderConfig.classId !== 'ALL' && !isClassInDutyScope(builderConfig.classId, dutyScope)) {
+        builderConfig.classId = classOptions[0] || '';
       }
       const allStaffRecords = buildUnifiedStaffRecords();
       const staffCategories = [...new Set(allStaffRecords.map((s) => s.category).filter(Boolean))].sort();
@@ -5039,9 +5086,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
               <div class="flex flex-col">
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">3. Select Class</label>
                 <select id="builder-class" class="excel-input-ribbon w-36 font-bold">
+                  ${isRestricted && classOptions.length === 0 ? '<option value="">No classes assigned</option>' : `
                   <option value="" ${builderConfig.classId === '' ? 'selected' : ''}>Select Class (Blank)</option>
-                  <option value="ALL" ${builderConfig.classId === 'ALL' ? 'selected' : ''}>All Classes</option>
+                  <option value="ALL" ${builderConfig.classId === 'ALL' ? 'selected' : ''}>${isRestricted ? `All My Classes (${classOptions.length})` : 'All Classes'}</option>
                   ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${builderConfig.classId === className ? 'selected' : ''}>${escapeHtml(className)}</option>`).join('')}
+                  `}
                 </select>
               </div>
               ` : `

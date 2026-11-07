@@ -71,7 +71,8 @@ const formatDisplayDate = (dateStr) => {
 
 const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
 const isClassInDutyScope = (clsName = '', dutyList = []) => {
-    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    if (isSuperAdmin) return true;
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
     const targetNorm = normalizeClassLabel(clsName);
     return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
 };
@@ -575,16 +576,18 @@ const populateAcademicYearDropdowns = () => {
 };
 
 const getAllowedClassesForTeacher = () => {
-    if (isSuperAdmin || teacherAssignedClasses.length === 0) {
+    if (isSuperAdmin) {
         return allClasses;
     }
-    const filtered = allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
-    return filtered.length ? filtered : allClasses;
+    if (teacherAssignedClasses && teacherAssignedClasses.length > 0) {
+        return allClasses.filter(c => isClassInDutyScope(c, teacherAssignedClasses));
+    }
+    return [];
 };
 
 const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
-    const isTeacherScope = (!isSuperAdmin && teacherAssignedClasses.length > 0);
+    const isTeacherScope = !isSuperAdmin;
 
     // Standard class selects
     const standardIds = [
@@ -604,6 +607,8 @@ const populateClassDropdowns = () => {
             select.value = prev;
         } else if (allowed.length > 0) {
             select.value = allowed[0];
+        } else {
+            select.value = '';
         }
     });
 
@@ -617,7 +622,9 @@ const populateClassDropdowns = () => {
         if (!isTeacherScope) {
             allOpts.push(`<option value="ALL">All Classes</option>`);
         } else if (allowed.length > 1) {
-            allOpts.push(`<option value="ALL">All My Classes</option>`);
+            allOpts.push(`<option value="ALL">All My Classes (${allowed.length})</option>`);
+        } else if (allowed.length === 0) {
+            allOpts.push(`<option value="">No Classes Assigned</option>`);
         }
         allOpts = allOpts.concat(allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)).join('');
         select.innerHTML = allOpts;
@@ -626,6 +633,8 @@ const populateClassDropdowns = () => {
             select.value = prev;
         } else if (allowed.length > 0) {
             select.value = (isTeacherScope && allowed.length === 1) ? allowed[0] : (prev === 'ALL' ? 'ALL' : allowed[0]);
+        } else {
+            select.value = '';
         }
     });
 
@@ -743,7 +752,10 @@ const loadDailyAttendanceRoster = async () => {
 
     const tbody = document.getElementById('daily-roster-tbody');
     if (!selectedDailyClass) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold">Please select a class to load students.</td></tr>`;
+        const noClassMsg = (!isSuperAdmin && (!teacherAssignedClasses || teacherAssignedClasses.length === 0))
+            ? 'No classes assigned to your account. Please contact administrator to assign your classes.'
+            : 'Please select a class to load students.';
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-bold">${noClassMsg}</td></tr>`;
         updateDailyMetrics(0, 0, 0, 0);
         return;
     }
@@ -961,7 +973,7 @@ const clearAllStudents = () => {
 
 const saveDailyAttendance = async () => {
     if (!selectedDailyClass) return alert('Please select a class first.');
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0 && !isClassInDutyScope(selectedDailyClass, teacherAssignedClasses)) {
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedDailyClass, teacherAssignedClasses))) {
         return alert('You can only record attendance for your assigned classes.');
     }
     const year = document.getElementById('daily-academic-year')?.value || currentAcademicYear;

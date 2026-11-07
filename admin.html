@@ -683,6 +683,26 @@
                         </div>
                     </div>
 
+                    <!-- 4. Assigned Duty Classes (Strict Access Control) -->
+                    <div class="rounded-2xl border border-blue-100 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-4 sm:p-5 mb-5 shadow-xs">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3 mb-3">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-sm shadow-xs"><i class="fas fa-chalkboard-user"></i></span>
+                                <div>
+                                    <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide">Assigned Duty Classes</h3>
+                                    <p class="text-[11px] text-slate-500">Staff will ONLY see and access these assigned classes across all portals. If none selected, staff has zero class access.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5 self-start sm:self-auto">
+                                <button type="button" id="st-classes-select-all" class="text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition">Select All</button>
+                                <button type="button" id="st-classes-clear-all" class="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-200 transition">Clear All</button>
+                            </div>
+                        </div>
+                        <div id="st-duty-classes-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                            <!-- Dynamically rendered class checkboxes -->
+                        </div>
+                    </div>
+
                     <div class="text-right border-t pt-4">
                         <button id="add-staff-btn" class="btn-primary font-bold py-2.5 px-6 rounded-lg shadow-md w-full sm:w-auto">
                             <i class="fas fa-plus mr-2"></i> Add Staff
@@ -2820,6 +2840,26 @@
                             <input type="checkbox" id="e-st-act-like-super-admin" class="w-4 h-4 rounded text-amber-600 shrink-0">
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Edit Staff: Assigned Duty Classes -->
+            <div class="rounded-2xl border border-blue-100 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-4 sm:p-5 mt-4 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3 mb-3">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-sm shadow-xs"><i class="fas fa-chalkboard-user"></i></span>
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide">Assigned Duty Classes</h3>
+                            <p class="text-[11px] text-slate-500">Staff will ONLY see and access these assigned classes across all portals.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 self-start sm:self-auto">
+                        <button type="button" id="e-st-classes-select-all" class="text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition">Select All</button>
+                        <button type="button" id="e-st-classes-clear-all" class="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-200 transition">Clear All</button>
+                    </div>
+                </div>
+                <div id="e-st-duty-classes-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                    <!-- Dynamically rendered class checkboxes -->
                 </div>
             </div>
 

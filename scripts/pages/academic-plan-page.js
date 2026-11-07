@@ -272,7 +272,8 @@ const getEnglishDayName = (dateStr) => {
 
 const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
 const isClassInDutyScope = (clsName = '', dutyList = []) => {
-    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    if (isSuperAdmin) return true;
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
     const targetNorm = normalizeClassLabel(clsName);
     return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
 };
@@ -807,7 +808,7 @@ const populateClassDropdowns = () => {
         if (prev && (prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
             subjClassSelect.value = prev;
         } else {
-            subjClassSelect.value = isSuperAdmin ? 'all' : (allowed[0] || '1');
+            subjClassSelect.value = isSuperAdmin ? 'all' : (allowed[0] || '');
         }
         selectedSubjectsClass = subjClassSelect.value;
     }
@@ -821,6 +822,8 @@ const populateClassDropdowns = () => {
             ttClassSelect.value = prev;
         } else if (allowed.length > 0) {
             ttClassSelect.value = allowed[0];
+        } else {
+            ttClassSelect.value = '';
         }
         selectedTtClass = ttClassSelect.value;
     }
@@ -834,6 +837,8 @@ const populateClassDropdowns = () => {
             ypClassSelect.value = prev;
         } else if (allowed.length > 0) {
             ypClassSelect.value = isSuperAdmin ? 'all' : allowed[0];
+        } else {
+            ypClassSelect.value = '';
         }
         selectedYpClass = ypClassSelect.value;
     }
@@ -847,6 +852,8 @@ const populateClassDropdowns = () => {
             stClassSelect.value = prev;
         } else if (allowed.length > 0) {
             stClassSelect.value = allowed[0];
+        } else {
+            stClassSelect.value = '';
         }
         selectedStClass = stClassSelect.value;
     }
@@ -860,6 +867,8 @@ const populateClassDropdowns = () => {
             examClassSelect.value = prev;
         } else if (allowed.length > 0) {
             examClassSelect.value = allowed[0];
+        } else {
+            examClassSelect.value = '';
         }
     }
 
@@ -867,19 +876,25 @@ const populateClassDropdowns = () => {
     const modalSubjClass = document.getElementById('modal-subject-class-select');
     if (modalSubjClass) {
         const prev = modalSubjClass.value;
-        modalSubjClass.innerHTML = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        modalSubjClass.innerHTML = allowed.length > 0
+            ? allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')
+            : '<option value="">No Classes Assigned</option>';
         if (prev && allowed.includes(prev)) {
             modalSubjClass.value = prev;
         } else if (allowed.length > 0) {
             modalSubjClass.value = allowed[0];
+        } else {
+            modalSubjClass.value = '';
         }
     }
 
     // 6. Modal Exam Specific Class Select
     const modalExamSpecificClass = document.getElementById('modal-new-exam-specific-class');
     if (modalExamSpecificClass) {
-        const list = (allClasses && allClasses.length) ? allClasses : allowed;
-        modalExamSpecificClass.innerHTML = list.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const list = isSuperAdmin ? ((allClasses && allClasses.length) ? allClasses : allowed) : allowed;
+        modalExamSpecificClass.innerHTML = list.length > 0
+            ? list.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')
+            : '<option value="">No Classes Assigned</option>';
     }
 
     // 7. Modal Exam Class Display
@@ -887,8 +902,8 @@ const populateClassDropdowns = () => {
     const modalExamClassInput = document.getElementById('modal-exam-class-select');
     if (modalExamClassDisplay && modalExamClassInput) {
         const selVal = examClassSelect?.value;
-        const cls = (selVal && selVal !== 'all') ? selVal : (allowed[0] || '1');
-        modalExamClassDisplay.textContent = `Class ${cls}`;
+        const cls = (selVal && selVal !== 'all') ? selVal : (allowed[0] || '');
+        modalExamClassDisplay.textContent = cls ? `Class ${cls}` : 'No Class Assigned';
         modalExamClassInput.value = cls;
     }
 
@@ -1705,11 +1720,18 @@ let allClassesTimetables = {}; // classLabel -> { matrix, subjects }
 
 const loadTimetable = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
-    selectedTtClass = document.getElementById('tt-class-select')?.value || selectedSubjectsClass || '1';
+    const allowed = getAllowedClassesForTeacher();
+    const selVal = document.getElementById('tt-class-select')?.value;
+    selectedTtClass = (selVal !== undefined && selVal !== '') ? selVal : (isSuperAdmin ? 'all' : (allowed[0] || ''));
     const heading = document.getElementById('tt-view-heading');
 
+    if (!isSuperAdmin && !allowed.length) {
+        if (heading) heading.textContent = 'Weekly Routine Timetable';
+        renderTimetableMatrixUI();
+        return;
+    }
+
     if (selectedTtClass === 'all') {
-        const allowed = getAllowedClassesForTeacher();
         if (heading) {
             heading.textContent = isSuperAdmin
                 ? `All Classes (Full Institution) Routine Timetables (${year})`
@@ -1878,8 +1900,18 @@ const renderTimetableMatrixUI = () => {
 
     if (!grid) return;
 
+    const allowed = getAllowedClassesForTeacher();
+    if (!isSuperAdmin && (!allowed.length || (selectedTtClass !== 'all' && !isClassInDutyScope(selectedTtClass, teacherAssignedClasses)))) {
+        grid.innerHTML = `
+            <div class="p-12 text-center text-slate-400 font-bold bg-white rounded-3xl border border-slate-200">
+                <i class="fas fa-layer-group text-4xl mb-3 text-slate-300 block"></i>
+                No duty classes assigned for this account.<br>
+                <span class="text-xs text-slate-500 font-medium">Please contact administrator to configure assigned classes.</span>
+            </div>`;
+        return;
+    }
+
     if (selectedTtClass === 'all') {
-        const allowed = getAllowedClassesForTeacher();
         grid.innerHTML = allowed.map(cls => {
             const cData = allClassesTimetables[cls] || { matrix: {}, subjects: [], slots: [], dayStatuses: {} };
             const matrix = cData.matrix || {};
@@ -2176,9 +2208,14 @@ const toggleTimetableEdit = (enabled) => {
 
 const saveTimetableMatrix = async () => {
     const year = document.getElementById('tt-academic-year')?.value || currentAcademicYear;
+    const allowed = getAllowedClassesForTeacher();
+
+    if (!isSuperAdmin && (!allowed.length || (selectedTtClass !== 'all' && !isClassInDutyScope(selectedTtClass, teacherAssignedClasses)))) {
+        showToast('Permission denied: You cannot edit timetable for unassigned classes.', 'warning');
+        return;
+    }
 
     if (selectedTtClass === 'all') {
-        const allowed = getAllowedClassesForTeacher();
         const tasks = allowed.map(async (cls) => {
             const cDocId = getTimetableDocId(year, cls);
             const cSubjects = (allClassesTimetables[cls] && allClassesTimetables[cls].subjects) || [];
@@ -3066,12 +3103,22 @@ const renderYearPlanUI = () => {
     const grid = document.getElementById('yp-schedule-grid');
     if (!grid) return;
 
+    const allowed = getAllowedClassesForTeacher();
+    if (!isSuperAdmin && (!allowed.length || (selectedYpClass !== 'all' && !isClassInDutyScope(selectedYpClass, teacherAssignedClasses)))) {
+        grid.innerHTML = `
+            <div class="p-12 text-center text-slate-400 font-bold bg-white rounded-3xl border border-slate-200">
+                <i class="fas fa-layer-group text-4xl mb-3 text-slate-300 block"></i>
+                No duty classes assigned for this account.<br>
+                <span class="text-xs text-slate-500 font-medium">Please contact administrator to configure assigned classes.</span>
+            </div>`;
+        return;
+    }
+
     const startMonth = document.getElementById('yp-start-month')?.value || currentYpStartMonth;
     const endMonth = document.getElementById('yp-end-month')?.value || currentYpEndMonth;
     const months = getSessionMonthsList(currentYpCalendarType, startMonth, endMonth);
 
     if (selectedYpClass === 'all') {
-        const allowed = getAllowedClassesForTeacher();
         grid.innerHTML = allowed.map(cls => {
             const cData = allClassesYearPlans[cls] || { grid: {}, subjects: [] };
             const subjs = cData.subjects || [];
@@ -4835,6 +4882,17 @@ const renderSyllabusTrackerUI = () => {
     const gridEl = document.getElementById('st-schedule-grid');
     if (!gridEl) return;
 
+    const allowed = getAllowedClassesForTeacher();
+    if (!isSuperAdmin && (!allowed.length || (selectedStClass !== 'all' && !isClassInDutyScope(selectedStClass, teacherAssignedClasses)))) {
+        gridEl.innerHTML = `
+            <div class="p-12 text-center text-slate-400 font-bold bg-white rounded-3xl border border-slate-200">
+                <i class="fas fa-layer-group text-4xl mb-3 text-slate-300 block"></i>
+                No duty classes assigned for this account.<br>
+                <span class="text-xs text-slate-500 font-medium">Please contact administrator to configure assigned classes.</span>
+            </div>`;
+        return;
+    }
+
     const year = document.getElementById('st-academic-year')?.value || currentAcademicYear;
     const isHijri = currentYpCalendarType === 'hijri';
     const monthList = isHijri ? HIJRI_MONTHS : GREGORIAN_MONTHS;
@@ -4847,7 +4905,6 @@ const renderSyllabusTrackerUI = () => {
     renderSyllabusTrackerMonthSubjectCards(selectedStClass, activeMonth);
 
     if (selectedStClass === 'all') {
-        const allowed = getAllowedClassesForTeacher();
         let allWorkingDays = 0;
         let allDaysTaught = 0;
         let allPeriodsScheduled = 0;
@@ -5038,8 +5095,12 @@ const renderSyllabusTrackerUI = () => {
 };
 
 const openAddEditTrackerEntryModal = (cellKey = null, itemId = null, isNewSubSession = false, entryClass = null) => {
-    currentModalStClass = entryClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    currentModalStClass = entryClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || ''));
     const effClass = currentModalStClass;
+    if (!effClass || (!isSuperAdmin && !isClassInDutyScope(effClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You do not have access to this class.', 'warning');
+        return;
+    }
     const titleEl = document.getElementById('modal-st-title');
     const subtitleEl = document.getElementById('modal-st-subtitle');
     const cellKeyInput = document.getElementById('modal-st-cell-key');
@@ -5159,7 +5220,11 @@ const saveTrackerEntry = async () => {
         return;
     }
 
-    const effClass = currentModalStClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    const effClass = currentModalStClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || ''));
+    if (!effClass || (!isSuperAdmin && !isClassInDutyScope(effClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You do not have access to this class.', 'warning');
+        return;
+    }
     const targetGrid = (selectedStClass === 'all')
         ? (allClassesSyllabusData[effClass]?.grid || {})
         : stCurrentGrid;
@@ -5247,7 +5312,11 @@ const deleteTrackerDailyItem = async (cellKey, itemId, entryClass = null) => {
     if (!cellKey || !itemId) return;
     if (!confirm('Are you sure you want to delete this session checklist item?')) return;
 
-    const effClass = entryClass || currentModalStClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || '1'));
+    const effClass = entryClass || currentModalStClass || (selectedStClass !== 'all' ? selectedStClass : (getAllowedClassesForTeacher()[0] || ''));
+    if (!effClass || (!isSuperAdmin && !isClassInDutyScope(effClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You do not have access to this class.', 'warning');
+        return;
+    }
     const targetGrid = (selectedStClass === 'all')
         ? (allClassesSyllabusData[effClass]?.grid || {})
         : stCurrentGrid;
@@ -6097,7 +6166,16 @@ const loadMasterExamTimetable = async () => {
     if (!grid) return;
     grid.innerHTML = `<div class="p-12 text-center text-slate-400 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i> Loading consolidated examination matrix...</div>`;
 
-    const targetClasses = (allClasses && allClasses.length) ? allClasses : getAllowedClassesForTeacher();
+    const targetClasses = isSuperAdmin ? ((allClasses && allClasses.length) ? allClasses : []) : getAllowedClassesForTeacher();
+    if (!targetClasses.length) {
+        grid.innerHTML = `
+            <div class="p-12 text-center text-slate-400 font-bold border-2 border-dashed border-slate-300 rounded-3xl">
+                <i class="fas fa-layer-group text-4xl mb-3 text-slate-300 block"></i>
+                No duty classes assigned for this account.<br>
+                <span class="text-xs text-slate-500 font-medium">Please contact administrator to configure assigned classes.</span>
+            </div>`;
+        return;
+    }
     const datesSet = new Set();
     const timetablesMap = {};
     const classSubjsMap = {};

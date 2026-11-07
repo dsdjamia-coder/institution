@@ -65,7 +65,8 @@ const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
 const normalizeClassLabel = (str = '') => String(str || '').replace(/^class\s*/i, '').trim().toLowerCase();
 const isClassInDutyScope = (clsName = '', dutyList = []) => {
-    if (!Array.isArray(dutyList) || dutyList.length === 0) return true;
+    if (isSuperAdmin) return true;
+    if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
     const targetNorm = normalizeClassLabel(clsName);
     return dutyList.some((d) => normalizeClassLabel(d) === targetNorm || String(d).trim().toLowerCase() === String(clsName).trim().toLowerCase());
 };
@@ -678,29 +679,34 @@ const fetchStudentsAndClasses = async () => {
     });
 };
 
+const getAllowedClassesForTeacher = () => {
+    if (isSuperAdmin) {
+        return allClasses;
+    }
+    if (teacherAssignedClasses && teacherAssignedClasses.length > 0) {
+        const filtered = allClasses.filter((c) => isClassInDutyScope(c, teacherAssignedClasses));
+        return filtered.length ? filtered : teacherAssignedClasses;
+    }
+    return [];
+};
+
 const populateClassDropdown = () => {
     const classSelect = document.getElementById('eval-class-select');
     if (!classSelect) return;
 
-    let allowed = allClasses;
-    if (!isSuperAdmin && teacherAssignedClasses.length > 0) {
-        allowed = allClasses.filter((c) => isClassInDutyScope(c, teacherAssignedClasses));
-    }
-
-    if (allowed.length === 0) {
-        allowed = allClasses;
-    }
-
-    classSelect.innerHTML = allowed.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    const allowed = getAllowedClassesForTeacher();
 
     if (allowed.length > 0) {
+        classSelect.innerHTML = allowed.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         if (!selectedClass || !allowed.includes(selectedClass)) {
             selectedClass = allowed[0];
         }
         classSelect.value = selectedClass;
         onClassOrDateChanged();
     } else {
-        classSelect.innerHTML = '<option value="">No classes found</option>';
+        selectedClass = '';
+        classSelect.innerHTML = '<option value="">No classes assigned</option>';
+        renderLiveClassroomBoard();
     }
 };
 
@@ -900,6 +906,17 @@ const renderLiveClassroomBoard = () => {
     const container = document.getElementById('live-students-container');
     if (!container) return;
 
+    if (!selectedClass) {
+        container.innerHTML = `
+            <div class="col-span-full p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+                <i class="fas fa-layer-group text-3xl mb-2 text-slate-300 block"></i>
+                <p class="text-sm font-bold text-slate-600">No classes assigned to your account.</p>
+                <p class="text-xs text-slate-400 mt-1">Please contact administrator to configure assigned classes.</p>
+            </div>
+        `;
+        return;
+    }
+
     const classStudents = getClassStudents(selectedClass, selectedYear);
 
     if (classStudents.length === 0) {
@@ -1082,6 +1099,10 @@ const renderLiveClassroomBoard = () => {
 // --- Record Daily Evaluation Action ---
 const recordEvaluationAction = async (studentId, actionType, extraDetails = {}) => {
     if (!selectedClass || !selectedDate || !selectedYear) return;
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You can only evaluate students in your assigned classes.', 'warning');
+        return;
+    }
 
     const student = allStudents.find((s) => s.id === studentId);
     if (!student) return;
@@ -1162,6 +1183,10 @@ const recordEvaluationAction = async (studentId, actionType, extraDetails = {}) 
 // --- Impositions & Pending Tasks Management ---
 const assignNewImposition = async ({ studentId, studentName, admNo, subject, taskTitle, dueDate, teacherRemark }) => {
     if (!selectedClass || !selectedYear) return;
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You can only assign impositions for your assigned classes.', 'warning');
+        return;
+    }
 
     const student = allStudents.find((s) => s.id === studentId);
     const resolvedAdm = admNo || (student ? getStudentAdm(student) : '');
@@ -1212,6 +1237,10 @@ const assignNewImposition = async ({ studentId, studentName, admNo, subject, tas
 
 const markImpositionCleared = async (impositionId) => {
     if (!selectedClass || !selectedYear) return;
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You can only manage impositions for your assigned classes.', 'warning');
+        return;
+    }
 
     const target = currentImpositionsList.find((imp) => imp.id === impositionId);
     if (!target) return;
@@ -1257,6 +1286,10 @@ const markImpositionCleared = async (impositionId) => {
 };
 
 const deleteImposition = async (impositionId) => {
+    if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedClass, teacherAssignedClasses))) {
+        showToast('Permission denied: You can only delete impositions for your assigned classes.', 'warning');
+        return;
+    }
     showConfirmDialog({
         title: 'Delete Imposition Record',
         message: 'Are you sure you want to delete this imposition entry?',
@@ -1974,6 +2007,10 @@ const initEventBindings = () => {
     // Save Class Settings (Scoped to Selected Class!)
     document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
         if (!selectedClass) return;
+        if (!isSuperAdmin && (!teacherAssignedClasses.length || !isClassInDutyScope(selectedClass, teacherAssignedClasses))) {
+            showToast('Permission denied: You can only configure settings for your assigned classes.', 'warning');
+            return;
+        }
         const cleanC = String(selectedClass).trim().replace(/[^\w-]/g, '_');
         const togglePts = document.getElementById('toggle-award-activity-points');
         classEvaluationSettings.autoAwardActivityPoints = togglePts ? togglePts.checked : false;

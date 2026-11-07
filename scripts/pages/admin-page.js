@@ -3086,7 +3086,56 @@ const renderStaffTypeControls = () => {
     }
     const currentAddType = document.getElementById('st-type')?.value || 'Teacher';
     renderDynamicStaffFormFields('st', currentAddType);
+    renderStaffClassCheckboxes('st');
 };
+
+const getAvailableSchoolClasses = () => {
+    const activeYearClasses = getClassesForActiveYear() || [];
+    const allYearClasses = (academicYears || []).flatMap((y) => Array.isArray(y.classes) ? y.classes : []);
+    const studentClasses = (rawStudents || students || []).map((s) => s.class).filter(Boolean);
+    let list = sortClassLabels([...new Set([...activeYearClasses, ...allYearClasses, ...studentClasses])]);
+    if (!list.length && typeof getDefaultClassLadder === 'function') {
+        list = getDefaultClassLadder();
+    }
+    return list;
+};
+
+const renderStaffClassCheckboxes = (prefix = 'st', selectedClasses = []) => {
+    const grid = document.getElementById(`${prefix}-duty-classes-grid`);
+    if (!grid) return;
+    const dutyClassList = getAvailableSchoolClasses();
+    if (!dutyClassList.length) {
+        grid.innerHTML = '<p class="col-span-full text-xs text-gray-500 italic p-2">No classes configured for active academic year. Please add classes in Classes &amp; Divisions first.</p>';
+        return;
+    }
+    const selectedSet = new Set((Array.isArray(selectedClasses) ? selectedClasses : []).map(c => String(c).trim()));
+    grid.innerHTML = dutyClassList.map((cls) => {
+        const checked = selectedSet.has(String(cls).trim()) ? 'checked' : '';
+        return `
+            <label class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold cursor-pointer hover:bg-blue-50 transition">
+                <input type="checkbox" class="staff-class-checkbox w-4 h-4 text-blue-600 rounded" value="${escapeHtml(cls)}" ${checked}>
+                <span class="text-slate-800 truncate">${escapeHtml(cls)}</span>
+            </label>
+        `;
+    }).join('');
+};
+
+const setupClassToggleButtons = (prefix) => {
+    const selectAllBtn = document.getElementById(`${prefix}-classes-select-all`);
+    const clearAllBtn = document.getElementById(`${prefix}-classes-clear-all`);
+    if (selectAllBtn) {
+        selectAllBtn.onclick = () => {
+            document.querySelectorAll(`#${prefix}-duty-classes-grid .staff-class-checkbox`).forEach((cb) => { cb.checked = true; });
+        };
+    }
+    if (clearAllBtn) {
+        clearAllBtn.onclick = () => {
+            document.querySelectorAll(`#${prefix}-duty-classes-grid .staff-class-checkbox`).forEach((cb) => { cb.checked = false; });
+        };
+    }
+};
+setupClassToggleButtons('st');
+setupClassToggleButtons('e-st');
 
 document.getElementById('st-type')?.addEventListener('change', (e) => {
     renderDynamicStaffFormFields('st', e.target.value);
@@ -3169,6 +3218,9 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
         canAccessEvaluation,
         canAccessAdmin,
         actLikeSuperAdmin,
+        dutyClasses: Array.from(document.querySelectorAll(`#${prefix}-duty-classes-grid .staff-class-checkbox:checked`))
+            .map((cb) => cb.value.trim())
+            .filter(Boolean),
         displayOrder,
         updatedAt: Date.now()
     };
@@ -3225,10 +3277,12 @@ document.getElementById('add-staff-btn').addEventListener('click', async () => {
         await provisionStaffAuthUser(staffRecord.email, initialAuthPass);
     }
     const staffDoc = await addDoc(collection(db, `${BASE_PATH}/staff`), staffRecord);
+    staffRecord.id = staffDoc.id;
     await syncStaffAccessRecord(staffRecord);
     await logAuditEvent({ category: 'security', action: 'staff.create', entityType: 'staff', entityId: staffDoc.id, message: `Staff added: ${staffRecord.name}.` });
     alert("Staff Added Successfully!");
     renderDynamicStaffFormFields('st', staffRecord.type, {});
+    renderStaffClassCheckboxes('st', []);
     document.getElementById('st-display-order').value = '999';
     document.getElementById('st-active').checked = true;
     document.getElementById('st-show-public').checked = true;
@@ -3555,6 +3609,7 @@ window.openEditStaff = (id) => {
     if (superAdminCheck) superAdminCheck.checked = staffRecord.actLikeSuperAdmin === true;
 
     renderDynamicStaffFormFields('e-st', staffRecord.type || 'Teacher', staffRecord);
+    renderStaffClassCheckboxes('e-st', staffRecord.dutyClasses || []);
 
     const popup = document.getElementById('edit-staff-popup');
     if (popup) {
@@ -3726,6 +3781,7 @@ document.getElementById('edit-staff-update').onclick = async () => {
     if (existingStaff.email && normalizeEmail(existingStaff.email) !== normalizeEmail(mergedRecord.email)) {
         await removeStaffAccessRecord(existingStaff.email);
     }
+    mergedRecord.id = editingStaffId;
     await syncStaffAccessRecord(mergedRecord);
     await logAuditEvent({ category: 'security', action: 'staff.update', entityType: 'staff', entityId: editingStaffId, message: `Staff updated: ${mergedRecord.name}.` });
     closeEditStaffModal();
@@ -5300,6 +5356,10 @@ const populateClassDropdowns = () => {
         const prevBulkClass = bulkClassSel.value;
         bulkClassSel.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (classes.includes(prevBulkClass)) bulkClassSel.value = prevBulkClass;
+    }
+    if (typeof renderStaffClassCheckboxes === 'function') {
+        const checkedValues = Array.from(document.querySelectorAll('#st-duty-classes-grid .staff-class-checkbox:checked')).map(cb => cb.value);
+        renderStaffClassCheckboxes('st', checkedValues);
     }
 };
 

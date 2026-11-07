@@ -1470,14 +1470,23 @@ const getClassOptionsForCollector = () => {
 const renderMyClassTab = () => {
     const listEl = document.getElementById('my-class-list');
     if (!listEl) return;
-    const classOptions = classes.length ? classes : [];
-    listEl.innerHTML = classOptions.map((classLabel) => {
-        const checked = selectedDutyClasses.includes(classLabel) ? 'checked' : '';
-        return `<label class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold cursor-pointer hover:bg-blue-50 transition">
-            <input type="checkbox" class="my-class-checkbox w-4 h-4 text-blue-600 rounded" value="${classLabel}" ${checked}>
-            <span class="text-gray-800">${classLabel}</span>
-        </label>`;
-    }).join('') || '<div class="text-xs text-gray-500 p-3">No classes available.</div>';
+    if (isMasterSuperAdmin()) {
+        listEl.innerHTML = '<div class="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-3 font-semibold"><i class="fas fa-shield-halved mr-1"></i> Administrator account has access to all classes across the institution.</div>';
+        return;
+    }
+    const myStaffRecord = findCurrentStaffMember(allStaff);
+    const adminAssigned = resolveStaffDutyClasses(myStaffRecord);
+    if (!adminAssigned.length) {
+        listEl.innerHTML = '<div class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3 font-semibold"><i class="fas fa-ban mr-1"></i> No classes assigned to your account by administrator. Please contact administrator to assign duty classes.</div>';
+        return;
+    }
+    listEl.innerHTML = adminAssigned.map((classLabel) => {
+        return `<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <span class="text-gray-800">Class ${escapeHtml(classLabel)}</span>
+            <span class="ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Assigned by Admin</span>
+        </div>`;
+    }).join('');
 };
 
 const getStaffDirectoryRank = (staff = {}) => {
@@ -1565,8 +1574,9 @@ const renderStaffDirectory = () => {
 
 // 🌟 FIX: Database Sync Logic Update
 document.getElementById('save-my-class-btn')?.addEventListener('click', async () => {
-    const selected = Array.from(document.querySelectorAll('.my-class-checkbox:checked')).map((checkbox) => checkbox.value);
-    selectedDutyClasses = selected;
+    const myStaffRecord = findCurrentStaffMember(allStaff);
+    const adminAssigned = resolveStaffDutyClasses(myStaffRecord);
+    selectedDutyClasses = adminAssigned;
     collectorPaymentDetails = getDutyPaymentDetails();
     
     // Save to local storage for immediate UI reflect
@@ -1585,12 +1595,9 @@ document.getElementById('save-my-class-btn')?.addEventListener('click', async ()
         btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Saving...`;
         btn.disabled = true;
 
-        const myStaffRecord = findCurrentStaffMember(allStaff);
-
         if (myStaffRecord?.id) {
-            // Securely update the central database
+            // Update the collector's duty payment details in central database
             await updateDoc(doc(db, `${BASE_PATH}/staff`, myStaffRecord.id), {
-                dutyClasses: selectedDutyClasses,
                 dutyPaymentDetails: collectorPaymentDetails,
                 updatedAt: new Date().toISOString()
             });
