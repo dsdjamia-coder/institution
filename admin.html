@@ -2681,41 +2681,54 @@
                             <label class="block text-xs font-bold text-indigo-950 uppercase tracking-wider mb-1.5">
                                 <i class="fas fa-calendar-plus text-emerald-600 mr-1"></i> Target Academic Year (Destination Session)
                             </label>
-                            <div class="flex items-center gap-2">
-                                <select id="promo-target-year" class="w-full p-2.5 border rounded-lg bg-white font-bold text-indigo-900 text-sm focus:border-indigo-500 outline-none"></select>
-                                <button type="button" class="admin-quick-action px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shrink-0 transition" data-target-page="academic-years" title="Create New Year">
-                                    <i class="fas fa-plus"></i> New Year
-                                </button>
-                            </div>
+                            <select id="promo-target-year" class="w-full p-2.5 border rounded-lg bg-white font-bold text-indigo-900 text-sm focus:border-indigo-500 outline-none"></select>
                             <p class="text-[11px] text-indigo-700 mt-1.5">Destination academic year where promoted students will be enrolled.</p>
                         </div>
                     </div>
 
                     <!-- Policy Options -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white cursor-pointer transition">
-                            <input type="checkbox" id="promo-opt-set-active" checked class="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer">
-                            <div>
-                                <span class="block text-xs font-bold text-slate-900">Switch Active Academic Year</span>
-                                <span class="block text-[11px] text-slate-500 mt-0.5">Automatically set Target Year as institution's active session upon completion.</span>
-                            </div>
-                        </label>
+                        <!-- 1. Fee Structure Clone -->
+                        <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 flex flex-col justify-between gap-2.5">
+                            <label class="flex items-start gap-3 cursor-pointer">
+                                <input type="checkbox" id="promo-opt-clone-fees" checked class="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer">
+                                <div>
+                                    <span class="block text-xs font-bold text-slate-900">Clone Fee Structure</span>
+                                    <span class="block text-[11px] text-slate-500 mt-0.5">Auto-generates 12 monthly fee heads + clones selected custom fees.</span>
+                                </div>
+                            </label>
+                            <button type="button" id="promo-btn-open-fees-modal" class="mt-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs">
+                                <i class="fas fa-sliders"></i> Configure Extra Fees
+                            </button>
+                        </div>
 
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-emerald-300 bg-white cursor-pointer transition">
-                            <input type="checkbox" id="promo-opt-clone-fees" checked class="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer">
-                            <div>
-                                <span class="block text-xs font-bold text-slate-900">Clone Fee Structure</span>
-                                <span class="block text-[11px] text-slate-500 mt-0.5">Copy fee heads and class rates to target year if not already configured.</span>
-                            </div>
-                        </label>
+                        <!-- 2. Retain Concessions -->
+                        <div class="p-3.5 rounded-xl border border-purple-200 bg-purple-50/30 flex flex-col justify-between gap-2.5">
+                            <label class="flex items-start gap-3 cursor-pointer">
+                                <input type="checkbox" id="promo-opt-carry-concessions" checked class="w-4 h-4 mt-0.5 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                                <div>
+                                    <span class="block text-xs font-bold text-slate-900">Retain Concessions</span>
+                                    <span class="block text-[11px] text-slate-500 mt-0.5">Carry forward special fee concessions into the new academic session.</span>
+                                </div>
+                            </label>
+                            <button type="button" id="promo-btn-open-concessions-modal" class="mt-1 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs">
+                                <i class="fas fa-users-viewfinder"></i> Review Concessions (<span id="promo-badge-concessions-count">0</span>)
+                            </button>
+                        </div>
 
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-purple-300 bg-white cursor-pointer transition">
-                            <input type="checkbox" id="promo-opt-carry-concessions" checked class="w-4 h-4 mt-0.5 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-                            <div>
-                                <span class="block text-xs font-bold text-slate-900">Retain Concessions</span>
-                                <span class="block text-[11px] text-slate-500 mt-0.5">Carry forward student fee concessions into the new academic year.</span>
-                            </div>
-                        </label>
+                        <!-- 3. Rollover Student Groups -->
+                        <div class="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/30 flex flex-col justify-between gap-2.5">
+                            <label class="flex items-start gap-3 cursor-pointer">
+                                <input type="checkbox" id="promo-opt-rollover-groups" checked class="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                                <div>
+                                    <span class="block text-xs font-bold text-slate-900">Rollover Student Groups</span>
+                                    <span class="block text-[11px] text-slate-500 mt-0.5">Carry forward sibling groups with automatic Alumni exclusion.</span>
+                                </div>
+                            </label>
+                            <button type="button" id="promo-btn-open-groups-modal" class="mt-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs">
+                                <i class="fas fa-people-roof"></i> Review Family Groups (<span id="promo-badge-groups-count">0</span>)
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -4681,6 +4694,155 @@
                     <i class="fas fa-check-circle"></i>
                     <span>Save Student Portal Config</span>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Configure Extra Fees for Promotion Modal -->
+    <div id="promo-fee-clone-modal" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-2xl mx-auto bg-white max-h-[90vh] overflow-y-auto relative border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-sm shadow-xs"><i class="fas fa-receipt"></i></span>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-black text-slate-900">Configure Fee Structure Cloning</h3>
+                        <p class="text-xs text-slate-500">Review automatic monthly heads and select custom fee heads to copy to target session.</p>
+                    </div>
+                </div>
+                <button type="button" id="promo-fee-clone-close-btn" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition cursor-pointer">
+                    <i class="fas fa-times text-base"></i>
+                </button>
+            </div>
+
+            <!-- Automatic 12-Month Notice -->
+            <div class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl mb-4 flex items-start gap-3">
+                <i class="fas fa-circle-check text-emerald-600 text-base mt-0.5 shrink-0"></i>
+                <div class="text-xs text-emerald-950">
+                    <span class="font-extrabold block">Default 12-Month Sequence (Automatic)</span>
+                    <span>12 standard monthly fee heads (e.g. jun-25, jul-25 ... may-26) will be generated automatically for the destination academic session at standard institutional rates.</span>
+                </div>
+            </div>
+
+            <!-- Custom / Extra Fee Heads Table -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                        <i class="fas fa-sliders text-indigo-600"></i> Extra &amp; Custom Fee Heads in Source Session
+                    </h4>
+                    <span id="promo-fee-custom-count" class="text-xs font-bold text-slate-500">0 found</span>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 w-10 text-center"><input type="checkbox" id="promo-fee-th-select-all" checked class="w-4 h-4 rounded text-emerald-600 cursor-pointer"></th>
+                                <th class="p-2.5">Fee Name</th>
+                                <th class="p-2.5">Scope &amp; Applicable Classes</th>
+                                <th class="p-2.5 text-right">Target Session Rate (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="promo-fee-custom-tbody" class="divide-y divide-slate-100 font-medium">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-100 pt-3 mt-4 flex items-center justify-between gap-3">
+                <span class="text-[11px] text-slate-500 italic">Unselected fees will not be copied to the new session.</span>
+                <button type="button" id="promo-fee-clone-done-btn" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg text-xs transition shadow-xs cursor-pointer">Apply Fee Selection</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Review Student Concessions Modal -->
+    <div id="promo-concessions-modal" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-3xl mx-auto bg-white max-h-[90vh] overflow-y-auto relative border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center text-sm shadow-xs"><i class="fas fa-hand-holding-dollar"></i></span>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-black text-slate-900">Review Student Fee Concessions</h3>
+                        <p class="text-xs text-slate-500">Select which active students retain their special monthly fee concession into the new session.</p>
+                    </div>
+                </div>
+                <button type="button" id="promo-concessions-close-btn" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition cursor-pointer">
+                    <i class="fas fa-times text-base"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-purple-50/50 p-3 rounded-xl border border-purple-200">
+                <div class="text-xs text-purple-950 font-bold">
+                    Total with Concessions: <span id="promo-conc-modal-count" class="font-black text-purple-700">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="promo-conc-btn-select-all" class="px-2.5 py-1 bg-white border border-purple-300 hover:bg-purple-100 text-purple-900 rounded-lg text-xs font-bold transition cursor-pointer">Select All</button>
+                    <button type="button" id="promo-conc-btn-deselect-all" class="px-2.5 py-1 bg-white border border-purple-300 hover:bg-purple-100 text-purple-900 rounded-lg text-xs font-bold transition cursor-pointer">Deselect All</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 text-slate-600 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                        <tr>
+                            <th class="p-2.5 w-10 text-center"><input type="checkbox" id="promo-conc-th-select-all" checked class="w-4 h-4 rounded text-purple-600 cursor-pointer"></th>
+                            <th class="p-2.5">Adm No</th>
+                            <th class="p-2.5">Student Name</th>
+                            <th class="p-2.5">Source Class &rarr; Destination Class</th>
+                            <th class="p-2.5 text-right">Special Monthly Fee (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="promo-concessions-tbody" class="divide-y divide-slate-100 font-medium">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="border-t border-slate-100 pt-3 mt-4 flex items-center justify-between gap-3">
+                <span class="text-[11px] text-slate-500 italic">Unselected students will have standard fee rates applied in the new session.</span>
+                <button type="button" id="promo-concessions-done-btn" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold rounded-lg text-xs transition shadow-xs cursor-pointer">Apply Concessions</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Review Student Groups Rollover Modal -->
+    <div id="promo-groups-modal" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-3xl mx-auto bg-white max-h-[90vh] overflow-y-auto relative border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-sm shadow-xs"><i class="fas fa-people-roof"></i></span>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-black text-slate-900">Student Groups &amp; Family Rollover Engine</h3>
+                        <p class="text-xs text-slate-500">Carry forward sibling groups into the target session with automatic Alumni detection and fee recalibration.</p>
+                    </div>
+                </div>
+                <button type="button" id="promo-groups-close-btn" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition cursor-pointer">
+                    <i class="fas fa-times text-base"></i>
+                </button>
+            </div>
+
+            <!-- Priority Notice & Bulk Detach Bar -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                <div class="flex items-start gap-2.5">
+                    <i class="fas fa-triangle-exclamation text-amber-600 text-sm mt-0.5 shrink-0"></i>
+                    <div class="text-xs text-amber-950">
+                        <span class="font-black block">Alumni Detection Active</span>
+                        <span class="text-amber-800">School fees apply only to actively studying students. Groups with graduating older siblings should have Alumni detached so only continuing siblings are billed.</span>
+                    </div>
+                </div>
+                <button type="button" id="promo-btn-detach-all-alumni" class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-extrabold rounded-lg text-xs transition shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-user-minus"></i> Auto-detach All Alumni
+                </button>
+            </div>
+
+            <!-- Group Cards Container -->
+            <div id="promo-groups-container" class="space-y-3">
+                <!-- Dynamically populated group cards -->
+            </div>
+
+            <div class="border-t border-slate-100 pt-3 mt-4 flex items-center justify-between gap-3">
+                <span class="text-[11px] text-slate-500 italic">Only checked groups will be carried forward to the target session.</span>
+                <button type="button" id="promo-groups-done-btn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-lg text-xs transition shadow-xs cursor-pointer">Apply Groups Rollover</button>
             </div>
         </div>
     </div>

@@ -5369,7 +5369,10 @@ const populateManageAcademicYearDropdown = (forceActive = false) => {
     const yearSelect = document.getElementById('filter-manage-academic-year');
     if (!yearSelect) return;
     const currentSelected = forceActive ? getActiveAcademicYearLabel() : (yearSelect.value || getActiveAcademicYearLabel());
-    const sortedYears = [...academicYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
+    
+    // Strictly exclude archived years from regular management dropdowns
+    const availableYears = academicYears.filter((y) => y.status !== 'archived');
+    const sortedYears = [...availableYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
 
     if (sortedYears.length === 0) {
         yearSelect.innerHTML = `<option value="${escapeHtml(getActiveAcademicYearLabel())}">${escapeHtml(getActiveAcademicYearLabel())} (Current)</option>`;
@@ -5379,8 +5382,7 @@ const populateManageAcademicYearDropdown = (forceActive = false) => {
 
     yearSelect.innerHTML = sortedYears.map((y) => {
         const isCurrent = y.label === activeAcademicYear;
-        const isArchived = y.status === 'archived';
-        const tag = isCurrent ? ' (Current)' : (isArchived ? ' (Archive)' : ' (Active)');
+        const tag = isCurrent ? ' (Current)' : ' (Active)';
         return `<option value="${escapeHtml(y.label)}">${escapeHtml(y.label)}${tag}</option>`;
     }).join('');
 
@@ -9815,7 +9817,351 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
 // --- 5.9 ANNUAL CLASS PROMOTION & BATCH ROLLOVER WIZARD ---
 let promoStudentsList = [];
 let promoProgressionMappings = {};
+let promoCustomFeeSelection = [];
+let promoConcessionsSelection = [];
+let promoGroupConfigurations = [];
 
+// --- 5.9.1 Fee Structure Cloning Modal Controllers ---
+const initPromoFeesModalData = () => {
+    const srcYear = document.getElementById('promo-source-year')?.value || getActiveAcademicYearLabel();
+
+    // Find custom/extra fee heads for sourceYear
+    const customItems = (feeItems || []).filter((item) => {
+        const itemType = item.type || 'month';
+        if (itemType === 'month' || itemType === 'monthly') return false;
+        const itemYear = item.academicYear || srcYear;
+        return itemYear === srcYear;
+    });
+
+    promoCustomFeeSelection = customItems.map((item) => ({
+        key: item.key,
+        name: item.name || 'Unnamed Fee',
+        type: item.type || 'custom',
+        scope: item.scope || 'global',
+        amount: item.amount || 0,
+        classValues: item.classValues || {},
+        targetClass: item.targetClass || '',
+        targetAmount: item.amount || 0,
+        selected: true
+    }));
+
+    const countEl = document.getElementById('promo-fee-custom-count');
+    if (countEl) countEl.textContent = `${promoCustomFeeSelection.length} custom head(s)`;
+};
+
+const openPromoFeesModal = () => {
+    initPromoFeesModalData();
+    const modal = document.getElementById('promo-fee-clone-modal');
+    if (!modal) return;
+
+    renderPromoFeesTable();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closePromoFeesModal = () => {
+    const modal = document.getElementById('promo-fee-clone-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+const renderPromoFeesTable = () => {
+    const tbody = document.getElementById('promo-fee-custom-tbody');
+    if (!tbody) return;
+
+    if (!promoCustomFeeSelection.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400 font-semibold">No custom/extra fee heads found in source session. Only standard 12-month sequence will be generated.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = promoCustomFeeSelection.map((item) => {
+        let scopeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">All Classes (Global)</span>';
+        if (item.scope === 'class-wise') {
+            const classKeys = Object.keys(item.classValues || {});
+            const classRatesStr = classKeys.map((c) => `${c}: ₹${item.classValues[c]}`).join(', ');
+            scopeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">Class-wise: ${escapeHtml(classRatesStr || 'Variable')}</span>`;
+        } else if (item.scope === 'specific') {
+            scopeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">Specific: Class ${escapeHtml(item.targetClass || '--')}</span>`;
+        }
+
+        return `
+            <tr class="hover:bg-slate-50 transition ${item.selected ? 'bg-emerald-50/20' : 'opacity-60'}">
+                <td class="p-2.5 text-center">
+                    <input type="checkbox" class="promo-fee-item-cb w-4 h-4 rounded text-emerald-600 cursor-pointer" data-fee-key="${escapeHtml(item.key)}" ${item.selected ? 'checked' : ''}>
+                </td>
+                <td class="p-2.5 font-bold text-slate-800">${escapeHtml(item.name)}</td>
+                <td class="p-2.5">${scopeBadge}</td>
+                <td class="p-2.5 text-right">
+                    ${item.scope === 'class-wise' ? `<span class="font-bold text-slate-600">Preserved</span>` : `
+                        <input type="number" class="promo-fee-rate-input p-1 border rounded w-24 text-right font-bold text-xs" data-fee-key="${escapeHtml(item.key)}" value="${item.targetAmount || 0}" min="0">
+                    `}
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+// --- 5.9.2 Concessions Review Modal Controllers ---
+const initPromoConcessionsData = () => {
+    const srcYear = document.getElementById('promo-source-year')?.value || getActiveAcademicYearLabel();
+    const studentsInSrc = getStudentsForYear(srcYear).filter((s) => {
+        const st = normalizeStudentStatus(s.status);
+        return st !== 'Alumni' && st !== 'Discontinued' && !s.isAlumni;
+    });
+
+    const studentsWithConc = studentsInSrc.filter((s) => s.concessionFee !== undefined && s.concessionFee !== null && s.concessionFee !== '');
+
+    promoConcessionsSelection = studentsWithConc.map((s) => {
+        const itemInPromo = promoStudentsList.find((p) => p.student.id === s.id);
+        const destClass = itemInPromo ? itemInPromo.destinationClass : (suggestNextClass(s.class) || s.class);
+
+        return {
+            studentId: s.id,
+            adm: s.adm || '--',
+            name: s.name || 'Unnamed',
+            sourceClass: s.class || '--',
+            destinationClass: destClass,
+            concessionFee: Number(s.concessionFee) || 0,
+            selected: true
+        };
+    });
+
+    const countBadge = document.getElementById('promo-badge-concessions-count');
+    if (countBadge) countBadge.textContent = promoConcessionsSelection.length;
+    const modalCount = document.getElementById('promo-conc-modal-count');
+    if (modalCount) modalCount.textContent = promoConcessionsSelection.length;
+};
+
+const openPromoConcessionsModal = () => {
+    initPromoConcessionsData();
+    const modal = document.getElementById('promo-concessions-modal');
+    if (!modal) return;
+
+    renderPromoConcessionsTable();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closePromoConcessionsModal = () => {
+    const modal = document.getElementById('promo-concessions-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+const renderPromoConcessionsTable = () => {
+    const tbody = document.getElementById('promo-concessions-tbody');
+    if (!tbody) return;
+
+    if (!promoConcessionsSelection.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400 font-semibold">No students with monthly fee concessions found in source academic session.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = promoConcessionsSelection.map((item) => `
+        <tr class="hover:bg-slate-50 transition ${item.selected ? 'bg-purple-50/20' : 'opacity-60'}">
+            <td class="p-2.5 text-center">
+                <input type="checkbox" class="promo-conc-item-cb w-4 h-4 rounded text-purple-600 cursor-pointer" data-student-id="${escapeHtml(item.studentId)}" ${item.selected ? 'checked' : ''}>
+            </td>
+            <td class="p-2.5 font-mono font-bold text-slate-700">${escapeHtml(item.adm)}</td>
+            <td class="p-2.5 font-bold text-slate-900">${escapeHtml(item.name)}</td>
+            <td class="p-2.5">
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700">${escapeHtml(item.sourceClass)}</span>
+                <i class="fas fa-arrow-right text-[10px] text-purple-600 mx-1"></i>
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800">${escapeHtml(item.destinationClass)}</span>
+            </td>
+            <td class="p-2.5 text-right font-extrabold text-purple-900">
+                ₹<input type="number" class="promo-conc-amt-input p-1 border rounded w-24 text-right font-bold text-xs" data-student-id="${escapeHtml(item.studentId)}" value="${item.concessionFee}" min="0">
+            </td>
+        </tr>
+    `).join('');
+};
+
+// --- 5.9.3 Student Groups Rollover Modal Controllers (with Alumni Detection) ---
+const initPromoGroupsData = () => {
+    const srcYear = document.getElementById('promo-source-year')?.value || getActiveAcademicYearLabel();
+    const sourceGroups = (allStudentGroups || []).filter((g) => (g.academicYear || currentAcademicYear) === srcYear);
+
+    promoGroupConfigurations = sourceGroups.map((g) => {
+        const memberIds = Array.isArray(g.memberIds) ? g.memberIds : [];
+        const memberDetails = memberIds.map((mId) => {
+            const student = (rawStudents || []).find((s) => s.id === mId) || (students || []).find((s) => s.id === mId);
+            const promoRow = promoStudentsList.find((p) => p.student.id === mId);
+
+            const sourceClass = student?.class || '--';
+            const destClass = promoRow ? promoRow.destinationClass : (suggestNextClass(sourceClass) || sourceClass);
+            const isAlumni = (promoRow && promoRow.decision === 'alumni') || destClass === 'Alumni' || String(destClass).toUpperCase() === 'ALUMNI' || (student && (student.isAlumni || normalizeStudentStatus(student.status) === 'Alumni'));
+
+            return {
+                id: mId,
+                name: student?.name || 'Unnamed',
+                adm: student?.adm || '--',
+                sourceClass,
+                destinationClass: destClass,
+                isAlumni: Boolean(isAlumni)
+            };
+        });
+
+        const alumniCount = memberDetails.filter((m) => m.isAlumni).length;
+        const activeMembers = memberDetails.filter((m) => !m.isAlumni);
+        const hasAlumni = alumniCount > 0;
+        const allAlumni = memberDetails.length > 0 && activeMembers.length === 0;
+
+        return {
+            id: g.id,
+            sourceFee: Number(g.fee) || 0,
+            adjustedFee: Number(g.fee) || 0,
+            memberDetails,
+            activeMembers,
+            hasAlumni,
+            allAlumni,
+            selected: !allAlumni
+        };
+    });
+
+    // Priority sort: Groups having Alumni first!
+    promoGroupConfigurations.sort((a, b) => {
+        if (a.hasAlumni && !b.hasAlumni) return -1;
+        if (!a.hasAlumni && b.hasAlumni) return 1;
+        return 0;
+    });
+
+    const countBadge = document.getElementById('promo-badge-groups-count');
+    if (countBadge) countBadge.textContent = promoGroupConfigurations.length;
+};
+
+const openPromoGroupsModal = () => {
+    initPromoGroupsData();
+    const modal = document.getElementById('promo-groups-modal');
+    if (!modal) return;
+
+    renderPromoGroupsList();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+const closePromoGroupsModal = () => {
+    const modal = document.getElementById('promo-groups-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+const detachAlumniFromGroup = (groupId) => {
+    const grp = promoGroupConfigurations.find((g) => g.id === groupId);
+    if (!grp) return;
+
+    grp.memberDetails = grp.memberDetails.filter((m) => !m.isAlumni);
+    grp.activeMembers = [...grp.memberDetails];
+    grp.hasAlumni = false;
+    grp.allAlumni = grp.activeMembers.length === 0;
+    if (grp.allAlumni) grp.selected = false;
+
+    renderPromoGroupsList();
+};
+
+const detachAllAlumniFromAllGroups = () => {
+    let affected = 0;
+    promoGroupConfigurations.forEach((grp) => {
+        if (grp.hasAlumni) {
+            grp.memberDetails = grp.memberDetails.filter((m) => !m.isAlumni);
+            grp.activeMembers = [...grp.memberDetails];
+            grp.hasAlumni = false;
+            grp.allAlumni = grp.activeMembers.length === 0;
+            if (grp.allAlumni) grp.selected = false;
+            affected += 1;
+        }
+    });
+
+    showToast(`Detached Alumni members from ${affected} group(s).`, 'success');
+    renderPromoGroupsList();
+};
+
+const renderPromoGroupsList = () => {
+    const container = document.getElementById('promo-groups-container');
+    if (!container) return;
+
+    if (!promoGroupConfigurations.length) {
+        container.innerHTML = '<div class="p-6 text-center text-xs text-slate-400 font-semibold bg-slate-50 rounded-xl border border-dashed border-slate-200">No sibling / student groups configured in source academic session.</div>';
+        return;
+    }
+
+    container.innerHTML = promoGroupConfigurations.map((grp) => {
+        const isPriority = grp.hasAlumni;
+        const activeCount = grp.activeMembers.length;
+
+        let banner = '';
+        if (grp.allAlumni) {
+            banner = `
+                <div class="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold flex items-center justify-between">
+                    <span><i class="fas fa-graduation-cap text-rose-600 mr-1"></i>All siblings have graduated to Alumni. Group will be dissolved.</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">Disbanded</span>
+                </div>
+            `;
+        } else if (isPriority) {
+            banner = `
+                <div class="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <span class="flex items-center gap-1.5"><i class="fas fa-triangle-exclamation text-amber-600"></i> Older sibling(s) graduated to Alumni. Detach them so only active siblings are billed.</span>
+                    <button type="button" class="promo-btn-detach-single px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-black transition cursor-pointer self-start sm:self-auto" data-group-id="${escapeHtml(grp.id)}">
+                        <i class="fas fa-user-minus mr-1"></i> Auto-detach Alumni
+                    </button>
+                </div>
+            `;
+        }
+
+        const membersHtml = grp.memberDetails.map((m) => `
+            <div class="p-2 rounded-lg border ${m.isAlumni ? 'bg-purple-50/70 border-purple-200' : 'bg-white border-slate-200'} flex items-center justify-between text-xs">
+                <div>
+                    <span class="font-extrabold text-slate-800">${escapeHtml(m.name)}</span>
+                    <span class="text-[10px] text-slate-500 font-mono ml-1.5">(Adm: ${escapeHtml(m.adm)})</span>
+                    <div class="text-[10px] text-slate-500">
+                        Class ${escapeHtml(m.sourceClass)} &rarr; <span class="font-bold ${m.isAlumni ? 'text-purple-700' : 'text-indigo-700'}">${escapeHtml(m.destinationClass)}</span>
+                    </div>
+                </div>
+                <div>
+                    ${m.isAlumni ? '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-900 border border-purple-200"><i class="fas fa-graduation-cap mr-1"></i>ALUMNI</span>' : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Active Student</span>'}
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="p-4 rounded-xl border ${isPriority ? 'border-amber-300 bg-amber-50/20' : (grp.selected ? 'border-indigo-200 bg-white' : 'border-slate-200 bg-slate-50/50 opacity-60')} shadow-2xs space-y-3 transition">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" class="promo-grp-item-cb w-4 h-4 rounded text-indigo-600 cursor-pointer" data-group-id="${escapeHtml(grp.id)}" ${grp.selected ? 'checked' : ''}>
+                        <div>
+                            <span class="text-xs font-black text-slate-900">Family Sibling Group</span>
+                            <span class="text-[11px] text-slate-500 ml-1.5 font-bold">(${activeCount} continuing sibling${activeCount === 1 ? '' : 's'})</span>
+                        </div>
+                    </label>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="text-slate-500 font-semibold">Source Year Fee: <b class="text-slate-800">₹${grp.sourceFee}</b></span>
+                        <span>&rarr;</span>
+                        <div class="flex items-center gap-1">
+                            <span class="font-bold text-indigo-900">New Group Fee: ₹</span>
+                            <input type="number" class="promo-grp-fee-input p-1 border rounded w-20 text-right font-extrabold text-xs text-indigo-950 focus:border-indigo-500 outline-none" data-group-id="${escapeHtml(grp.id)}" value="${grp.adjustedFee}" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                ${banner}
+
+                <!-- Members List -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    ${membersHtml}
+                </div>
+
+                ${activeCount === 1 ? '<div class="text-[11px] text-indigo-700 italic bg-indigo-50/60 p-2 rounded-lg border border-indigo-100"><i class="fas fa-info-circle mr-1"></i>Notice: Only 1 active sibling remains in this group. You can maintain this custom single-student fee or uncheck the group so regular class fees apply.</div>' : ''}
+            </div>
+        `;
+    }).join('');
+};
+
+// --- 5.9.4 Wizard Core Page Renderers ---
 const renderBatchPromotionPage = () => {
     if (!requirePermission('academic-years.manage')) return;
 
@@ -9827,9 +10173,12 @@ const renderBatchPromotionPage = () => {
     const targetSelect = document.getElementById('promo-target-year');
     if (!srcSelect || !targetSelect) return;
 
-    const sortedYears = (Array.isArray(academicYears) && academicYears.length)
-        ? [...academicYears].sort((a, b) => (b.label || '').localeCompare(a.label || '', undefined, { numeric: true }))
+    // Strictly exclude archived years from promotion dropdowns
+    const availableYears = (Array.isArray(academicYears) && academicYears.length)
+        ? academicYears.filter((y) => y.status !== 'archived')
         : [{ label: activeLabel }];
+
+    const sortedYears = [...availableYears].sort((a, b) => (b.label || '').localeCompare(a.label || '', undefined, { numeric: true }));
 
     const currentSrc = srcSelect.value || activeLabel;
     srcSelect.innerHTML = sortedYears.map((y) => `<option value="${escapeHtml(y.label)}" ${y.label === currentSrc ? 'selected' : ''}>${escapeHtml(y.label)}</option>`).join('');
@@ -9854,6 +10203,11 @@ const renderBatchPromotionPage = () => {
 
     populateTargetYears(srcSelect.value);
     updatePromotionProgressionGrid();
+
+    // Initialize counts for policy badges
+    initPromoFeesModalData();
+    initPromoConcessionsData();
+    initPromoGroupsData();
 };
 
 const updatePromotionProgressionGrid = () => {
@@ -9975,6 +10329,10 @@ const loadPromoStudentsForReview = async () => {
                 selected: true
             };
         });
+
+        // Re-synchronize Concessions and Groups modal data based on student decisions
+        initPromoConcessionsData();
+        initPromoGroupsData();
 
         // Populate class filter dropdown
         const classFilter = document.getElementById('promo-filter-class');
@@ -10102,11 +10460,15 @@ const executeBatchPromotion = async () => {
     const retainedCount = selectedItems.filter((p) => p.decision === 'retained').length;
     const alumniCount = selectedItems.filter((p) => p.decision === 'alumni').length;
 
-    const optSetActive = document.getElementById('promo-opt-set-active')?.checked ?? true;
     const optCloneFees = document.getElementById('promo-opt-clone-fees')?.checked ?? true;
     const optCarryConcessions = document.getElementById('promo-opt-carry-concessions')?.checked ?? true;
+    const optRolloverGroups = document.getElementById('promo-opt-rollover-groups')?.checked ?? true;
 
-    const confirmMsg = `Execute Academic Promotion & Rollover?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nSelected Students: ${selectedItems.length}\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nHistorical records will be preserved in longitudinal student profiles. Continue?`;
+    const chosenCustomFeesCount = promoCustomFeeSelection.filter((f) => f.selected).length;
+    const chosenConcessionsCount = promoConcessionsSelection.filter((c) => c.selected).length;
+    const chosenGroups = promoGroupConfigurations.filter((g) => g.selected && g.activeMembers.length > 0);
+
+    const confirmMsg = `Execute Academic Promotion & Rollover?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nSelected Students: ${selectedItems.length}\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nConfigurations:\n• Fee Structure: ${optCloneFees ? `12 Monthly Heads + ${chosenCustomFeesCount} Custom Heads` : 'Skipped'}\n• Concessions: ${optCarryConcessions ? `${chosenConcessionsCount} Students Selected` : 'Skipped'}\n• Family Groups: ${optRolloverGroups ? `${chosenGroups.length} Groups (Alumni Detached)` : 'Skipped'}\n\nNote: Active institutional session will NOT be automatically switched. Historical records will be preserved in longitudinal student profiles. Continue?`;
     if (!confirm(confirmMsg)) return;
 
     const execBtn = document.getElementById('btn-execute-promotion');
@@ -10176,7 +10538,15 @@ const executeBatchPromotion = async () => {
                     studentPayload.finalClass = item.sourceClass;
                 }
 
-                if (!optCarryConcessions) {
+                // Handle fee concessions carry-forward
+                if (optCarryConcessions) {
+                    const concRecord = promoConcessionsSelection.find((c) => c.studentId === student.id);
+                    if (concRecord && concRecord.selected) {
+                        studentPayload.concessionFee = Number(concRecord.concessionFee) || 0;
+                    } else {
+                        studentPayload.concessionFee = null;
+                    }
+                } else {
                     studentPayload.concessionFee = null;
                 }
 
@@ -10225,7 +10595,7 @@ const executeBatchPromotion = async () => {
             targetYearRecord = {
                 id: toAcademicYearDocId(tgtYear),
                 label: tgtYear,
-                status: optSetActive ? 'current' : 'active',
+                status: 'active', // Never auto-set to current; admin does it intentionally
                 classes: promoClasses,
                 createdAt: nowIso
             };
@@ -10235,16 +10605,57 @@ const executeBatchPromotion = async () => {
             targetYearRecord.classes = sortClassLabels([...new Set([...existingClasses, ...promoClasses])]);
         }
 
+        // Clone fee structures
         if (optCloneFees) {
             await ensureFeeItemsForAcademicYears(academicYears);
+
+            // Clone selected custom fee items
+            if (promoCustomFeeSelection.length) {
+                const confRef = getConfigRef();
+                const configSnap = await getDoc(confRef);
+                const d = configSnap.exists() ? configSnap.data() : {};
+                let existingItems = Array.isArray(d.feeItems) ? [...d.feeItems] : [];
+
+                const chosenCustom = promoCustomFeeSelection.filter((f) => f.selected);
+                chosenCustom.forEach((f) => {
+                    const alreadyExists = existingItems.some((i) => (i.academicYear || '') === tgtYear && i.name === f.name);
+                    if (!alreadyExists) {
+                        const newKey = `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+                        existingItems.push({
+                            key: newKey,
+                            name: f.name,
+                            type: 'custom',
+                            scope: f.scope,
+                            amount: Number(f.targetAmount) || f.amount || 0,
+                            classValues: f.classValues || {},
+                            targetClass: f.targetClass || '',
+                            academicYear: tgtYear,
+                            isVisible: true,
+                            createdAt: nowIso
+                        });
+                    }
+                });
+
+                await setDoc(confRef, { feeItems: existingItems }, { merge: true });
+            }
         }
 
-        if (optSetActive) {
-            academicYears = academicYears.map((y) => ({
-                ...y,
-                status: y.label === tgtYear ? 'current' : (y.status === 'current' ? 'active' : y.status)
-            }));
-            activeAcademicYear = tgtYear;
+        // Rollover Student Groups (Family Sibling Groups)
+        if (optRolloverGroups && chosenGroups.length) {
+            const groupOps = chosenGroups.map(async (grp) => {
+                const activeMemberIds = grp.activeMembers.map((m) => m.id);
+                const groupRef = doc(collection(db, `${BASE_PATH}/studentGroups`));
+                const groupPayload = {
+                    academicYear: tgtYear,
+                    memberIds: activeMemberIds,
+                    fee: Number(grp.adjustedFee) || 0,
+                    sourceGroupId: grp.id,
+                    createdAt: nowIso,
+                    updatedAt: nowIso
+                };
+                await setDoc(groupRef, groupPayload);
+            });
+            await Promise.all(groupOps);
         }
 
         await persistAcademicYears();
@@ -10256,11 +10667,11 @@ const executeBatchPromotion = async () => {
             action: 'batch-promotion.execute',
             entityType: 'academicYear',
             entityId: tgtYear,
-            message: `Batch promotion executed from ${srcYear} to ${tgtYear} for ${total} students (Promoted: ${promotedCount}, Retained: ${retainedCount}, Alumni: ${alumniCount}).`
+            message: `Batch promotion executed from ${srcYear} to ${tgtYear} for ${total} students (Promoted: ${promotedCount}, Retained: ${retainedCount}, Alumni: ${alumniCount}). Groups rolled over: ${chosenGroups.length}.`
         });
 
         showToast(`Batch promotion successful! ${total} student(s) enrolled into ${tgtYear}.`, 'success');
-        alert(`Academic Promotion & Rollover Completed!\n\n${total} students have been successfully transitioned into academic session "${tgtYear}".\n${optSetActive ? 'Active institutional session has been set to ' + tgtYear + '.\n' : ''}Longitudinal student dossiers and enrollment registries have been updated.`);
+        alert(`Academic Promotion & Rollover Completed!\n\n${total} students have been successfully enrolled into session "${tgtYear}".\n${optRolloverGroups ? `${chosenGroups.length} family group(s) carried forward with Alumni members detached.\n` : ''}${optCloneFees ? `Fee structures and custom heads created for ${tgtYear}.\n` : ''}\nImportant: Active institutional session remains "${srcYear}". You can switch the current active session in Academic Years Control when you are ready.`);
 
         renderBatchPromotionPage();
     } catch (err) {
@@ -10275,7 +10686,7 @@ const executeBatchPromotion = async () => {
     }
 };
 
-// Promotion UI Event Listeners
+// --- Promotion Wizard UI Event Listeners ---
 document.getElementById('promo-source-year')?.addEventListener('change', () => {
     const srcSelect = document.getElementById('promo-source-year');
     if (srcSelect) {
@@ -10287,6 +10698,9 @@ document.getElementById('promo-source-year')?.addEventListener('change', () => {
     updatePromotionProgressionGrid();
     document.getElementById('promo-review-section')?.classList.add('hidden');
     promoStudentsList = [];
+    initPromoFeesModalData();
+    initPromoConcessionsData();
+    initPromoGroupsData();
 });
 
 document.getElementById('promo-target-year')?.addEventListener('change', () => {
@@ -10337,6 +10751,7 @@ document.getElementById('promo-btn-bulk-promote-pass')?.addEventListener('click'
     });
     showToast(`Marked ${count} student(s) with PASS as Promoted.`, 'info');
     renderPromoReviewTable();
+    initPromoGroupsData();
 });
 
 document.getElementById('promo-btn-bulk-retain-fail')?.addEventListener('click', () => {
@@ -10350,6 +10765,7 @@ document.getElementById('promo-btn-bulk-retain-fail')?.addEventListener('click',
     });
     showToast(`Marked ${count} student(s) with FAIL as Retained (Repeaters).`, 'info');
     renderPromoReviewTable();
+    initPromoGroupsData();
 });
 
 document.getElementById('promo-students-tbody')?.addEventListener('change', (e) => {
@@ -10380,6 +10796,7 @@ document.getElementById('promo-students-tbody')?.addEventListener('change', (e) 
             item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
         }
         renderPromoReviewTable();
+        initPromoGroupsData();
     } else if (e.target.classList.contains('promo-row-dest-select')) {
         item.destinationClass = e.target.value;
         if (item.destinationClass === 'Alumni') {
@@ -10390,10 +10807,121 @@ document.getElementById('promo-students-tbody')?.addEventListener('change', (e) 
             item.decision = 'promoted';
         }
         renderPromoReviewTable();
+        initPromoGroupsData();
     }
 });
 
 document.getElementById('btn-execute-promotion')?.addEventListener('click', executeBatchPromotion);
+
+// --- Modal Trigger and Action Listeners ---
+// 1. Fee Structure Modal
+document.getElementById('promo-btn-open-fees-modal')?.addEventListener('click', openPromoFeesModal);
+document.getElementById('promo-fee-clone-close-btn')?.addEventListener('click', closePromoFeesModal);
+document.getElementById('promo-fee-clone-done-btn')?.addEventListener('click', closePromoFeesModal);
+document.getElementById('promo-fee-clone-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'promo-fee-clone-modal') closePromoFeesModal();
+});
+
+document.getElementById('promo-fee-th-select-all')?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    promoCustomFeeSelection.forEach((f) => { f.selected = isChecked; });
+    renderPromoFeesTable();
+});
+
+document.getElementById('promo-fee-custom-tbody')?.addEventListener('change', (e) => {
+    const key = e.target.dataset.feeKey;
+    if (!key) return;
+    const item = promoCustomFeeSelection.find((f) => f.key === key);
+    if (!item) return;
+
+    if (e.target.classList.contains('promo-fee-item-cb')) {
+        item.selected = e.target.checked;
+        const tr = e.target.closest('tr');
+        if (tr) {
+            tr.classList.toggle('bg-emerald-50/20', item.selected);
+            tr.classList.toggle('opacity-60', !item.selected);
+        }
+    } else if (e.target.classList.contains('promo-fee-rate-input')) {
+        item.targetAmount = Number(e.target.value) || 0;
+    }
+});
+
+// 2. Concessions Modal
+document.getElementById('promo-btn-open-concessions-modal')?.addEventListener('click', openPromoConcessionsModal);
+document.getElementById('promo-concessions-close-btn')?.addEventListener('click', closePromoConcessionsModal);
+document.getElementById('promo-concessions-done-btn')?.addEventListener('click', closePromoConcessionsModal);
+document.getElementById('promo-concessions-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'promo-concessions-modal') closePromoConcessionsModal();
+});
+
+document.getElementById('promo-conc-btn-select-all')?.addEventListener('click', () => {
+    promoConcessionsSelection.forEach((c) => { c.selected = true; });
+    const th = document.getElementById('promo-conc-th-select-all');
+    if (th) th.checked = true;
+    renderPromoConcessionsTable();
+});
+
+document.getElementById('promo-conc-btn-deselect-all')?.addEventListener('click', () => {
+    promoConcessionsSelection.forEach((c) => { c.selected = false; });
+    const th = document.getElementById('promo-conc-th-select-all');
+    if (th) th.checked = false;
+    renderPromoConcessionsTable();
+});
+
+document.getElementById('promo-conc-th-select-all')?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    promoConcessionsSelection.forEach((c) => { c.selected = isChecked; });
+    renderPromoConcessionsTable();
+});
+
+document.getElementById('promo-concessions-tbody')?.addEventListener('change', (e) => {
+    const stuId = e.target.dataset.studentId;
+    if (!stuId) return;
+    const item = promoConcessionsSelection.find((c) => c.studentId === stuId);
+    if (!item) return;
+
+    if (e.target.classList.contains('promo-conc-item-cb')) {
+        item.selected = e.target.checked;
+        const tr = e.target.closest('tr');
+        if (tr) {
+            tr.classList.toggle('bg-purple-50/20', item.selected);
+            tr.classList.toggle('opacity-60', !item.selected);
+        }
+    } else if (e.target.classList.contains('promo-conc-amt-input')) {
+        item.concessionFee = Number(e.target.value) || 0;
+    }
+});
+
+// 3. Student Groups Modal
+document.getElementById('promo-btn-open-groups-modal')?.addEventListener('click', openPromoGroupsModal);
+document.getElementById('promo-groups-close-btn')?.addEventListener('click', closePromoGroupsModal);
+document.getElementById('promo-groups-done-btn')?.addEventListener('click', closePromoGroupsModal);
+document.getElementById('promo-groups-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'promo-groups-modal') closePromoGroupsModal();
+});
+
+document.getElementById('promo-btn-detach-all-alumni')?.addEventListener('click', detachAllAlumniFromAllGroups);
+
+document.getElementById('promo-groups-container')?.addEventListener('click', (e) => {
+    const detachBtn = e.target.closest('.promo-btn-detach-single');
+    if (detachBtn && detachBtn.dataset.groupId) {
+        detachAlumniFromGroup(detachBtn.dataset.groupId);
+    }
+});
+
+document.getElementById('promo-groups-container')?.addEventListener('change', (e) => {
+    const grpId = e.target.dataset.groupId;
+    if (!grpId) return;
+    const grp = promoGroupConfigurations.find((g) => g.id === grpId);
+    if (!grp) return;
+
+    if (e.target.classList.contains('promo-grp-item-cb')) {
+        grp.selected = e.target.checked;
+        renderPromoGroupsList();
+    } else if (e.target.classList.contains('promo-grp-fee-input')) {
+        grp.adjustedFee = Number(e.target.value) || 0;
+    }
+});
 
 // --- 6. FEE CONCESSIONS ---
 const renderActiveConcessionsList = () => {
