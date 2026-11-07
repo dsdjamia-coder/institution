@@ -81,6 +81,7 @@
                 
                 <div class="drawer-heading">Continuity &amp; Transfers</div>
                 <a href="#student-continuity" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Discontinue &amp; Re-admission"><i class="fas fa-user-clock w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Discontinue &amp; Re-admission</span></a>
+                <a href="#batch-promotion" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Class Promotion Wizard"><i class="fas fa-graduation-cap text-center w-5 shrink-0 text-indigo-600"></i><span class="text-sm nav-text truncate">Class Promotion Wizard</span></a>
                 
                 <div class="drawer-heading">Finance</div>
                 <a href="#fee-settings" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Fee Settings"><i class="fas fa-receipt w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Fee Settings</span></a>
@@ -164,6 +165,7 @@
                             <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-green-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="add-students"><i class="fas fa-user-plus text-green-600"></i><span>Add Students</span></button>
                             <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="manage-classes"><i class="fas fa-chalkboard text-indigo-600"></i><span>Classes & Divisions</span></button>
                             <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-amber-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="fee-settings"><i class="fas fa-receipt text-amber-600"></i><span>Configure Fees</span></button>
+                            <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:border-indigo-400 hover:shadow-md transition text-left font-bold text-indigo-900" data-target-page="batch-promotion"><i class="fas fa-graduation-cap text-indigo-600"></i><span>Class Promotion Wizard</span></button>
                         </div>
                     </div>
                     <div class="card p-5 rounded-xl shadow-sm">
@@ -951,6 +953,7 @@
                             <div id="manage-students-year-badge" class="text-xs font-bold uppercase tracking-widest text-indigo-600 mt-1">Academic Year: --</div>
                         </div>
                         <div class="flex flex-wrap gap-2">
+                            <button type="button" class="admin-quick-action bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition" data-target-page="batch-promotion"><i class="fas fa-graduation-cap"></i> Promotion Wizard</button>
                             <button id="export-students-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition"><i class="fas fa-file-excel"></i> Excel</button>
                             <button id="export-students-csv-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition"><i class="fas fa-file-csv"></i> CSV</button>
                             <button id="export-students-pdf-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition"><i class="fas fa-file-pdf"></i> PDF</button>
@@ -2632,6 +2635,239 @@
                 </div>
             </section>
 
+            <!-- 18. Batch Promotion & Rollover Wizard Page -->
+            <section id="batch-promotion-page" class="page hidden space-y-6">
+                <!-- Header Banner -->
+                <div class="card p-5 sm:p-6 rounded-2xl shadow-sm border border-indigo-100 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 text-2xl shrink-0 shadow-inner">
+                                <i class="fas fa-graduation-cap"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-[11px] font-black uppercase tracking-[0.25em] text-indigo-300">Annual Academic Rollover Engine</span>
+                                    <span id="promo-header-active-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-500/30 border border-indigo-400/40 text-indigo-200">Active Year: --</span>
+                                </div>
+                                <h2 class="text-xl sm:text-2xl font-black text-white mt-1">Class Promotion &amp; Batch Rollover Wizard</h2>
+                                <p class="text-xs sm:text-sm text-indigo-200/80 mt-1 max-w-2xl leading-relaxed">Promote enrolled students into the next academic year, advance classes, graduate final year batches to Alumni, and safely archive past sessions with zero data loss.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 self-start lg:self-auto shrink-0">
+                            <button type="button" id="promo-btn-refresh" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition flex items-center gap-1.5 cursor-pointer">
+                                <i class="fas fa-rotate"></i> Reset Wizard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 1: Session & Rollover Configuration -->
+                <div class="card p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 bg-white">
+                    <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black">1</span>
+                        <h3 class="font-black text-base text-slate-900">Academic Year &amp; Rollover Configuration</h3>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                <i class="fas fa-calendar-minus text-indigo-600 mr-1"></i> Source Academic Year (Current Session)
+                            </label>
+                            <select id="promo-source-year" class="w-full p-2.5 border rounded-lg bg-white font-bold text-slate-800 text-sm focus:border-indigo-500 outline-none"></select>
+                            <p class="text-[11px] text-slate-500 mt-1.5">Students currently enrolled in this year will be evaluated for promotion.</p>
+                        </div>
+
+                        <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-200">
+                            <label class="block text-xs font-bold text-indigo-950 uppercase tracking-wider mb-1.5">
+                                <i class="fas fa-calendar-plus text-emerald-600 mr-1"></i> Target Academic Year (Destination Session)
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <select id="promo-target-year" class="w-full p-2.5 border rounded-lg bg-white font-bold text-indigo-900 text-sm focus:border-indigo-500 outline-none"></select>
+                                <button type="button" class="admin-quick-action px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shrink-0 transition" data-target-page="academic-years" title="Create New Year">
+                                    <i class="fas fa-plus"></i> New Year
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-indigo-700 mt-1.5">Destination academic year where promoted students will be enrolled.</p>
+                        </div>
+                    </div>
+
+                    <!-- Policy Options -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white cursor-pointer transition">
+                            <input type="checkbox" id="promo-opt-set-active" checked class="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                            <div>
+                                <span class="block text-xs font-bold text-slate-900">Switch Active Academic Year</span>
+                                <span class="block text-[11px] text-slate-500 mt-0.5">Automatically set Target Year as institution's active session upon completion.</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-emerald-300 bg-white cursor-pointer transition">
+                            <input type="checkbox" id="promo-opt-clone-fees" checked class="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer">
+                            <div>
+                                <span class="block text-xs font-bold text-slate-900">Clone Fee Structure</span>
+                                <span class="block text-[11px] text-slate-500 mt-0.5">Copy fee heads and class rates to target year if not already configured.</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-purple-300 bg-white cursor-pointer transition">
+                            <input type="checkbox" id="promo-opt-carry-concessions" checked class="w-4 h-4 mt-0.5 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                            <div>
+                                <span class="block text-xs font-bold text-slate-900">Retain Concessions</span>
+                                <span class="block text-[11px] text-slate-500 mt-0.5">Carry forward student fee concessions into the new academic year.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Step 2: Class Progression Mapping -->
+                <div class="card p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 bg-white">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 mb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black">2</span>
+                            <div>
+                                <h3 class="font-black text-base text-slate-900">Class Progression &amp; Destination Mapping</h3>
+                                <p class="text-xs text-slate-500">Map which class each batch advances into. Final standard batches should map to Alumni.</p>
+                            </div>
+                        </div>
+                        <button type="button" id="promo-btn-load-students" class="py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-2 cursor-pointer self-start sm:self-auto">
+                            <i class="fas fa-users-viewfinder"></i> Load Students for Review
+                        </button>
+                    </div>
+
+                    <div id="promo-progression-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <!-- Dynamically populated progression cards -->
+                        <div class="p-6 text-center text-xs text-slate-400 font-semibold col-span-full">Select source and target years above to inspect class progression mappings.</div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Interactive Student Review & Decisions Table -->
+                <div id="promo-review-section" class="card p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 bg-white hidden">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black">3</span>
+                            <div>
+                                <h3 class="font-black text-base text-slate-900">Student Roster &amp; Promotion Decisions</h3>
+                                <p class="text-xs text-slate-500">Review student-level decisions. Adjust individual destination classes or mark repeaters/retained students.</p>
+                            </div>
+                        </div>
+
+                        <!-- KPI Counter Badges -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <div class="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+                                Total: <span id="promo-kpi-total" class="font-black text-slate-900">0</span>
+                            </div>
+                            <div class="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                                Promoted: <span id="promo-kpi-promoted" class="font-black text-emerald-700">0</span>
+                            </div>
+                            <div class="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                                Retained (Repeat): <span id="promo-kpi-retained" class="font-black text-amber-700">0</span>
+                            </div>
+                            <div class="px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-xs font-bold">
+                                Alumni: <span id="promo-kpi-alumni" class="font-black text-purple-700">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters & Bulk Controls Bar -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 my-4 space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Filter by Class</label>
+                                <select id="promo-filter-class" class="w-full p-2 border rounded-lg bg-white font-semibold text-slate-800">
+                                    <option value="all">All Classes</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Filter by Decision</label>
+                                <select id="promo-filter-decision" class="w-full p-2 border rounded-lg bg-white font-semibold text-slate-800">
+                                    <option value="all">All Decisions</option>
+                                    <option value="promoted">Promote (Advance Class)</option>
+                                    <option value="retained">Retain (Same Class)</option>
+                                    <option value="alumni">Graduate to Alumni</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Filter by Annual Exam</label>
+                                <select id="promo-filter-exam" class="w-full p-2 border rounded-lg bg-white font-semibold text-slate-800">
+                                    <option value="all">All Exam Statuses</option>
+                                    <option value="PASS">Annual Exam: PASS</option>
+                                    <option value="FAIL">Annual Exam: FAIL</option>
+                                    <option value="NONE">No Annual Exam Record</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Search Student</label>
+                                <input type="text" id="promo-search-student" placeholder="Name or Adm No..." class="w-full p-2 border rounded-lg bg-white">
+                            </div>
+                        </div>
+
+                        <!-- Bulk Quick Action Buttons -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" id="promo-btn-select-all" class="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs transition cursor-pointer">
+                                    <i class="far fa-check-square"></i> Select All
+                                </button>
+                                <button type="button" id="promo-btn-deselect-all" class="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs transition cursor-pointer">
+                                    <i class="far fa-square"></i> Deselect All
+                                </button>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" id="promo-btn-bulk-promote-pass" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer">
+                                    <i class="fas fa-check-double"></i> Mark Passed as Promoted
+                                </button>
+                                <button type="button" id="promo-btn-bulk-retain-fail" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer">
+                                    <i class="fas fa-user-xmark"></i> Retain Failed Students
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Students Table Container -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-700 uppercase font-extrabold tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th class="p-3 w-10 text-center">
+                                        <input type="checkbox" id="promo-th-select-all" checked class="w-4 h-4 rounded text-indigo-600 cursor-pointer">
+                                    </th>
+                                    <th class="p-3">Adm No</th>
+                                    <th class="p-3">Student Name</th>
+                                    <th class="p-3">Source Class</th>
+                                    <th class="p-3 text-center">Annual Exam</th>
+                                    <th class="p-3">Destination Class</th>
+                                    <th class="p-3 text-center">Decision</th>
+                                </tr>
+                            </thead>
+                            <tbody id="promo-students-tbody" class="divide-y divide-slate-100 font-medium text-slate-800">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Step 4: Execution Bar -->
+                    <div class="mt-6 pt-5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div class="flex items-center gap-2 text-xs text-slate-600">
+                            <i class="fas fa-shield-halved text-indigo-600 text-sm"></i>
+                            <span>Historical student records are safely archived in each student's profile dossier.</span>
+                        </div>
+                        <button type="button" id="btn-execute-promotion" class="w-full sm:w-auto px-7 py-3 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 active:scale-95 text-white font-black rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fas fa-rocket"></i> Execute Batch Promotion &amp; Rollover
+                        </button>
+                    </div>
+
+                    <!-- Progress Bar during execution -->
+                    <div id="promo-progress-container" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-indigo-200 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-bold text-indigo-950">
+                            <span id="promo-progress-label">Executing promotions...</span>
+                            <span id="promo-progress-pct">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                            <div id="promo-progress-bar" class="bg-indigo-600 h-3 rounded-full transition-all duration-200" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
         </main>
         </div>
     </div>
@@ -3027,106 +3263,197 @@
                 <button type="button" id="student-full-details-close-btn" class="text-white/70 hover:text-white p-2 rounded-xl hover:bg-white/10 transition shrink-0" title="Close"><i class="fas fa-times text-lg"></i></button>
             </div>
 
+            <!-- Modal 360 Tabs Navigation -->
+            <div class="flex items-center gap-1 px-5 pt-2.5 border-b border-slate-200 bg-white shrink-0 overflow-x-auto">
+                <button type="button" class="stu360-tab-btn active px-4 py-2 font-black text-xs border-b-2 border-indigo-600 text-indigo-700 transition flex items-center gap-1.5 cursor-pointer shrink-0" data-stu-pane="stu360-pane-bio">
+                    <i class="fas fa-id-card"></i> Bio &amp; KYC
+                </button>
+                <button type="button" class="stu360-tab-btn px-4 py-2 font-black text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 cursor-pointer shrink-0" data-stu-pane="stu360-pane-academic">
+                    <i class="fas fa-graduation-cap"></i> Academic &amp; Promotions
+                </button>
+                <button type="button" class="stu360-tab-btn px-4 py-2 font-black text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 cursor-pointer shrink-0" data-stu-pane="stu360-pane-fees">
+                    <i class="fas fa-receipt"></i> Fees &amp; Ledger
+                </button>
+                <button type="button" class="stu360-tab-btn px-4 py-2 font-black text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 cursor-pointer shrink-0" data-stu-pane="stu360-pane-exams">
+                    <i class="fas fa-poll-h"></i> Exam History
+                </button>
+            </div>
+
             <!-- Modal Scrollable Content -->
-            <div class="p-5 overflow-y-auto space-y-4 max-h-[calc(92vh-160px)] bg-slate-50/50">
-                <!-- Academic & Personal Grid -->
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
-                        <i class="fas fa-graduation-cap text-blue-600"></i> Academic & Personal Information
-                    </h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 text-xs">
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Admission Number</span>
-                            <span id="view-stu-adm-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+            <div class="p-5 overflow-y-auto space-y-4 max-h-[calc(92vh-180px)] bg-slate-50/50">
+                <!-- Pane 1: Bio & KYC -->
+                <div id="stu360-pane-bio" class="stu360-pane space-y-4">
+                    <!-- Academic & Personal Grid -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                        <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+                            <i class="fas fa-graduation-cap text-blue-600"></i> Academic &amp; Personal Information
+                        </h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 text-xs">
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Admission Number</span>
+                                <span id="view-stu-adm-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Class</span>
+                                <span id="view-stu-class-val" class="font-bold text-blue-700 text-sm mt-0.5 block">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">ID / UID</span>
+                                <span id="view-stu-uid-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Gender</span>
+                                <span id="view-stu-gender-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Birth</span>
+                                <span id="view-stu-dob-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Admission</span>
+                                <span id="view-stu-adm-date-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Student Status</span>
+                                <span id="view-stu-status-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Aadhaar Number</span>
+                                <span id="view-stu-adhaar-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                            </div>
                         </div>
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Class</span>
-                            <span id="view-stu-class-val" class="font-bold text-blue-700 text-sm mt-0.5 block">--</span>
+                    </div>
+
+                    <!-- Parents & Contact Information -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                        <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+                            <i class="fas fa-users text-indigo-600"></i> Parents &amp; Contact Information
+                        </h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                            <!-- Father Info -->
+                            <div class="bg-sky-50/60 p-3 rounded-lg border border-sky-100">
+                                <span class="text-[11px] font-extrabold text-sky-900 uppercase flex items-center gap-1 mb-1.5">
+                                    <i class="fas fa-male text-sky-600"></i> Father's Details
+                                </span>
+                                <div class="space-y-1">
+                                    <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-father-name" class="text-slate-800 text-xs">--</b></div>
+                                    <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-father-phone" class="text-slate-800 text-xs font-mono">--</b></div>
+                                </div>
+                            </div>
+
+                            <!-- Mother Info -->
+                            <div class="bg-purple-50/60 p-3 rounded-lg border border-purple-100">
+                                <span class="text-[11px] font-extrabold text-purple-900 uppercase flex items-center gap-1 mb-1.5">
+                                    <i class="fas fa-female text-purple-600"></i> Mother's Details
+                                </span>
+                                <div class="space-y-1">
+                                    <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-mother-name" class="text-slate-800 text-xs">--</b></div>
+                                    <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-mother-phone" class="text-slate-800 text-xs font-mono">--</b></div>
+                                </div>
+                            </div>
+
+                            <!-- Permanent Address -->
+                            <div class="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                    <i class="fas fa-home text-slate-600"></i> Permanent Address
+                                </span>
+                                <p id="view-stu-address-val" class="font-medium text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">--</p>
+                            </div>
                         </div>
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">ID / UID</span>
-                            <span id="view-stu-uid-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                    </div>
+
+                    <!-- Fee & Group Linking Details -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                        <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+                            <i class="fas fa-hand-holding-usd text-emerald-600"></i> Fee Concession &amp; Group Status
+                        </h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                            <div class="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg flex items-center justify-between">
+                                <div>
+                                    <span class="text-[11px] font-bold text-emerald-900 uppercase block">Special Monthly Fee (Concession)</span>
+                                    <span id="view-stu-concession-val" class="text-xs font-bold text-emerald-700">None (Standard Fee Applies)</span>
+                                </div>
+                                <span id="view-stu-concession-amt" class="font-extrabold text-sm text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs hidden">--</span>
+                            </div>
+                            <div class="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between">
+                                <div>
+                                    <span class="text-[11px] font-bold text-blue-900 uppercase block">Linked Student Group</span>
+                                    <span id="view-stu-group-val" class="text-xs font-bold text-blue-700">Not in a group</span>
+                                </div>
+                                <span id="view-stu-group-amt" class="font-extrabold text-sm text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs hidden">--</span>
+                            </div>
                         </div>
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Gender</span>
-                            <span id="view-stu-gender-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                    </div>
+                </div><!-- End #stu360-pane-bio -->
+
+                <!-- Pane 2: Academic History & Promotions -->
+                <div id="stu360-pane-academic" class="stu360-pane hidden space-y-4">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                                <i class="fas fa-timeline text-indigo-600"></i> Academic Progression &amp; Session Timeline
+                            </h4>
+                            <span class="text-[11px] text-slate-500 font-semibold">Longitudinal History</span>
                         </div>
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Birth</span>
-                            <span id="view-stu-dob-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
-                        </div>
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Admission</span>
-                            <span id="view-stu-adm-date-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
-                        </div>
-                        <div>
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Student Status</span>
-                            <span id="view-stu-status-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase">Aadhaar Number</span>
-                            <span id="view-stu-adhaar-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                        <div id="stu360-timeline-container" class="space-y-3 relative pl-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-indigo-100">
+                            <!-- Populated dynamically -->
+                            <div class="text-xs text-slate-400 py-3">Loading session history...</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Parents & Contact Information -->
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
-                        <i class="fas fa-users text-indigo-600"></i> Parents & Contact Information
-                    </h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <!-- Father Info -->
-                        <div class="bg-sky-50/60 p-3 rounded-lg border border-sky-100">
-                            <span class="text-[11px] font-extrabold text-sky-900 uppercase flex items-center gap-1 mb-1.5">
-                                <i class="fas fa-male text-sky-600"></i> Father's Details
-                            </span>
-                            <div class="space-y-1">
-                                <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-father-name" class="text-slate-800 text-xs">--</b></div>
-                                <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-father-phone" class="text-slate-800 text-xs font-mono">--</b></div>
-                            </div>
+                <!-- Pane 3: Fees & Ledger -->
+                <div id="stu360-pane-fees" class="stu360-pane hidden space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl">
+                            <span class="text-[10px] font-bold text-blue-900 uppercase block">Total Assigned Fee</span>
+                            <span id="stu360-fee-total" class="text-lg font-black text-blue-900 mt-0.5 block">₹0</span>
                         </div>
-
-                        <!-- Mother Info -->
-                        <div class="bg-purple-50/60 p-3 rounded-lg border border-purple-100">
-                            <span class="text-[11px] font-extrabold text-purple-900 uppercase flex items-center gap-1 mb-1.5">
-                                <i class="fas fa-female text-purple-600"></i> Mother's Details
-                            </span>
-                            <div class="space-y-1">
-                                <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-mother-name" class="text-slate-800 text-xs">--</b></div>
-                                <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-mother-phone" class="text-slate-800 text-xs font-mono">--</b></div>
-                            </div>
+                        <div class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                            <span class="text-[10px] font-bold text-emerald-900 uppercase block">Total Paid</span>
+                            <span id="stu360-fee-paid" class="text-lg font-black text-emerald-700 mt-0.5 block">₹0</span>
                         </div>
+                        <div class="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl">
+                            <span class="text-[10px] font-bold text-rose-900 uppercase block">Outstanding Balance</span>
+                            <span id="stu360-fee-balance" class="text-lg font-black text-rose-700 mt-0.5 block">₹0</span>
+                        </div>
+                    </div>
 
-                        <!-- Permanent Address -->
-                        <div class="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <span class="block text-[11px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                                <i class="fas fa-home text-slate-600"></i> Permanent Address
-                            </span>
-                            <p id="view-stu-address-val" class="font-medium text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">--</p>
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-file-invoice-dollar text-emerald-600"></i> Fee Heads &amp; Payments Breakdown
+                            </h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                                    <tr>
+                                        <th class="p-2">Fee Head</th>
+                                        <th class="p-2 text-right">Amount</th>
+                                        <th class="p-2 text-right">Paid</th>
+                                        <th class="p-2 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stu360-fees-tbody" class="divide-y divide-slate-100">
+                                    <tr><td colspan="4" class="p-3 text-center text-slate-400">Loading fee records...</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
 
-                <!-- Fee & Group Linking Details -->
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-900 border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
-                        <i class="fas fa-hand-holding-usd text-emerald-600"></i> Fee Concession & Group Status
-                    </h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
-                        <div class="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg flex items-center justify-between">
-                            <div>
-                                <span class="text-[11px] font-bold text-emerald-900 uppercase block">Special Monthly Fee (Concession)</span>
-                                <span id="view-stu-concession-val" class="text-xs font-bold text-emerald-700">None (Standard Fee Applies)</span>
-                            </div>
-                            <span id="view-stu-concession-amt" class="font-extrabold text-sm text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs hidden">--</span>
+                <!-- Pane 4: Exam History -->
+                <div id="stu360-pane-exams" class="stu360-pane hidden space-y-4">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                                <i class="fas fa-square-poll-vertical text-purple-600"></i> Published Examination Results
+                            </h4>
+                            <span class="text-[11px] text-slate-500 font-semibold">Annual &amp; Term Tests</span>
                         </div>
-                        <div class="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between">
-                            <div>
-                                <span class="text-[11px] font-bold text-blue-900 uppercase block">Linked Student Group</span>
-                                <span id="view-stu-group-val" class="text-xs font-bold text-blue-700">Not in a group</span>
-                            </div>
-                            <span id="view-stu-group-amt" class="font-extrabold text-sm text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs hidden">--</span>
+                        <div id="stu360-exams-container" class="space-y-3">
+                            <div class="text-xs text-slate-400 py-3 text-center">Loading examination records...</div>
                         </div>
                     </div>
                 </div>

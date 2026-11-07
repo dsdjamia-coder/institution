@@ -86,6 +86,8 @@ const PAGE_PERMISSIONS = {
     'fee-manager': 'fees.manage',
     'academic-years': 'academic-years.manage',
     'workflow-modules': 'academic-years.manage',
+    'batch-promotion': 'academic-years.manage',
+    'promote-students': 'academic-years.manage',
     'add-staff': 'staff.manage',
     'staff-management': 'staff.manage',
     'manage-staff': 'staff.manage',
@@ -2468,7 +2470,7 @@ const activateAdminPage = (targetId, options = {}) => {
     if(targetId === 'workflow-modules') renderWorkflowModules();
     if(targetId === 'manage-students') { populateManageAcademicYearDropdown(); populateClassDropdowns(); renderStudentList(); }
     if(targetId === 'student-counts') renderStudentCountsTab();
-    if(targetId === 'promote-students') { window.location.href = 'result.html'; return; }
+    if(targetId === 'batch-promotion' || targetId === 'promote-students') renderBatchPromotionPage();
     if(targetId === 'student-continuity') renderContinuityPage();
     if(targetId === 'manage-classes') { populateClassDropdowns(); renderClassList(); }
     if(targetId === 'manage-groups') renderStudentGroups();
@@ -9718,7 +9720,7 @@ document.getElementById('published-download-pdf-btn').addEventListener('click', 
     popup.print();
 });
 
-document.getElementById('run-auto-promotion-btn').addEventListener('click', async () => {
+document.getElementById('run-auto-promotion-btn')?.addEventListener('click', async () => {
     if(!requirePermission('results.manage')) return;
     const targetYear = sanitizeAcademicYearLabel(document.getElementById('promotion-target-year-select').value || '');
     if (targetYear === getActiveAcademicYearLabel()) return alert('Select a different target academic year for promotion.');
@@ -9809,6 +9811,590 @@ document.getElementById('run-auto-promotion-btn').addEventListener('click', asyn
 });
 
 }
+
+// --- 5.9 ANNUAL CLASS PROMOTION & BATCH ROLLOVER WIZARD ---
+let promoStudentsList = [];
+let promoProgressionMappings = {};
+
+const renderBatchPromotionPage = () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const activeLabel = getActiveAcademicYearLabel();
+    const activeBadge = document.getElementById('promo-header-active-badge');
+    if (activeBadge) activeBadge.textContent = `Active Year: ${activeLabel}`;
+
+    const srcSelect = document.getElementById('promo-source-year');
+    const targetSelect = document.getElementById('promo-target-year');
+    if (!srcSelect || !targetSelect) return;
+
+    const sortedYears = (Array.isArray(academicYears) && academicYears.length)
+        ? [...academicYears].sort((a, b) => (b.label || '').localeCompare(a.label || '', undefined, { numeric: true }))
+        : [{ label: activeLabel }];
+
+    const currentSrc = srcSelect.value || activeLabel;
+    srcSelect.innerHTML = sortedYears.map((y) => `<option value="${escapeHtml(y.label)}" ${y.label === currentSrc ? 'selected' : ''}>${escapeHtml(y.label)}</option>`).join('');
+
+    const populateTargetYears = (selectedSrc) => {
+        const parts = (selectedSrc || '').match(/^(\d{4})-(\d{4})$/);
+        const nextSuggested = parts ? `${parseInt(parts[1], 10) + 1}-${parseInt(parts[2], 10) + 1}` : '';
+
+        const allTargetOptions = new Set(sortedYears.map((y) => y.label));
+        if (nextSuggested) allTargetOptions.add(nextSuggested);
+
+        const optionsList = Array.from(allTargetOptions).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+        const preferredTarget = targetSelect.value && targetSelect.value !== selectedSrc
+            ? targetSelect.value
+            : (nextSuggested || optionsList.find((y) => y !== selectedSrc) || '');
+
+        targetSelect.innerHTML = optionsList.map((y) => {
+            const isNew = !academicYears.some((ay) => ay.label === y);
+            return `<option value="${escapeHtml(y)}" ${y === preferredTarget ? 'selected' : ''}>${escapeHtml(y)}${isNew ? ' (Create New Session)' : ''}</option>`;
+        }).join('');
+    };
+
+    populateTargetYears(srcSelect.value);
+    updatePromotionProgressionGrid();
+};
+
+const updatePromotionProgressionGrid = () => {
+    const srcYear = document.getElementById('promo-source-year')?.value || getActiveAcademicYearLabel();
+    const tgtYear = document.getElementById('promo-target-year')?.value || '';
+    const container = document.getElementById('promo-progression-container');
+    if (!container) return;
+
+    const srcClasses = getClassesForYear(srcYear);
+    const tgtClasses = getClassesForYear(tgtYear);
+    const allKnown = sortClassLabels([...new Set([...srcClasses, ...tgtClasses, ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])]);
+
+    if (!srcClasses.length) {
+        container.innerHTML = '<div class="p-6 text-center text-xs text-amber-600 bg-amber-50 rounded-xl border border-amber-200 col-span-full font-bold">No classes found in source academic session. Configure classes first in Class Management.</div>';
+        return;
+    }
+
+    promoProgressionMappings = {};
+    const enrolledStudents = getStudentsForYear(srcYear);
+
+    container.innerHTML = srcClasses.map((cls) => {
+        const suggestedNext = suggestNextClass(cls);
+        promoProgressionMappings[cls] = suggestedNext;
+        const studentCount = enrolledStudents.filter((s) => s.class === cls && normalizeStudentStatus(s.status) === 'Active').length;
+
+        const optionItems = allKnown.map((c) => `<option value="${escapeHtml(c)}" ${c === suggestedNext ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+
+        return `
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 hover:border-indigo-300 transition">
+                <div class="flex items-center justify-between">
+                    <span class="px-2.5 py-1 rounded-md text-xs font-black bg-indigo-100 text-indigo-900 border border-indigo-200">${escapeHtml(cls)}</span>
+                    <span class="text-[11px] font-bold text-slate-500">${studentCount} Active Enrolled</span>
+                </div>
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-200">
+                    <span class="text-xs text-slate-500 font-bold shrink-0">Advances to:</span>
+                    <select class="promo-dest-class-select w-full p-1.5 border rounded-lg bg-white font-bold text-xs text-indigo-950 focus:border-indigo-500 outline-none" data-source-class="${escapeHtml(cls)}">
+                        ${optionItems}
+                        <option value="ALUMNI" ${suggestedNext === 'ALUMNI' ? 'selected' : ''}>🎓 Alumni (Graduated)</option>
+                        <option value="RETAIN" ${suggestedNext === 'RETAIN' ? 'selected' : ''}>🔁 Retain (Repeat Class)</option>
+                    </select>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.querySelectorAll('.promo-dest-class-select').forEach((sel) => {
+        sel.addEventListener('change', (e) => {
+            const sc = e.target.dataset.sourceClass;
+            if (sc) promoProgressionMappings[sc] = e.target.value;
+        });
+    });
+};
+
+const loadPromoStudentsForReview = async () => {
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+
+    if (!srcYear || !tgtYear) return alert('Please select both source and target academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target academic sessions must be different.');
+
+    const loadBtn = document.getElementById('promo-btn-load-students');
+    if (loadBtn) {
+        loadBtn.disabled = true;
+        loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Loading Students...';
+    }
+
+    try {
+        const eligible = getStudentsForYear(srcYear).filter((s) => {
+            const st = normalizeStudentStatus(s.status);
+            return st !== 'Alumni' && st !== 'Discontinued' && !s.isAlumni && String(s.class || '').toUpperCase() !== 'ALUMNI';
+        });
+
+        if (!eligible.length) {
+            alert(`No active enrolled students found in source session "${srcYear}".`);
+            return;
+        }
+
+        // Fetch annual exam results for sourceYear
+        let examResults = [];
+        try {
+            const snap = await getDocs(query(collection(db, `${BASE_PATH}/examResults`), where('academicYear', '==', srcYear)));
+            examResults = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        } catch (e) {
+            console.warn('Could not query examResults by year, checking cache:', e);
+            if (Array.isArray(examResultsCache) && examResultsCache.length) {
+                examResults = examResultsCache.filter((r) => r.academicYear === srcYear);
+            }
+        }
+
+        promoStudentsList = eligible.map((student) => {
+            const sc = student.class || '--';
+            const mappedDest = promoProgressionMappings[sc] || suggestNextClass(sc);
+            let decision = 'promoted';
+            let destinationClass = mappedDest;
+
+            if (mappedDest === 'ALUMNI') {
+                decision = 'alumni';
+                destinationClass = 'Alumni';
+            } else if (mappedDest === 'RETAIN') {
+                decision = 'retained';
+                destinationClass = sc;
+            }
+
+            const studentExam = examResults.find((r) => (r.studentId === student.id || (r.admissionNo && r.admissionNo === student.adm)) && (r.examType === 'annual' || r.type === 'annual' || r.isAnnual === true));
+
+            let examStatus = 'NONE';
+            if (studentExam) {
+                const rawPass = (studentExam.totals?.passStatus || studentExam.passStatus || studentExam.status || '').toUpperCase();
+                examStatus = rawPass === 'PASS' ? 'PASS' : (rawPass === 'FAIL' ? 'FAIL' : 'NONE');
+            }
+
+            return {
+                student,
+                sourceClass: sc,
+                destinationClass,
+                decision,
+                examStatus,
+                examPercentage: studentExam?.totals?.percentage ?? null,
+                selected: true
+            };
+        });
+
+        // Populate class filter dropdown
+        const classFilter = document.getElementById('promo-filter-class');
+        if (classFilter) {
+            const distinctClasses = sortClassLabels([...new Set(promoStudentsList.map((p) => p.sourceClass))]);
+            classFilter.innerHTML = '<option value="all">All Classes</option>' + distinctClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        }
+
+        const reviewSection = document.getElementById('promo-review-section');
+        if (reviewSection) {
+            reviewSection.classList.remove('hidden');
+            reviewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        renderPromoReviewTable();
+    } catch (err) {
+        console.error('Error loading students for promotion:', err);
+        alert('Failed to load students for review: ' + err.message);
+    } finally {
+        if (loadBtn) {
+            loadBtn.disabled = false;
+            loadBtn.innerHTML = '<i class="fas fa-users-viewfinder mr-1"></i> Load Students for Review';
+        }
+    }
+};
+
+const renderPromoReviewTable = () => {
+    const fClass = document.getElementById('promo-filter-class')?.value || 'all';
+    const fDecision = document.getElementById('promo-filter-decision')?.value || 'all';
+    const fExam = document.getElementById('promo-filter-exam')?.value || 'all';
+    const sTerm = (document.getElementById('promo-search-student')?.value || '').trim().toLowerCase();
+
+    // KPI Badges
+    const kpiTotal = document.getElementById('promo-kpi-total');
+    const kpiPromoted = document.getElementById('promo-kpi-promoted');
+    const kpiRetained = document.getElementById('promo-kpi-retained');
+    const kpiAlumni = document.getElementById('promo-kpi-alumni');
+
+    if (kpiTotal) kpiTotal.textContent = promoStudentsList.length;
+    if (kpiPromoted) kpiPromoted.textContent = promoStudentsList.filter((p) => p.decision === 'promoted').length;
+    if (kpiRetained) kpiRetained.textContent = promoStudentsList.filter((p) => p.decision === 'retained').length;
+    if (kpiAlumni) kpiAlumni.textContent = promoStudentsList.filter((p) => p.decision === 'alumni').length;
+
+    const tbody = document.getElementById('promo-students-tbody');
+    if (!tbody) return;
+
+    const filtered = promoStudentsList.filter((item) => {
+        if (fClass !== 'all' && item.sourceClass !== fClass) return false;
+        if (fDecision !== 'all' && item.decision !== fDecision) return false;
+        if (fExam !== 'all' && item.examStatus !== fExam) return false;
+        if (sTerm) {
+            const name = (item.student.name || '').toLowerCase();
+            const adm = (item.student.adm || '').toLowerCase();
+            if (!name.includes(sTerm) && !adm.includes(sTerm)) return false;
+        }
+        return true;
+    });
+
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 font-semibold">No students match current filter criteria.</td></tr>';
+        return;
+    }
+
+    const srcYear = document.getElementById('promo-source-year')?.value || getActiveAcademicYearLabel();
+    const tgtYear = document.getElementById('promo-target-year')?.value || '';
+    const allKnown = sortClassLabels([...new Set([...getClassesForYear(srcYear), ...getClassesForYear(tgtYear), ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])]);
+
+    tbody.innerHTML = filtered.map((item) => {
+        const student = item.student;
+        let examBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">Not Recorded</span>';
+        if (item.examStatus === 'PASS') {
+            examBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-check-circle mr-1"></i>PASS${item.examPercentage !== null ? ` (${item.examPercentage}%)` : ''}</span>`;
+        } else if (item.examStatus === 'FAIL') {
+            examBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200"><i class="fas fa-times-circle mr-1"></i>FAIL</span>';
+        }
+
+        const classOptions = allKnown.map((c) => `<option value="${escapeHtml(c)}" ${c === item.destinationClass ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+
+        return `
+            <tr class="hover:bg-slate-50 transition ${item.selected ? 'bg-indigo-50/20' : 'opacity-60'}">
+                <td class="p-3 text-center">
+                    <input type="checkbox" class="promo-row-cb w-4 h-4 rounded text-indigo-600 cursor-pointer" data-student-id="${escapeHtml(student.id)}" ${item.selected ? 'checked' : ''}>
+                </td>
+                <td class="p-3 font-mono font-bold text-slate-700">${escapeHtml(student.adm || '--')}</td>
+                <td class="p-3">
+                    <button type="button" class="view-student-details-btn text-indigo-700 hover:text-indigo-950 font-bold hover:underline text-left cursor-pointer" data-student-id="${escapeHtml(student.id)}" title="View Student 360 Profile">
+                        ${escapeHtml(student.name || 'Unnamed')}
+                    </button>
+                    <div class="text-[10px] text-slate-400 font-mono">UID: ${escapeHtml(student.uid || student.id)}</div>
+                </td>
+                <td class="p-3">
+                    <span class="px-2 py-0.5 rounded text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">${escapeHtml(item.sourceClass)}</span>
+                </td>
+                <td class="p-3 text-center">${examBadge}</td>
+                <td class="p-3">
+                    <select class="promo-row-dest-select p-1.5 border rounded-lg bg-white font-bold text-xs text-indigo-950 focus:border-indigo-500 outline-none w-36" data-student-id="${escapeHtml(student.id)}">
+                        ${classOptions}
+                        <option value="Alumni" ${item.destinationClass === 'Alumni' ? 'selected' : ''}>🎓 Alumni</option>
+                    </select>
+                </td>
+                <td class="p-3 text-center">
+                    <select class="promo-row-decision-select p-1.5 border rounded-lg bg-white font-bold text-xs ${item.decision === 'promoted' ? 'text-emerald-800 border-emerald-200' : (item.decision === 'alumni' ? 'text-purple-800 border-purple-200' : 'text-amber-800 border-amber-200')} focus:border-indigo-500 outline-none" data-student-id="${escapeHtml(student.id)}">
+                        <option value="promoted" ${item.decision === 'promoted' ? 'selected' : ''}>Promote</option>
+                        <option value="retained" ${item.decision === 'retained' ? 'selected' : ''}>Retain (Repeat)</option>
+                        <option value="alumni" ${item.decision === 'alumni' ? 'selected' : ''}>Graduate (Alumni)</option>
+                    </select>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+const executeBatchPromotion = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const selectedItems = promoStudentsList.filter((p) => p.selected);
+    if (!selectedItems.length) return alert('No students selected for promotion. Please select at least one student checkbox.');
+
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!srcYear || !tgtYear) return alert('Please specify both source and destination academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target academic sessions must be different.');
+
+    const promotedCount = selectedItems.filter((p) => p.decision === 'promoted').length;
+    const retainedCount = selectedItems.filter((p) => p.decision === 'retained').length;
+    const alumniCount = selectedItems.filter((p) => p.decision === 'alumni').length;
+
+    const optSetActive = document.getElementById('promo-opt-set-active')?.checked ?? true;
+    const optCloneFees = document.getElementById('promo-opt-clone-fees')?.checked ?? true;
+    const optCarryConcessions = document.getElementById('promo-opt-carry-concessions')?.checked ?? true;
+
+    const confirmMsg = `Execute Academic Promotion & Rollover?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nSelected Students: ${selectedItems.length}\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nHistorical records will be preserved in longitudinal student profiles. Continue?`;
+    if (!confirm(confirmMsg)) return;
+
+    const execBtn = document.getElementById('btn-execute-promotion');
+    const progressContainer = document.getElementById('promo-progress-container');
+    const progressBar = document.getElementById('promo-progress-bar');
+    const progressPct = document.getElementById('promo-progress-pct');
+    const progressLabel = document.getElementById('promo-progress-label');
+
+    if (execBtn) {
+        execBtn.disabled = true;
+        execBtn.classList.add('opacity-50');
+    }
+    if (progressContainer) progressContainer.classList.remove('hidden');
+
+    try {
+        const nowIso = new Date().toISOString();
+        const total = selectedItems.length;
+        let processed = 0;
+        const CHUNK_SIZE = 25;
+
+        for (let i = 0; i < total; i += CHUNK_SIZE) {
+            const chunk = selectedItems.slice(i, i + CHUNK_SIZE);
+            const ops = chunk.map(async (item) => {
+                const student = item.student;
+                const isAlumni = item.decision === 'alumni' || item.destinationClass === 'Alumni' || String(item.destinationClass).toUpperCase() === 'ALUMNI';
+                const destClass = isAlumni ? 'Alumni' : item.destinationClass;
+
+                const existingYears = (student.academicYears && typeof student.academicYears === 'object') ? { ...student.academicYears } : {};
+
+                // Archive source year
+                existingYears[srcYear] = {
+                    ...(existingYears[srcYear] || {}),
+                    class: item.sourceClass,
+                    status: 'Active',
+                    decision: item.decision,
+                    promotedTo: destClass,
+                    promotedYear: tgtYear,
+                    examStatus: item.examStatus,
+                    updatedAt: nowIso
+                };
+
+                // Record target year
+                existingYears[tgtYear] = {
+                    ...(existingYears[tgtYear] || {}),
+                    class: destClass,
+                    status: isAlumni ? 'Alumni' : 'Active',
+                    decision: item.decision === 'retained' ? 'retained' : (isAlumni ? 'graduated' : 'promoted'),
+                    fromClass: item.sourceClass,
+                    updatedAt: nowIso
+                };
+
+                const studentPayload = {
+                    class: destClass,
+                    studentClass: destClass,
+                    status: isAlumni ? 'Alumni' : 'Active',
+                    isAlumni: isAlumni,
+                    academicYear: tgtYear,
+                    promotedFrom: item.sourceClass,
+                    promotedAt: nowIso,
+                    academicYears: existingYears,
+                    updatedAt: nowIso
+                };
+
+                if (isAlumni) {
+                    studentPayload.passedOutYear = srcYear;
+                    studentPayload.graduatedYear = srcYear;
+                    studentPayload.finalClass = item.sourceClass;
+                }
+
+                if (!optCarryConcessions) {
+                    studentPayload.concessionFee = null;
+                }
+
+                // 1. Update Student document
+                await updateDoc(doc(db, `${BASE_PATH}/students`, student.id), studentPayload);
+
+                // 2. Set target year enrollment record
+                await setDoc(
+                    getEnrollmentRef(tgtYear, student.id),
+                    buildEnrollmentPayload(student.id, {
+                        ...student,
+                        ...studentPayload
+                    }),
+                    { merge: true }
+                );
+
+                // 3. Record immutable promotion decision
+                const decisionDocId = `${srcYear}__${student.id}`;
+                await setDoc(doc(db, `${BASE_PATH}/promotionDecisions`, decisionDocId), {
+                    academicYear: srcYear,
+                    studentId: student.id,
+                    admissionNo: student.adm || null,
+                    studentName: student.name || null,
+                    fromClass: item.sourceClass,
+                    toClass: destClass,
+                    targetAcademicYear: tgtYear,
+                    decision: item.decision.toUpperCase(),
+                    examStatus: item.examStatus,
+                    finalizedAt: nowIso
+                }, { merge: true });
+            });
+
+            await Promise.all(ops);
+            processed += chunk.length;
+            const pct = Math.round((processed / total) * 100);
+            if (progressBar) progressBar.style.width = `${pct}%`;
+            if (progressPct) progressPct.textContent = `${pct}%`;
+            if (progressLabel) progressLabel.textContent = `Promoting and enrolling students (${processed}/${total})...`;
+        }
+
+        // Ensure target year exists in academicYears configuration
+        let targetYearRecord = academicYears.find((y) => y.label === tgtYear);
+        const promoClasses = sortClassLabels([...new Set(selectedItems.map((p) => p.destinationClass).filter((c) => c !== 'Alumni'))]);
+
+        if (!targetYearRecord) {
+            targetYearRecord = {
+                id: toAcademicYearDocId(tgtYear),
+                label: tgtYear,
+                status: optSetActive ? 'current' : 'active',
+                classes: promoClasses,
+                createdAt: nowIso
+            };
+            academicYears.push(targetYearRecord);
+        } else {
+            const existingClasses = Array.isArray(targetYearRecord.classes) ? targetYearRecord.classes : [];
+            targetYearRecord.classes = sortClassLabels([...new Set([...existingClasses, ...promoClasses])]);
+        }
+
+        if (optCloneFees) {
+            await ensureFeeItemsForAcademicYears(academicYears);
+        }
+
+        if (optSetActive) {
+            academicYears = academicYears.map((y) => ({
+                ...y,
+                status: y.label === tgtYear ? 'current' : (y.status === 'current' ? 'active' : y.status)
+            }));
+            activeAcademicYear = tgtYear;
+        }
+
+        await persistAcademicYears();
+        refreshAcademicYearScopedData();
+        renderAcademicYears();
+
+        await logAuditEvent({
+            category: 'academic',
+            action: 'batch-promotion.execute',
+            entityType: 'academicYear',
+            entityId: tgtYear,
+            message: `Batch promotion executed from ${srcYear} to ${tgtYear} for ${total} students (Promoted: ${promotedCount}, Retained: ${retainedCount}, Alumni: ${alumniCount}).`
+        });
+
+        showToast(`Batch promotion successful! ${total} student(s) enrolled into ${tgtYear}.`, 'success');
+        alert(`Academic Promotion & Rollover Completed!\n\n${total} students have been successfully transitioned into academic session "${tgtYear}".\n${optSetActive ? 'Active institutional session has been set to ' + tgtYear + '.\n' : ''}Longitudinal student dossiers and enrollment registries have been updated.`);
+
+        renderBatchPromotionPage();
+    } catch (err) {
+        console.error('Batch promotion error:', err);
+        alert('An error occurred during batch promotion: ' + err.message);
+    } finally {
+        if (execBtn) {
+            execBtn.disabled = false;
+            execBtn.classList.remove('opacity-50');
+        }
+        if (progressContainer) progressContainer.classList.add('hidden');
+    }
+};
+
+// Promotion UI Event Listeners
+document.getElementById('promo-source-year')?.addEventListener('change', () => {
+    const srcSelect = document.getElementById('promo-source-year');
+    if (srcSelect) {
+        const parts = (srcSelect.value || '').match(/^(\d{4})-(\d{4})$/);
+        const nextSuggested = parts ? `${parseInt(parts[1], 10) + 1}-${parseInt(parts[2], 10) + 1}` : '';
+        const targetSelect = document.getElementById('promo-target-year');
+        if (targetSelect && nextSuggested) targetSelect.value = nextSuggested;
+    }
+    updatePromotionProgressionGrid();
+    document.getElementById('promo-review-section')?.classList.add('hidden');
+    promoStudentsList = [];
+});
+
+document.getElementById('promo-target-year')?.addEventListener('change', () => {
+    updatePromotionProgressionGrid();
+});
+
+document.getElementById('promo-btn-refresh')?.addEventListener('click', () => {
+    renderBatchPromotionPage();
+    document.getElementById('promo-review-section')?.classList.add('hidden');
+    promoStudentsList = [];
+});
+
+document.getElementById('promo-btn-load-students')?.addEventListener('click', loadPromoStudentsForReview);
+
+document.getElementById('promo-filter-class')?.addEventListener('change', renderPromoReviewTable);
+document.getElementById('promo-filter-decision')?.addEventListener('change', renderPromoReviewTable);
+document.getElementById('promo-filter-exam')?.addEventListener('change', renderPromoReviewTable);
+document.getElementById('promo-search-student')?.addEventListener('input', renderPromoReviewTable);
+
+document.getElementById('promo-btn-select-all')?.addEventListener('click', () => {
+    promoStudentsList.forEach((p) => { p.selected = true; });
+    const thCb = document.getElementById('promo-th-select-all');
+    if (thCb) thCb.checked = true;
+    renderPromoReviewTable();
+});
+
+document.getElementById('promo-btn-deselect-all')?.addEventListener('click', () => {
+    promoStudentsList.forEach((p) => { p.selected = false; });
+    const thCb = document.getElementById('promo-th-select-all');
+    if (thCb) thCb.checked = false;
+    renderPromoReviewTable();
+});
+
+document.getElementById('promo-th-select-all')?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    promoStudentsList.forEach((p) => { p.selected = isChecked; });
+    renderPromoReviewTable();
+});
+
+document.getElementById('promo-btn-bulk-promote-pass')?.addEventListener('click', () => {
+    let count = 0;
+    promoStudentsList.forEach((item) => {
+        if (item.examStatus === 'PASS') {
+            item.decision = 'promoted';
+            item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
+            count += 1;
+        }
+    });
+    showToast(`Marked ${count} student(s) with PASS as Promoted.`, 'info');
+    renderPromoReviewTable();
+});
+
+document.getElementById('promo-btn-bulk-retain-fail')?.addEventListener('click', () => {
+    let count = 0;
+    promoStudentsList.forEach((item) => {
+        if (item.examStatus === 'FAIL') {
+            item.decision = 'retained';
+            item.destinationClass = item.sourceClass;
+            count += 1;
+        }
+    });
+    showToast(`Marked ${count} student(s) with FAIL as Retained (Repeaters).`, 'info');
+    renderPromoReviewTable();
+});
+
+document.getElementById('promo-students-tbody')?.addEventListener('change', (e) => {
+    const stuId = e.target.dataset.studentId;
+    if (!stuId) return;
+    const item = promoStudentsList.find((p) => p.student.id === stuId);
+    if (!item) return;
+
+    if (e.target.classList.contains('promo-row-cb')) {
+        item.selected = e.target.checked;
+        const row = e.target.closest('tr');
+        if (row) {
+            if (item.selected) {
+                row.classList.remove('opacity-60');
+                row.classList.add('bg-indigo-50/20');
+            } else {
+                row.classList.add('opacity-60');
+                row.classList.remove('bg-indigo-50/20');
+            }
+        }
+    } else if (e.target.classList.contains('promo-row-decision-select')) {
+        item.decision = e.target.value;
+        if (item.decision === 'retained') {
+            item.destinationClass = item.sourceClass;
+        } else if (item.decision === 'alumni') {
+            item.destinationClass = 'Alumni';
+        } else if (item.decision === 'promoted') {
+            item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
+        }
+        renderPromoReviewTable();
+    } else if (e.target.classList.contains('promo-row-dest-select')) {
+        item.destinationClass = e.target.value;
+        if (item.destinationClass === 'Alumni') {
+            item.decision = 'alumni';
+        } else if (item.destinationClass === item.sourceClass) {
+            item.decision = 'retained';
+        } else {
+            item.decision = 'promoted';
+        }
+        renderPromoReviewTable();
+    }
+});
+
+document.getElementById('btn-execute-promotion')?.addEventListener('click', executeBatchPromotion);
+
 // --- 6. FEE CONCESSIONS ---
 const renderActiveConcessionsList = () => {
     const actCont = document.getElementById('active-concessions-list');
@@ -10025,6 +10611,209 @@ window.deleteConcession = async (studentId) => {
     await logAuditEvent({ category: 'fee', action: 'concession.remove', entityType: 'student', entityId: studentId, message: 'Concession removed.' });
 };
 
+// --- Student 360 Profile Dossier Helpers & Controllers ---
+const populateStudent360AcademicTimeline = (student) => {
+    const container = document.getElementById('stu360-timeline-container');
+    if (!container) return;
+
+    const historyMap = (student.academicYears && typeof student.academicYears === 'object') ? { ...student.academicYears } : {};
+    const activeLabel = getActiveAcademicYearLabel();
+    const currentYear = student.academicYear || activeLabel;
+
+    if (currentYear && !historyMap[currentYear]) {
+        historyMap[currentYear] = {
+            class: student.class || '--',
+            status: student.status || 'Active',
+            decision: 'Active Enrollment',
+            updatedAt: student.updatedAt || null
+        };
+    }
+
+    if (student.graduatedYear && !historyMap[student.graduatedYear]) {
+        historyMap[student.graduatedYear] = {
+            class: student.finalClass || student.promotedFrom || student.class || '--',
+            status: 'Alumni',
+            decision: 'graduated',
+            updatedAt: student.promotedAt || null
+        };
+    }
+
+    const recordedYears = Object.keys(historyMap);
+    if (!recordedYears.length) {
+        container.innerHTML = '<div class="text-xs text-slate-400 py-3">No historical academic session records found.</div>';
+        return;
+    }
+
+    recordedYears.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+    container.innerHTML = recordedYears.map((yr) => {
+        const entry = historyMap[yr] || {};
+        const isCurrent = yr === activeLabel;
+        const entryStatus = normalizeStudentStatus(entry.status || 'Active');
+        const formattedDate = entry.updatedAt ? new Date(entry.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Recorded';
+
+        const decision = String(entry.decision || 'Enrolled').toLowerCase();
+        let decisionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">${escapeHtml(decision.toUpperCase())}</span>`;
+        if (decision.includes('promot')) {
+            decisionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-arrow-up mr-1"></i>PROMOTED</span>`;
+        } else if (decision.includes('graduat') || decision === 'alumni') {
+            decisionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200"><i class="fas fa-graduation-cap mr-1"></i>ALUMNI</span>`;
+        } else if (decision.includes('retain')) {
+            decisionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-repeat mr-1"></i>RETAINED</span>`;
+        }
+
+        return `
+            <div class="p-3 rounded-xl border ${isCurrent ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-200 bg-white'} shadow-2xs space-y-2">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-black text-slate-900">${escapeHtml(yr)}</span>
+                        ${isCurrent ? '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-600 text-white">Current Session</span>' : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">Past Session</span>'}
+                    </div>
+                    <span class="text-[11px] text-slate-400 font-medium">${escapeHtml(formattedDate)}</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-xs">
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase">Enrolled Class</span>
+                        <span class="font-extrabold text-slate-800">${escapeHtml(entry.class || '--')}</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase">Session Status</span>
+                        <span class="font-bold text-slate-700">${escapeHtml(entryStatus)}</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase">Transition / Decision</span>
+                        <div>${decisionBadge}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+const populateStudent360FeesLedger = (student) => {
+    const totalEl = document.getElementById('stu360-fee-total');
+    const paidEl = document.getElementById('stu360-fee-paid');
+    const balanceEl = document.getElementById('stu360-fee-balance');
+    const tbody = document.getElementById('stu360-fees-tbody');
+    if (!tbody) return;
+
+    const stuPayments = (allPayments || []).filter((p) => p.studentId === student.id || (p.admissionNo && p.admissionNo === student.adm));
+    const totalPaid = stuPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const activeYear = getActiveAcademicYearLabel();
+    const effectiveMonthlyFee = (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '')
+        ? Number(student.concessionFee)
+        : (feeItems.find((f) => f.type === 'monthly')?.amount || 200);
+
+    const yearItems = (feeItems || []).filter((f) => !f.academicYear || f.academicYear === activeYear);
+
+    let totalAssigned = 0;
+    const ledgerRows = [];
+
+    yearItems.forEach((item) => {
+        const isMonth = item.type === 'month' || item.type === 'monthly';
+        const itemAmount = isMonth ? effectiveMonthlyFee : (Number(item.amount) || 0);
+        totalAssigned += itemAmount;
+
+        const payment = stuPayments.find((p) => p.itemKey === item.key && (!p.academicYear || p.academicYear === activeYear));
+        const isPaid = Boolean(payment);
+        const paidAmt = payment ? (Number(payment.amount) || itemAmount) : 0;
+
+        ledgerRows.push({
+            name: item.name || item.key,
+            amount: itemAmount,
+            paid: paidAmt,
+            isPaid,
+            date: payment?.paymentDate || payment?.createdAt || null
+        });
+    });
+
+    if (totalAssigned === 0 && totalPaid > 0) totalAssigned = totalPaid;
+    const balance = Math.max(0, totalAssigned - totalPaid);
+
+    if (totalEl) totalEl.textContent = '₹' + totalAssigned.toLocaleString('en-IN');
+    if (paidEl) paidEl.textContent = '₹' + totalPaid.toLocaleString('en-IN');
+    if (balanceEl) balanceEl.textContent = '₹' + balance.toLocaleString('en-IN');
+
+    if (!ledgerRows.length && !stuPayments.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">No fee items configured for this academic session.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = ledgerRows.map((row) => {
+        const dateStr = row.date ? new Date(row.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+        const statusBadge = row.isPaid
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">PAID</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">PENDING</span>`;
+
+        return `
+            <tr class="hover:bg-slate-50 transition">
+                <td class="p-2.5 font-bold text-slate-800">
+                    ${escapeHtml(row.name)}
+                    ${dateStr ? `<div class="text-[10px] text-slate-400 font-normal">Paid on: ${escapeHtml(dateStr)}</div>` : ''}
+                </td>
+                <td class="p-2.5 text-right font-semibold text-slate-700">₹${row.amount.toLocaleString('en-IN')}</td>
+                <td class="p-2.5 text-right font-bold ${row.paid > 0 ? 'text-emerald-700' : 'text-slate-400'}">₹${row.paid.toLocaleString('en-IN')}</td>
+                <td class="p-2.5 text-center">${statusBadge}</td>
+            </tr>
+        `;
+    }).join('');
+};
+
+const populateStudent360ExamHistory = async (student) => {
+    const container = document.getElementById('stu360-exams-container');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center"><i class="fas fa-spinner fa-spin mr-1"></i> Loading examination records...</div>';
+
+    try {
+        let results = [];
+        if (Array.isArray(examResultsCache) && examResultsCache.length) {
+            results = examResultsCache.filter((r) => r.studentId === student.id || (r.admissionNo && r.admissionNo === student.adm));
+        } else {
+            const snap = await getDocs(query(collection(db, `${BASE_PATH}/examResults`), where('studentId', '==', student.id)));
+            results = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        }
+
+        if (!results.length) {
+            container.innerHTML = '<div class="text-xs text-slate-400 py-6 text-center font-medium bg-slate-50 rounded-xl border border-dashed border-slate-200">No published examination results found for this student.</div>';
+            return;
+        }
+
+        results.sort((a, b) => (b.academicYear || '').localeCompare(a.academicYear || '') || (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+
+        container.innerHTML = results.map((row) => {
+            const isPass = (row.totals?.passStatus || row.passStatus || row.status || '').toUpperCase() === 'PASS';
+            const obtained = row.totals?.obtained ?? '--';
+            const max = row.totals?.maximum ?? '--';
+            const pct = row.totals?.percentage !== undefined ? `${row.totals.percentage}%` : '--';
+            const examTitle = (row.examType || row.examLabel || 'Annual Examination').toUpperCase();
+
+            return `
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-xs font-black bg-purple-100 text-purple-900 border border-purple-200">${escapeHtml(examTitle)}</span>
+                            <span class="text-xs font-bold text-slate-700">${escapeHtml(row.academicYear || '--')}</span>
+                            <span class="text-xs text-slate-500">• Class ${escapeHtml(row.classLabel || '--')}</span>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded text-xs font-black ${isPass ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}">
+                            ${isPass ? '<i class="fas fa-check-circle mr-1"></i>PASS' : '<i class="fas fa-times-circle mr-1"></i>FAIL'}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200 text-slate-600 font-medium">
+                        <span>Score: <b class="text-slate-900">${escapeHtml(String(obtained))} / ${escapeHtml(String(max))}</b> (${escapeHtml(String(pct))})</span>
+                        <span>Rank: <b class="text-indigo-700">${escapeHtml(String(row.rank || '--'))}</b></span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.warn('Failed to load student exam history:', err);
+        container.innerHTML = '<div class="text-xs text-rose-500 py-3 text-center">Unable to load examination results.</div>';
+    }
+};
+
 // --- Student Full Profile Details Modal Controller ---
 const openStudentDetailsModal = (studentId) => {
     const student = students.find((st) => st.id === studentId);
@@ -10032,6 +10821,26 @@ const openStudentDetailsModal = (studentId) => {
 
     const modal = document.getElementById('student-full-details-modal');
     if (!modal) return;
+
+    // Reset tabs to Bio & KYC active
+    document.querySelectorAll('.stu360-tab-btn').forEach((b) => {
+        b.classList.remove('active', 'border-indigo-600', 'text-indigo-700');
+        b.classList.add('border-transparent', 'text-slate-500');
+    });
+    const firstTab = document.querySelector('.stu360-tab-btn[data-stu-pane="stu360-pane-bio"]');
+    if (firstTab) {
+        firstTab.classList.add('active', 'border-indigo-600', 'text-indigo-700');
+        firstTab.classList.remove('border-transparent', 'text-slate-500');
+    }
+    document.querySelectorAll('.stu360-pane').forEach((p) => {
+        if (p.id === 'stu360-pane-bio') p.classList.remove('hidden');
+        else p.classList.add('hidden');
+    });
+
+    // Populate Dossier Tabs
+    populateStudent360AcademicTimeline(student);
+    populateStudent360FeesLedger(student);
+    populateStudent360ExamHistory(student);
 
     // Photo
     const photoImg = document.getElementById('view-stu-photo');
@@ -10158,6 +10967,27 @@ document.addEventListener('click', (e) => {
         e.preventDefault();
         openStudentDetailsModal(viewBtn.dataset.studentId);
     }
+});
+
+// Student 360 Tab Navigation Handlers
+document.querySelectorAll('.stu360-tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const targetPaneId = btn.dataset.stuPane;
+        document.querySelectorAll('.stu360-tab-btn').forEach((b) => {
+            b.classList.remove('active', 'border-indigo-600', 'text-indigo-700');
+            b.classList.add('border-transparent', 'text-slate-500');
+        });
+        btn.classList.add('active', 'border-indigo-600', 'text-indigo-700');
+        btn.classList.remove('border-transparent', 'text-slate-500');
+
+        document.querySelectorAll('.stu360-pane').forEach((pane) => {
+            if (pane.id === targetPaneId) {
+                pane.classList.remove('hidden');
+            } else {
+                pane.classList.add('hidden');
+            }
+        });
+    });
 });
 
 // --- 7. FEE SETTINGS (Auto 12 Months Generation added in init) ---
