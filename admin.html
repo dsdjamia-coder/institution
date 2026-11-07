@@ -241,6 +241,57 @@
                     </div>
                     <div id="academic-years-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"></div>
                 </div>
+
+                <!-- Multi-Year Data Integrity & Longitudinal Health Validator -->
+                <div class="card p-5 rounded-xl shadow-sm bg-gradient-to-r from-blue-50/70 via-indigo-50/60 to-purple-50/70 border border-indigo-200/80">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-indigo-200/60 pb-3">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fas fa-heart-pulse text-indigo-600"></i> Multi-Year Data Integrity & Longitudinal Health Validator
+                            </h3>
+                            <p class="text-xs text-slate-600 mt-1">Audit student records across all sessions, backfill missing academic year mappings, link legacy receipts, and guarantee zero data loss.</p>
+                        </div>
+                        <button id="btn-run-data-health-check" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded-lg shadow-sm text-xs flex items-center gap-2 transition shrink-0">
+                            <i class="fas fa-stethoscope"></i> Scan & Verify Health
+                        </button>
+                    </div>
+                    <div id="data-health-results-container" class="mt-4 hidden space-y-3">
+                        <!-- Live status bar & scan metrics -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                            <div class="p-3 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Students</div>
+                                <div id="health-metric-total-students" class="text-lg font-extrabold text-slate-800">0</div>
+                            </div>
+                            <div class="p-3 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Healthy Maps</div>
+                                <div id="health-metric-healthy-students" class="text-lg font-extrabold text-emerald-600">0</div>
+                            </div>
+                            <div class="p-3 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Needs Backfill</div>
+                                <div id="health-metric-needs-backfill" class="text-lg font-extrabold text-amber-600">0</div>
+                            </div>
+                            <div class="p-3 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Unlinked Receipts</div>
+                                <div id="health-metric-unlinked-receipts" class="text-lg font-extrabold text-rose-600">0</div>
+                            </div>
+                        </div>
+                        <div id="health-repair-action-container" class="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-white border border-indigo-200 rounded-xl shadow-2xs">
+                            <div class="text-xs text-slate-700 font-medium">
+                                <span id="health-summary-text">Ready to run automated repairs on identified records.</span>
+                            </div>
+                            <button id="btn-apply-health-repairs" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded-lg text-xs flex items-center gap-2 transition shadow-sm disabled:opacity-50">
+                                <i class="fas fa-wand-magic-sparkles"></i> Apply Automatic Backfills & Repairs
+                            </button>
+                        </div>
+                        <div id="health-progress-bar-container" class="hidden">
+                            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                                <div id="health-progress-bar" class="bg-indigo-600 h-2 transition-all duration-300" style="width: 0%;"></div>
+                            </div>
+                            <div id="health-progress-label" class="text-[11px] font-semibold text-slate-500 mt-1 text-center">Processing...</div>
+                        </div>
+                        <div id="health-log-box" class="max-h-40 overflow-y-auto p-3 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-lg space-y-1"></div>
+                    </div>
+                </div>
             </section>
 
             <!-- 0.2 Institutional Workflow & Modules Page -->
@@ -1348,9 +1399,17 @@
                     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4 border-b border-indigo-100 pb-3">
                         <div>
                             <h2 class="text-xl font-bold text-indigo-950">Academic Structure</h2>
-                            <p class="text-sm text-indigo-700 mt-1">Create and manage classes/divisions inside the currently active academic year.</p>
+                            <p class="text-sm text-indigo-700 mt-1">Create and manage curriculum classes/divisions across academic years.</p>
                         </div>
-                        <span id="manage-classes-year-badge" class="text-xs font-bold uppercase tracking-widest bg-white text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">Academic Year: --</span>
+                        <div class="flex items-center gap-2">
+                            <label for="filter-classes-academic-year" class="text-xs font-bold text-indigo-900 uppercase tracking-wider">Session:</label>
+                            <select id="filter-classes-academic-year" class="p-1.5 px-3 text-xs font-bold border border-indigo-300 rounded-lg bg-white text-indigo-900 shadow-2xs focus:ring-1 focus:ring-indigo-500"></select>
+                            <span id="manage-classes-year-badge" class="text-xs font-bold uppercase tracking-widest bg-white text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">Academic Year: --</span>
+                        </div>
+                    </div>
+                    <div id="classes-historical-banner" class="hidden mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-2xs">
+                        <i class="fas fa-history text-amber-600 text-sm"></i>
+                        <span>Viewing historical class curriculum for session <strong id="classes-historical-year-label">--</strong>. Modifications are locked to preserve longitudinal academic records. Switch back to current working year to create or modify classes.</span>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
                         <div>
@@ -1500,13 +1559,22 @@
                             <span id="grp-count-badge" class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full self-start sm:self-auto">0 Groups</span>
                         </div>
 
-                        <!-- Existing Groups Search & Class Filter Bar -->
+                        <!-- Historical Groups Banner -->
+                        <div id="grp-historical-banner" class="hidden p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-2xs">
+                            <i class="fas fa-history text-amber-600"></i>
+                            <span>Viewing historical sibling groups for session <strong id="grp-historical-year-label">--</strong> (Read-Only). Switch to active session to create or modify groups.</span>
+                        </div>
+
+                        <!-- Existing Groups Search, Academic Year & Class Filter Bar -->
                         <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                            <div class="sm:col-span-7 relative">
-                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                                <input type="text" id="grp-search-input" placeholder="Search by student name, adm no..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            <div class="sm:col-span-4">
+                                <select id="filter-groups-academic-year" class="w-full py-1.5 px-2.5 text-xs border border-indigo-200 rounded-md bg-white text-indigo-900 font-bold focus:ring-1 focus:ring-indigo-500"></select>
                             </div>
-                            <div class="sm:col-span-5">
+                            <div class="sm:col-span-5 relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                <input type="text" id="grp-search-input" placeholder="Search student or father name..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div class="sm:col-span-3">
                                 <select id="grp-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="all">All Classes</option>
                                 </select>

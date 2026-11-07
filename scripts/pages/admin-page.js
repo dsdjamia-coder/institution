@@ -564,6 +564,23 @@ const getStudentsForYear = (targetYearLabel) => {
                 studentClass: 'Alumni',
                 status: 'Alumni'
             };
+        } else if (student.admDate) {
+            // Intelligent fallback for legacy students without academicYears map:
+            // Match admission date to academic session (e.g. 2024-06-10 -> 2024-2025)
+            const d = new Date(student.admDate);
+            if (!isNaN(d.getTime())) {
+                const y = d.getFullYear();
+                const m = d.getMonth();
+                const startY = (m >= 4) ? y : y - 1;
+                const derivedYear = `${startY}-${startY + 1}`;
+                if (derivedYear === target) {
+                    return {
+                        ...student,
+                        _historicalYear: target,
+                        _isHistoricalView: target !== activeLabel
+                    };
+                }
+            }
         }
         return null;
     }).filter(Boolean);
@@ -2202,6 +2219,232 @@ const renderAcademicYears = () => {
                 </div>`;
         }).join('');
 };
+
+// --- MULTI-YEAR DATA INTEGRITY & LONGITUDINAL HEALTH VALIDATOR ---
+let healthScanResults = {
+    totalStudents: 0,
+    healthyStudents: 0,
+    needsBackfillStudents: [],
+    unlinkedPayments: [],
+    unlinkedGroups: []
+};
+
+const scanMultiYearDataHealth = () => {
+    const totalStudents = (rawStudents || []).length;
+    const needsBackfill = [];
+    let healthyCount = 0;
+
+    (rawStudents || []).forEach((st) => {
+        const studentYear = st.academicYear || activeAcademicYear || currentAcademicYear;
+        const yearsMap = (st.academicYears && typeof st.academicYears === 'object') ? st.academicYears : null;
+
+        if (yearsMap && Object.keys(yearsMap).length > 0 && yearsMap[studentYear]) {
+            healthyCount++;
+        } else {
+            needsBackfill.push(st);
+        }
+    });
+
+    const unlinkedPayments = (allPayments || []).filter((p) => !p.academicYear);
+    const unlinkedGroups = (allStudentGroups || []).filter((g) => !g.academicYear);
+
+    healthScanResults = {
+        totalStudents,
+        healthyStudents: healthyCount,
+        needsBackfillStudents: needsBackfill,
+        unlinkedPayments,
+        unlinkedGroups
+    };
+
+    const container = document.getElementById('data-health-results-container');
+    if (container) container.classList.remove('hidden');
+
+    const totalEl = document.getElementById('health-metric-total-students');
+    const healthyEl = document.getElementById('health-metric-healthy-students');
+    const backfillEl = document.getElementById('health-metric-needs-backfill');
+    const unlinkedEl = document.getElementById('health-metric-unlinked-receipts');
+    const summaryText = document.getElementById('health-summary-text');
+    const repairBtn = document.getElementById('btn-apply-health-repairs');
+    const logBox = document.getElementById('health-log-box');
+
+    if (totalEl) totalEl.textContent = totalStudents;
+    if (healthyEl) healthyEl.textContent = healthyCount;
+    if (backfillEl) backfillEl.textContent = needsBackfill.length;
+    if (unlinkedEl) unlinkedEl.textContent = unlinkedPayments.length;
+
+    const totalIssues = needsBackfill.length + unlinkedPayments.length + unlinkedGroups.length;
+
+    if (totalIssues === 0) {
+        if (summaryText) summaryText.innerHTML = '<span class="text-emerald-700 font-bold"><i class="fas fa-check-circle mr-1"></i>All institutional records are 100% healthy and verified across all sessions!</span>';
+        if (repairBtn) {
+            repairBtn.disabled = true;
+            repairBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        if (logBox) {
+            logBox.innerHTML = `
+                <div>[${new Date().toLocaleTimeString()}] Audit complete. Evaluated ${totalStudents} students, ${(allPayments || []).length} payment receipts, and ${(allStudentGroups || []).length} groups.</div>
+                <div class="text-emerald-400 font-bold">[${new Date().toLocaleTimeString()}] PASS: Zero unlinked records or orphaned session documents detected.</div>
+            `;
+        }
+    } else {
+        if (summaryText) summaryText.innerHTML = `<span class="text-amber-700 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i>Found ${needsBackfill.length} student(s) needing longitudinal maps and ${unlinkedPayments.length} legacy receipt(s) needing session linking.</span>`;
+        if (repairBtn) {
+            repairBtn.disabled = false;
+            repairBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        if (logBox) {
+            logBox.innerHTML = `
+                <div>[${new Date().toLocaleTimeString()}] Audit scan started...</div>
+                <div>[${new Date().toLocaleTimeString()}] Total Students: ${totalStudents} (Healthy: ${healthyCount}, Missing Year Maps: ${needsBackfill.length})</div>
+                <div>[${new Date().toLocaleTimeString()}] Payments: ${unlinkedPayments.length} legacy receipts missing explicit academicYear tag.</div>
+                <div>[${new Date().toLocaleTimeString()}] Groups: ${unlinkedGroups.length} legacy groups missing academicYear tag.</div>
+                <div class="text-amber-400 font-bold">[${new Date().toLocaleTimeString()}] Ready to apply automated backfills. Click 'Apply Automatic Backfills & Repairs'.</div>
+            `;
+        }
+    }
+};
+
+const applyMultiYearDataRepairs = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const { needsBackfillStudents, unlinkedPayments, unlinkedGroups } = healthScanResults;
+    const totalIssues = (needsBackfillStudents?.length || 0) + (unlinkedPayments?.length || 0) + (unlinkedGroups?.length || 0);
+    if (totalIssues === 0) return alert('All records are already 100% healthy.');
+
+    if (!confirm(`Apply automated multi-year data repairs for ${totalIssues} record(s)?\n\n• ${needsBackfillStudents.length} Students: Backfill longitudinal academicYears map\n• ${unlinkedPayments.length} Payments: Stamp academicYear from transaction dates\n• ${unlinkedGroups.length} Groups: Link to active/current session\n\nExisting values will be preserved. Proceed?`)) return;
+
+    const repairBtn = document.getElementById('btn-apply-health-repairs');
+    const pContainer = document.getElementById('health-progress-bar-container');
+    const pBar = document.getElementById('health-progress-bar');
+    const pLabel = document.getElementById('health-progress-label');
+    const logBox = document.getElementById('health-log-box');
+
+    if (repairBtn) {
+        repairBtn.disabled = true;
+        repairBtn.classList.add('opacity-50');
+    }
+    if (pContainer) pContainer.classList.remove('hidden');
+
+    const appendLog = (msg, isSuccess = false) => {
+        if (!logBox) return;
+        const div = document.createElement('div');
+        if (isSuccess) div.className = 'text-emerald-400 font-bold';
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logBox.appendChild(div);
+        logBox.scrollTop = logBox.scrollHeight;
+    };
+
+    try {
+        appendLog(`Starting automated repair across ${totalIssues} records...`);
+        let processed = 0;
+        const nowIso = new Date().toISOString();
+
+        // 1. Repair students
+        if (needsBackfillStudents && needsBackfillStudents.length) {
+            appendLog(`Processing ${needsBackfillStudents.length} student records...`);
+            const CHUNK_SIZE = 40;
+            for (let i = 0; i < needsBackfillStudents.length; i += CHUNK_SIZE) {
+                const chunk = needsBackfillStudents.slice(i, i + CHUNK_SIZE);
+                const batch = writeBatch(db);
+
+                chunk.forEach((st) => {
+                    const studentYear = st.academicYear || activeAcademicYear || currentAcademicYear;
+                    const existingMap = (st.academicYears && typeof st.academicYears === 'object') ? { ...st.academicYears } : {};
+                    if (!existingMap[studentYear]) {
+                        existingMap[studentYear] = {
+                            class: st.class || st.studentClass || 'Unassigned',
+                            status: st.status || 'Active',
+                            updatedAt: nowIso
+                        };
+                    }
+                    const stRef = doc(db, `${BASE_PATH}/students`, st.id);
+                    batch.update(stRef, {
+                        academicYears: existingMap,
+                        academicYear: studentYear,
+                        updatedAt: nowIso
+                    });
+                });
+
+                await batch.commit();
+                processed += chunk.length;
+                const pct = Math.round((processed / totalIssues) * 100);
+                if (pBar) pBar.style.width = `${pct}%`;
+                if (pLabel) pLabel.textContent = `Repaired ${processed} of ${totalIssues} records (${pct}%)...`;
+            }
+            appendLog(`Successfully backfilled ${needsBackfillStudents.length} student longitudinal maps!`);
+        }
+
+        // 2. Repair payments
+        if (unlinkedPayments && unlinkedPayments.length) {
+            appendLog(`Linking ${unlinkedPayments.length} legacy receipts...`);
+            const CHUNK_SIZE = 40;
+            for (let i = 0; i < unlinkedPayments.length; i += CHUNK_SIZE) {
+                const chunk = unlinkedPayments.slice(i, i + CHUNK_SIZE);
+                const batch = writeBatch(db);
+
+                chunk.forEach((p) => {
+                    const d = p.timestamp ? new Date(p.timestamp) : (p.dateStr ? new Date(p.dateStr) : new Date());
+                    const y = !isNaN(d.getTime()) ? d.getFullYear() : new Date().getFullYear();
+                    const m = !isNaN(d.getTime()) ? d.getMonth() : 5;
+                    const startY = (m >= 4) ? y : y - 1;
+                    const derivedYear = `${startY}-${startY + 1}`;
+
+                    const pRef = doc(db, `${BASE_PATH}/payments`, p.id);
+                    batch.update(pRef, {
+                        academicYear: derivedYear,
+                        updatedAt: Date.now()
+                    });
+                });
+
+                await batch.commit();
+                processed += chunk.length;
+                const pct = Math.round((processed / totalIssues) * 100);
+                if (pBar) pBar.style.width = `${pct}%`;
+                if (pLabel) pLabel.textContent = `Repaired ${processed} of ${totalIssues} records (${pct}%)...`;
+            }
+            appendLog(`Successfully linked ${unlinkedPayments.length} legacy receipts!`);
+        }
+
+        // 3. Repair groups
+        if (unlinkedGroups && unlinkedGroups.length) {
+            appendLog(`Linking ${unlinkedGroups.length} legacy student groups...`);
+            const batch = writeBatch(db);
+            unlinkedGroups.forEach((g) => {
+                const gRef = doc(db, `${BASE_PATH}/studentGroups`, g.id);
+                batch.update(gRef, {
+                    academicYear: activeAcademicYear || currentAcademicYear,
+                    updatedAt: Date.now()
+                });
+            });
+            await batch.commit();
+            appendLog(`Successfully linked ${unlinkedGroups.length} groups!`);
+        }
+
+        appendLog('All repairs committed to Firebase successfully!', true);
+        if (pBar) pBar.style.width = '100%';
+        if (pLabel) pLabel.textContent = '100% Complete - Health Verified!';
+
+        await logAuditEvent({
+            category: 'security',
+            action: 'data_integrity.repair',
+            message: `Applied multi-year automated data backfills across ${totalIssues} records.`
+        });
+
+        showToast('Multi-year data integrity successfully backfilled and verified!', 'success');
+        setTimeout(() => {
+            scanMultiYearDataHealth();
+        }, 1500);
+    } catch (err) {
+        console.error('Data health repair failed:', err);
+        appendLog(`ERROR during repair: ${err.message}`);
+        alert('Failed to complete automated repairs: ' + err.message);
+    } finally {
+        if (repairBtn) repairBtn.disabled = false;
+    }
+};
+
+document.getElementById('btn-run-data-health-check')?.addEventListener('click', scanMultiYearDataHealth);
+document.getElementById('btn-apply-health-repairs')?.addEventListener('click', applyMultiYearDataRepairs);
 const openAcademicYearEditPopup = (yearLabel = '') => {
     const targetYear = academicYears.find((year) => year.label === yearLabel);
     if (!targetYear) return;
@@ -2238,11 +2481,77 @@ const persistAcademicYears = async () => {
     }, { merge: true }).catch((err) => console.warn('Could not mirror settings/classes:', err));
 };
 
+const getSelectedClassesAcademicYear = () => {
+    const el = document.getElementById('filter-classes-academic-year');
+    return el?.value || getActiveAcademicYearLabel();
+};
+
+const populateClassesAcademicYearDropdown = (forceActive = false) => {
+    const select = document.getElementById('filter-classes-academic-year');
+    if (!select) return;
+    const currentVal = forceActive ? getActiveAcademicYearLabel() : (select.value || getActiveAcademicYearLabel());
+    const availableYears = academicYears.filter((y) => y.status !== 'archived');
+    const sorted = [...availableYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
+
+    select.innerHTML = sorted.map((y) => {
+        const isCurrent = y.label === currentAcademicYear;
+        const isActive = y.label === activeAcademicYear;
+        const tag = isCurrent ? ' (Current)' : (isActive ? ' (Active)' : '');
+        return `<option value="${escapeHtml(y.label)}" ${y.label === currentVal ? 'selected' : ''}>Session: ${escapeHtml(y.label)}${tag}</option>`;
+    }).join('');
+};
+
+const getSelectedGroupsAcademicYear = () => {
+    const el = document.getElementById('filter-groups-academic-year');
+    return el?.value || getActiveAcademicYearLabel();
+};
+
+const populateGroupsAcademicYearDropdown = (forceActive = false) => {
+    const select = document.getElementById('filter-groups-academic-year');
+    if (!select) return;
+    const currentVal = forceActive ? getActiveAcademicYearLabel() : (select.value || getActiveAcademicYearLabel());
+    const availableYears = academicYears.filter((y) => y.status !== 'archived');
+    const sorted = [...availableYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
+
+    select.innerHTML = sorted.map((y) => {
+        const isCurrent = y.label === currentAcademicYear;
+        const isActive = y.label === activeAcademicYear;
+        const tag = isCurrent ? ' (Current)' : (isActive ? ' (Active)' : '');
+        return `<option value="${escapeHtml(y.label)}" ${y.label === currentVal ? 'selected' : ''}>Session: ${escapeHtml(y.label)}${tag}</option>`;
+    }).join('');
+};
+
+const filterStudentGroupsForSelectedYear = () => {
+    const selYear = getSelectedGroupsAcademicYear();
+    const activeYr = getActiveAcademicYearLabel();
+    const isHistorical = selYear !== activeYr;
+
+    studentGroups = Array.from(new Map((allStudentGroups || []).map((g) => [g.id, g])).values())
+        .filter((group) => {
+            const grpYear = group.academicYear || currentAcademicYear || activeYr;
+            return grpYear === selYear;
+        });
+
+    const banner = document.getElementById('grp-historical-banner');
+    const label = document.getElementById('grp-historical-year-label');
+    if (banner && label) {
+        if (isHistorical) {
+            label.textContent = selYear;
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+};
+
 const refreshAcademicYearScopedData = (forceActive = false) => {
     students = getStudentsForActiveYear();
     classes = getClassesForActiveYear();
     setAcademicYearBadges();
     populateManageAcademicYearDropdown(forceActive);
+    populateClassesAcademicYearDropdown(forceActive);
+    populateGroupsAcademicYearDropdown(forceActive);
+    filterStudentGroupsForSelectedYear();
     populateClassDropdowns();
     if (typeof populateResultSelectors === 'function') populateResultSelectors();
     enforceSetupGate();
@@ -3223,6 +3532,19 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
         dutyClasses: Array.from(document.querySelectorAll(`#${prefix}-duty-classes-grid .staff-class-checkbox:checked`))
             .map((cb) => cb.value.trim())
             .filter(Boolean),
+        dutyClassesByYear: (() => {
+            const activeYr = getActiveAcademicYearLabel();
+            const selected = Array.from(document.querySelectorAll(`#${prefix}-duty-classes-grid .staff-class-checkbox:checked`))
+                .map((cb) => cb.value.trim())
+                .filter(Boolean);
+            const existingDutyByYear = (existingStaffForValidation && typeof existingStaffForValidation.dutyClassesByYear === 'object')
+                ? { ...existingStaffForValidation.dutyClassesByYear }
+                : {};
+            if (activeYr) {
+                existingDutyByYear[activeYr] = selected;
+            }
+            return existingDutyByYear;
+        })(),
         displayOrder,
         updatedAt: Date.now()
     };
@@ -3335,7 +3657,10 @@ const renderStaffList = () => {
             .filter(Boolean)
             .join('');
 
-        const dutyClasses = Array.isArray(staffMember.dutyClasses) ? staffMember.dutyClasses.filter(Boolean) : [];
+        const activeYr = getActiveAcademicYearLabel();
+        const dutyClasses = (staffMember.dutyClassesByYear && Array.isArray(staffMember.dutyClassesByYear[activeYr]))
+            ? staffMember.dutyClassesByYear[activeYr].filter(Boolean)
+            : (Array.isArray(staffMember.dutyClasses) ? staffMember.dutyClasses.filter(Boolean) : []);
         const dutyClassBadges = dutyClasses.length
             ? dutyClasses.map((cls) => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-school mr-1"></i>${escapeHtml(cls)}</span>`).join(' ')
             : '<span class="text-[10px] text-gray-400 italic">No classes assigned</span>';
@@ -3452,7 +3777,10 @@ window.openStaffDetailsModal = (id) => {
         .filter(Boolean)
         .join('');
 
-    const dutyClasses = Array.isArray(s.dutyClasses) ? s.dutyClasses.filter(Boolean) : [];
+    const activeYr = getActiveAcademicYearLabel();
+    const dutyClasses = (s.dutyClassesByYear && Array.isArray(s.dutyClassesByYear[activeYr]))
+        ? s.dutyClassesByYear[activeYr].filter(Boolean)
+        : (Array.isArray(s.dutyClasses) ? s.dutyClasses.filter(Boolean) : []);
     const dutyClassBadges = dutyClasses.length
         ? dutyClasses.map((cls) => `<span class="text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-school mr-1"></i>${escapeHtml(cls)}</span>`).join(' ')
         : '<span class="text-xs text-gray-400 italic">None assigned</span>';
@@ -3611,7 +3939,11 @@ window.openEditStaff = (id) => {
     if (superAdminCheck) superAdminCheck.checked = staffRecord.actLikeSuperAdmin === true;
 
     renderDynamicStaffFormFields('e-st', staffRecord.type || 'Teacher', staffRecord);
-    renderStaffClassCheckboxes('e-st', staffRecord.dutyClasses || []);
+    const activeStaffYr = getActiveAcademicYearLabel();
+    const effectiveStaffDuty = (staffRecord.dutyClassesByYear && Array.isArray(staffRecord.dutyClassesByYear[activeStaffYr]))
+        ? staffRecord.dutyClassesByYear[activeStaffYr]
+        : (staffRecord.dutyClasses || []);
+    renderStaffClassCheckboxes('e-st', effectiveStaffDuty);
 
     const popup = document.getElementById('edit-staff-popup');
     if (popup) {
@@ -3639,7 +3971,10 @@ window.openStaffDutyModal = (id) => {
         const activeYearClasses = getClassesForActiveYear() || [];
         const allYearClasses = (academicYears || []).flatMap((y) => Array.isArray(y.classes) ? y.classes : []);
         const studentClasses = (rawStudents || []).map((s) => s.class).filter(Boolean);
-        const existingDutyClasses = Array.isArray(staffRecord.dutyClasses) ? staffRecord.dutyClasses.filter(Boolean) : [];
+        const activeDutyYr = getActiveAcademicYearLabel();
+        const existingDutyClasses = (staffRecord.dutyClassesByYear && Array.isArray(staffRecord.dutyClassesByYear[activeDutyYr]))
+            ? staffRecord.dutyClassesByYear[activeDutyYr].filter(Boolean)
+            : (Array.isArray(staffRecord.dutyClasses) ? staffRecord.dutyClasses.filter(Boolean) : []);
         let dutyClassList = sortClassLabels([...new Set([...activeYearClasses, ...allYearClasses, ...studentClasses, ...existingDutyClasses])]);
         if (!dutyClassList.length && typeof getDefaultClassLadder === 'function') {
             dutyClassList = getDefaultClassLadder();
@@ -3709,6 +4044,14 @@ document.getElementById('staff-duty-save-btn')?.addEventListener('click', async 
         upiId
     };
 
+    const activeDutyYr = getActiveAcademicYearLabel();
+    const existingDutyByYear = (staffRecord && typeof staffRecord.dutyClassesByYear === 'object')
+        ? { ...staffRecord.dutyClassesByYear }
+        : {};
+    if (activeDutyYr) {
+        existingDutyByYear[activeDutyYr] = selectedClasses;
+    }
+
     const saveBtn = document.getElementById('staff-duty-save-btn');
     const originalBtnHtml = saveBtn ? saveBtn.innerHTML : '';
     if (saveBtn) {
@@ -3719,11 +4062,13 @@ document.getElementById('staff-duty-save-btn')?.addEventListener('click', async 
     try {
         await updateDoc(doc(db, `${BASE_PATH}/staff`, staffId), {
             dutyClasses: selectedClasses,
+            dutyClassesByYear: existingDutyByYear,
             dutyPaymentDetails,
             updatedAt: new Date().toISOString()
         });
 
         staffRecord.dutyClasses = selectedClasses;
+        staffRecord.dutyClassesByYear = existingDutyByYear;
         staffRecord.dutyPaymentDetails = dutyPaymentDetails;
         await syncStaffAccessRecord(staffRecord);
 
@@ -6382,15 +6727,15 @@ const parseAcademicStartYear = (yrLabel) => {
     return match ? parseInt(match[1], 10) : 0;
 };
 
-const getStudentDetailedPendingFees = (student, exitDateStr = null) => {
+const getStudentDetailedPendingFees = (student, exitDateStr = null, targetYearOverride = null) => {
     if (!student) return [];
 
     const effectiveExitDateStr = exitDateStr || student.discontinuationDetails?.date || null;
     const isDiscontinued = (normalizeStudentStatus(student.status) === 'Discontinued') || Boolean(student.discontinuationDetails?.date);
 
     // Target academic year: For discontinued students, strictly evaluate against their exit year (or enrollment year)
-    let targetAcademicYear = getActiveAcademicYearLabel();
-    if (isDiscontinued) {
+    let targetAcademicYear = targetYearOverride || getActiveAcademicYearLabel();
+    if (isDiscontinued && !targetYearOverride) {
         targetAcademicYear = student.discontinuationDetails?.academicYear || student.academicYear || targetAcademicYear;
     }
 
@@ -6399,7 +6744,23 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null) => {
         : getActiveAcademicYearRecord();
 
     const studentPayments = (allPayments || []).filter(p => p.studentId === student.id || p.admissionNo === student.adm);
-    const paidItemKeys = new Set(studentPayments.map(p => `${p.itemKey}__${p.academicYear || targetAcademicYear}`));
+    
+    // Multi-Year Safe Resolver: Ensure legacy payments never erroneously default to future targetAcademicYear
+    const resolvePaymentYear = (p) => {
+        if (p.academicYear) return p.academicYear;
+        if (p.timestamp || p.dateStr) {
+            const d = p.timestamp ? new Date(p.timestamp) : new Date(p.dateStr);
+            if (!isNaN(d.getTime())) {
+                const y = d.getFullYear();
+                const m = d.getMonth();
+                const startY = (m >= 4) ? y : y - 1;
+                return `${startY}-${startY + 1}`;
+            }
+        }
+        return student.academicYear || targetAcademicYear;
+    };
+
+    const paidItemKeys = new Set(studentPayments.map(p => `${p.itemKey}__${resolvePaymentYear(p)}`));
 
     const effectiveMonthlyFee = (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '')
         ? Number(student.concessionFee)
@@ -6468,7 +6829,7 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null) => {
         }
 
         const itemKey = `${item.key}__${targetAcademicYear}`;
-        const isPaid = paidItemKeys.has(itemKey) || studentPayments.some(p => p.itemKey === item.key && (p.academicYear || targetAcademicYear) === targetAcademicYear);
+        const isPaid = paidItemKeys.has(itemKey) || studentPayments.some(p => p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear);
         if (!isPaid) {
             pendingItems.push({
                 key: item.key,
@@ -6526,7 +6887,7 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null) => {
 
         if (amount > 0) {
             const itemKey = `${item.key}__${targetAcademicYear}`;
-            const isPaid = paidItemKeys.has(itemKey) || studentPayments.some(p => p.itemKey === item.key && (p.academicYear || targetAcademicYear) === targetAcademicYear);
+            const isPaid = paidItemKeys.has(itemKey) || studentPayments.some(p => p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear);
             if (!isPaid) {
                 pendingItems.push({
                     key: item.key,
@@ -7790,12 +8151,74 @@ document.getElementById('quick-settle-form')?.addEventListener('submit', handleQ
 // --- 4. MANAGE CLASSES ---
 const renderClassList = () => {
     const cont = document.getElementById('class-list-container');
-    if(classes.length === 0) { cont.innerHTML = '<p class="text-gray-500">No classes found for the active academic year yet.</p>'; return; }
-    cont.innerHTML = classes.map(c => `<div class="flex justify-between items-center bg-white shadow-sm border border-gray-200 p-4 rounded-xl"><span class="font-bold text-gray-800 text-lg">${escapeHtml(c)}</span><div><button class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg mr-2 edit-class-btn transition" data-class="${escapeHtml(c)}"><i class="fas fa-edit"></i></button><button class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg delete-class-btn transition" data-class="${escapeHtml(c)}"><i class="fas fa-trash"></i></button></div></div>`).join('');
+    if (!cont) return;
 
-    document.getElementById('move-from-class').innerHTML = `<option value="">-- Select --</option>` + classes.map(c=>`<option value="${c}">${c}</option>`).join('');
-    document.getElementById('move-target-sel').innerHTML = classes.map(c=>`<option value="${c}">${c}</option>`).join('');
+    const selYear = getSelectedClassesAcademicYear();
+    const activeYr = getActiveAcademicYearLabel();
+    const isHistorical = selYear !== activeYr;
+
+    const banner = document.getElementById('classes-historical-banner');
+    const bannerLabel = document.getElementById('classes-historical-year-label');
+    if (banner && bannerLabel) {
+        if (isHistorical) {
+            bannerLabel.textContent = selYear;
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+
+    const yearClasses = getClassesForYear(selYear);
+
+    // Disable new class creation if viewing historical session
+    const createInput = document.getElementById('new-class-name-input');
+    const createBtn = document.getElementById('create-class-btn');
+    const defaultBtn = document.getElementById('generate-default-classes-btn');
+    if (createInput && createBtn) {
+        createInput.disabled = isHistorical;
+        createBtn.disabled = isHistorical;
+        if (defaultBtn) defaultBtn.disabled = isHistorical;
+        if (isHistorical) {
+            createBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            createInput.placeholder = `Modifications locked for historical session ${selYear}`;
+        } else {
+            createBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            createInput.placeholder = 'e.g. 10 A or Plus One Science';
+        }
+    }
+
+    if (yearClasses.length === 0) {
+        cont.innerHTML = `<p class="text-gray-500 p-4 bg-white rounded-xl border border-dashed border-gray-300 text-center">No classes recorded for session ${escapeHtml(selYear)}.</p>`;
+        return;
+    }
+
+    cont.innerHTML = yearClasses.map(c => `
+        <div class="flex justify-between items-center bg-white shadow-sm border border-gray-200 p-4 rounded-xl">
+            <span class="font-bold text-gray-800 text-lg">${escapeHtml(c)}</span>
+            <div>
+                ${isHistorical ? `
+                    <span class="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                        <i class="fas fa-lock mr-1"></i>Archived
+                    </span>
+                ` : `
+                    <button class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg mr-2 edit-class-btn transition" data-class="${escapeHtml(c)}"><i class="fas fa-edit"></i></button>
+                    <button class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg delete-class-btn transition" data-class="${escapeHtml(c)}"><i class="fas fa-trash"></i></button>
+                `}
+            </div>
+        </div>
+    `).join('');
+
+    const moveFrom = document.getElementById('move-from-class');
+    const moveTo = document.getElementById('move-target-sel');
+    if (moveFrom && moveTo) {
+        moveFrom.innerHTML = `<option value="">-- Select --</option>` + yearClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+        moveTo.innerHTML = yearClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+    }
 };
+
+document.getElementById('filter-classes-academic-year')?.addEventListener('change', () => {
+    renderClassList();
+});
 document.getElementById('create-class-btn').addEventListener('click', async () => {
     if(!requirePermission('classes.manage')) return;
     const className = cleanClassInput(document.getElementById('new-class-name-input').value);
@@ -8149,6 +8572,11 @@ const renderStudentGroups = () => {
     if (!listNode) return;
     populateExistingGroupClassFilter();
 
+    const selYear = getSelectedGroupsAcademicYear();
+    const activeYr = getActiveAcademicYearLabel();
+    const isHistorical = selYear !== activeYr;
+    const yearStudents = getStudentsForYear(selYear);
+
     const sTerm = (document.getElementById('grp-search-input')?.value || '').trim().toLowerCase();
     const fCls = document.getElementById('grp-class-filter')?.value || 'all';
     const countBadge = document.getElementById('grp-count-badge');
@@ -8157,7 +8585,7 @@ const renderStudentGroups = () => {
     const uniqueGroups = Array.from(new Map((studentGroups || []).map((g) => [g.id, g])).values());
 
     const filteredGroups = uniqueGroups.filter((g) => {
-        const memberStudents = (g.memberIds || []).map((mid) => students.find((entry) => entry.id === mid)).filter(Boolean);
+        const memberStudents = (g.memberIds || []).map((mid) => yearStudents.find((entry) => entry.id === mid) || rawStudents.find((entry) => entry.id === mid)).filter(Boolean);
 
         let matchClass = (fCls === 'all');
         if (!matchClass) {
@@ -8208,7 +8636,7 @@ const renderStudentGroups = () => {
 
     listNode.innerHTML = filteredGroups.map((g, gIdx) => {
         const memberRows = (g.memberIds || []).map((memberId, mIdx) => {
-            const student = students.find((entry) => entry.id === memberId);
+            const student = yearStudents.find((entry) => entry.id === memberId) || rawStudents.find((entry) => entry.id === memberId);
             if (!student) {
                 return `
                     <tr class="hover:bg-amber-50/50">
@@ -8294,12 +8722,18 @@ const renderStudentGroups = () => {
 
                     <!-- Actions -->
                     <div class="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
-                        <button type="button" class="text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md text-xs font-bold transition inline-flex items-center gap-1 edit-grp" data-id="${g.id}">
-                            <i class="fas fa-edit text-[10px]"></i> Edit
-                        </button>
-                        <button type="button" class="text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md text-xs font-bold transition inline-flex items-center gap-1 del-grp" data-id="${g.id}">
-                            <i class="fas fa-trash-alt text-[10px]"></i> Delete
-                        </button>
+                        ${isHistorical ? `
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                                <i class="fas fa-lock mr-1"></i>Archived
+                            </span>
+                        ` : `
+                            <button type="button" class="text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md text-xs font-bold transition inline-flex items-center gap-1 edit-grp" data-id="${g.id}">
+                                <i class="fas fa-edit text-[10px]"></i> Edit
+                            </button>
+                            <button type="button" class="text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md text-xs font-bold transition inline-flex items-center gap-1 del-grp" data-id="${g.id}">
+                                <i class="fas fa-trash-alt text-[10px]"></i> Delete
+                            </button>
+                        `}
                     </div>
                 </div>
 
@@ -8461,6 +8895,11 @@ document.getElementById('group-creation-container').addEventListener('change', e
         el.addEventListener('input', () => renderStudentGroups());
         el.addEventListener('change', () => renderStudentGroups());
     }
+});
+
+document.getElementById('filter-groups-academic-year')?.addEventListener('change', () => {
+    filterStudentGroupsForSelectedYear();
+    renderStudentGroups();
 });
 
 let pendingGroupCreationData = null;
@@ -15221,8 +15660,8 @@ onAuthStateChanged(auth, async (user) => {
         onSnapshot(collection(db, `${BASE_PATH}/studentGroups`), (snap) => {
             const rawGroups = snap.docs.map(d => ({id: d.id, ...d.data()}));
             allStudentGroups = rawGroups;
-            studentGroups = Array.from(new Map(rawGroups.map(g => [g.id, g])).values())
-                .filter((group) => (group.academicYear || currentAcademicYear) === (activeAcademicYear || currentAcademicYear));
+            populateGroupsAcademicYearDropdown();
+            filterStudentGroupsForSelectedYear();
             renderDashboard();
             if(!document.getElementById('manage-groups-page').classList.contains('hidden')) renderStudentGroups();
             renderBackupCategoryCounts();
