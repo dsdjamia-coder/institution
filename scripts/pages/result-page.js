@@ -833,21 +833,28 @@ onAuthStateChanged(auth, async (user) => {
 
     // Get login ID (Username) from current session, exactly like collection-page.js
     const staffAccess = window.AppSession?.getStaffAccess?.() || {};
-    currentUserKey = String(staffAccess.loginId || staffAccess.userKey || user.email || '').trim().toLowerCase();
+    currentUserKey = String(staffAccess.loginId || staffAccess.userKey || staffAccess.email || window.AppSession?.getStaffEmail?.() || user.email || '').trim().toLowerCase();
     
     try {
         // 1. Check if user is Master Admin or Admin-privileged staff
-        const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
-        const adminSnap = await getDoc(adminRef);
-        const adminData = adminSnap.exists() ? adminSnap.data() : {};
-        const adminEmail = String(adminData.email || '').toLowerCase();
-        const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+        let adminEmail = '';
+        let adminAccounts = [];
+        try {
+            const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
+            const adminSnap = await getDoc(adminRef);
+            const adminData = adminSnap.exists() ? adminSnap.data() : {};
+            adminEmail = String(adminData.email || '').toLowerCase();
+            adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+        } catch (adminErr) {
+            // Non-admin staff won't have read access to adminAuth; this is expected and safe to continue
+            console.info('Admin auth record restricted for this session, evaluating staff permissions.');
+        }
         
         isCurrentAdmin = (window.AppSession?.getRole?.() === 'admin')
                          || (staffAccess?.actLikeSuperAdmin === true)
                          || (staffAccess?.canAccessAdmin === true)
                          || (staffAccess?.admin === true)
-                         || (user.email && adminEmail === user.email.toLowerCase()) || 
+                         || (user.email && adminEmail && adminEmail === user.email.toLowerCase()) || 
                          (user.email && adminAccounts.some((account) => String(account.email).toLowerCase() === user.email.toLowerCase() && account.isActive !== false));
 
         // 2. Listen to Staff Collection to check permissions via Username

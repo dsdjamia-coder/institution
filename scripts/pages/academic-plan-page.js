@@ -534,11 +534,16 @@ const restoreSessionContext = async () => {
         isSuperAdmin = true;
         currentStaffName = 'Administrator';
         currentStaffRole = 'Super Administrator';
-    } else if (staffState && staffState.profile) {
-        currentStaffDoc = staffState.profile;
-        currentStaffName = staffState.profile.name || 'Staff Member';
-        currentStaffRole = staffState.profile.role || 'Class Teacher';
-        teacherAssignedClasses = getStaffAssignedClasses(staffState.profile, staffState.access);
+    } else {
+        const staffAccess = window.AppSession?.getStaffAccess?.() || staffState?.access || {};
+        const profile = staffState?.profile || window.AppSession?.getCurrentSessionProfile?.() || {};
+        currentStaffDoc = profile || null;
+        currentStaffName = profile.name || staffState.name || window.AppSession?.getStaffName?.() || 'Staff Member';
+        currentStaffRole = profile.role || profile.type || staffAccess.role || 'Class Teacher';
+        teacherAssignedClasses = getStaffAssignedClasses(profile, staffAccess);
+        if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+            teacherAssignedClasses = window.AppSession.getDutyClasses();
+        }
     }
 
     const userNameEl = document.getElementById('header-user-name');
@@ -701,6 +706,9 @@ const setupRealtimeListeners = () => {
                 }
             } else if (staffAccess) {
                 teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
+            }
+            if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+                teacherAssignedClasses = window.AppSession.getDutyClasses();
             }
             populateClassDropdowns();
         } else {

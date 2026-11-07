@@ -103,6 +103,62 @@
             getStaffAccess() { const state = getStaffState(); return (state?.access && typeof state.access === 'object') ? state.access : null; },
             getStaffState() { return getStaffState(); },
             getAdminState() { return getAdminState(); },
+            getDutyClasses() {
+                const staffState = getStaffState();
+                if (Array.isArray(staffState?.dutyClasses) && staffState.dutyClasses.length) return staffState.dutyClasses.filter(Boolean);
+                if (Array.isArray(staffState?.access?.dutyClasses) && staffState.access.dutyClasses.length) return staffState.access.dutyClasses.filter(Boolean);
+                const official = readJson('official_portal_session_v1');
+                if (Array.isArray(official?.dutyClasses) && official.dutyClasses.length) return official.dutyClasses.filter(Boolean);
+                return [];
+            },
+            getSession() {
+                const role = getRole();
+                if (role === 'admin' || hasAdminSession()) {
+                    const admin = getAdminState() || {};
+                    return { id: 'admin', staffId: 'admin', name: admin.name || 'Administrator', username: admin.email || 'admin', email: admin.email || 'admin', role: 'Super Admin', type: 'Admin', actLikeSuperAdmin: true, canAccessAdmin: true };
+                }
+                if (role === 'staff' || hasStaffSession()) {
+                    const state = getStaffState() || {};
+                    const official = readJson('official_portal_session_v1') || {};
+                    const access = state.access || official.access || {};
+                    const dutyClasses = this.getDutyClasses();
+                    return {
+                        id: state.staffId || access.staffId || official.id || '',
+                        staffId: state.staffId || access.staffId || official.id || '',
+                        name: state.name || official.name || 'Staff Member',
+                        username: state.email || official.username || official.email || '',
+                        email: state.email || official.email || '',
+                        phone: access.phone || official.phone || '',
+                        role: access.role || official.role || 'Staff',
+                        type: access.type || official.type || 'Staff',
+                        photo: access.photo || official.photo || '',
+                        dutyClasses,
+                        access,
+                        source: 'staff',
+                        actLikeSuperAdmin: access.actLikeSuperAdmin === true || official.actLikeSuperAdmin === true
+                    };
+                }
+                return null;
+            },
+            getUserSession() { return this.getSession() || {}; },
+            getCurrentSessionProfile() {
+                const session = this.getSession();
+                if (!session) return {};
+                return {
+                    id: session.id || session.staffId || '',
+                    staffId: session.staffId || session.id || '',
+                    name: session.name || '',
+                    username: session.username || session.email || '',
+                    email: session.email || '',
+                    role: session.role || 'Staff',
+                    type: session.type || 'Staff',
+                    phone: session.phone || '',
+                    photo: session.photo || '',
+                    dutyClasses: session.dutyClasses || [],
+                    access: session.access || null
+                };
+            },
+            getStaffProfile() { return this.getCurrentSessionProfile(); },
             updateStaffAccess(partialAccess = {}) {
                 const state = getStaffState();
                 if (!state) return;

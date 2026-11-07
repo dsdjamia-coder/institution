@@ -7856,16 +7856,21 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
             const state = rawState ? JSON.parse(rawState) : {};
 
             const isStaffState = role === 'staff' || Boolean(state.access) || state.access?.source === 'staff';
+            const dutyClasses = Array.isArray(state.dutyClasses) ? state.dutyClasses
+                : (Array.isArray(state.access?.dutyClasses) ? state.access.dutyClasses : []);
             userSession = {
               name: state.name || (isStaffState ? 'Staff' : 'Super Admin'),
               username: state.email || (isStaffState ? (state.userKey || 'staff') : 'admin'),
+              email: state.email || (isStaffState ? (state.userKey || '') : 'admin'),
               type: isStaffState ? (state.access?.type || 'Staff') : 'Admin',
               role: isStaffState ? (state.access?.role || 'Staff') : 'Super Admin',
               source: isStaffState ? 'staff' : 'firebase',
               access: state.access || null,
-              id: state.access?.staffId || state.id || '',
+              id: state.access?.staffId || state.staffId || state.id || '',
+              staffId: state.access?.staffId || state.staffId || state.id || '',
               phone: state.access?.phone || '',
               photo: state.access?.photo || '',
+              dutyClasses,
               actLikeSuperAdmin: state.access?.actLikeSuperAdmin === true
             };
             hasValidSession = true;

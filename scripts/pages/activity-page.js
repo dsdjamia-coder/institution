@@ -425,6 +425,9 @@ const restoreSessionContext = async () => {
         currentStaffName = staffState?.name || window.AppSession?.getStaffName?.() || 'Staff Member';
         currentStaffRole = staffAccess?.role || 'Class Teacher';
         teacherAssignedClasses = getStaffAssignedClasses(staffState?.profile || null, staffAccess);
+        if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+            teacherAssignedClasses = window.AppSession.getDutyClasses();
+        }
         if (teacherAssignedClasses.length > 0) {
             currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
         }
@@ -591,6 +594,9 @@ const setupRealtimeListeners = () => {
                 }
             } else if (staffAccess) {
                 teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
+            }
+            if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+                teacherAssignedClasses = window.AppSession.getDutyClasses();
             }
             populateClassDropdowns();
             populateStudentSelect();

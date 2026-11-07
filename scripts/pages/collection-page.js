@@ -5445,16 +5445,20 @@ onAuthStateChanged(auth, async (user) => {
             window.AppSession?.startStaff(officialSession.name || '', officialSession.email || currentUserEmail, officialSession.access);
         }
     } else {
-        const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
-        const adminSnap = await getDoc(adminRef);
+        try {
+            const adminRef = doc(db, `${BASE_PATH}/settings`, ADMIN_AUTH_DOC_ID);
+            const adminSnap = await getDoc(adminRef);
 
-        const adminData = adminSnap.exists() ? adminSnap.data() : {};
-        const adminEmail = (adminData.email || '').toLowerCase();
-        const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
-        if(adminEmail === (currentUserEmail || '').toLowerCase() || adminAccounts.some((account) => (account.email || '').toLowerCase() === (currentUserEmail || '').toLowerCase() && account.isActive !== false) || window.AppSession?.getRole?.() === 'admin') {
-            isCurrentAdmin = true;
-            window.AppSession?.startAdmin();
-        } else {
+            const adminData = adminSnap.exists() ? adminSnap.data() : {};
+            const adminEmail = (adminData.email || '').toLowerCase();
+            const adminAccounts = SINGLE_ADMIN_MODE ? [] : (Array.isArray(adminData.admins) ? adminData.admins : []);
+            if(adminEmail === (currentUserEmail || '').toLowerCase() || adminAccounts.some((account) => (account.email || '').toLowerCase() === (currentUserEmail || '').toLowerCase() && account.isActive !== false) || window.AppSession?.getRole?.() === 'admin') {
+                isCurrentAdmin = true;
+                window.AppSession?.startAdmin();
+            } else {
+                isCurrentAdmin = false;
+            }
+        } catch (_) {
             isCurrentAdmin = false;
         }
     }

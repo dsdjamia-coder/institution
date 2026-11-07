@@ -348,9 +348,17 @@ const initApp = async () => {
         currentStaffRole = 'Full Access';
     } else {
         const profile = window.AppSession?.getCurrentSessionProfile?.() || userSession;
+        const staffAccess = window.AppSession?.getStaffAccess?.() || profile.access || {};
         currentStaffName = profile.name || userSession.name || 'Staff Member';
         currentStaffRole = profile.role || profile.type || 'Class Teacher';
         currentUserKey = profile.username || profile.email || profile.id || '';
+        teacherAssignedClasses = getStaffAssignedClasses(profile, staffAccess);
+        if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+            teacherAssignedClasses = window.AppSession.getDutyClasses();
+        }
+        if (teacherAssignedClasses.length > 0) {
+            currentStaffRole = `Class ${teacherAssignedClasses.join(', ')} Teacher`;
+        }
     }
 
     updateUserHeaderDisplays();
@@ -509,6 +517,9 @@ const setupFirestoreListeners = () => {
                 }
             } else if (staffAccess) {
                 teacherAssignedClasses = getStaffAssignedClasses(null, staffAccess);
+            }
+            if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+                teacherAssignedClasses = window.AppSession.getDutyClasses();
             }
         }
         populateClassDropdowns();

@@ -268,11 +268,15 @@
         },
         getStaffName() {
             const state = getStaffState();
-            return state?.name || '';
+            if (state?.name) return state.name;
+            const official = readJson('official_portal_session_v1');
+            return official?.name || '';
         },
         getStaffEmail() {
             const state = getStaffState();
-            return state?.email || '';
+            if (state?.email) return state.email;
+            const official = readJson('official_portal_session_v1');
+            return official?.email || official?.username || '';
         },
         isFresh() {
             const role = getRole();
@@ -322,9 +326,28 @@
             if (getRole() === 'student') setCurrentRole('');
         },
         startStaff(name = '', email = '', access = null) {
-            writeJson(STAFF_STATE_KEY, buildState({ name, email, role: 'staff', access: access && typeof access === 'object' ? access : null }));
-            const staffId = access?.staffId || email || name;
             const dutyClasses = Array.isArray(access?.dutyClasses) ? access.dutyClasses.filter(Boolean) : [];
+            const staffId = access?.staffId || email || name;
+            const profile = {
+                id: staffId,
+                staffId,
+                name: name || 'Staff Member',
+                email: email || '',
+                role: access?.role || access?.type || 'Staff Member',
+                type: access?.type || 'Staff',
+                phone: access?.phone || '',
+                photo: access?.photo || '',
+                dutyClasses
+            };
+            writeJson(STAFF_STATE_KEY, buildState({
+                name,
+                email,
+                role: 'staff',
+                staffId,
+                dutyClasses,
+                profile,
+                access: access && typeof access === 'object' ? access : null
+            }));
             registerRememberedAccount({
                 id: `staff_${staffId}`,
                 role: 'staff',
@@ -342,17 +365,135 @@
             return (state?.access && typeof state.access === 'object') ? state.access : null;
         },
         getStaffState() {
-            return getStaffState();
+            const state = getStaffState();
+            if (!state) return null;
+            if (!state.profile) {
+                const dutyClasses = Array.isArray(state.dutyClasses) ? state.dutyClasses
+                    : (Array.isArray(state.access?.dutyClasses) ? state.access.dutyClasses : []);
+                state.profile = {
+                    id: state.staffId || state.access?.staffId || '',
+                    staffId: state.staffId || state.access?.staffId || '',
+                    name: state.name || '',
+                    email: state.email || '',
+                    role: state.access?.role || state.access?.type || 'Staff',
+                    type: state.access?.type || 'Staff',
+                    phone: state.access?.phone || '',
+                    photo: state.access?.photo || '',
+                    dutyClasses
+                };
+            }
+            return state;
         },
         getAdminState() {
             return getAdminState();
+        },
+        getDutyClasses() {
+            const staffState = this.getStaffState();
+            if (Array.isArray(staffState?.dutyClasses) && staffState.dutyClasses.length) {
+                return staffState.dutyClasses.filter(Boolean);
+            }
+            if (Array.isArray(staffState?.access?.dutyClasses) && staffState.access.dutyClasses.length) {
+                return staffState.access.dutyClasses.filter(Boolean);
+            }
+            const officialSession = readJson('official_portal_session_v1');
+            if (Array.isArray(officialSession?.dutyClasses) && officialSession.dutyClasses.length) {
+                return officialSession.dutyClasses.filter(Boolean);
+            }
+            return [];
+        },
+        getSession() {
+            const role = getRole();
+            if (role === 'admin' || hasAdminSession()) {
+                const adminState = getAdminState() || {};
+                return {
+                    id: 'admin',
+                    staffId: 'admin',
+                    name: adminState.name || 'Administrator',
+                    username: adminState.email || 'admin',
+                    email: adminState.email || 'admin',
+                    role: 'Super Admin',
+                    type: 'Admin',
+                    source: 'legacy-admin',
+                    actLikeSuperAdmin: true,
+                    canAccessAdmin: true
+                };
+            }
+            if (role === 'staff' || hasStaffSession()) {
+                const state = this.getStaffState() || {};
+                const official = readJson('official_portal_session_v1') || {};
+                const access = state.access || official.access || {};
+                const dutyClasses = this.getDutyClasses();
+                return {
+                    id: state.staffId || access.staffId || official.id || '',
+                    staffId: state.staffId || access.staffId || official.id || '',
+                    name: state.name || official.name || 'Staff Member',
+                    username: state.email || official.username || official.email || '',
+                    email: state.email || official.email || '',
+                    phone: access.phone || official.phone || '',
+                    role: access.role || official.role || 'Staff',
+                    type: access.type || official.type || 'Staff',
+                    photo: access.photo || official.photo || '',
+                    dutyClasses,
+                    access,
+                    profile: state.profile || {
+                        id: state.staffId || access.staffId || official.id || '',
+                        name: state.name || official.name || 'Staff Member',
+                        email: state.email || official.email || '',
+                        role: access.role || official.role || 'Staff',
+                        dutyClasses
+                    },
+                    source: 'staff',
+                    actLikeSuperAdmin: access.actLikeSuperAdmin === true || official.actLikeSuperAdmin === true
+                };
+            }
+            return null;
+        },
+        getUserSession() {
+            return this.getSession() || {};
+        },
+        getCurrentSessionProfile() {
+            const session = this.getSession();
+            if (!session) return {};
+            return {
+                id: session.id || session.staffId || '',
+                staffId: session.staffId || session.id || '',
+                name: session.name || '',
+                username: session.username || session.email || '',
+                email: session.email || '',
+                role: session.role || 'Staff',
+                type: session.type || 'Staff',
+                phone: session.phone || '',
+                photo: session.photo || '',
+                dutyClasses: session.dutyClasses || [],
+                access: session.access || null
+            };
+        },
+        getStaffProfile() {
+            return this.getCurrentSessionProfile();
         },
         updateStaffAccess(partialAccess = {}) {
             const state = getStaffState();
             if (!state) return;
             const currentAccess = (state.access && typeof state.access === 'object') ? state.access : {};
             const updatedAccess = { ...currentAccess, ...partialAccess };
-            writeJson(STAFF_STATE_KEY, { ...state, access: updatedAccess });
+            const dutyClasses = Array.isArray(partialAccess.dutyClasses) ? partialAccess.dutyClasses.filter(Boolean)
+                : (Array.isArray(state.dutyClasses) ? state.dutyClasses : []);
+            const staffId = partialAccess.staffId || state.staffId || state.access?.staffId || '';
+            const name = partialAccess.name || state.name || '';
+            const updatedProfile = {
+                ...(state.profile || {}),
+                ...(staffId ? { id: staffId, staffId } : {}),
+                ...(name ? { name } : {}),
+                ...(dutyClasses.length ? { dutyClasses } : {})
+            };
+            writeJson(STAFF_STATE_KEY, {
+                ...state,
+                name: name || state.name,
+                staffId: staffId || state.staffId,
+                dutyClasses: dutyClasses.length ? dutyClasses : state.dutyClasses,
+                profile: updatedProfile,
+                access: updatedAccess
+            });
         },
         startAdmin(adminProfile = {}) {
             writeJson(ADMIN_STATE_KEY, buildState({ role: 'admin' }));

@@ -137,23 +137,23 @@ service cloud.firestore {
 
     // 3. Staff Access (Roles & Permissions)
     match /institutions/{institutionId}/staffAccess/{docId} {
-      allow read: if isAuthenticated();
+      allow read: if isSignedIn();
       allow write: if isAdmin(institutionId);
     }
 
     // 4. Student Auth Lookup (Zero-PII index for student verification)
     match /institutions/{institutionId}/studentAuthLookup/{docId} {
       allow get: if true;
-      allow list: if isAuthenticated();
+      allow list: if isSignedIn();
       allow write: if isAdmin(institutionId);
     }
 
     // 5. Students
     match /institutions/{institutionId}/students/{docId} {
       // Authenticated staff & admins can list and query all students
-      allow list: if isAuthenticated();
+      allow list: if isSignedIn();
       // Allow single document read (get) for authenticated users or active student portal sessions
-      allow get: if isAuthenticated() || isSignedIn();
+      allow get: if isSignedIn();
       allow write: if isAdmin(institutionId) || isCollector(institutionId);
     }
 
@@ -174,7 +174,7 @@ service cloud.firestore {
     // 7. System Notifications
     match /institutions/{institutionId}/systemNotifications/{docId} {
       allow read: if true;
-      allow write: if isAdmin(institutionId) || isAuthenticated();
+      allow write: if isAdmin(institutionId) || isSignedIn();
     }
 
     // 8. Payments
@@ -348,7 +348,7 @@ service cloud.firestore {
     // 18. Audit Logs (Append-only, Admin read-only)
     match /institutions/{institutionId}/auditLogs/{docId} {
       allow read: if isAdmin(institutionId);
-      allow create: if isAuthenticated();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 

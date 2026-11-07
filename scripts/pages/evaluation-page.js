@@ -1601,12 +1601,22 @@ const setupSessionAndStaff = async () => {
         isSuperAdmin = session.actLikeSuperAdmin === true || session.role === 'super_admin';
     }
 
-    if (session?.email) {
+    if (session?.email || session?.username || session?.id) {
         try {
-            const emailNorm = String(session.email).trim().toLowerCase();
-            const snap = await getDocs(query(collection(db, BASE_PATH, 'staff'), where('email', '==', emailNorm)));
+            const emailNorm = String(session.email || session.username || '').trim().toLowerCase();
+            const staffId = String(session.id || session.staffId || '').trim();
+            const snap = await getDocs(collection(db, BASE_PATH, 'staff'));
             if (!snap.empty) {
-                currentStaffDoc = snap.docs[0].data();
+                const found = snap.docs.find(d => {
+                    const data = d.data();
+                    return (staffId && d.id === staffId)
+                        || (emailNorm && String(data.email || '').trim().toLowerCase() === emailNorm)
+                        || (emailNorm && String(data.username || '').trim().toLowerCase() === emailNorm)
+                        || (session.name && String(data.name || '').trim().toLowerCase() === String(session.name).trim().toLowerCase());
+                });
+                if (found) {
+                    currentStaffDoc = { id: found.id, ...found.data() };
+                }
             }
         } catch (e) {
             console.warn('Could not load staff document:', e);
@@ -1614,6 +1624,12 @@ const setupSessionAndStaff = async () => {
     }
 
     teacherAssignedClasses = getStaffAssignedClasses(currentStaffDoc, staffAccess);
+    if (!teacherAssignedClasses.length && Array.isArray(session?.dutyClasses) && session.dutyClasses.length) {
+        teacherAssignedClasses = session.dutyClasses;
+    }
+    if (!teacherAssignedClasses.length && Array.isArray(window.AppSession?.getDutyClasses?.())) {
+        teacherAssignedClasses = window.AppSession.getDutyClasses();
+    }
 
     const staffNameEl = document.getElementById('header-user-name');
     const staffRoleEl = document.getElementById('header-user-role');
