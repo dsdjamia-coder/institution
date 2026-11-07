@@ -10471,16 +10471,19 @@ const executeBatchPromotion = async () => {
     const confirmMsg = `Execute Academic Promotion & Rollover?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nSelected Students: ${selectedItems.length}\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nConfigurations:\n• Fee Structure: ${optCloneFees ? `12 Monthly Heads + ${chosenCustomFeesCount} Custom Heads` : 'Skipped'}\n• Concessions: ${optCarryConcessions ? `${chosenConcessionsCount} Students Selected` : 'Skipped'}\n• Family Groups: ${optRolloverGroups ? `${chosenGroups.length} Groups (Alumni Detached)` : 'Skipped'}\n\nNote: Active institutional session will NOT be automatically switched. Historical records will be preserved in longitudinal student profiles. Continue?`;
     if (!confirm(confirmMsg)) return;
 
-    const execBtn = document.getElementById('btn-execute-promotion');
+    const execBtns = [
+        document.getElementById('btn-execute-promotion'),
+        document.getElementById('btn-execute-promotion-top')
+    ].filter(Boolean);
     const progressContainer = document.getElementById('promo-progress-container');
     const progressBar = document.getElementById('promo-progress-bar');
     const progressPct = document.getElementById('promo-progress-pct');
     const progressLabel = document.getElementById('promo-progress-label');
 
-    if (execBtn) {
-        execBtn.disabled = true;
-        execBtn.classList.add('opacity-50');
-    }
+    execBtns.forEach((b) => {
+        b.disabled = true;
+        b.classList.add('opacity-50');
+    });
     if (progressContainer) progressContainer.classList.remove('hidden');
 
     try {
@@ -10678,10 +10681,10 @@ const executeBatchPromotion = async () => {
         console.error('Batch promotion error:', err);
         alert('An error occurred during batch promotion: ' + err.message);
     } finally {
-        if (execBtn) {
-            execBtn.disabled = false;
-            execBtn.classList.remove('opacity-50');
-        }
+        execBtns.forEach((b) => {
+            b.disabled = false;
+            b.classList.remove('opacity-50');
+        });
         if (progressContainer) progressContainer.classList.add('hidden');
     }
 };
@@ -10812,6 +10815,7 @@ document.getElementById('promo-students-tbody')?.addEventListener('change', (e) 
 });
 
 document.getElementById('btn-execute-promotion')?.addEventListener('click', executeBatchPromotion);
+document.getElementById('btn-execute-promotion-top')?.addEventListener('click', executeBatchPromotion);
 
 // --- Modal Trigger and Action Listeners ---
 // 1. Fee Structure Modal

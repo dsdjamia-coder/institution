@@ -2637,25 +2637,29 @@
 
             <!-- 18. Batch Promotion & Rollover Wizard Page -->
             <section id="batch-promotion-page" class="page hidden space-y-6">
-                <!-- Header Banner -->
-                <div class="card p-5 sm:p-6 rounded-2xl shadow-sm border border-indigo-100 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white">
+                <!-- Header Banner (Clean Modern White Card) -->
+                <div class="card p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 bg-white">
                     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                        <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 text-2xl shrink-0 shadow-inner">
+                        <div class="flex items-center gap-3.5">
+                            <div class="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 text-xl shrink-0 shadow-2xs">
                                 <i class="fas fa-graduation-cap"></i>
                             </div>
                             <div>
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-[11px] font-black uppercase tracking-[0.25em] text-indigo-300">Annual Academic Rollover Engine</span>
-                                    <span id="promo-header-active-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-500/30 border border-indigo-400/40 text-indigo-200">Active Year: --</span>
+                                    <h2 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Class Promotion &amp; Batch Rollover</h2>
+                                    <span id="promo-header-active-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 border border-indigo-200 text-indigo-700">Active Year: --</span>
                                 </div>
-                                <h2 class="text-xl sm:text-2xl font-black text-white mt-1">Class Promotion &amp; Batch Rollover Wizard</h2>
-                                <p class="text-xs sm:text-sm text-indigo-200/80 mt-1 max-w-2xl leading-relaxed">Promote enrolled students into the next academic year, advance classes, graduate final year batches to Alumni, and safely archive past sessions with zero data loss.</p>
+                                <p class="text-xs text-slate-500 mt-0.5">Advance classes, graduate final year batches, clone fees, and carry forward concessions &amp; sibling groups.</p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2 self-start lg:self-auto shrink-0">
-                            <button type="button" id="promo-btn-refresh" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition flex items-center gap-1.5 cursor-pointer">
+
+                        <!-- Top Action Controls -->
+                        <div class="flex items-center gap-2.5 self-start lg:self-auto shrink-0 flex-wrap">
+                            <button type="button" id="promo-btn-refresh" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs border border-slate-300 transition flex items-center gap-1.5 cursor-pointer shadow-2xs">
                                 <i class="fas fa-rotate"></i> Reset Wizard
+                            </button>
+                            <button type="button" id="btn-execute-promotion-top" class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm flex items-center gap-2 cursor-pointer">
+                                <i class="fas fa-rocket"></i> Execute Promotion &amp; Rollover
                             </button>
                         </div>
                     </div>
