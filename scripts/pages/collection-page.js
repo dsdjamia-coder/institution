@@ -12,6 +12,7 @@ import { initCollectionUploadModule } from './collection/upload-module.js';
 import { initCollectionSettingsModule } from './collection/settings-module.js';
 import { initMasterLedgerModule, updateMasterLedgerData } from './collection/master-ledger-module.js';
 import { initSharedFeeModal, openFeeEntryEditModal } from './collection/shared-fee-modal.js';
+import { initFinanceManagementModule, renderFeeItemsManagement, renderStudentGroups, renderConcessionsList, syncFeeConfigUI } from './collection/finance-management.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
 if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -82,6 +83,16 @@ initCollectionUploadModule();
 initCollectionSettingsModule();
 initMasterLedgerModule();
 initSharedFeeModal();
+initFinanceManagementModule({
+    getStudents: () => (Array.isArray(students) ? students : []),
+    getRawStudents: () => (Array.isArray(allStudentsRaw) ? allStudentsRaw : []),
+    getClasses: () => (Array.isArray(classes) ? classes : []),
+    getStudentGroups: () => (Array.isArray(studentGroups) ? studentGroups : []),
+    getFeeItems: () => (Array.isArray(feeItems) ? feeItems : []),
+    getDefaultFee: () => defaultFee,
+    getAcademicYear: () => currentWorkingAcademicYear || selectedFeeAcademicYear || '',
+    getUserEmail: () => currentUserEmail || ''
+});
 
 registerServiceWorker();
 hardenExternalLinks();
@@ -253,7 +264,8 @@ const MAIN_TAB_GROUPS = {
     collection: ['home-page', 'bulk-upload-page', 'donation-page'],
     ledgers: ['fee-page', 'master-ledger-page', 'conc-group-page'],
     reports: ['history-page', 'monthly-collected-page', 'collector-wise-monthly-page'],
-    students: ['students-page']
+    students: ['students-page'],
+    finance: ['fee-settings-page', 'manage-groups-page', 'fee-concessions-page']
 };
 
 const links = Array.from(document.querySelectorAll('.tab-link'));
@@ -353,7 +365,10 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         'bulk-upload-page',
         'donation-page',
         'conc-group-page',
-        'collector-wise-monthly-page'
+        'collector-wise-monthly-page',
+        'fee-settings-page',
+        'manage-groups-page',
+        'fee-concessions-page'
     ]);
     const isOverflowActive = OVERFLOW_COLLECTION_TABS.has(safeTargetId);
     document.getElementById('btn-collection-more')?.classList.toggle('active', isOverflowActive);
@@ -392,6 +407,15 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     if (safeTargetId === 'conc-group-page' && typeof renderConcessionGroupOverview === 'function') {
         renderConcessionGroupOverview();
+    }
+    if (safeTargetId === 'fee-settings-page' && typeof renderFeeItemsManagement === 'function') {
+        renderFeeItemsManagement();
+    }
+    if (safeTargetId === 'manage-groups-page' && typeof renderStudentGroups === 'function') {
+        renderStudentGroups();
+    }
+    if (safeTargetId === 'fee-concessions-page' && typeof renderConcessionsList === 'function') {
+        renderConcessionsList();
     }
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: safeTargetId } }));
 };
@@ -5598,6 +5622,10 @@ onAuthStateChanged(auth, async (user) => {
             feeStatusTitle = d.feeStatusTitle || '';
             feeItems = sortFeeItemsForDisplay(d.feeItems || []);
             defaultReceiptMandatory = d.defaultReceiptMandatory || false;
+            syncFeeConfigUI(d);
+            if (document.getElementById('fee-settings-page')?.classList.contains('hidden') === false) {
+                renderFeeItemsManagement();
+            }
 
             window.defaultFee = defaultFee;
             window.feeItems = feeItems;
@@ -5653,6 +5681,7 @@ onAuthStateChanged(auth, async (user) => {
         studentGroups = snap.docs.map(d => ({id: d.id, ...d.data()}));
         syncMasterLedgerState();
         hideLoader();
+        if(document.getElementById('manage-groups-page')?.classList.contains('hidden') === false) renderStudentGroups();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/payments`), (snap) => {

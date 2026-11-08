@@ -21,6 +21,7 @@
     
     <!-- Excel & CSV Parsing Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -365,6 +366,23 @@
                     <a href="#students" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="students-page" data-main-group="students" title="Students">
                         <i class="fas fa-user-graduate w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Students</span>
+                    </a>
+                </div>
+
+                <!-- 6. Fee Management & Rules -->
+                <div class="nav-group-static" data-menu-group="finance">
+                    <div class="drawer-heading">Fee Management &amp; Rules</div>
+                    <a href="#fee-settings" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-settings-page" data-main-group="finance" title="Fee Settings">
+                        <i class="fas fa-receipt w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Fee Settings</span>
+                    </a>
+                    <a href="#manage-groups" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="manage-groups-page" data-main-group="finance" title="Student Groups">
+                        <i class="fas fa-layer-group w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Student Groups</span>
+                    </a>
+                    <a href="#fee-concessions" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-concessions-page" data-main-group="finance" title="Fee Concessions">
+                        <i class="fas fa-hand-holding-usd w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Fee Concessions</span>
                     </a>
                 </div>
             </nav>
@@ -956,6 +974,287 @@
                 </div>
             </section>
 
+        
+            <!-- 7. Student Groups Management -->
+            <section id="manage-groups-page" class="page-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    <div class="card p-5 rounded-xl shadow-sm lg:col-span-5">
+                        <h2 class="text-xl font-bold mb-3 text-gray-800 border-b pb-2">Create Student Group</h2>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-semibold mb-1">Number of Students to Group</label><input type="number" id="num-of-students-group" min="2" class="w-full p-2.5 border rounded-lg shadow-sm" placeholder="e.g. 2"></div>
+                                <div><label class="block text-sm font-semibold mb-1 text-blue-700">Group Monthly Fee (₹) <span class="text-rose-600 font-bold">*</span></label><input type="number" id="group-monthly-fee" min="1" class="w-full p-2.5 border border-blue-300 rounded-lg shadow-sm bg-blue-50 font-bold" placeholder="e.g. 800" required></div>
+                            </div>
+                            <div id="group-creation-container" class="space-y-4"></div>
+                            <div id="create-group-btn-container" class="text-right hidden border-t pt-4"><button id="create-group-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md">Create Group</button></div>
+                        </div>
+                    </div>
+                    <div class="card p-5 rounded-xl shadow-sm lg:col-span-7 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    <i class="fas fa-users-cog text-blue-600 text-lg"></i> Existing Groups
+                                </h2>
+                                <p class="text-xs text-gray-500 mt-0.5">Manage linked student groups and group monthly fee rates.</p>
+                            </div>
+                            <span id="grp-count-badge" class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full self-start sm:self-auto">0 Groups</span>
+                        </div>
+
+                        <!-- Historical Groups Banner -->
+                        <div id="grp-historical-banner" class="hidden p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-2xs">
+                            <i class="fas fa-history text-amber-600"></i>
+                            <span>Viewing historical sibling groups for session <strong id="grp-historical-year-label">--</strong> (Read-Only). Switch to active session to create or modify groups.</span>
+                        </div>
+
+                        <!-- Existing Groups Search, Academic Year & Class Filter Bar -->
+                        <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                            <div class="sm:col-span-4">
+                                <select id="filter-groups-academic-year" class="w-full py-1.5 px-2.5 text-xs border border-indigo-200 rounded-md bg-white text-indigo-900 font-bold focus:ring-1 focus:ring-indigo-500"></select>
+                            </div>
+                            <div class="sm:col-span-5 relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                <input type="text" id="grp-search-input" placeholder="Search student or father name..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div class="sm:col-span-3">
+                                <select id="grp-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="all">All Classes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Existing Groups List Container -->
+                        <div id="student-groups-list" class="space-y-4"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 8. Fee Concessions Management -->
+            <section id="fee-concessions-page" class="page-content hidden space-y-4">
+                <!-- Top Header & Summary Bar -->
+                <div class="card p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200/80 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0 border border-emerald-200">
+                            <i class="fas fa-hand-holding-usd"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Fee Concessions Management</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">Assign special custom monthly fees or manage active concessions across all classes.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 self-start sm:self-auto">
+                        <div class="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-2xs">
+                            <span class="text-xs text-emerald-700 font-medium">Active Concessions:</span>
+                            <span id="active-conc-count-badge" class="text-xs font-extrabold bg-emerald-600 text-white px-2 py-0.5 rounded-md">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Desktop 2-Column Responsive Layout -->
+                <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+                    <!-- Left Column: Search & Assign Concession (xl:col-span-4) -->
+                    <div class="xl:col-span-4 card p-4 rounded-xl shadow-xs border border-slate-200/80 bg-white flex flex-col space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <h3 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fas fa-user-plus text-blue-600 text-xs"></i>
+                                Find & Assign Concession
+                            </h3>
+                            <span class="text-[11px] text-slate-400 font-medium">Student Search</span>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="space-y-2.5 bg-slate-50/70 p-3 rounded-lg border border-slate-200">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Filter Class</label>
+                                <select id="filter-conc-class" class="w-full py-1.5 px-2.5 text-xs border border-slate-300 rounded-md bg-white text-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium">
+                                    <option value="">-- All Classes / Select --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Search Student</label>
+                                <div class="relative">
+                                    <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                    <input type="text" id="search-conc-input" placeholder="Name or Adm No..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-slate-300 rounded-md bg-white text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Results List -->
+                        <div id="conc-list-empty" class="text-center py-6 px-3 bg-slate-50/50 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500">
+                            Select a class or search to find students.
+                        </div>
+                        <div id="conc-list-container" class="space-y-2 max-h-[460px] overflow-y-auto pr-1 hidden"></div>
+                    </div>
+
+                    <!-- Right Column: Active Concessions Directory (xl:col-span-8) -->
+                    <div class="xl:col-span-8 card p-4 rounded-xl shadow-xs border border-emerald-200/90 bg-emerald-50/20 flex flex-col space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-emerald-200/70 pb-2">
+                            <div>
+                                <h3 class="text-xs sm:text-sm font-bold text-emerald-900 flex items-center gap-2">
+                                    <i class="fas fa-tags text-emerald-600 text-xs"></i>
+                                    Active Concessions Directory
+                                </h3>
+                                <p class="text-[11px] text-slate-500 mt-0.5">Students with special monthly fee rates applied.</p>
+                            </div>
+                            <div class="flex items-center gap-2 self-start sm:self-auto">
+                                <span id="active-conc-filter-status" class="text-xs text-emerald-800 font-semibold bg-emerald-100/70 border border-emerald-200 px-2.5 py-0.5 rounded-md">Showing All</span>
+                            </div>
+                        </div>
+
+                        <!-- Active Concessions Search & Filter Bar -->
+                        <div class="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                            <div class="sm:col-span-7 relative">
+                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                <input type="text" id="active-conc-search" placeholder="Filter active by name, adm no..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-slate-200 rounded-md bg-slate-50/60 focus:bg-white text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                            </div>
+                            <div class="sm:col-span-5">
+                                <select id="active-conc-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-slate-200 rounded-md bg-slate-50/60 focus:bg-white text-slate-800 font-medium focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                                    <option value="all">All Classes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Active Concessions Table -->
+                        <div class="overflow-x-auto rounded-xl border border-emerald-200/80 bg-white shadow-2xs">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-emerald-50 text-emerald-950 uppercase font-extrabold text-[11px] tracking-wider border-b border-emerald-200">
+                                    <tr>
+                                        <th class="py-2.5 px-3 w-10 text-center">#</th>
+                                        <th class="py-2.5 px-3">Student Details</th>
+                                        <th class="py-2.5 px-3 text-center">Class</th>
+                                        <th class="py-2.5 px-3 text-center">Adm No</th>
+                                        <th class="py-2.5 px-3 text-right">Special Monthly Fee</th>
+                                        <th class="py-2.5 px-3 text-center w-28">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="active-concessions-list" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 9. Fee Settings -->
+            <section id="fee-settings-page" class="page-content hidden">
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                    <div class="card p-5 rounded-xl shadow-sm bg-blue-50/30 border-blue-100">
+                        <h2 class="text-xl font-bold mb-3 text-blue-900 border-b border-blue-200 pb-2"><i class="fas fa-cog mr-2"></i> Default Configuration</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4">
+                            <div><label class="block text-sm font-semibold mb-1">School Default Monthly Fee (₹)</label><input type="number" id="default-fee-input" class="w-full p-2.5 border rounded-lg shadow-sm font-bold text-blue-700 bg-white"></div>
+                            <div><label class="block text-sm font-semibold mb-1">Fee Status Title (For PDF Report)</label><input type="text" id="fee-status-title-input" class="w-full p-2.5 border rounded-lg shadow-sm bg-white"></div>
+                        </div>
+
+                        <!-- Monthly Collection Window & Student Notification Schedule -->
+                        <div class="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mb-4 space-y-4">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-2.5">
+                                <div>
+                                    <h3 class="text-sm font-extrabold text-blue-900 flex items-center gap-2"><i class="fas fa-calendar-check text-blue-600"></i> Monthly Fee Collection Window & Alert Schedule</h3>
+                                    <p class="text-xs text-gray-500 mt-0.5">Define the monthly fee collection dates and when student fee alert notifications should start.</p>
+                                </div>
+                                <span id="fee-collection-window-badge" class="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full self-start sm:self-auto">Every Month: Day 1 to Day 10</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Collection Start Day (Every Month)</label>
+                                    <select id="fee-collect-start-day" class="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold text-sm text-gray-800"></select>
+                                    <p class="text-[11px] text-gray-500 mt-1">Starting date of each month for regular fee collection.</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Collection End / Due Day (Every Month)</label>
+                                    <select id="fee-collect-end-day" class="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold text-sm text-gray-800"></select>
+                                    <p id="fee-collect-end-day-hint" class="text-[11px] text-gray-500 mt-1">Last date of the monthly collection window (after this date, fee is treated as overdue).</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Student Fee Alert Notification Timing</label>
+                                    <select id="fee-notify-mode" class="w-full p-2.5 border rounded-lg bg-white font-semibold text-sm text-blue-800">
+                                        <option value="month_start">From Month Start (Day 1 of every month)</option>
+                                        <option value="collection_start">From Collection Start Date</option>
+                                        <option value="days_before_end">Before Collection End Date (Days Before)</option>
+                                        <option value="days_before_month_end">Before Month Ends (Days Before Month End)</option>
+                                    </select>
+                                    <p class="text-[11px] text-gray-500 mt-1">Controls when the current month's unpaid fee alert appears in Student Dashboard & Phone Notification Center.</p>
+                                </div>
+                                <div id="fee-notify-days-container" class="hidden">
+                                    <label id="fee-notify-days-label" class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Notify How Many Days Before?</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" id="fee-notify-days-before" min="1" max="28" value="5" class="w-28 p-2.5 border rounded-lg font-bold text-center text-blue-700 bg-white">
+                                        <span class="text-xs font-semibold text-gray-600">days before deadline</span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-1">Example: If set to 5 days, students with unpaid fee will start receiving alerts 5 days before the deadline.</p>
+                                </div>
+                            </div>
+
+                            <div id="fee-schedule-live-summary" class="rounded-lg bg-blue-50/80 border border-blue-200 px-3.5 py-2.5 text-xs text-blue-900 font-medium flex items-start gap-2">
+                                <i class="fas fa-bell text-blue-600 mt-0.5"></i>
+                                <span id="fee-schedule-live-summary-text">Regular monthly fee collection runs from the 1st to the 10th of every month. Student alerts start on the 1st of the month.</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm mb-4">
+                            <div>
+                                <p class="text-sm font-bold text-gray-800">Is Receipt Number Mandatory for Default Fee?</p>
+                                <p class="text-xs text-gray-500 mt-1">If enabled, cashier cannot save regular monthly fee without entering a receipt number.</p>
+                            </div>
+                            <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in ml-4">
+                                <input type="checkbox" id="default-fee-receipt-req" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="default-fee-receipt-req" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div class="text-right"><button id="save-fee-config-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md"><i class="fas fa-save mr-2"></i> Save Config</button></div>
+                    </div>
+
+                    <div class="card p-5 rounded-xl shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2"><i class="fas fa-plus-circle mr-2 text-green-600"></i> Advanced Fee Builder</h2>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div><label class="block text-sm font-semibold mb-1">Fee Item Name *</label><input type="text" id="adv-fee-name" class="w-full p-2.5 border rounded-lg" placeholder="e.g. Admission Fee, Exam Fee"></div>
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Fee Scope (Category) *</label>
+                                    <select id="adv-fee-scope" class="w-full p-2.5 border rounded-lg font-medium text-blue-700">
+                                        <option value="global">Option A: Global (Same for all classes)</option>
+                                        <option value="class-wise">Option B: Class-wise (Different for each class)</option>
+                                        <option value="specific">Option C: Specific Class Only</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div id="scope-global-container" class="mb-4 bg-white p-3 rounded border">
+                                <label class="block text-sm font-semibold mb-1">Global Amount (₹)</label>
+                                <input type="number" id="adv-fee-global-amt" class="w-full sm:w-1/2 p-2 border rounded-lg" placeholder="Amount for everyone">
+                            </div>
+
+                            <div id="scope-class-wise-container" class="mb-4 bg-white p-3 rounded border hidden">
+                                <label class="block text-sm font-semibold mb-2">Set Amount for each class:</label>
+                                <div id="class-wise-inputs" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+                            </div>
+
+                            <div id="scope-specific-container" class="mb-4 bg-white p-3 rounded border hidden">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div><label class="block text-sm font-semibold mb-1">Select Target Class</label><select id="adv-fee-specific-class" class="w-full p-2 border rounded-lg"></select></div>
+                                    <div><label class="block text-sm font-semibold mb-1">Amount (₹)</label><input type="number" id="adv-fee-specific-amt" class="w-full p-2 border rounded-lg" placeholder="Amount"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between bg-white p-3 rounded border mb-4">
+                                <div><p class="text-sm font-bold text-gray-800">Is Receipt Number Mandatory?</p></div>
+                                <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in ml-4">
+                                    <input type="checkbox" id="adv-fee-receipt-req" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                    <label for="adv-fee-receipt-req" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                                </div>
+                            </div>
+
+                            <div class="text-right border-t pt-3"><button id="add-adv-fee-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-8 rounded-lg shadow-md"><i class="fas fa-save mr-2"></i> Create Fee Item</button></div>
+                        </div>
+
+                        <h3 class="font-bold text-gray-800 mb-3 border-b pb-2"><i class="fas fa-list-ul mr-2 text-gray-500"></i> Active Fee Items (Custom items can be reordered)</h3>
+                        <div id="fee-items-management-container" class="space-y-3"></div>
+                    </div>
+                </div>
+            </section>
+
         </div>
     </main>
 
@@ -1476,6 +1775,152 @@
     <!-- UI Logic Script (For Tabs & Menus) -->
     <script src="scripts/shared/hub-navigation.js"></script>
     <script type="module" src="scripts/pages/collection-page.js"></script>
+
+
+    <!-- Edit Group Modal -->
+    <div id="edit-group-popup" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-6 w-full max-w-md mx-auto bg-white relative">
+            <h3 class="text-xl font-bold mb-4 text-gray-900 border-b pb-2">Edit Group</h3>
+            <input type="hidden" id="e-grp-id">
+            <div class="mb-4">
+                <label class="block text-sm font-semibold mb-1 text-blue-700">Group Monthly Fee (₹)</label>
+                <input type="number" id="e-grp-fee" class="w-full p-2.5 border border-blue-300 rounded-lg bg-blue-50 font-bold">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold mb-2">Members:</label>
+                <div id="e-grp-members" class="space-y-2 max-h-40 overflow-y-auto border p-2 rounded bg-gray-50"></div>
+            </div>
+            <div class="mb-4 border border-blue-100 rounded-lg p-3 bg-blue-50/50">
+                <label class="block text-sm font-semibold mb-2 text-blue-800">Add Student to Group</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                    <select id="e-grp-class-filter" class="p-2.5 border rounded-lg bg-white text-sm font-semibold sm:col-span-2">
+                        <option value="">Select Class</option>
+                    </select>
+                    <select id="e-grp-gender-filter" class="p-2.5 border rounded-lg bg-white text-sm font-semibold">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-grow">
+                        <input id="e-grp-student-select" list="e-grp-student-options" class="w-full p-2.5 border rounded-lg bg-white text-sm font-semibold" autocomplete="off" placeholder="Select class first...">
+                        <datalist id="e-grp-student-options"></datalist>
+                    </div>
+                    <button id="e-grp-add-member" class="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 text-sm">Add</button>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">Pick a class, type a student name, then choose from the suggestions.</p>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+                <button id="edit-group-cancel" class="px-5 py-2.5 bg-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-300">Cancel</button>
+                <button id="edit-group-update" class="btn-primary px-6 py-2.5 rounded-lg font-bold shadow-md">Update Group</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unify Family & Guardian Details Confirmation Modal for Student Group -->
+    <div id="group-unify-family-modal" class="fixed inset-0 bg-black/60 items-center justify-center hidden p-4 z-[9999] overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-2xl mx-auto space-y-4 my-8">
+            <div class="flex items-center justify-between border-b pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-sm shadow-xs">
+                        <i class="fas fa-users-rectangle"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-bold text-slate-900">Unify Family &amp; Guardian Details</h3>
+                        <p class="text-xs text-slate-500">Confirm which student's family details should be consolidated across all group members.</p>
+                    </div>
+                </div>
+                <button type="button" id="unify-family-modal-close" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 leading-none">&times;</button>
+            </div>
+
+            <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed flex items-start gap-2">
+                <i class="fas fa-info-circle text-blue-600 mt-0.5 shrink-0"></i>
+                <span>Select the primary student below whose <b>Father Name</b>, <b>Father Phone</b>, <b>Mother Name</b>, <b>Mother Phone</b>, and <b>Address</b> will be unified across all siblings in this group.</span>
+            </div>
+
+            <!-- List of Member Cards with Radio Selection -->
+            <div id="unify-family-members-list" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1"></div>
+
+            <!-- Optional: Keep existing details checkbox -->
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                    <input type="checkbox" id="unify-family-skip-checkbox" class="w-4 h-4 text-slate-600 rounded border-slate-300">
+                    <span>Keep individual details as they are (Do not unify)</span>
+                </label>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t">
+                <button type="button" id="unify-family-cancel-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition">Cancel</button>
+                <button type="button" id="unify-family-confirm-btn" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Confirm &amp; Save Group</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Concession Modal -->
+    <div id="concession-popup" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
+        <div class="card rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-auto bg-white relative">
+            <h3 class="text-xl font-bold mb-2 text-gray-900 border-b pb-2">Set Fee Concession</h3>
+            <p id="conc-student-name" class="font-bold text-blue-700 mb-4"></p>
+            <input type="hidden" id="conc-student-id">
+            <div class="mb-4">
+                <label class="block text-sm font-semibold mb-1 text-green-700">Special Monthly Fee (₹)</label>
+                <p class="text-xs text-gray-500 mb-2">This overrides Default and Group fees for this student.</p>
+                <input type="number" id="conc-fee-amount" class="w-full p-2.5 border border-green-300 rounded-lg bg-green-50 font-bold text-lg" placeholder="Amount (e.g. 300)">
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button id="conc-cancel" class="px-4 py-2 bg-gray-200 font-bold rounded-lg">Cancel</button>
+                <button id="conc-remove" class="px-4 py-2 bg-red-100 text-red-700 font-bold rounded-lg hidden">Remove</button>
+                <button id="conc-save" class="bg-green-600 text-white px-6 py-2 rounded-lg font-bold shadow-md">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Advanced Fee Modal -->
+    <div id="edit-fee-popup" class="fixed inset-0 popup-overlay items-center justify-center hidden z-[60] px-4">
+        <div class="card rounded-2xl shadow-2xl p-6 w-full max-w-2xl mx-auto bg-white max-h-[90vh] overflow-y-auto relative">
+            <h3 class="text-xl font-bold mb-4 text-gray-900 border-b pb-2">Edit Fee Item</h3>
+            <input type="hidden" id="e-fee-key">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div><label class="block text-sm font-semibold mb-1">Fee Item Name</label><input type="text" id="e-fee-name" class="w-full p-2.5 border rounded-lg bg-gray-50"></div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Fee Scope</label>
+                    <select id="e-fee-scope" class="w-full p-2.5 border rounded-lg font-medium text-blue-700 bg-gray-50">
+                        <option value="global">Global (Same for all classes)</option>
+                        <option value="class-wise">Class-wise (Different for each)</option>
+                        <option value="specific">Specific Class Only</option>
+                    </select>
+                </div>
+            </div>
+            <div id="e-scope-global-container" class="mb-4 bg-gray-50 p-3 rounded border">
+                <label class="block text-sm font-semibold mb-1">Global Amount (₹)</label>
+                <input type="number" id="e-fee-global-amt" class="w-full sm:w-1/2 p-2 border rounded-lg">
+            </div>
+            <div id="e-scope-class-wise-container" class="mb-4 bg-gray-50 p-3 rounded border hidden">
+                <label class="block text-sm font-semibold mb-2">Class-wise Amounts:</label>
+                <div id="e-class-wise-inputs" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+            </div>
+            <div id="e-scope-specific-container" class="mb-4 bg-gray-50 p-3 rounded border hidden">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-semibold mb-1">Target Class</label><select id="e-fee-specific-class" class="w-full p-2 border rounded-lg"></select></div>
+                    <div><label class="block text-sm font-semibold mb-1">Amount (₹)</label><input type="number" id="e-fee-specific-amt" class="w-full p-2 border rounded-lg"></div>
+                </div>
+            </div>
+            <div class="flex items-center justify-between bg-gray-50 p-3 rounded border mb-4">
+                <div><p class="text-sm font-bold text-gray-800">Is Receipt Number Mandatory?</p></div>
+                <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in ml-4">
+                    <input type="checkbox" id="e-fee-receipt-req" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                    <label for="e-fee-receipt-req" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button id="e-fee-cancel" class="px-5 py-2.5 bg-gray-200 rounded-lg font-bold">Cancel</button>
+                <button id="e-fee-update" class="btn-primary px-6 py-2.5 rounded-lg font-bold shadow-md">Save Changes</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

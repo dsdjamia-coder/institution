@@ -86,12 +86,8 @@
                 
                 <div class="drawer-heading">Continuity &amp; Transfers</div>
                 <a href="#student-continuity" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Discontinue &amp; Re-admission"><i class="fas fa-user-clock w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Discontinue &amp; Re-admission</span></a>
-                <a href="#batch-promotion" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Class Promotion Wizard"><i class="fas fa-graduation-cap text-center w-5 shrink-0 text-indigo-600"></i><span class="text-sm nav-text truncate">Class Promotion Wizard</span></a>
+                <a href="#batch-promotion" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Class Promotion"><i class="fas fa-graduation-cap text-center w-5 shrink-0 text-indigo-600"></i><span class="text-sm nav-text truncate">Class Promotion</span></a>
                 
-                <div class="drawer-heading">Finance</div>
-                <a href="#fee-settings" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Fee Settings"><i class="fas fa-receipt w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Fee Settings</span></a>
-                <a href="#manage-groups" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Student Groups"><i class="fas fa-layer-group w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Student Groups</span></a>
-                <a href="#fee-concessions" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Fee Concessions"><i class="fas fa-hand-holding-usd w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Fee Concessions</span></a>
 
                 <div class="drawer-heading">Website Management</div>
                 <a href="#web-basic-info" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Basic Info"><i class="fas fa-globe w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Basic Info</span></a>
@@ -169,8 +165,8 @@
                             <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-purple-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="workflow-modules"><i class="fas fa-toggle-on text-purple-600"></i><span>Workflow &amp; Modules</span></button>
                             <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-green-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="add-students"><i class="fas fa-user-plus text-green-600"></i><span>Add Students</span></button>
                             <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="manage-classes"><i class="fas fa-chalkboard text-indigo-600"></i><span>Classes & Divisions</span></button>
-                            <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-amber-300 hover:shadow-md transition text-left font-bold text-gray-800" data-target-page="fee-settings"><i class="fas fa-receipt text-amber-600"></i><span>Configure Fees</span></button>
-                            <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:border-indigo-400 hover:shadow-md transition text-left font-bold text-indigo-900" data-target-page="batch-promotion"><i class="fas fa-graduation-cap text-indigo-600"></i><span>Class Promotion Wizard</span></button>
+                            <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 bg-white hover:border-amber-300 hover:shadow-md transition text-left font-bold text-gray-800" onclick="window.location.href='collection.html#fee-settings'"><i class="fas fa-receipt text-amber-600"></i><span>Configure Fees (Collection)</span></button>
+                            <button class="admin-quick-action flex items-center gap-3 px-4 py-4 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:border-indigo-400 hover:shadow-md transition text-left font-bold text-indigo-900" data-target-page="batch-promotion"><i class="fas fa-graduation-cap text-indigo-600"></i><span>Class Promotion</span></button>
                         </div>
                     </div>
                     <div class="card p-5 rounded-xl shadow-sm">
@@ -1009,7 +1005,7 @@
                             <div id="manage-students-year-badge" class="text-xs font-bold uppercase tracking-widest text-indigo-600 mt-1">Academic Year: --</div>
                         </div>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="admin-quick-action bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition" data-target-page="batch-promotion"><i class="fas fa-graduation-cap"></i> Promotion Wizard</button>
+                            <button type="button" class="admin-quick-action bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition" data-target-page="batch-promotion"><i class="fas fa-graduation-cap"></i> Class Promotion</button>
                             <button id="export-students-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition"><i class="fas fa-file-excel"></i> Excel</button>
                             <button id="export-students-csv-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition"><i class="fas fa-file-csv"></i> CSV</button>
                             <button id="export-students-pdf-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition"><i class="fas fa-file-pdf"></i> PDF</button>
@@ -2729,7 +2725,7 @@
                         <!-- Top Action Controls -->
                         <div class="flex items-center gap-2.5 self-start lg:self-auto shrink-0 flex-wrap">
                             <button type="button" id="promo-btn-refresh" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs border border-slate-300 transition flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                                <i class="fas fa-rotate"></i> Reset Wizard
+                                <i class="fas fa-rotate"></i> Reset Promotion
                             </button>
                             <button type="button" id="btn-execute-promotion-top" class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm flex items-center gap-2 cursor-pointer">
                                 <i class="fas fa-rocket"></i> Execute Promotion &amp; Rollover
@@ -2902,13 +2898,40 @@
                                 </button>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" id="promo-btn-bulk-promote-all" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer">
+                                    <i class="fas fa-check-circle"></i> Promote All (Direct Pass)
+                                </button>
                                 <button type="button" id="promo-btn-bulk-promote-pass" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer">
-                                    <i class="fas fa-check-double"></i> Mark Passed as Promoted
+                                    <i class="fas fa-graduation-cap"></i> Apply Exam Results (Pass/Fail)
                                 </button>
                                 <button type="button" id="promo-btn-bulk-retain-fail" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer">
-                                    <i class="fas fa-user-xmark"></i> Retain Failed Students
+                                    <i class="fas fa-user-xmark"></i> Retain Selected
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Pagination Bar -->
+                    <div id="promo-pagination-top" class="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                        <div class="flex items-center gap-2 font-bold text-slate-700">
+                            <span>Rows:</span>
+                            <select id="promo-page-size-select" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-extrabold text-slate-800 text-xs shadow-2xs">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="0">All</option>
+                            </select>
+                            <span id="promo-pagination-info-top" class="text-slate-500 font-semibold ml-1">Showing 1–25 of 0</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" id="promo-prev-page-btn" class="px-3 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition flex items-center gap-1">
+                                <i class="fas fa-chevron-left text-[10px]"></i> Prev
+                            </button>
+                            <span id="promo-page-number-display" class="font-extrabold text-slate-800 px-2">Page 1 / 1</span>
+                            <button type="button" id="promo-next-page-btn" class="px-3 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition flex items-center gap-1">
+                                Next <i class="fas fa-chevron-right text-[10px]"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -2932,6 +2955,20 @@
                                 <!-- Populated dynamically -->
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Bottom Pagination Bar -->
+                    <div id="promo-pagination-bottom" class="flex flex-wrap items-center justify-between gap-3 mt-3 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                        <div id="promo-pagination-info-bottom" class="font-bold text-slate-600">Showing rows 1 to 25 of 0 students</div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="promo-prev-page-btn-bottom" class="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white font-extrabold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition flex items-center gap-1">
+                                <i class="fas fa-chevron-left text-[10px]"></i> Previous
+                            </button>
+                            <span id="promo-page-number-display-bottom" class="font-extrabold text-slate-800 px-2">Page 1 / 1</span>
+                            <button type="button" id="promo-next-page-btn-bottom" class="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white font-extrabold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition flex items-center gap-1">
+                                Next <i class="fas fa-chevron-right text-[10px]"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Step 4: Execution Bar -->

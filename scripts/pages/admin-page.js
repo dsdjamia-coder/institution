@@ -10413,12 +10413,14 @@ document.getElementById('run-auto-promotion-btn')?.addEventListener('click', asy
 
 }
 
-// --- 5.9 ANNUAL CLASS PROMOTION & BATCH ROLLOVER WIZARD ---
+// --- 5.9 ANNUAL CLASS PROMOTION & BATCH ROLLOVER ---
 let promoStudentsList = [];
 let promoProgressionMappings = {};
 let promoCustomFeeSelection = [];
 let promoConcessionsSelection = [];
 let promoGroupConfigurations = [];
+let promoReviewPage = 1;
+let promoReviewPageSize = 25;
 
 // --- 5.9.1 Fee Structure Cloning Modal Controllers ---
 const initPromoFeesModalData = () => {
@@ -10946,6 +10948,7 @@ const loadPromoStudentsForReview = async () => {
             reviewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
+        promoReviewPage = 1;
         renderPromoReviewTable();
     } catch (err) {
         console.error('Error loading students for promotion:', err);
@@ -10956,6 +10959,38 @@ const loadPromoStudentsForReview = async () => {
             loadBtn.innerHTML = '<i class="fas fa-users-viewfinder mr-1"></i> Load Students for Review';
         }
     }
+};
+
+const updatePromoPaginationUI = (totalFiltered, totalPages, startIdx, endIdx) => {
+    const infoTop = document.getElementById('promo-pagination-info-top');
+    const infoBottom = document.getElementById('promo-pagination-info-bottom');
+    const pageDisplayTop = document.getElementById('promo-page-number-display');
+    const pageDisplayBottom = document.getElementById('promo-page-number-display-bottom');
+    const prevBtnTop = document.getElementById('promo-prev-page-btn');
+    const prevBtnBottom = document.getElementById('promo-prev-page-btn-bottom');
+    const nextBtnTop = document.getElementById('promo-next-page-btn');
+    const nextBtnBottom = document.getElementById('promo-next-page-btn-bottom');
+
+    const infoText = totalFiltered === 0
+        ? 'Showing 0 of 0'
+        : `Showing ${startIdx + 1}–${endIdx} of ${totalFiltered}`;
+    const infoBottomText = totalFiltered === 0
+        ? 'Showing 0 students'
+        : `Showing rows ${startIdx + 1} to ${endIdx} of ${totalFiltered} students`;
+    const pageText = `Page ${totalPages === 0 ? 0 : promoReviewPage} / ${totalPages}`;
+
+    if (infoTop) infoTop.textContent = infoText;
+    if (infoBottom) infoBottom.textContent = infoBottomText;
+    if (pageDisplayTop) pageDisplayTop.textContent = pageText;
+    if (pageDisplayBottom) pageDisplayBottom.textContent = pageText;
+
+    const isFirstPage = promoReviewPage <= 1;
+    const isLastPage = promoReviewPage >= totalPages;
+
+    if (prevBtnTop) prevBtnTop.disabled = isFirstPage;
+    if (prevBtnBottom) prevBtnBottom.disabled = isFirstPage;
+    if (nextBtnTop) nextBtnTop.disabled = isLastPage;
+    if (nextBtnBottom) nextBtnBottom.disabled = isLastPage;
 };
 
 const renderPromoReviewTable = () => {
@@ -10990,7 +11025,19 @@ const renderPromoReviewTable = () => {
         return true;
     });
 
-    if (!filtered.length) {
+    const totalFiltered = filtered.length;
+    const effectivePageSize = promoReviewPageSize === 0 ? totalFiltered : promoReviewPageSize;
+    const totalPages = effectivePageSize > 0 ? Math.ceil(totalFiltered / effectivePageSize) : 1;
+
+    if (promoReviewPage < 1) promoReviewPage = 1;
+    if (promoReviewPage > totalPages && totalPages > 0) promoReviewPage = totalPages;
+
+    const startIdx = effectivePageSize > 0 ? (promoReviewPage - 1) * effectivePageSize : 0;
+    const endIdx = effectivePageSize > 0 ? Math.min(startIdx + effectivePageSize, totalFiltered) : totalFiltered;
+
+    updatePromoPaginationUI(totalFiltered, totalPages, startIdx, endIdx);
+
+    if (!totalFiltered) {
         tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 font-semibold">No students match current filter criteria.</td></tr>';
         return;
     }
@@ -10999,9 +11046,11 @@ const renderPromoReviewTable = () => {
     const tgtYear = document.getElementById('promo-target-year')?.value || '';
     const allKnown = sortClassLabels([...new Set([...getClassesForYear(srcYear), ...getClassesForYear(tgtYear), ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])]);
 
-    tbody.innerHTML = filtered.map((item) => {
+    const pageSlice = filtered.slice(startIdx, endIdx);
+
+    tbody.innerHTML = pageSlice.map((item) => {
         const student = item.student;
-        let examBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">Not Recorded</span>';
+        let examBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Direct Pass</span>';
         if (item.examStatus === 'PASS') {
             examBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-check-circle mr-1"></i>PASS${item.examPercentage !== null ? ` (${item.examPercentage}%)` : ''}</span>`;
         } else if (item.examStatus === 'FAIL') {
@@ -11317,10 +11366,44 @@ document.getElementById('promo-btn-refresh')?.addEventListener('click', () => {
 
 document.getElementById('promo-btn-load-students')?.addEventListener('click', loadPromoStudentsForReview);
 
-document.getElementById('promo-filter-class')?.addEventListener('change', renderPromoReviewTable);
-document.getElementById('promo-filter-decision')?.addEventListener('change', renderPromoReviewTable);
-document.getElementById('promo-filter-exam')?.addEventListener('change', renderPromoReviewTable);
-document.getElementById('promo-search-student')?.addEventListener('input', renderPromoReviewTable);
+document.getElementById('promo-filter-class')?.addEventListener('change', () => {
+    promoReviewPage = 1;
+    renderPromoReviewTable();
+});
+document.getElementById('promo-filter-decision')?.addEventListener('change', () => {
+    promoReviewPage = 1;
+    renderPromoReviewTable();
+});
+document.getElementById('promo-filter-exam')?.addEventListener('change', () => {
+    promoReviewPage = 1;
+    renderPromoReviewTable();
+});
+document.getElementById('promo-search-student')?.addEventListener('input', () => {
+    promoReviewPage = 1;
+    renderPromoReviewTable();
+});
+
+document.getElementById('promo-page-size-select')?.addEventListener('change', (e) => {
+    promoReviewPageSize = parseInt(e.target.value, 10);
+    promoReviewPage = 1;
+    renderPromoReviewTable();
+});
+
+['promo-prev-page-btn', 'promo-prev-page-btn-bottom'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('click', () => {
+        if (promoReviewPage > 1) {
+            promoReviewPage -= 1;
+            renderPromoReviewTable();
+        }
+    });
+});
+
+['promo-next-page-btn', 'promo-next-page-btn-bottom'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('click', () => {
+        promoReviewPage += 1;
+        renderPromoReviewTable();
+    });
+});
 
 document.getElementById('promo-btn-select-all')?.addEventListener('click', () => {
     promoStudentsList.forEach((p) => { p.selected = true; });
@@ -11342,30 +11425,56 @@ document.getElementById('promo-th-select-all')?.addEventListener('change', (e) =
     renderPromoReviewTable();
 });
 
-document.getElementById('promo-btn-bulk-promote-pass')?.addEventListener('click', () => {
+document.getElementById('promo-btn-bulk-promote-all')?.addEventListener('click', () => {
     let count = 0;
+    promoStudentsList.forEach((item) => {
+        item.decision = 'promoted';
+        item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
+        if (item.destinationClass === 'ALUMNI') {
+            item.decision = 'alumni';
+            item.destinationClass = 'Alumni';
+        }
+        count += 1;
+    });
+    showToast(`Marked all ${count} student(s) as Promoted (Direct Pass).`, 'info');
+    renderPromoReviewTable();
+    initPromoGroupsData();
+});
+
+document.getElementById('promo-btn-bulk-promote-pass')?.addEventListener('click', () => {
+    let passCount = 0;
+    let failCount = 0;
     promoStudentsList.forEach((item) => {
         if (item.examStatus === 'PASS') {
             item.decision = 'promoted';
             item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
-            count += 1;
+            if (item.destinationClass === 'ALUMNI') {
+                item.decision = 'alumni';
+                item.destinationClass = 'Alumni';
+            }
+            passCount += 1;
+        } else if (item.examStatus === 'FAIL') {
+            item.decision = 'retained';
+            item.destinationClass = item.sourceClass;
+            failCount += 1;
         }
     });
-    showToast(`Marked ${count} student(s) with PASS as Promoted.`, 'info');
+    showToast(`Applied exam results: ${passCount} Promoted, ${failCount} Retained.`, 'info');
     renderPromoReviewTable();
     initPromoGroupsData();
 });
 
 document.getElementById('promo-btn-bulk-retain-fail')?.addEventListener('click', () => {
     let count = 0;
+    const hasSelected = promoStudentsList.some((p) => p.selected);
     promoStudentsList.forEach((item) => {
-        if (item.examStatus === 'FAIL') {
+        if ((hasSelected && item.selected) || (!hasSelected && item.examStatus === 'FAIL')) {
             item.decision = 'retained';
             item.destinationClass = item.sourceClass;
             count += 1;
         }
     });
-    showToast(`Marked ${count} student(s) with FAIL as Retained (Repeaters).`, 'info');
+    showToast(`Marked ${count} student(s) as Retained (Repeaters).`, 'info');
     renderPromoReviewTable();
     initPromoGroupsData();
 });
