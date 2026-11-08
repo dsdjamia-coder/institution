@@ -50,7 +50,12 @@
                         <p id="app-subtitle-header" class="text-[10px] sm:text-xs text-gray-500 font-medium hidden sm:block">Institute Management</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2"></div>
+                <div class="flex items-center gap-2">
+                    <div id="live-sync-indicator" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs" title="Realtime database sync active">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="hidden sm:inline">Live Sync</span>
+                    </div>
+                </div>
             </header>
         </div>
 
@@ -1018,7 +1023,7 @@
                             <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Gender</label><select id="filter-manage-gender" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                             <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Status</label><select id="filter-manage-status" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All Active</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Alumni">Alumni</option><option value="Discontinued">Discontinued</option></select></div>
                             <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sort Students</label><select id="sort-manage-students" class="w-full p-2.5 border rounded-lg bg-white"><option value="name-asc">Alphabet Order</option><option value="adm-asc">Number Order</option><option value="male-first">Male then Female</option></select></div>
-                            <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quick Search</label><div class="relative"><input type="text" id="search-student-input" placeholder="Search name or adm no..." class="w-full p-2.5 pl-9 border rounded-lg bg-white"><i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i></div></div>
+                            <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quick Search</label><div class="relative"><input type="text" id="search-student-input" placeholder="Search name, adm, phone, UID..." class="w-full p-2.5 pl-9 border rounded-lg bg-white"><i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i></div></div>
                         </div>
                     </div>
 

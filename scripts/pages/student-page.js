@@ -3282,6 +3282,53 @@ const studentPwa = registerPortalForPwa('student', {
         let studentInteractiveCropper = null;
         let cameraStream = null;
         let studentCameraFacingMode = 'user';
+        let wasStudentEditModalOpenBeforeCrop = false;
+
+        const safelyPrepareImageForCropping = (file, maxDimension = 1200) => {
+            return new Promise((resolve, reject) => {
+                if (!file) return reject(new Error('No image file selected.'));
+                if (file.size > 15 * 1024 * 1024) {
+                    return reject(new Error('Selected photo is larger than 15MB. Please choose a smaller photo.'));
+                }
+
+                const objectUrl = URL.createObjectURL(file);
+                const img = new Image();
+
+                img.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    let { width, height } = img;
+
+                    if (width > maxDimension || height > maxDimension) {
+                        if (width > height) {
+                            height = Math.round((height * maxDimension) / width);
+                            width = maxDimension;
+                        } else {
+                            width = Math.round((width * maxDimension) / height);
+                            height = maxDimension;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, width);
+                    canvas.height = Math.max(1, height);
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        return reject(new Error('Canvas rendering context is unavailable.'));
+                    }
+
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const safeDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+                    resolve(safeDataUrl);
+                };
+
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    reject(new Error('Unable to read image. The file may be corrupt or unsupported.'));
+                };
+
+                img.src = objectUrl;
+            });
+        };
 
         const openStudentInteractiveCropper = async (imageSrc) => {
             const modal = document.getElementById('student-crop-modal');
@@ -3435,13 +3482,29 @@ const studentPwa = registerPortalForPwa('student', {
                         }
 
                         const topModal = document.getElementById('student-edit-top-modal');
-                        if (topModal) {
+                        if (topModal && !topModal.classList.contains('hidden')) {
+                            wasStudentEditModalOpenBeforeCrop = true;
                             topModal.classList.add('hidden');
                             topModal.classList.remove('flex');
+                        } else {
+                            wasStudentEditModalOpenBeforeCrop = false;
                         }
-                        const reader = new FileReader();
-                        reader.onload = () => openStudentInteractiveCropper(reader.result);
-                        reader.readAsDataURL(file);
+
+                        try {
+                            const safeDataUrl = await safelyPrepareImageForCropping(file, 1200);
+                            openStudentInteractiveCropper(safeDataUrl);
+                        } catch (err) {
+                            console.error('Safe photo preparation error:', err);
+                            alert(err.message || 'Could not load photo for cropping.');
+                            if (wasStudentEditModalOpenBeforeCrop) {
+                                const m = document.getElementById('student-edit-top-modal');
+                                if (m) {
+                                    m.classList.remove('hidden');
+                                    m.classList.add('flex');
+                                }
+                                wasStudentEditModalOpenBeforeCrop = false;
+                            }
+                        }
                     }
                     e.target.value = '';
                 });
@@ -3450,9 +3513,12 @@ const studentPwa = registerPortalForPwa('student', {
             if (cameraBtn) {
                 cameraBtn.addEventListener('click', async () => {
                     const topModal = document.getElementById('student-edit-top-modal');
-                    if (topModal) {
+                    if (topModal && !topModal.classList.contains('hidden')) {
+                        wasStudentEditModalOpenBeforeCrop = true;
                         topModal.classList.add('hidden');
                         topModal.classList.remove('flex');
+                    } else {
+                        wasStudentEditModalOpenBeforeCrop = false;
                     }
                     const modal = document.getElementById('student-camera-modal');
                     const ok = await startStudentCamera('user');
@@ -3468,8 +3534,23 @@ const studentPwa = registerPortalForPwa('student', {
                 const nextMode = studentCameraFacingMode === 'user' ? 'environment' : 'user';
                 await startStudentCamera(nextMode);
             });
-            document.getElementById('student-camera-close-btn')?.addEventListener('click', stopStudentCamera);
-            document.getElementById('student-camera-cancel-btn')?.addEventListener('click', stopStudentCamera);
+            const restoreTopEditModalIfWasOpen = () => {
+                if (wasStudentEditModalOpenBeforeCrop) {
+                    const topModal = document.getElementById('student-edit-top-modal');
+                    if (topModal) {
+                        topModal.classList.remove('hidden');
+                        topModal.classList.add('flex');
+                    }
+                    wasStudentEditModalOpenBeforeCrop = false;
+                }
+            };
+
+            const handleStudentCameraClose = () => {
+                stopStudentCamera();
+                restoreTopEditModalIfWasOpen();
+            };
+            document.getElementById('student-camera-close-btn')?.addEventListener('click', handleStudentCameraClose);
+            document.getElementById('student-camera-cancel-btn')?.addEventListener('click', handleStudentCameraClose);
             document.getElementById('student-camera-capture-btn')?.addEventListener('click', () => {
                 const video = document.getElementById('student-camera-video');
                 if (!video) return;
@@ -3486,14 +3567,13 @@ const studentPwa = registerPortalForPwa('student', {
             });
 
             // Crop modal control bindings
-            document.getElementById('student-crop-close-btn')?.addEventListener('click', () => {
+            const handleStudentCropClose = () => {
                 document.getElementById('student-crop-modal')?.classList.add('hidden');
                 document.getElementById('student-crop-modal')?.classList.remove('flex');
-            });
-            document.getElementById('student-crop-cancel-btn')?.addEventListener('click', () => {
-                document.getElementById('student-crop-modal')?.classList.add('hidden');
-                document.getElementById('student-crop-modal')?.classList.remove('flex');
-            });
+                restoreTopEditModalIfWasOpen();
+            };
+            document.getElementById('student-crop-close-btn')?.addEventListener('click', handleStudentCropClose);
+            document.getElementById('student-crop-cancel-btn')?.addEventListener('click', handleStudentCropClose);
 
             document.getElementById('student-crop-rotate-btn')?.addEventListener('click', () => {
                 studentInteractiveCropper?.rotateClockwise();
@@ -3557,6 +3637,7 @@ const studentPwa = registerPortalForPwa('student', {
                         studentProfile.photo = base64;
                         if (studentProfile.profile) studentProfile.profile.photo = base64;
                     }
+                    restoreTopEditModalIfWasOpen();
                 } catch (err) {
                     progressCtrl.fail();
                     console.error('Failed to save student photo:', err);

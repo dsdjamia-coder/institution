@@ -882,8 +882,8 @@ window.openStudentProfile = (id) => {
 
     if (activeGroup && groupWrap && groupMembersEl && groupAmountEl) {
         const groupFee = Number(activeGroup.fee || defaultFee || 200);
-        setText('prof-conc', hasIndividualConc ? `₹${s.concessionFee}/mo (Group: ₹${groupFee}/mo)` : `Group Rate: ₹${groupFee.toFixed(0)}/mo`);
-        groupAmountEl.textContent = `Group Fee: ₹${groupFee.toFixed(0)}/mo`;
+        setText('prof-conc', hasIndividualConc ? `${formatCurrency(s.concessionFee)}/mo (Group: ${formatCurrency(groupFee)}/mo)` : `Group Rate: ${formatCurrency(groupFee)}/mo`);
+        groupAmountEl.textContent = `Group Fee: ${formatCurrency(groupFee)}/mo`;
         groupMembersEl.innerHTML = (activeGroup.memberIds || []).map((memberId, index) => {
             const member = students.find((student) => student.id === memberId) || allStudentsRaw.find((student) => student.id === memberId) || {};
             const isSelected = memberId === s.id;
@@ -898,7 +898,7 @@ window.openStudentProfile = (id) => {
         }).join('');
         groupWrap.classList.remove('hidden');
     } else {
-        setText('prof-conc', hasIndividualConc ? `₹${s.concessionFee}/month` : 'None (Standard Rate)');
+        setText('prof-conc', hasIndividualConc ? `${formatCurrency(s.concessionFee)}/month` : 'None (Standard Rate)');
         groupWrap?.classList.add('hidden');
         if (groupMembersEl) groupMembersEl.innerHTML = '';
         if (groupAmountEl) groupAmountEl.textContent = '';
@@ -1933,8 +1933,8 @@ const renderGroupedStudentsPanel = () => {
         const hasConcession = student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '';
         const indRate = hasConcession ? parseFloat(student.concessionFee) : defaultFee;
         const rateBadge = hasConcession
-            ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Concession: ₹${indRate}</span>`
-            : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">Normal: ₹${indRate}</span>`;
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Concession: ${formatCurrency(indRate)}</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">Normal: ${formatCurrency(indRate)}</span>`;
 
         return `
         <li class="flex items-center justify-between gap-2 rounded-xl bg-white border ${isChecked ? 'border-emerald-300 shadow-sm' : 'border-gray-200 opacity-60'} p-2.5 transition">
@@ -1966,21 +1966,21 @@ const renderGroupedStudentsPanel = () => {
     let statusNote = '';
     if (isAllSelected) {
         statusNote = `<div class="text-[11px] font-medium text-emerald-800 bg-emerald-100/70 p-2 rounded-lg border border-emerald-200 flex items-center justify-between">
-            <span><i class="fas fa-users mr-1"></i><b>All ${members.length} members selected</b> (Group rate: ₹${groupCollectiveFee}/month applied)</span>
-            <span class="font-mono font-bold text-emerald-900">₹${groupCollectiveFee}/mo</span>
+            <span><i class="fas fa-users mr-1"></i><b>All ${members.length} members selected</b> (Group rate: ${formatCurrency(groupCollectiveFee)}/month applied)</span>
+            <span class="font-mono font-bold text-emerald-900">${formatCurrency(groupCollectiveFee)}/mo</span>
         </div>`;
     } else if (isSingleSelected && singleStudent) {
         statusNote = `<div class="text-[11px] font-medium text-blue-800 bg-blue-50 p-2 rounded-lg border border-blue-200">
             <div class="flex items-center justify-between">
                 <span><i class="fas fa-user mr-1"></i><b>Only ${escapeHtml(singleStudent.name)} selected</b></span>
-                <span class="font-mono font-bold text-blue-900">₹${effectiveBaseFee}/mo</span>
+                <span class="font-mono font-bold text-blue-900">${formatCurrency(effectiveBaseFee)}/mo</span>
             </div>
             <p class="text-[10px] text-blue-600 mt-1">Individual rate applies. Unchecked siblings remain due without any balance carry-over.</p>
         </div>`;
     } else {
         statusNote = `<div class="text-[11px] font-medium text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between">
             <span><i class="fas fa-user-friends mr-1"></i><b>${selectedGroupMemberIds.size} members selected</b></span>
-            <span class="font-mono font-bold text-amber-900">₹${effectiveBaseFee}/mo</span>
+            <span class="font-mono font-bold text-amber-900">${formatCurrency(effectiveBaseFee)}/mo</span>
         </div>`;
     }
 

@@ -1,9 +1,9 @@
 import { signOut, onAuthStateChanged,  EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword, createUserWithEmailAndPassword, getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, where, writeBatch, getDocs, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, where, writeBatch, getDocs, setDoc, getDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth, firebaseConfig } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
-import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatDateDisplay, hardenExternalLinks, normalizePhone, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
+import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, normalizePhone, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -2877,6 +2877,52 @@ const openAdminInteractiveCropper = async (imageSrc, inputId = '', previewId = '
     }
 };
 
+const safelyPrepareImageForCropping = (file, maxDimension = 1200) => {
+    return new Promise((resolve, reject) => {
+        if (!file) return reject(new Error('No image file selected.'));
+        if (file.size > 15 * 1024 * 1024) {
+            return reject(new Error('Selected photo is larger than 15MB. Please choose a smaller photo.'));
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            let { width, height } = img;
+
+            if (width > maxDimension || height > maxDimension) {
+                if (width > height) {
+                    height = Math.round((height * maxDimension) / width);
+                    width = maxDimension;
+                } else {
+                    width = Math.round((width * maxDimension) / height);
+                    height = maxDimension;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, width);
+            canvas.height = Math.max(1, height);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                return reject(new Error('Canvas rendering context is unavailable.'));
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+            const safeDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+            resolve(safeDataUrl);
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('Unable to read image. The file may be corrupt or unsupported.'));
+        };
+
+        img.src = objectUrl;
+    });
+};
+
 const setupAdminPhotoWidget = (inputId, previewId, placeholderId, removeBtnId, fileInputId, cameraBtnId, uploadBtnId) => {
     const fileInput = document.getElementById(fileInputId);
     const cameraBtn = document.getElementById(cameraBtnId);
@@ -2888,12 +2934,16 @@ const setupAdminPhotoWidget = (inputId, previewId, placeholderId, removeBtnId, f
     };
 
     if (fileInput) {
-        fileInput.addEventListener('change', (e) => {
+        fileInput.addEventListener('change', async (e) => {
             const file = e.target.files?.[0];
             if (file) {
-                const reader = new FileReader();
-                reader.onload = () => showCropper(reader.result);
-                reader.readAsDataURL(file);
+                try {
+                    const safeDataUrl = await safelyPrepareImageForCropping(file, 1200);
+                    showCropper(safeDataUrl);
+                } catch (err) {
+                    console.error('Safe photo preparation error:', err);
+                    alert(err.message || 'Could not load photo for cropping.');
+                }
             }
             e.target.value = '';
         });
@@ -5987,6 +6037,43 @@ const updateStudentPaginationUI = (totalCount = 0, startIdx = 0, endIdx = 0, tot
     if (nextBottom) nextBottom.disabled = isNextDisabled;
 };
 
+const matchesStudentSearch = (s, rawTerm = '') => {
+    if (!s) return false;
+    const term = String(rawTerm || '').toLowerCase().trim();
+    if (!term) return true;
+
+    // Direct text / string matching
+    if (s.name && s.name.toLowerCase().includes(term)) return true;
+    if (s.adm && String(s.adm).toLowerCase().includes(term)) return true;
+    if (s.uid && String(s.uid).toLowerCase().includes(term)) return true;
+    if (s.father && s.father.toLowerCase().includes(term)) return true;
+    if (s.mother && s.mother.toLowerCase().includes(term)) return true;
+    if (s.guardian && s.guardian.toLowerCase().includes(term)) return true;
+
+    // Digits-only phone / aadhaar matching if term has digits
+    const digitsInTerm = term.replace(/\D/g, '');
+    if (digitsInTerm.length >= 3) {
+        const studentIdentifiers = [
+            s.mobile,
+            s.motherMobile,
+            s.phone,
+            s.adhaar,
+            s.aadhaar,
+            s.profile?.mobile,
+            s.profile?.motherMobile,
+            s.profile?.phone,
+            s.profile?.adhaar,
+            s.profile?.aadhaar
+        ].filter(Boolean).map(val => String(val).replace(/\D/g, ''));
+
+        if (studentIdentifiers.some(digits => digits.includes(digitsInTerm))) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
 const renderStudentList = () => {
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     const isActiveYear = selectedYear === getActiveAcademicYearLabel();
@@ -6033,7 +6120,7 @@ const renderStudentList = () => {
         } else {
             match = match && normalizeStudentStatus(s.status) !== 'Discontinued';
         }
-        if(sTerm) match = match && ((s.name && s.name.toLowerCase().includes(sTerm)) || (s.adm && String(s.adm).toLowerCase().includes(sTerm)));
+        if(sTerm) match = match && matchesStudentSearch(s, sTerm);
         return match;
     });
 
@@ -6382,7 +6469,7 @@ const getManagedStudentsForExport = () => {
         }
         if(fGen !== 'all') match = match && s.gender === fGen;
         if(fStatus !== 'all') match = match && normalizeStudentStatus(s.status) === fStatus;
-        if(sTerm) match = match && ((s.name || '').toLowerCase().includes(sTerm) || ((s.adm || '').toLowerCase().includes(sTerm)));
+        if(sTerm) match = match && matchesStudentSearch(s, sTerm);
         return match;
     });
     if (sortType === 'male-first') {
@@ -6727,6 +6814,41 @@ const parseAcademicStartYear = (yrLabel) => {
     return match ? parseInt(match[1], 10) : 0;
 };
 
+const getStudentEffectiveMonthlyFee = (student, academicYear = null) => {
+    if (!student) return 200;
+    const targetYear = academicYear || getActiveAcademicYearLabel();
+
+    // 1. Check if student is part of an active sibling group in target academic year
+    const groupsList = (typeof allStudentGroups !== 'undefined' && Array.isArray(allStudentGroups) && allStudentGroups.length > 0)
+        ? allStudentGroups
+        : (studentGroups || []);
+    const linkedGroup = groupsList.find(g => {
+        const grpYear = g.academicYear || currentAcademicYear || targetYear;
+        return grpYear === targetYear && Array.isArray(g.memberIds) && g.memberIds.includes(student.id);
+    });
+
+    if (linkedGroup && Array.isArray(linkedGroup.memberIds) && linkedGroup.memberIds.length > 1) {
+        const groupFee = Number(linkedGroup.fee || 0);
+        if (groupFee > 0) {
+            return Math.round(groupFee / linkedGroup.memberIds.length);
+        }
+    }
+
+    // 2. Individual concession fee override
+    if (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '') {
+        return Number(student.concessionFee);
+    }
+
+    // 3. Default monthly fee from fee items for target academic year
+    const yearMonthly = (feeItems || []).find(f => (f.type === 'month' || f.type === 'monthly') && f.academicYear === targetYear);
+    if (yearMonthly && Number(yearMonthly.amount) > 0) return Number(yearMonthly.amount);
+
+    const defaultMonthly = (feeItems || []).find(f => f.type === 'month' || f.type === 'monthly');
+    if (defaultMonthly && Number(defaultMonthly.amount) > 0) return Number(defaultMonthly.amount);
+
+    return 200;
+};
+
 const getStudentDetailedPendingFees = (student, exitDateStr = null, targetYearOverride = null) => {
     if (!student) return [];
 
@@ -6743,7 +6865,19 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null, targetYearOv
         ? allAcademicYears.find(y => y.label === targetAcademicYear || y.id === targetAcademicYear)
         : getActiveAcademicYearRecord();
 
-    const studentPayments = (allPayments || []).filter(p => p.studentId === student.id || p.admissionNo === student.adm);
+    const groupsList = (typeof allStudentGroups !== 'undefined' && Array.isArray(allStudentGroups) && allStudentGroups.length > 0)
+        ? allStudentGroups
+        : (studentGroups || []);
+    const studentGroup = groupsList.find(g => {
+        const grpYear = g.academicYear || currentAcademicYear || targetAcademicYear;
+        return grpYear === targetAcademicYear && Array.isArray(g.memberIds) && g.memberIds.includes(student.id);
+    });
+
+    const studentPayments = (allPayments || []).filter(p => {
+        if (p.studentId === student.id || (p.admissionNo && p.admissionNo === student.adm)) return true;
+        if (studentGroup && p.billingGroupId === studentGroup.id && (!p.studentId || p.studentId === student.id)) return true;
+        return false;
+    });
     
     // Multi-Year Safe Resolver: Ensure legacy payments never erroneously default to future targetAcademicYear
     const resolvePaymentYear = (p) => {
@@ -6762,9 +6896,7 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null, targetYearOv
 
     const paidItemKeys = new Set(studentPayments.map(p => `${p.itemKey}__${resolvePaymentYear(p)}`));
 
-    const effectiveMonthlyFee = (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '')
-        ? Number(student.concessionFee)
-        : (feeItems.find(f => f.type === 'monthly')?.amount || 200);
+    const effectiveMonthlyFee = getStudentEffectiveMonthlyFee(student, targetAcademicYear);
 
     const pendingItems = [];
 
@@ -6829,7 +6961,9 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null, targetYearOv
         }
 
         const itemKey = `${item.key}__${targetAcademicYear}`;
-        const isPaid = paidItemKeys.has(itemKey) || studentPayments.some(p => p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear);
+        const isPaid = paidItemKeys.has(itemKey)
+            || studentPayments.some(p => p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear)
+            || (studentGroup && (allPayments || []).some(p => p.billingGroupId === studentGroup.id && p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear && (!p.studentId || p.studentId === student.id)));
         if (!isPaid) {
             pendingItems.push({
                 key: item.key,
@@ -8716,7 +8850,7 @@ const renderStudentGroups = () => {
                             <i class="fas fa-users text-[10px]"></i> ${(g.memberIds || []).length} Students
                         </span>
                         <span class="inline-flex items-center gap-1 text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-md shadow-2xs">
-                            ₹${feeAmount}/month
+                            ${formatCurrency(feeAmount)}/month
                         </span>
                     </div>
 
@@ -11668,13 +11802,23 @@ const populateStudent360FeesLedger = (student) => {
     const tbody = document.getElementById('stu360-fees-tbody');
     if (!tbody) return;
 
-    const stuPayments = (allPayments || []).filter((p) => p.studentId === student.id || (p.admissionNo && p.admissionNo === student.adm));
+    const activeYear = getActiveAcademicYearLabel();
+    const groupsList = (typeof allStudentGroups !== 'undefined' && Array.isArray(allStudentGroups) && allStudentGroups.length > 0)
+        ? allStudentGroups
+        : (studentGroups || []);
+    const stuGroup = groupsList.find(g => {
+        const grpYear = g.academicYear || currentAcademicYear || activeYear;
+        return grpYear === activeYear && Array.isArray(g.memberIds) && g.memberIds.includes(student.id);
+    });
+
+    const stuPayments = (allPayments || []).filter((p) => {
+        if (p.studentId === student.id || (p.admissionNo && p.admissionNo === student.adm)) return true;
+        if (stuGroup && p.billingGroupId === stuGroup.id && (!p.studentId || p.studentId === student.id)) return true;
+        return false;
+    });
     const totalPaid = stuPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-    const activeYear = getActiveAcademicYearLabel();
-    const effectiveMonthlyFee = (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '')
-        ? Number(student.concessionFee)
-        : (feeItems.find((f) => f.type === 'monthly')?.amount || 200);
+    const effectiveMonthlyFee = getStudentEffectiveMonthlyFee(student, activeYear);
 
     const yearItems = (feeItems || []).filter((f) => !f.academicYear || f.academicYear === activeYear);
 
@@ -11891,7 +12035,7 @@ const openStudentDetailsModal = (studentId) => {
     if (student.concessionFee !== undefined && student.concessionFee !== null && student.concessionFee !== '') {
         if (concVal) concVal.textContent = 'Special Fee Applied';
         if (concAmt) {
-            concAmt.textContent = `₹${student.concessionFee}/month`;
+            concAmt.textContent = `${formatCurrency(student.concessionFee)}/month`;
             concAmt.classList.remove('hidden');
         }
     } else {
@@ -11906,7 +12050,7 @@ const openStudentDetailsModal = (studentId) => {
     if (linkedGroup) {
         if (groupVal) groupVal.textContent = `Linked to Group (${(linkedGroup.memberIds || []).length} members)`;
         if (groupAmt) {
-            groupAmt.textContent = `₹${linkedGroup.fee || 0}/month`;
+            groupAmt.textContent = `${formatCurrency(linkedGroup.fee || 0)}/month`;
             groupAmt.classList.remove('hidden');
         }
     } else {
@@ -15439,11 +15583,26 @@ onAuthStateChanged(auth, async (user) => {
             sessionRegistry = sessionRegistrySnap.exists() ? sessionRegistrySnap.data() : { sessions: {} };
             renderSessionMonitor();
         });
-        onSnapshot(collection(db, `${BASE_PATH}/auditLogs`), (auditSnap) => {
-            auditLogs = auditSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        const auditLogsQuery = query(
+            collection(db, `${BASE_PATH}/auditLogs`),
+            orderBy('createdAt', 'desc'),
+            limit(50)
+        );
+        onSnapshot(auditLogsQuery, (auditSnap) => {
+            auditLogs = auditSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
             renderAuditLogList();
             renderDashboard();
             renderBackupCategoryCounts();
+        }, (err) => {
+            console.warn('Audit logs stream error, falling back to unconstrained query:', err);
+            onSnapshot(collection(db, `${BASE_PATH}/auditLogs`), (fallbackSnap) => {
+                auditLogs = fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+                    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+                    .slice(0, 50);
+                renderAuditLogList();
+                renderDashboard();
+                renderBackupCategoryCounts();
+            });
         });
 
         onSnapshot(academicYearsRef, async (academicSnap) => {

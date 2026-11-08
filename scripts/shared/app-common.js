@@ -2,7 +2,15 @@ import { APP_VERSION, LAST_UPDATED, RELEASE_STAGE } from '../../config/version.j
 import { BASE_PATH } from '../../config/app-config.js';
 
 export { BASE_PATH };
-export const formatCurrency = (value = 0) => `₹${Number(value || 0).toFixed(0)}`;
+export const formatCurrency = (value = 0) => {
+    const num = Number(value || 0);
+    if (!Number.isFinite(num)) return '₹0';
+    const hasFractions = (num % 1 !== 0);
+    return '₹' + num.toLocaleString('en-IN', {
+        minimumFractionDigits: hasFractions ? 2 : 0,
+        maximumFractionDigits: hasFractions ? 2 : 0
+    });
+};
 export const escapeHtml = (value = '') => String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

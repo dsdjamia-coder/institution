@@ -654,6 +654,21 @@ header { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); pos
 .header-logo-box { width: 45px; height: 45px; flex-shrink: 0; z-index: 10; display: flex; align-items: center;}
 .header-logo-box img { max-height: 100%; max-width: 100%; border-radius: 8px; object-fit: contain; opacity: 0; transition: opacity 0.5s ease; }
 
+/* High-DPI Crisp Logo & Institution Brand Image Rendering */
+#admin-header-logo,
+#admin-loader-logo,
+#header-logo,
+#hero-logo-img,
+#splash-logo-img,
+#web-logo-preview,
+.logo-container img,
+.header-logo-box img,
+.hero-logo-target img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    object-fit: contain;
+}
+
 .header-center-box { position: absolute; left: 50%; transform: translateX(-50%); width: 55%; text-align: center; display: flex; flex-direction: column; justify-content: center; z-index: 1; }
 .header-center-box h1 { font-weight: 800; color: var(--primary); white-space: normal; line-height: 1.2; width: 100%; margin: 0 auto; font-size: 14px; word-wrap: break-word; }
 .header-center-box p { font-size: 10px; color: var(--text-gray); font-weight: 600; white-space: nowrap; opacity: 0.8; margin-top: 2px; }
