@@ -6830,7 +6830,7 @@ const getStudentEffectiveMonthlyFee = (student, academicYear = null) => {
     if (linkedGroup && Array.isArray(linkedGroup.memberIds) && linkedGroup.memberIds.length > 1) {
         const groupFee = Number(linkedGroup.fee || 0);
         if (groupFee > 0) {
-            return Math.round(groupFee / linkedGroup.memberIds.length);
+            return groupFee; // Unified Single Family Billing Entity Model: full group fee, no decimal splitting
         }
     }
 
@@ -6963,14 +6963,16 @@ const getStudentDetailedPendingFees = (student, exitDateStr = null, targetYearOv
         const itemKey = `${item.key}__${targetAcademicYear}`;
         const isPaid = paidItemKeys.has(itemKey)
             || studentPayments.some(p => p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear)
-            || (studentGroup && (allPayments || []).some(p => p.billingGroupId === studentGroup.id && p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear && (!p.studentId || p.studentId === student.id)));
+            || (studentGroup && (allPayments || []).some(p => p.billingGroupId === studentGroup.id && p.itemKey === item.key && resolvePaymentYear(p) === targetAcademicYear));
         if (!isPaid) {
             pendingItems.push({
                 key: item.key,
-                name: item.name || 'Monthly Fee',
+                name: studentGroup ? `${item.name || 'Monthly Fee'} (Family Sibling Rate)` : (item.name || 'Monthly Fee'),
                 type: 'month',
                 amount: effectiveMonthlyFee,
-                academicYear: targetAcademicYear
+                academicYear: targetAcademicYear,
+                billingGroupId: studentGroup ? studentGroup.id : null,
+                isGroupShared: Boolean(studentGroup)
             });
         }
     });
@@ -7427,6 +7429,30 @@ const renderContinuityPage = () => {
 
     populateContinuityClassDropdown();
 
+    const calculateAggregatedPreservedDues = (studentsList = []) => {
+        const seenBillingItemKeys = new Set();
+        let totalDues = 0;
+
+        (studentsList || []).forEach(st => {
+            const exitDateStr = st.discontinuationDetails?.date || null;
+            const pendingItems = getStudentDetailedPendingFees(st, exitDateStr);
+            if (pendingItems.length > 0) {
+                pendingItems.forEach(item => {
+                    if (item.billingGroupId) {
+                        const groupKey = `${item.billingGroupId}__${item.key}__${item.academicYear}`;
+                        if (seenBillingItemKeys.has(groupKey)) return;
+                        seenBillingItemKeys.add(groupKey);
+                    }
+                    totalDues += Number(item.amount || 0);
+                });
+            } else if (st.discontinuationDetails && typeof st.discontinuationDetails.preservedDues === 'number') {
+                totalDues += Math.max(0, st.discontinuationDetails.preservedDues);
+            }
+        });
+
+        return totalDues;
+    };
+
     const searchTerm = (document.getElementById('continuity-search-input')?.value || '').toLowerCase().trim();
     const classFilter = document.getElementById('continuity-class-filter')?.value || 'all';
     const tbody = document.getElementById('discontinued-students-table-body');
@@ -7435,7 +7461,7 @@ const renderContinuityPage = () => {
 
     const allDiscontinued = (rawStudents || []).filter(s => normalizeStudentStatus(s.status) === 'Discontinued');
 
-    const totalDues = allDiscontinued.reduce((sum, s) => sum + calculateStudentPreservedDues(s), 0);
+    const totalDues = calculateAggregatedPreservedDues(allDiscontinued);
     if (metricTotalEl) metricTotalEl.textContent = allDiscontinued.length;
     if (metricDuesEl) metricDuesEl.textContent = `₹${totalDues.toLocaleString('en-IN')}`;
 
@@ -11813,37 +11839,46 @@ const populateStudent360FeesLedger = (student) => {
 
     const stuPayments = (allPayments || []).filter((p) => {
         if (p.studentId === student.id || (p.admissionNo && p.admissionNo === student.adm)) return true;
-        if (stuGroup && p.billingGroupId === stuGroup.id && (!p.studentId || p.studentId === student.id)) return true;
+        if (stuGroup && p.billingGroupId === stuGroup.id) return true;
         return false;
     });
-    const totalPaid = stuPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
     const effectiveMonthlyFee = getStudentEffectiveMonthlyFee(student, activeYear);
 
     const yearItems = (feeItems || []).filter((f) => !f.academicYear || f.academicYear === activeYear);
 
-    let totalAssigned = 0;
     const ledgerRows = [];
 
     yearItems.forEach((item) => {
         const isMonth = item.type === 'month' || item.type === 'monthly';
         const itemAmount = isMonth ? effectiveMonthlyFee : (Number(item.amount) || 0);
-        totalAssigned += itemAmount;
 
         const payment = stuPayments.find((p) => p.itemKey === item.key && (!p.academicYear || p.academicYear === activeYear));
         const isPaid = Boolean(payment);
-        const paidAmt = payment ? (Number(payment.amount) || itemAmount) : 0;
+        let paidAmt = 0;
+        if (isPaid) {
+            if (isMonth && stuGroup) {
+                paidAmt = itemAmount;
+            } else {
+                paidAmt = (Number(payment.amount) > 0) ? Number(payment.amount) : itemAmount;
+            }
+        }
+
+        const rowName = (isMonth && stuGroup) ? `${item.name || item.key} (Family Sibling Rate)` : (item.name || item.key);
 
         ledgerRows.push({
-            name: item.name || item.key,
+            name: rowName,
             amount: itemAmount,
             paid: paidAmt,
             isPaid,
+            isGroup: Boolean(isMonth && stuGroup),
+            receiptNo: payment?.receiptNo || null,
             date: payment?.paymentDate || payment?.createdAt || null
         });
     });
 
-    if (totalAssigned === 0 && totalPaid > 0) totalAssigned = totalPaid;
+    const totalAssigned = ledgerRows.reduce((sum, r) => sum + r.amount, 0);
+    const totalPaid = ledgerRows.filter((r) => r.isPaid).reduce((sum, r) => sum + r.paid, 0);
     const balance = Math.max(0, totalAssigned - totalPaid);
 
     if (totalEl) totalEl.textContent = '₹' + totalAssigned.toLocaleString('en-IN');
@@ -11858,7 +11893,7 @@ const populateStudent360FeesLedger = (student) => {
     tbody.innerHTML = ledgerRows.map((row) => {
         const dateStr = row.date ? new Date(row.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
         const statusBadge = row.isPaid
-            ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">PAID</span>`
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">PAID${row.isGroup ? ' (FAMILY GROUP)' : ''}</span>`
             : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">PENDING</span>`;
 
         return `

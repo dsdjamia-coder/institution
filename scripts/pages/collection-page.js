@@ -2967,18 +2967,18 @@ const processPaymentSubmit = async (isUpdate) => {
                                 billingGroupId: null
                             });
                         } else {
-                            // Multiple / all group members payment
+                            // Multiple / all group members payment (Single Family Billing Entity Model)
                             const billingGroupId = entry.billingGroupId || null;
                             const groupedItemKey = billingGroupId ? `${billingGroupId}__${item.itemKey}__${itemYear}` : '';
                             if (groupedItemKey && writtenGroupedMonthlyItems.has(groupedItemKey)) return;
                             if (groupedItemKey) writtenGroupedMonthlyItems.add(groupedItemKey);
 
-                            const splitAmt = roundMoney(itemMonthAmount / targets.length);
+                            // Primary student receives full unified group fee (e.g. ₹500).
+                            // Sibling members receive non-additive records (amount: 0) with groupMonthAmount: 500
+                            // to prevent revenue multiplication while ensuring all siblings register as settled.
                             targets.forEach((id, idx) => {
-                                const isLast = idx === targets.length - 1;
-                                const studentAmt = isLast
-                                    ? roundMoney(itemMonthAmount - (splitAmt * (targets.length - 1)))
-                                    : splitAmt;
+                                const isPrimary = idx === 0;
+                                const studentAmt = isPrimary ? itemMonthAmount : 0;
                                 const memberClass = students.find(s => s.id === id)?.class || studentClass;
                                 queuePaymentWrite(batch, {
                                     ...common,
@@ -2986,9 +2986,12 @@ const processPaymentSubmit = async (isUpdate) => {
                                     studentId: id,
                                     classLabel: memberClass,
                                     itemKey: item.itemKey,
-                                    amount: Math.max(0, studentAmt),
+                                    amount: studentAmt,
                                     groupMonthAmount: itemMonthAmount,
-                                    billingGroupId
+                                    billingGroupId,
+                                    isGroupPrimary: isPrimary,
+                                    isGroupMirror: !isPrimary,
+                                    targetGroupMemberIds: targets
                                 });
                             });
                         }

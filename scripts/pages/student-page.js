@@ -4835,8 +4835,8 @@ const studentPwa = registerPortalForPwa('student', {
                         </div>`;
                     }
 
-                    const studentShareHtml = (isGroupPayment && pay && pay.amount && Number(pay.amount) !== paidAmount)
-                        ? `<div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2"><span class="text-xs text-gray-500 font-bold uppercase tracking-wide">Student Share</span><span class="text-sm font-bold text-gray-700">${formatCurrency(pay.amount)}</span></div>`
+                    const studentShareHtml = isGroupPayment
+                        ? `<div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2"><span class="text-xs text-gray-500 font-bold uppercase tracking-wide">Billing Structure</span><span class="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">Family Sibling Rate (Shared Unit)</span></div>`
                         : '';
 
                     const paidInsight = {
@@ -4897,15 +4897,19 @@ const studentPwa = registerPortalForPwa('student', {
                         </div>`;
                     } else if (activeGroup && Number(activeGroup.fee || 0) > 0) {
                         amountToPay = Number(activeGroup.fee);
-                        statusHints = 'Group';
-                        groupMembersHtml = `<div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
-                            <div class="font-bold uppercase text-[10px] tracking-wide text-slate-500 mb-1">Group Members</div>
+                        statusHints = 'Family Sibling Rate';
+                        groupMembersHtml = `<div class="mb-3 rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2 text-[11px] text-blue-900 shadow-2xs">
+                            <div class="font-bold uppercase text-[10px] tracking-wide text-blue-700 mb-1 flex items-center justify-between">
+                                <span><i class="fas fa-users mr-1"></i>Family Group Fee (${(activeGroup.memberIds || []).length} Siblings)</span>
+                                <span class="font-mono font-bold">${formatCurrency(amountToPay)}/month</span>
+                            </div>
+                            <div class="text-[10px] text-blue-700 mb-1 font-medium">Single Family Billing Unit: Paying this month settles tuition for all listed siblings:</div>
                             ${(activeGroup.memberIds || []).map((memberId) => {
                                 const member = groupMemberProfileMap[memberId];
                                 const memberName = member?.name || memberId;
                                 const memberClass = member?.class || classLabel;
                                 const isCurrentStudent = memberId === studentId;
-                                return `<div class="${isCurrentStudent ? 'font-extrabold text-slate-950' : ''}">${escapeHtml(memberName)} <span class="text-[10px] ${isCurrentStudent ? 'text-slate-700' : 'text-slate-500'}">(${escapeHtml(memberClass)})</span></div>`;
+                                return `<div class="${isCurrentStudent ? 'font-extrabold text-blue-950' : 'text-blue-800'}">• ${escapeHtml(memberName)} <span class="text-[10px] ${isCurrentStudent ? 'text-blue-700' : 'text-blue-600'}">(${escapeHtml(memberClass)})</span></div>`;
                             }).join('')}
                         </div>`;
                     } else {
