@@ -258,19 +258,28 @@ window.addEventListener('resize', () => {
 
 initCollectionSidebarState();
 
-// TABS LOGIC (Main Tab & Sub-Tab Hierarchy)
+// TABS LOGIC (Main Tab & Sub-Tab Hierarchy - Hash-Free Session Architecture)
 const MAIN_TAB_GROUPS = {
     dashboard: ['dashboard-page'],
     collection: ['home-page', 'bulk-upload-page', 'donation-page'],
-    ledgers: ['fee-page', 'master-ledger-page', 'conc-group-page'],
-    reports: ['history-page', 'monthly-collected-page', 'collector-wise-monthly-page'],
-    students: ['students-page'],
+    ledgers: ['master-ledger-page', 'fee-page', 'history-page'],
+    reports: ['monthly-collected-page', 'collector-wise-monthly-page', 'students-page'],
     finance: ['fee-settings-page', 'manage-groups-page', 'fee-concessions-page']
 };
 
 const links = Array.from(document.querySelectorAll('.tab-link'));
 const pages = Array.from(document.querySelectorAll('.page-content'));
 const defaultTabId = 'dashboard-page';
+const ACTIVE_TAB_STORAGE_KEY = 'collection_active_tab';
+
+const getInitialActiveTab = () => {
+    try {
+        const stored = sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+        if (stored && document.getElementById(stored)) return stored;
+    } catch (_) {}
+    return defaultTabId;
+};
+
 const linkItems = links.map((link) => ({
     link,
     target: link.dataset.target,
@@ -305,19 +314,13 @@ const applyTabVisibilityPreferences = () => {
         menuGroupLi?.classList.toggle('hidden', !hasAnyVisible);
     });
 
-    const currentTarget = getTargetFromHash(window.location.hash);
-    if (!isSubTabAllowedAndVisible(currentTarget)) {
+    const currentActive = sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || defaultTabId;
+    if (!isSubTabAllowedAndVisible(currentActive)) {
         activateTab(defaultTabId);
     }
 };
 
 const getLinkForTarget = (targetId) => links.find(link => link.dataset.target === targetId && !link.dataset.bottomNav) || links.find(link => link.dataset.target === targetId);
-const getTargetFromHash = (hashValue) => {
-    if (!hashValue) return defaultTabId;
-    const normalizedHash = hashValue.startsWith('#') ? hashValue : `#${hashValue}`;
-    const matchedLink = links.find(link => link.getAttribute('href') === normalizedHash);
-    return matchedLink?.dataset.target || defaultTabId;
-};
 
 const syncMasterLedgerState = () => {
     try {
@@ -342,10 +345,26 @@ const syncMasterLedgerState = () => {
 };
 window.syncMasterLedgerState = syncMasterLedgerState;
 
-const activateTab = (targetId, { updateHash = true } = {}) => {
+const OVERFLOW_COLLECTION_TABS = new Set([
+    'monthly-collected-page',
+    'fee-page',
+    'master-ledger-page',
+    'bulk-upload-page',
+    'donation-page',
+    'collector-wise-monthly-page',
+    'fee-settings-page',
+    'manage-groups-page',
+    'fee-concessions-page'
+]);
+
+const activateTab = (targetId) => {
     const safeTargetId = document.getElementById(targetId) ? targetId : defaultTabId;
     const activeLink = getLinkForTarget(safeTargetId);
     if (!activeLink) return;
+
+    try {
+        sessionStorage.setItem(ACTIVE_TAB_STORAGE_KEY, safeTargetId);
+    } catch (_) {}
 
     links.forEach(link => {
         const isActive = link.dataset.target === safeTargetId;
@@ -358,18 +377,6 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         tile.classList.toggle('active', isActive);
     });
 
-    const OVERFLOW_COLLECTION_TABS = new Set([
-        'monthly-collected-page',
-        'fee-page',
-        'master-ledger-page',
-        'bulk-upload-page',
-        'donation-page',
-        'conc-group-page',
-        'collector-wise-monthly-page',
-        'fee-settings-page',
-        'manage-groups-page',
-        'fee-concessions-page'
-    ]);
     const isOverflowActive = OVERFLOW_COLLECTION_TABS.has(safeTargetId);
     document.getElementById('btn-collection-more')?.classList.toggle('active', isOverflowActive);
 
@@ -386,8 +393,14 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
             mainApp.style.width = '99vw';
             mainApp.style.padding = '12px 10px';
             document.body.classList.add('ledger-fullwidth');
-            if (safeTargetId === 'master-ledger-page') syncMasterLedgerState();
-            if (safeTargetId === 'fee-page' && typeof renderFeeTable === 'function') renderFeeTable();
+            if (safeTargetId === 'master-ledger-page' && typeof syncMasterLedgerState === 'function') {
+                syncMasterLedgerState();
+            }
+            try {
+                if (safeTargetId === 'fee-page' && typeof renderFeeTable === 'function') {
+                    renderFeeTable();
+                }
+            } catch (_) {}
         } else {
             mainApp.style.maxWidth = '';
             mainApp.style.width = '';
@@ -396,7 +409,7 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
         }
     }
 
-    // Maintain clean URL without lingering hash fragments
+    // Ensure clean URL without lingering hash fragments
     if (window.location.hash) {
         try {
             history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -405,9 +418,6 @@ const activateTab = (targetId, { updateHash = true } = {}) => {
 
     setMobileMenuState(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    if (safeTargetId === 'conc-group-page' && typeof renderConcessionGroupOverview === 'function') {
-        renderConcessionGroupOverview();
-    }
     if (safeTargetId === 'fee-settings-page' && typeof renderFeeItemsManagement === 'function') {
         renderFeeItemsManagement();
     }
@@ -424,28 +434,12 @@ links.forEach(link => {
     link.addEventListener('click', (e) => {
         if (!link.dataset.target) return;
         e.preventDefault();
-        activateTab(link.dataset.target, { updateHash: false });
+        activateTab(link.dataset.target);
     });
 });
 
-window.addEventListener('hashchange', () => {
-    if (window.location.hash) {
-        try {
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-        } catch (_) {}
-    }
-    activateTab(defaultTabId, { updateHash: false });
-});
-window.addEventListener('popstate', () => {
-    if (window.location.hash) {
-        try {
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-        } catch (_) {}
-    }
-    activateTab(defaultTabId, { updateHash: false });
-});
-
-activateTab(defaultTabId, { updateHash: false });
+const initialTabId = getInitialActiveTab();
+activateTab(initialTabId);
 applyTabVisibilityPreferences();
 readTabPrefsFromCloud().then((cloudPrefs) => {
     if (!cloudPrefs) return;

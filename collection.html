@@ -303,87 +303,78 @@
             <nav class="flex-grow pb-4 space-y-1 overflow-y-auto">
                 <!-- 1. Dashboard -->
                 <div class="nav-group-static" data-menu-group="dashboard">
-                    <a href="#dashboard" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition active" data-target="dashboard-page" data-main-group="dashboard" title="Dashboard">
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition active" data-target="dashboard-page" data-main-group="dashboard" title="Dashboard">
                         <i class="fas fa-chart-pie w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Dashboard</span>
-                    </a>
+                    </button>
                 </div>
 
                 <!-- 2. Fee Collection Group -->
                 <div class="nav-group-static" data-menu-group="collection">
                     <div class="drawer-heading">Fee Collection</div>
-                    <a href="#home" id="nav-fee-entry" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="home-page" data-main-group="collection" title="Fee Entry">
+                    <button type="button" id="nav-fee-entry" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="home-page" data-main-group="collection" title="Fee Entry">
                         <i class="fas fa-edit w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Fee Entry</span>
-                    </a>
-                    <a href="#bulk-upload" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="bulk-upload-page" data-main-group="collection" title="Bulk Upload">
+                    </button>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="bulk-upload-page" data-main-group="collection" title="Bulk Upload">
                         <i class="fas fa-file-excel w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Bulk Upload</span>
-                    </a>
-                    <a href="#donation" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="donation-page" data-main-group="collection" title="Donation Entry">
+                    </button>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="donation-page" data-main-group="collection" title="Donation Entry">
                         <i class="fas fa-hand-holding-heart w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Donation Entry</span>
-                    </a>
+                    </button>
                 </div>
 
-                <!-- 3. Ledgers & Status Group -->
+                <!-- 3. Ledgers & Records Group -->
                 <div class="nav-group-static" data-menu-group="ledgers">
-                    <div class="drawer-heading">Ledgers &amp; Status</div>
-                    <a href="#fee" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-page" data-main-group="ledgers" title="Fee Status">
-                        <i class="fas fa-list w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Fee Status</span>
-                    </a>
-                    <a href="#master-ledger" id="nav-master-ledger" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="master-ledger-page" data-main-group="ledgers" title="Master Fee Ledger">
+                    <div class="drawer-heading">Ledgers &amp; Records</div>
+                    <button type="button" id="nav-master-ledger" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="master-ledger-page" data-main-group="ledgers" title="Master Fee Ledger">
                         <i class="fas fa-table-cells w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Master Fee Ledger</span>
-                    </a>
-                    <a href="#conc-group" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="conc-group-page" data-main-group="ledgers" title="Concession &amp; Group">
-                        <i class="fas fa-users-viewfinder w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Concession &amp; Group</span>
-                    </a>
+                    </button>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-page" data-main-group="ledgers" title="Fee Status">
+                        <i class="fas fa-list w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Fee Status</span>
+                    </button>
+                    <button type="button" id="nav-history" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="history-page" data-main-group="ledgers" title="Payment History">
+                        <i class="fas fa-history w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Payment History</span>
+                    </button>
                 </div>
 
-                <!-- 4. Reports & History Group -->
+                <!-- 4. Analytics & Directory Group -->
                 <div class="nav-group-static" data-menu-group="reports">
-                    <div class="drawer-heading">Reports &amp; History</div>
-                    <a href="#history" id="nav-history" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="history-page" data-main-group="reports" title="History">
-                        <i class="fas fa-history w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">History</span>
-                    </a>
-                    <a href="#monthly" id="nav-monthly" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="monthly-collected-page" data-main-group="reports" title="Monthly Report">
+                    <div class="drawer-heading">Analytics &amp; Directory</div>
+                    <button type="button" id="nav-monthly" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="monthly-collected-page" data-main-group="reports" title="Monthly Report">
                         <i class="fas fa-chart-bar w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Monthly Report</span>
-                    </a>
-                    <a href="#collector-wise" id="collector-wise-monthly-tab" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition hidden" data-target="collector-wise-monthly-page" data-main-group="reports" title="Collector-wise Monthly Total">
+                    </button>
+                    <button type="button" id="collector-wise-monthly-tab" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition hidden" data-target="collector-wise-monthly-page" data-main-group="reports" title="Collector-wise Monthly Total">
                         <i class="fas fa-users w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Collector-wise Monthly Total</span>
-                    </a>
-                </div>
-
-                <!-- 5. Students & Class Group -->
-                <div class="nav-group-static" data-menu-group="students">
-                    <div class="drawer-heading">Students &amp; Class</div>
-                    <a href="#students" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="students-page" data-main-group="students" title="Students">
+                    </button>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="students-page" data-main-group="reports" title="Students">
                         <i class="fas fa-user-graduate w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Students</span>
-                    </a>
+                    </button>
                 </div>
 
-                <!-- 6. Fee Management & Rules -->
+                <!-- 5. Fee Rules & Settings Group -->
                 <div class="nav-group-static" data-menu-group="finance">
-                    <div class="drawer-heading">Fee Management &amp; Rules</div>
-                    <a href="#fee-settings" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-settings-page" data-main-group="finance" title="Fee Settings">
+                    <div class="drawer-heading">Fee Rules &amp; Settings</div>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-settings-page" data-main-group="finance" title="Fee Settings">
                         <i class="fas fa-receipt w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Fee Settings</span>
-                    </a>
-                    <a href="#manage-groups" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="manage-groups-page" data-main-group="finance" title="Student Groups">
+                    </button>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="manage-groups-page" data-main-group="finance" title="Student Groups">
                         <i class="fas fa-layer-group w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Student Groups</span>
-                    </a>
-                    <a href="#fee-concessions" class="nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-concessions-page" data-main-group="finance" title="Fee Concessions">
+                    </button>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-concessions-page" data-main-group="finance" title="Fee Concessions">
                         <i class="fas fa-hand-holding-usd w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Fee Concessions</span>
-                    </a>
+                    </button>
                 </div>
             </nav>
             <div class="p-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2 shrink-0">
@@ -457,40 +448,7 @@
                 </div>
             </section>
 
-            <section id="conc-group-page" class="page-content hidden w-full">
-                <div class="card p-4 sm:p-5 shadow-sm bg-white rounded-2xl border border-slate-200">
-                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 mb-4 border-b border-slate-200 pb-3.5">
-                        <div>
-                            <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                                <span class="w-8 h-8 rounded-xl bg-blue-600 text-white inline-flex items-center justify-center text-sm shadow-xs"><i class="fas fa-users-viewfinder"></i></span>
-                                <span>Concession & Group Overview</span>
-                            </h2>
-                            <p class="text-xs text-slate-500 font-medium mt-0.5">Complete tabular directory of fee concessions and family/sibling billing groups</p>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                            <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200" id="conc-group-view-tabs">
-                                <button type="button" data-conc-view="concession" class="conc-view-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-blue-700 shadow-xs transition">Concessions</button>
-                                <button type="button" data-conc-view="group" class="conc-view-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition">Groups</button>
-                            </div>
-                            <select id="conc-group-class-select" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
-                                <option value="">All Classes</option>
-                            </select>
-                            <select id="conc-group-year-select" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer"></select>
-                        </div>
-                    </div>
-
-                    <div class="mb-4 relative">
-                        <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                        <input type="text" id="conc-group-search-input" class="w-full py-2.5 pl-9 pr-9 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition" placeholder="Search by student name, admission no, guardian, class, or fee amount...">
-                        <button type="button" id="conc-group-search-clear" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs items-center justify-center transition" title="Clear search">
-                            <i class="fas fa-times text-[10px]"></i>
-                        </button>
-                    </div>
-
-                    <div id="conc-group-summary" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4"></div>
-                    <div id="conc-group-content" class="space-y-5"></div>
-                </div>
-            </section>
+            
 
             <!-- 2. Fee Entry Page -->
             <section id="home-page" class="page-content hidden">
@@ -1748,11 +1706,23 @@
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Donation Entry</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="conc-group-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-purple-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-users-viewfinder"></i>
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-settings-page">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-sky-600 text-base sm:text-lg group-hover:scale-110 transition">
+                        <i class="fas fa-receipt"></i>
                     </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Concession &amp; Group</span>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Settings</span>
+                </button>
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="manage-groups-page">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-purple-600 text-base sm:text-lg group-hover:scale-110 transition">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Student Groups</span>
+                </button>
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-concessions-page">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-emerald-600 text-base sm:text-lg group-hover:scale-110 transition">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Concessions</span>
                 </button>
                 <a href="official.html" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer text-decoration-none">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
@@ -1765,55 +1735,7 @@
                         <i class="fas fa-sign-out-alt"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Sign Out</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    </div><!-- /#collection-app -->
-
-    <!-- UI Logic Script (For Tabs & Menus) -->
-    <script src="scripts/shared/hub-navigation.js"></script>
-    <script type="module" src="scripts/pages/collection-page.js"></script>
-
-
-    <!-- Edit Group Modal -->
-    <div id="edit-group-popup" class="fixed inset-0 popup-overlay items-center justify-center hidden px-4 z-50">
-        <div class="card rounded-2xl shadow-2xl p-6 w-full max-w-md mx-auto bg-white relative">
-            <h3 class="text-xl font-bold mb-4 text-gray-900 border-b pb-2">Edit Group</h3>
-            <input type="hidden" id="e-grp-id">
-            <div class="mb-4">
-                <label class="block text-sm font-semibold mb-1 text-blue-700">Group Monthly Fee (₹)</label>
-                <input type="number" id="e-grp-fee" class="w-full p-2.5 border border-blue-300 rounded-lg bg-blue-50 font-bold">
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-semibold mb-2">Members:</label>
-                <div id="e-grp-members" class="space-y-2 max-h-40 overflow-y-auto border p-2 rounded bg-gray-50"></div>
-            </div>
-            <div class="mb-4 border border-blue-100 rounded-lg p-3 bg-blue-50/50">
-                <label class="block text-sm font-semibold mb-2 text-blue-800">Add Student to Group</label>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
-                    <select id="e-grp-class-filter" class="p-2.5 border rounded-lg bg-white text-sm font-semibold sm:col-span-2">
-                        <option value="">Select Class</option>
-                    </select>
-                    <select id="e-grp-gender-filter" class="p-2.5 border rounded-lg bg-white text-sm font-semibold">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </div>
-                <div class="flex gap-2">
-                    <div class="flex-grow">
-                        <input id="e-grp-student-select" list="e-grp-student-options" class="w-full p-2.5 border rounded-lg bg-white text-sm font-semibold" autocomplete="off" placeholder="Select class first...">
-                        <datalist id="e-grp-student-options"></datalist>
-                    </div>
-                    <button id="e-grp-add-member" class="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 text-sm">Add</button>
-                </div>
-                <p class="text-xs text-gray-500 mt-2">Pick a class, type a student name, then choose from the suggestions.</p>
-            </div>
-            <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button id="edit-group-cancel" class="px-5 py-2.5 bg-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-300">Cancel</button>
-                <button id="edit-group-update" class="btn-primary px-6 py-2.5 rounded-lg font-bold shadow-md">Update Group</button>
-            </div>
+                </button></div>
         </div>
     </div>
 
