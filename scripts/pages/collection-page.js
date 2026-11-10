@@ -506,10 +506,12 @@ const getCollectorKey = () => normalizeEmail(currentCollectorKey || window.AppSe
 
 const isMasterSuperAdmin = () => {
     const staffAccess = window.AppSession?.getStaffAccess?.();
+    if (staffAccess?.actLikeSuperAdmin === true) return true;
     if (staffAccess && (staffAccess.source === 'staff' || staffAccess.staffId || staffAccess.userKey)) {
         return false;
     }
     const officialSession = getOfficialSession();
+    if (officialSession?.actLikeSuperAdmin === true) return true;
     if (officialSession && (officialSession.source === 'staff' || (officialSession.id && officialSession.id !== 'admin'))) {
         return false;
     }
@@ -800,13 +802,22 @@ const buildFeeStatusMatrix = () => {
     const fYear = document.getElementById('filter-academic-year')?.value || currentWorkingAcademicYear;
     let dutyFilteredStudents = [];
     if (isMasterSuperAdmin()) {
-        dutyFilteredStudents = students;
+        if (fCls === 'ALUMNI_DUES') {
+            dutyFilteredStudents = (allStudentsRaw || []).filter(s => {
+                const isAlum = s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni';
+                return isAlum;
+            });
+        } else {
+            dutyFilteredStudents = students;
+        }
     } else if (selectedDutyClasses && selectedDutyClasses.length > 0) {
         dutyFilteredStudents = students.filter((student) => isClassInDutyScope(student.class, selectedDutyClasses));
     } else {
         dutyFilteredStudents = [];
     }
-    const list = dutyFilteredStudents.filter(s => (fCls === 'all' || s.class === fCls) && (fGen === 'all' || s.gender === fGen));
+    const list = (fCls === 'ALUMNI_DUES')
+        ? dutyFilteredStudents.filter(s => fGen === 'all' || s.gender === fGen)
+        : dutyFilteredStudents.filter(s => (fCls === 'all' || s.class === fCls) && (fGen === 'all' || s.gender === fGen));
     const items = feeItems.filter((i) => {
         if (i.isVisible === false) return false;
         if (!fYear) return true;
@@ -2166,7 +2177,8 @@ const populateClassDropdowns = () => {
 
     if (isSuperAdmin) {
         const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts;
+        const alumniOption = `<option value="ALUMNI_DUES">🎓 Alumni Arrears (Graduated Dues)</option>`;
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts + alumniOption;
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
@@ -5676,7 +5688,7 @@ onAuthStateChanged(auth, async (user) => {
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const payload = snap.exists() ? snap.data() : {};
         academicYearSettings = Array.isArray(payload.years) ? payload.years : [];
-        currentWorkingAcademicYear = payload.currentYear || currentWorkingAcademicYear || '';
+        currentWorkingAcademicYear = payload.currentYear || payload.activeYear || currentWorkingAcademicYear || '';
         const yearHeaderEl = document.getElementById('header-active-year');
         if (yearHeaderEl) {
             yearHeaderEl.textContent = currentWorkingAcademicYear || 'Loading Session...';

@@ -598,6 +598,11 @@
                 removeKey(STUDENT_STATE_KEY);
             }
         },
+        canViewAlumni() {
+            if (hasAdminSession()) return true;
+            const access = this.getStaffAccess();
+            return access?.actLikeSuperAdmin === true || access?.canAccessAdmin === true;
+        },
         touchSession,
         guardStudentPage() {
             pruneExpiredStates();

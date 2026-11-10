@@ -1200,6 +1200,9 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
     }
 
     const setTab = (tab = 'dashboard') => {
+      if (tab === 'alumni' && isStaffClassRestricted()) {
+        tab = isWorksheetPage ? 'summary' : 'dashboard';
+      }
       if (!isWorksheetPage && tab !== 'dashboard') {
         window.location.href = `worksheet.html#${tab}`;
         return;
@@ -5052,6 +5055,10 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
         </div>
       `;
 
+      const isRestrictedExport = isStaffClassRestricted();
+      if (isRestrictedExport && builderConfig.sourceType === 'alumni') {
+        builderConfig.sourceType = 'students';
+      }
       const ribbonData = `
         <div id="ribbon-data" class="ribbon-panel ${builderConfig.activeTab === 'data' ? 'active' : ''}">
           <div class="ribbon-group">
@@ -5060,13 +5067,13 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">1. Data Module</label>
                 <select id="builder-source-type" class="excel-input-ribbon w-40 font-bold text-indigo-900">
                   <option value="students" ${builderConfig.sourceType === 'students' ? 'selected' : ''}>Students Register</option>
-                  <option value="alumni" ${builderConfig.sourceType === 'alumni' ? 'selected' : ''}>🎓 Alumni</option>
+                  ${!isRestrictedExport ? `<option value="alumni" ${builderConfig.sourceType === 'alumni' ? 'selected' : ''}>🎓 Alumni</option>` : ''}
                   <option value="staff" ${builderConfig.sourceType === 'staff' ? 'selected' : ''}>Staff & Management</option>
                   <option value="fees" ${builderConfig.sourceType === 'fees' ? 'selected' : ''}>Fee Collection Status</option>
                   <option value="results" ${builderConfig.sourceType === 'results' ? 'selected' : ''}>Exam Results & Marks</option>
                 </select>
               </div>
-              ${builderConfig.sourceType === 'alumni' ? `
+              ${builderConfig.sourceType === 'alumni' && !isRestrictedExport ? `
               <div class="flex flex-col">
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">2. Alumni Year</label>
                 <select id="builder-academic-year" class="excel-input-ribbon w-40 font-bold">
@@ -7550,10 +7557,16 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
     };
 
     const renderAll = () => {
+      const isRestricted = isStaffClassRestricted();
+      if (isRestricted) {
+        document.querySelectorAll('[data-tab="alumni"], a[href="#alumni"], .worksheet-more-tile[data-tab="alumni"]').forEach((el) => {
+          el.classList.add('hidden');
+        });
+      }
       renderDashboard();
       buildClassSummary();
       renderStudents();
-      renderAlumniTab();
+      if (!isRestricted) renderAlumniTab();
       renderStaffTab();
       if(document.getElementById('official-tab-export')?.classList.contains('flex')) {
           renderExportTab();

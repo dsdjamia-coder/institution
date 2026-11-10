@@ -283,15 +283,18 @@ const loadAcademicYears = async () => {
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
-            const rawYears = data.years || [];
-            if (Array.isArray(rawYears) && rawYears.length > 0) {
-                availableAcademicYears = rawYears.map((y) => typeof y === 'string' ? y : y.label || y.year || y.name || y.id).filter(Boolean);
+            const rawYears = Array.isArray(data.years) ? data.years : [];
+            const nonArchived = rawYears.filter(y => {
+                if (typeof y === 'object' && y !== null) return String(y.status || '').toLowerCase() !== 'archived';
+                return Boolean(y);
+            });
+            if (nonArchived.length > 0) {
+                availableAcademicYears = nonArchived.map((y) => typeof y === 'string' ? y : y.label || y.year || y.name || y.id).filter(Boolean);
             }
-            if (data.activeYear) {
-                currentAcademicYear = typeof data.activeYear === 'object' ? (data.activeYear.label || data.activeYear.year || '') : data.activeYear;
-                if (!selectedYear || !availableAcademicYears.includes(selectedYear)) {
-                    selectedYear = currentAcademicYear;
-                }
+            const rawActive = data.currentYear || data.activeYear || availableAcademicYears[0] || '2025-2026';
+            currentAcademicYear = typeof rawActive === 'object' ? (rawActive.label || rawActive.year || '') : String(rawActive || '');
+            if (!selectedYear || !availableAcademicYears.includes(selectedYear) || selectedYear === currentAcademicYear) {
+                selectedYear = currentAcademicYear;
             }
         }
 
@@ -304,6 +307,8 @@ const loadAcademicYears = async () => {
         if (yearBadge) {
             yearBadge.textContent = selectedYear || currentAcademicYear || 'Session Active';
         }
+
+        fetchStudentsAndClasses();
     }, (err) => {
         console.warn('Could not listen to academic years config:', err);
     });

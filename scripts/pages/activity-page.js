@@ -518,11 +518,13 @@ const setupRealtimeListeners = () => {
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
-            availableAcademicYears = data.years || [];
-            currentAcademicYear = data.activeYear || (availableAcademicYears[0]?.year || availableAcademicYears[0] || '2025-2026');
-            if (typeof currentAcademicYear === 'object') {
-                currentAcademicYear = currentAcademicYear.year || currentAcademicYear.label || '';
-            }
+            const rawYears = Array.isArray(data.years) ? data.years : [];
+            availableAcademicYears = rawYears.filter(y => {
+                if (typeof y === 'object' && y !== null) return String(y.status || '').toLowerCase() !== 'archived';
+                return Boolean(y);
+            });
+            const rawActive = data.currentYear || data.activeYear || (availableAcademicYears[0]?.label || availableAcademicYears[0]?.year || availableAcademicYears[0] || '2025-2026');
+            currentAcademicYear = (typeof rawActive === 'object' && rawActive !== null) ? (rawActive.label || rawActive.year || '') : String(rawActive || '');
         }
         const activeYearEl = document.getElementById('header-active-year');
         const dashSessionEl = document.getElementById('dash-banner-session');

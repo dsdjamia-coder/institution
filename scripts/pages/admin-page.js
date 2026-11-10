@@ -2464,9 +2464,12 @@ const closeAcademicYearEditPopup = () => {
 };
 
 const persistAcademicYears = async () => {
+    const effActiveYear = activeAcademicYear || currentAcademicYear;
     await setDoc(doc(db, `${BASE_PATH}/settings`, 'academicYears'), {
-        currentYear: activeAcademicYear || currentAcademicYear,
-        years: academicYears
+        currentYear: effActiveYear,
+        activeYear: effActiveYear,
+        years: academicYears,
+        updatedAt: Date.now()
     }, { merge: true });
 
     const activeRecord = getActiveAcademicYearRecord();
@@ -5566,6 +5569,10 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
         const statusVal = isAlumniSelected ? 'Alumni' : normalizeStudentStatus(rawStatusVal);
 
         const studentActiveYear = activeAcademicYear || currentAcademicYear;
+        const addPassedOutInput = document.getElementById('add-stu-passed-out-year')?.value?.trim();
+        const effectivePassedOutYear = (isAlumniSelected || statusVal === 'Alumni')
+            ? (addPassedOutInput || studentActiveYear)
+            : '';
         const nextStudent = {
             academicYear: studentActiveYear,
             class: cls,
@@ -5574,8 +5581,8 @@ document.getElementById('add-manual-btn')?.addEventListener('click', async () =>
             gender: gender,
             status: statusVal,
             isAlumni: isAlumniSelected || statusVal === 'Alumni',
-            passedOutYear: (isAlumniSelected || statusVal === 'Alumni') ? studentActiveYear : '',
-            graduatedYear: (isAlumniSelected || statusVal === 'Alumni') ? studentActiveYear : '',
+            passedOutYear: effectivePassedOutYear,
+            graduatedYear: effectivePassedOutYear,
             academicYears: {
                 [studentActiveYear]: {
                     class: cls,
@@ -5671,33 +5678,111 @@ const saveStudentPortalPermissions = async () => {
 document.getElementById('admin-toggle-student-photo-upload')?.addEventListener('change', saveStudentPortalPermissions);
 document.getElementById('admin-toggle-student-details-edit')?.addEventListener('change', saveStudentPortalPermissions);
 
+const updatePassedOutWrapper = (statusVal, classVal, wrapperId, selectId, defaultYear = '') => {
+    const isAlum = String(classVal || '').trim().toUpperCase() === 'ALUMNI' || String(statusVal || '').trim().toLowerCase() === 'alumni';
+    const wrapper = document.getElementById(wrapperId);
+    if (wrapper) wrapper.classList.toggle('hidden', !isAlum);
+    const sel = document.getElementById(selectId);
+    if (sel && isAlum && !sel.value) {
+        sel.value = defaultYear || activeAcademicYear || currentAcademicYear;
+    }
+};
+
 // Bi-directional sync between Class and Status for Add Student
 document.getElementById('add-stu-class')?.addEventListener('change', (e) => {
-    if (e.target.value === 'ALUMNI') {
+    const isAlum = e.target.value === 'ALUMNI';
+    if (isAlum) {
         const statusEl = document.getElementById('add-stu-status');
         if (statusEl) statusEl.value = 'Alumni';
     }
+    updatePassedOutWrapper(document.getElementById('add-stu-status')?.value, e.target.value, 'add-stu-passed-out-wrapper', 'add-stu-passed-out-year');
 });
 document.getElementById('add-stu-status')?.addEventListener('change', (e) => {
-    if (e.target.value === 'Alumni') {
+    const isAlum = e.target.value === 'Alumni';
+    if (isAlum) {
         const classEl = document.getElementById('add-stu-class');
         if (classEl) classEl.value = 'ALUMNI';
     }
+    updatePassedOutWrapper(e.target.value, document.getElementById('add-stu-class')?.value, 'add-stu-passed-out-wrapper', 'add-stu-passed-out-year');
 });
 
 // Bi-directional sync between Class and Status for Edit Student
 document.getElementById('e-stu-class')?.addEventListener('change', (e) => {
-    if (e.target.value === 'ALUMNI') {
+    const isAlum = e.target.value === 'ALUMNI';
+    if (isAlum) {
         const statusEl = document.getElementById('e-stu-status');
         if (statusEl) statusEl.value = 'Alumni';
     }
+    updatePassedOutWrapper(document.getElementById('e-stu-status')?.value, e.target.value, 'e-stu-passed-out-wrapper', 'e-stu-passed-out-year');
 });
 document.getElementById('e-stu-status')?.addEventListener('change', (e) => {
-    if (e.target.value === 'Alumni') {
+    const isAlum = e.target.value === 'Alumni';
+    if (isAlum) {
         const classEl = document.getElementById('e-stu-class');
         if (classEl) classEl.value = 'ALUMNI';
     }
+    updatePassedOutWrapper(e.target.value, document.getElementById('e-stu-class')?.value, 'e-stu-passed-out-wrapper', 'e-stu-passed-out-year');
 });
+
+const canUserViewAlumni = () => {
+    if (!isStaffAdminSession) return true;
+    return staffAdminRecord?.actLikeSuperAdmin === true || currentAdminRole === 'super_admin';
+};
+
+let manageStudentsViewMode = 'active'; // 'active' | 'alumni'
+
+const populateManageClassDropdown = (selectedYear = getActiveAcademicYearLabel()) => {
+    const filterManage = document.getElementById('filter-manage-class');
+    if (!filterManage) return;
+    const prevVal = filterManage.value;
+    const yearClasses = getClassesForYear(selectedYear);
+    const allowAlumni = canUserViewAlumni();
+
+    const tabsCont = document.getElementById('student-roster-view-tabs');
+    if (tabsCont) {
+        tabsCont.classList.toggle('hidden', !allowAlumni);
+    }
+
+    const alumniRecords = allowAlumni
+        ? (rawStudents || []).filter(s => normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI')
+        : [];
+    const alumniBatchYears = allowAlumni
+        ? [...new Set(alumniRecords.map(s => s.passedOutYear || s.graduatedYear).filter(Boolean))].sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }))
+        : [];
+
+    let optionsHtml = '';
+    // 1. Top Shortcuts
+    optionsHtml += `<option value="all">All Active Classes</option>`;
+    if (allowAlumni) {
+        optionsHtml += `<option value="ALUMNI">All Alumni (${alumniRecords.length})</option>`;
+    }
+
+    // 2. Active Classes Group
+    if (yearClasses.length > 0) {
+        optionsHtml += `<optgroup label="Active Classes">`;
+        yearClasses.forEach(cls => {
+            optionsHtml += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`;
+        });
+        optionsHtml += `</optgroup>`;
+    }
+
+    // 3. Alumni Batches Group
+    if (allowAlumni && alumniBatchYears.length > 0) {
+        optionsHtml += `<optgroup label="Alumni Batches (Passed Out Year)">`;
+        alumniBatchYears.forEach(batchYr => {
+            const count = alumniRecords.filter(s => (s.passedOutYear || s.graduatedYear) === batchYr).length;
+            optionsHtml += `<option value="ALUMNI_BATCH_${escapeHtml(batchYr)}">Alumni (${escapeHtml(batchYr)}) [${count}]</option>`;
+        });
+        optionsHtml += `</optgroup>`;
+    }
+
+    filterManage.innerHTML = optionsHtml;
+    if (prevVal && filterManage.querySelector(`option[value="${CSS.escape(prevVal)}"]`)) {
+        filterManage.value = prevVal;
+    } else {
+        filterManage.value = (manageStudentsViewMode === 'alumni' && allowAlumni) ? 'ALUMNI' : 'all';
+    }
+};
 
 // --- 3. MANAGE STUDENTS ---
 const populateClassDropdowns = () => {
@@ -5725,19 +5810,27 @@ const populateClassDropdowns = () => {
         }
     }
 
-    const filterManage = document.getElementById('filter-manage-class');
-    if (filterManage) {
-        const prevManageVal = filterManage.value;
-        const defaultClass = classes[0] || '';
-        filterManage.innerHTML = opts + `<option value="ALUMNI">Alumni</option><option value="all">All Classes</option>`;
-        if (prevManageVal && (classes.includes(prevManageVal) || prevManageVal === 'ALUMNI' || prevManageVal === 'all' || prevManageVal === 'GRADUATED')) {
-            filterManage.value = (prevManageVal === 'GRADUATED') ? 'ALUMNI' : prevManageVal;
-        } else if (defaultClass) {
-            filterManage.value = defaultClass;
-        } else {
-            filterManage.value = 'all';
-        }
+    const yearOptions = (academicYears || []).map(y => {
+        const yLbl = typeof y === 'string' ? y : (y?.label || y?.year || '');
+        return yLbl ? `<option value="${escapeHtml(yLbl)}">${escapeHtml(yLbl)}</option>` : '';
+    }).filter(Boolean).join('');
+    const addPassedOut = document.getElementById('add-stu-passed-out-year');
+    if (addPassedOut) {
+        const prev = addPassedOut.value;
+        addPassedOut.innerHTML = yearOptions;
+        if (prev) addPassedOut.value = prev;
+        else if (activeAcademicYear) addPassedOut.value = activeAcademicYear;
     }
+    const editPassedOut = document.getElementById('e-stu-passed-out-year');
+    if (editPassedOut) {
+        const prev = editPassedOut.value;
+        editPassedOut.innerHTML = yearOptions;
+        if (prev) editPassedOut.value = prev;
+        else if (activeAcademicYear) editPassedOut.value = activeAcademicYear;
+    }
+
+    const currentYearVal = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
+    populateManageClassDropdown(currentYearVal);
 
     const filterConc = document.getElementById('filter-conc-class'); const prevConcVal = filterConc.value;
     filterConc.innerHTML = `<option value="">-- All Classes / Select --</option>` + opts; if(classes.includes(prevConcVal)) filterConc.value = prevConcVal;
@@ -6107,12 +6200,49 @@ const renderStudentList = () => {
     if (cont) cont.classList.remove('hidden');
 
     const yearStudents = getStudentsForYear(selectedYear);
+    const allowAlumni = canUserViewAlumni();
+
+    // Update tab counts
+    const activeStudentsCount = (yearStudents || []).filter(s => {
+        const isAlum = normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
+        return !isAlum && normalizeStudentStatus(s.status) !== 'Discontinued';
+    }).length;
+    const alumniStudentsCount = (rawStudents || []).filter(s => normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI').length;
+
+    const countActiveEl = document.getElementById('count-active-students');
+    const countAlumniEl = document.getElementById('count-alumni-students');
+    if (countActiveEl) countActiveEl.textContent = String(activeStudentsCount);
+    if (countAlumniEl) countAlumniEl.textContent = String(alumniStudentsCount);
+
+    // Update Sub-Tab styling
+    const activeTabBtn = document.getElementById('student-view-tab-active');
+    const alumniTabBtn = document.getElementById('student-view-tab-alumni');
+    const isAlumniSelected = fCls === 'ALUMNI' || fCls.startsWith('ALUMNI_BATCH_');
+    if (activeTabBtn && alumniTabBtn) {
+        if (isAlumniSelected) {
+            alumniTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition bg-white text-purple-700 shadow-sm flex items-center gap-1.5 cursor-pointer';
+            activeTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition text-gray-600 hover:text-gray-900 flex items-center gap-1.5 cursor-pointer';
+        } else {
+            activeTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm flex items-center gap-1.5 cursor-pointer';
+            alumniTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition text-gray-600 hover:text-gray-900 flex items-center gap-1.5 cursor-pointer';
+        }
+    }
 
     const fil = yearStudents.filter(s => {
+        const isAlum = normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
+        if (!allowAlumni && isAlum) return false;
+
         let match = true;
-        if(fCls !== 'all') {
-            if (fCls === 'ALUMNI' || fCls === 'GRADUATED') match = match && (normalizeStudentStatus(s.status) === 'Alumni' || String(s.class || '').toUpperCase() === 'ALUMNI' || String(s.class || '').toUpperCase() === 'GRADUATED');
-            else match = match && s.class === fCls;
+        if (fCls === 'all') {
+            // All Active Classes - excludes Alumni!
+            match = match && !isAlum;
+        } else if (fCls === 'ALUMNI' || fCls === 'GRADUATED') {
+            match = match && isAlum;
+        } else if (fCls.startsWith('ALUMNI_BATCH_')) {
+            const batchYear = fCls.replace('ALUMNI_BATCH_', '').trim();
+            match = match && isAlum && ((s.passedOutYear || s.graduatedYear) === batchYear);
+        } else {
+            match = match && s.class === fCls;
         }
         if(fGen !== 'all') match = match && s.gender === fGen;
         if(fStatus !== 'all') {
@@ -6224,24 +6354,33 @@ const renderStudentList = () => {
 document.getElementById('filter-manage-academic-year')?.addEventListener('change', () => {
     studentManagePage = 1;
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
-    const yearClasses = getClassesForYear(selectedYear);
-    const opts = yearClasses.map(c => `<option value="${c}">${c}</option>`).join('');
-    const filterManage = document.getElementById('filter-manage-class');
-    if (filterManage) {
-        const prev = filterManage.value;
-        const defaultClass = yearClasses[0] || '';
-        filterManage.innerHTML = opts + `<option value="ALUMNI">Alumni</option><option value="all">All Classes</option>`;
-        if (prev && (yearClasses.includes(prev) || prev === 'ALUMNI' || prev === 'all' || prev === 'GRADUATED')) {
-            filterManage.value = (prev === 'GRADUATED') ? 'ALUMNI' : prev;
-        } else if (defaultClass) {
-            filterManage.value = defaultClass;
-        } else {
-            filterManage.value = 'all';
-        }
-    }
+    populateManageClassDropdown(selectedYear);
     renderStudentList();
 });
-document.getElementById('filter-manage-class')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
+document.getElementById('student-view-tab-active')?.addEventListener('click', () => {
+    manageStudentsViewMode = 'active';
+    const filterManage = document.getElementById('filter-manage-class');
+    if (filterManage) filterManage.value = 'all';
+    studentManagePage = 1;
+    renderStudentList();
+});
+document.getElementById('student-view-tab-alumni')?.addEventListener('click', () => {
+    manageStudentsViewMode = 'alumni';
+    const filterManage = document.getElementById('filter-manage-class');
+    if (filterManage) filterManage.value = 'ALUMNI';
+    studentManagePage = 1;
+    renderStudentList();
+});
+document.getElementById('filter-manage-class')?.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === 'ALUMNI' || val.startsWith('ALUMNI_BATCH_')) {
+        manageStudentsViewMode = 'alumni';
+    } else {
+        manageStudentsViewMode = 'active';
+    }
+    studentManagePage = 1;
+    renderStudentList();
+});
 document.getElementById('filter-manage-gender')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
 document.getElementById('filter-manage-status')?.addEventListener('change', () => { studentManagePage = 1; renderStudentList(); });
 document.getElementById('search-student-input')?.addEventListener('input', () => { studentManagePage = 1; renderStudentList(); });
@@ -6344,7 +6483,9 @@ const openEditStudentModal = (studentId) => {
         setVal('e-stu-mother-mobile', st.motherMobile || prof.motherMobile || '');
         setVal('e-stu-uid', st.uid || prof.uid || '');
         setVal('e-stu-addr', st.address || prof.address || '');
-        setVal('e-stu-status', targetCls === 'ALUMNI' ? 'Alumni' : normalizeStudentStatus(st.status || prof.status));
+        const isAlum = targetCls === 'ALUMNI' || normalizeStudentStatus(st.status || prof.status) === 'Alumni' || st.isAlumni === true;
+        setVal('e-stu-status', isAlum ? 'Alumni' : normalizeStudentStatus(st.status || prof.status));
+        updatePassedOutWrapper(isAlum ? 'Alumni' : '', targetCls, 'e-stu-passed-out-wrapper', 'e-stu-passed-out-year', st.passedOutYear || st.graduatedYear || activeAcademicYear || currentAcademicYear);
         setVal('e-stu-dob', normalizeToIsoDate(prof.dob || st.dob || ''));
         setVal('e-stu-adm-date', normalizeToIsoDate(prof.admDate || prof.adm_date || st.admDate || st.adm_date || ''));
         setVal('e-stu-adhaar', prof.adhaar || st.adhaar || '');
@@ -6376,6 +6517,10 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
     const finalStatus = isAlumniSelected ? 'Alumni' : normalizeStudentStatus(selectedStatus);
 
     const existingStudent = rawStudents.find((student) => student.id === editingStudentId) || {};
+    const editPassedOutVal = document.getElementById('e-stu-passed-out-year')?.value?.trim();
+    const effectivePassedOut = (isAlumniSelected || finalStatus === 'Alumni')
+        ? (editPassedOutVal || existingStudent.passedOutYear || existingStudent.graduatedYear || activeAcademicYear || currentAcademicYear)
+        : '';
     const updatedPayload = { 
         name: getVal('e-stu-name').toUpperCase(), 
         class: updatedClass, 
@@ -6383,8 +6528,8 @@ document.getElementById('edit-student-update')?.addEventListener('click', async 
         gender: document.getElementById('e-stu-gender')?.value || 'Male', 
         status: finalStatus,
         isAlumni: isAlumniSelected || finalStatus === 'Alumni',
-        passedOutYear: (isAlumniSelected || finalStatus === 'Alumni') ? (existingStudent.passedOutYear || existingStudent.graduatedYear || activeAcademicYear || currentAcademicYear) : '',
-        graduatedYear: (isAlumniSelected || finalStatus === 'Alumni') ? (existingStudent.graduatedYear || existingStudent.passedOutYear || activeAcademicYear || currentAcademicYear) : '',
+        passedOutYear: effectivePassedOut,
+        graduatedYear: effectivePassedOut,
         adm: getVal('e-stu-adm').toUpperCase(), 
         mobile: getVal('e-stu-mob'), 
         father: getVal('e-stu-fat').toUpperCase(), 
@@ -6461,11 +6606,21 @@ const getManagedStudentsForExport = () => {
     };
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     const yearStudents = getStudentsForYear(selectedYear);
+    const allowAlumni = canUserViewAlumni();
     const filtered = yearStudents.filter((s) => {
+        const isAlum = normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
+        if (!allowAlumni && isAlum) return false;
+
         let match = true;
-        if(fCls !== 'all') {
-            if (fCls === 'ALUMNI' || fCls === 'GRADUATED') match = match && (normalizeStudentStatus(s.status) === 'Alumni' || String(s.class || '').toUpperCase() === 'ALUMNI' || String(s.class || '').toUpperCase() === 'GRADUATED');
-            else match = match && s.class === fCls;
+        if (fCls === 'all') {
+            match = match && !isAlum;
+        } else if (fCls === 'ALUMNI' || fCls === 'GRADUATED') {
+            match = match && isAlum;
+        } else if (fCls.startsWith('ALUMNI_BATCH_')) {
+            const batchYear = fCls.replace('ALUMNI_BATCH_', '').trim();
+            match = match && isAlum && ((s.passedOutYear || s.graduatedYear) === batchYear);
+        } else {
+            match = match && s.class === fCls;
         }
         if(fGen !== 'all') match = match && s.gender === fGen;
         if(fStatus !== 'all') match = match && normalizeStudentStatus(s.status) === fStatus;
@@ -15702,12 +15857,16 @@ document.getElementById('academic-years-list').addEventListener('click', async (
     if (activateBtn) {
         if(!requirePermission('academic-years.manage')) return;
         activeAcademicYear = activateBtn.dataset.label;
+        currentAcademicYear = activeAcademicYear;
         academicYears = academicYears.map((year) => ({
             ...year,
             status: year.label === activeAcademicYear ? 'active' : (year.status === 'active' ? 'planning' : year.status)
         }));
         await persistAcademicYears();
         await logAuditEvent({ category: 'security', action: 'academic-year.activate', entityType: 'academicYear', entityId: activeAcademicYear, message: `Academic year activated: ${activeAcademicYear}.` });
+        showToast(`Academic year "${activeAcademicYear}" set as Current Academic Year.`, 'success');
+        renderAcademicYears();
+        refreshAcademicYearScopedData(true);
         return;
     }
 
@@ -15718,6 +15877,10 @@ document.getElementById('academic-years-list').addEventListener('click', async (
         academicYears = academicYears.map((year) => year.label === label ? { ...year, status: 'archived' } : year);
         await persistAcademicYears();
         await logAuditEvent({ category: 'security', action: 'academic-year.archive', entityType: 'academicYear', entityId: label, message: `Academic year archived: ${label}.` });
+        showToast(`Academic year "${label}" archived successfully.`, 'info');
+        renderAcademicYears();
+        refreshAcademicYearScopedData(false);
+        return;
     }
 });
 document.getElementById('academic-year-edit-cancel')?.addEventListener('click', closeAcademicYearEditPopup);
@@ -16024,7 +16187,8 @@ onAuthStateChanged(auth, async (user) => {
                     return normalized.length ? normalized : getDefaultClassLadder();
                 })()
             }));
-            activeAcademicYear = sanitizeAcademicYearLabel(data.currentYear || academicYears.find((year) => year.status === 'active')?.label || currentAcademicYear);
+            activeAcademicYear = sanitizeAcademicYearLabel(data.currentYear || data.activeYear || academicYears.find((year) => year.status === 'active')?.label || currentAcademicYear);
+            currentAcademicYear = activeAcademicYear;
             populateAcademicYearPresetSelector();
             const yearInput = document.getElementById('academic-year-input');
             const statusSelect = document.getElementById('academic-year-status');

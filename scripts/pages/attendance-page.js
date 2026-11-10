@@ -460,7 +460,7 @@ const setupFirestoreListeners = () => {
     // 2. Settings Academic Years
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const data = snap.exists() ? snap.data() : {};
-        currentAcademicYear = data.currentYear || '';
+        currentAcademicYear = data.currentYear || data.activeYear || '';
         const rawYears = Array.isArray(data.years) ? data.years : [];
         academicYearRecords = rawYears;
         availableAcademicYears = rawYears.filter(y => {

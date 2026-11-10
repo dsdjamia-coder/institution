@@ -853,6 +853,7 @@
                         <div class="col-span-1"><label class="block text-sm font-semibold mb-1">9. Date of Birth</label><input type="date" id="add-stu-dob" class="w-full p-2.5 border rounded-lg"></div>
                         <div class="col-span-1"><label class="block text-sm font-semibold mb-1">10. Date of Admission</label><input type="date" id="add-stu-adm-date" class="w-full p-2.5 border rounded-lg"></div>
                         <div class="col-span-1"><label class="block text-sm font-semibold mb-1">11. Student Status</label><select id="add-stu-status" class="w-full p-2.5 border rounded-lg"><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Alumni">Alumni</option></select></div>
+                        <div id="add-stu-passed-out-wrapper" class="col-span-1 hidden"><label class="block text-sm font-semibold mb-1 text-indigo-700">11b. Passed-out Academic Year <span class="mandatory-star">*</span></label><select id="add-stu-passed-out-year" class="w-full p-2.5 border border-indigo-300 rounded-lg bg-indigo-50/50 font-semibold text-indigo-900"></select></div>
                         <div class="col-span-1"><label class="block text-sm font-semibold mb-1">12. Aadhaar Number</label><input type="text" id="add-stu-adhaar" class="w-full p-2.5 border rounded-lg" placeholder="Aadhaar No."></div>
                         <div class="col-span-1"><label class="block text-sm font-semibold mb-1">13. Father's Phone Number</label><input type="tel" id="add-stu-mobile" class="w-full p-2.5 border rounded-lg" placeholder="Father's Phone Number"></div>
                         <div class="col-span-1"><label class="block text-sm font-semibold mb-1">14. Mother's Phone Number</label><input type="tel" id="add-stu-mother-mobile" class="w-full p-2.5 border rounded-lg" placeholder="Mother's Phone Number"></div>
@@ -1012,6 +1013,16 @@
                         </div>
                     </div>
                     
+                    <!-- Student Roster View Sub-Tabs (Active Classes vs Alumni Archive) -->
+                    <div id="student-roster-view-tabs" class="flex items-center gap-2 mb-4 p-1 bg-gray-100 rounded-xl w-fit border border-gray-200">
+                        <button id="student-view-tab-active" type="button" class="px-4 py-2 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm flex items-center gap-1.5 cursor-pointer">
+                            <i class="fas fa-users text-indigo-600"></i> Active Students (<span id="count-active-students">0</span>)
+                        </button>
+                        <button id="student-view-tab-alumni" type="button" class="px-4 py-2 rounded-lg text-xs font-bold transition text-gray-600 hover:text-gray-900 flex items-center gap-1.5 cursor-pointer">
+                            <i class="fas fa-graduation-cap text-purple-600"></i> Alumni Archive (<span id="count-alumni-students">0</span>)
+                        </button>
+                    </div>
+
                     <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-5">
                         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 mb-2">
                             <div><label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Academic Year</label><select id="filter-manage-academic-year" class="w-full p-2.5 border rounded-lg bg-white font-bold text-gray-800"></select></div>
@@ -3635,6 +3646,7 @@
                 <div class="col-span-1 lg:col-span-2"><label class="block text-sm font-semibold mb-1">9. Date of Birth</label><input type="date" id="e-stu-dob" class="w-full p-2.5 border rounded-lg bg-white"></div>
                 <div class="col-span-1 lg:col-span-2"><label class="block text-sm font-semibold mb-1">10. Date of Admission</label><input type="date" id="e-stu-adm-date" class="w-full p-2.5 border rounded-lg bg-white"></div>
                 <div class="col-span-1 lg:col-span-2"><label class="block text-sm font-semibold mb-1">11. Student Status</label><select id="e-stu-status" class="w-full p-2.5 border rounded-lg bg-white"><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Alumni">Alumni</option></select></div>
+                <div id="e-stu-passed-out-wrapper" class="col-span-1 lg:col-span-2 hidden"><label class="block text-sm font-semibold mb-1 text-indigo-700">11b. Passed-out Academic Year <span class="mandatory-star">*</span></label><select id="e-stu-passed-out-year" class="w-full p-2.5 border border-indigo-300 rounded-lg bg-indigo-50/50 font-semibold text-indigo-900"></select></div>
                 <div class="col-span-1 lg:col-span-2"><label class="block text-sm font-semibold mb-1">12. Aadhaar Number</label><input type="text" id="e-stu-adhaar" class="w-full p-2.5 border rounded-lg bg-white" placeholder="Aadhaar No."></div>
                 <div class="col-span-1 lg:col-span-2"><label class="block text-sm font-semibold mb-1">13. Father's Phone Number</label><input type="tel" id="e-stu-mob" class="w-full p-2.5 border rounded-lg bg-white" placeholder="Father's Phone Number"></div>
                 <div class="col-span-1 lg:col-span-2"><label class="block text-sm font-semibold mb-1">14. Mother's Phone Number</label><input type="tel" id="e-stu-mother-mobile" class="w-full p-2.5 border rounded-lg bg-white" placeholder="Mother's Phone Number"></div>

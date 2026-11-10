@@ -1251,8 +1251,9 @@ function initializeDataListeners() {
 
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const payload = snap.exists() ? snap.data() : {};
-        if (payload.currentYear) {
-            currentAcademicYear = payload.currentYear;
+        const effYear = payload.currentYear || payload.activeYear;
+        if (effYear) {
+            currentAcademicYear = effYear;
             try {
                 localStorage.setItem('app_current_academic_year', currentAcademicYear);
                 localStorage.setItem('current_academic_year', currentAcademicYear);
