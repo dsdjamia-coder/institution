@@ -244,12 +244,19 @@ export const renderStudentGroups = () => {
 
     const sTerm = (document.getElementById('grp-search-input')?.value || '').trim().toLowerCase();
     const fCls = document.getElementById('grp-class-filter')?.value || 'all';
+    const fSize = document.getElementById('filter-groups-size')?.value || 'all';
     const countBadge = document.getElementById('grp-count-badge');
 
     const uniqueGroups = Array.from(new Map((studentGroups || []).map((g) => [g.id, g])).values());
+    populateExistingGroupSizeFilter(uniqueGroups);
 
     const filteredGroups = uniqueGroups.filter((g) => {
-        const memberStudents = (g.memberIds || []).map((mid) => students.find((entry) => entry.id === mid) || rawStudents.find((entry) => entry.id === mid)).filter(Boolean);
+        const memberIds = g.memberIds || [];
+        if (fSize !== 'all' && memberIds.length !== parseInt(fSize, 10)) {
+            return false;
+        }
+
+        const memberStudents = memberIds.map((mid) => students.find((entry) => entry.id === mid) || rawStudents.find((entry) => entry.id === mid)).filter(Boolean);
 
         let matchClass = (fCls === 'all');
         if (!matchClass) {
@@ -281,7 +288,7 @@ export const renderStudentGroups = () => {
     });
 
     if (countBadge) {
-        if (fCls !== 'all' || sTerm) {
+        if (fCls !== 'all' || sTerm || fSize !== 'all') {
             countBadge.textContent = `Showing ${filteredGroups.length} of ${uniqueGroups.length} Groups`;
         } else {
             countBadge.textContent = `${uniqueGroups.length} Groups`;
@@ -414,6 +421,63 @@ const populateExistingGroupClassFilter = () => {
     if (!classFilter || classFilter.options.length > 1) return;
     const classes = ctx.getClasses();
     classFilter.innerHTML = '<option value="all">All Classes</option>' + classes.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+};
+
+const populateExistingGroupSizeFilter = (uniqueGroups = []) => {
+    const sizeSelect = document.getElementById('filter-groups-size');
+    if (!sizeSelect) return;
+    const curVal = sizeSelect.value || 'all';
+
+    const sizeCounts = {};
+    (uniqueGroups || []).forEach(g => {
+        const sz = (g.memberIds || []).length;
+        if (sz >= 2) {
+            sizeCounts[sz] = (sizeCounts[sz] || 0) + 1;
+        }
+    });
+
+    const sortedSizes = Object.keys(sizeCounts).map(Number).sort((a, b) => a - b);
+    let optionsHtml = `<option value="all">All Group Sizes (${uniqueGroups.length} Groups)</option>`;
+    sortedSizes.forEach(sz => {
+        const count = sizeCounts[sz];
+        const label = sz === 2 ? `2 Students (Pairs)` : `${sz} Students`;
+        optionsHtml += `<option value="${sz}">${label} (${count} Groups)</option>`;
+    });
+
+    sizeSelect.innerHTML = optionsHtml;
+    if (curVal && (curVal === 'all' || sortedSizes.includes(Number(curVal)))) {
+        sizeSelect.value = curVal;
+    }
+};
+
+export const populateConcessionClassFilters = () => {
+    const concClassFilter = document.getElementById('filter-conc-class');
+    const activeConcClassFilter = document.getElementById('active-conc-class-filter');
+    let classes = ctx.getClasses ? ctx.getClasses() : [];
+    if (!classes || !classes.length) {
+        const students = ctx.getStudents ? ctx.getStudents() : [];
+        classes = [...new Set(students.map(s => s.class).filter(Boolean))].sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+    }
+    if (!classes || !classes.length) return;
+
+    const validClasses = classes.filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED' && u !== 'ALUMNI_DUES';
+    });
+
+    const opts = validClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+    if (concClassFilter) {
+        const curVal = concClassFilter.value;
+        concClassFilter.innerHTML = '<option value="">-- All Classes / Select --</option>' + opts;
+        if (curVal && validClasses.includes(curVal)) concClassFilter.value = curVal;
+    }
+
+    if (activeConcClassFilter) {
+        const curVal = activeConcClassFilter.value;
+        activeConcClassFilter.innerHTML = '<option value="all">All Classes</option>' + opts;
+        if (curVal && (curVal === 'all' || validClasses.includes(curVal))) activeConcClassFilter.value = curVal;
+    }
 };
 
 const renderGroupStudentDatalist = (idx) => {
@@ -635,6 +699,7 @@ const handleConfirmGroupCreation = async () => {
 // =========================================================================
 
 export const renderConcessionsList = () => {
+    populateConcessionClassFilters();
     const fCls = document.getElementById('filter-conc-class')?.value || '';
     const sTerm = (document.getElementById('search-conc-input')?.value || '').trim().toLowerCase();
     const cont = document.getElementById('conc-list-container');
@@ -690,6 +755,7 @@ export const renderConcessionsList = () => {
 };
 
 const renderActiveConcessionsList = () => {
+    populateConcessionClassFilters();
     const cont = document.getElementById('active-concessions-list');
     const badge = document.getElementById('active-conc-count-badge');
     const statusLabel = document.getElementById('active-conc-filter-status');
@@ -1063,7 +1129,7 @@ export const initFinanceManagementModule = (stateContext) => {
     document.getElementById('unify-family-confirm-btn')?.addEventListener('click', handleConfirmGroupCreation);
 
     // Existing groups filters
-    ['grp-search-input', 'grp-class-filter'].forEach((id) => {
+    ['grp-search-input', 'grp-class-filter', 'filter-groups-size'].forEach((id) => {
         document.getElementById(id)?.addEventListener('input', renderStudentGroups);
         document.getElementById(id)?.addEventListener('change', renderStudentGroups);
     });

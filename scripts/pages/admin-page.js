@@ -9174,6 +9174,33 @@ const populateExistingGroupClassFilter = () => {
     }
 };
 
+const populateExistingGroupSizeFilter = (uniqueGroups = []) => {
+    const sizeSelect = document.getElementById('filter-groups-size');
+    if (!sizeSelect) return;
+    const curVal = sizeSelect.value || 'all';
+
+    const sizeCounts = {};
+    (uniqueGroups || []).forEach(g => {
+        const sz = (g.memberIds || []).length;
+        if (sz >= 2) {
+            sizeCounts[sz] = (sizeCounts[sz] || 0) + 1;
+        }
+    });
+
+    const sortedSizes = Object.keys(sizeCounts).map(Number).sort((a, b) => a - b);
+    let optionsHtml = `<option value="all">All Group Sizes (${uniqueGroups.length} Groups)</option>`;
+    sortedSizes.forEach(sz => {
+        const count = sizeCounts[sz];
+        const label = sz === 2 ? `2 Students (Pairs)` : `${sz} Students`;
+        optionsHtml += `<option value="${sz}">${label} (${count} Groups)</option>`;
+    });
+
+    sizeSelect.innerHTML = optionsHtml;
+    if (curVal && (curVal === 'all' || sortedSizes.includes(Number(curVal)))) {
+        sizeSelect.value = curVal;
+    }
+};
+
 const renderStudentGroups = () => {
     const listNode = document.getElementById('student-groups-list');
     if (!listNode) return;
@@ -9186,13 +9213,20 @@ const renderStudentGroups = () => {
 
     const sTerm = (document.getElementById('grp-search-input')?.value || '').trim().toLowerCase();
     const fCls = document.getElementById('grp-class-filter')?.value || 'all';
+    const fSize = document.getElementById('filter-groups-size')?.value || 'all';
     const countBadge = document.getElementById('grp-count-badge');
 
     // Deduplicate groups by unique ID to prevent any duplicate card display
     const uniqueGroups = Array.from(new Map((studentGroups || []).map((g) => [g.id, g])).values());
+    populateExistingGroupSizeFilter(uniqueGroups);
 
     const filteredGroups = uniqueGroups.filter((g) => {
-        const memberStudents = (g.memberIds || []).map((mid) => yearStudents.find((entry) => entry.id === mid) || rawStudents.find((entry) => entry.id === mid)).filter(Boolean);
+        const memberIds = g.memberIds || [];
+        if (fSize !== 'all' && memberIds.length !== parseInt(fSize, 10)) {
+            return false;
+        }
+
+        const memberStudents = memberIds.map((mid) => yearStudents.find((entry) => entry.id === mid) || rawStudents.find((entry) => entry.id === mid)).filter(Boolean);
 
         let matchClass = (fCls === 'all');
         if (!matchClass) {
@@ -9224,7 +9258,7 @@ const renderStudentGroups = () => {
     });
 
     if (countBadge) {
-        if (fCls !== 'all' || sTerm) {
+        if (fCls !== 'all' || sTerm || fSize !== 'all') {
             countBadge.textContent = `Showing ${filteredGroups.length} of ${uniqueGroups.length} Groups`;
         } else {
             countBadge.textContent = `${uniqueGroups.length} Groups`;
@@ -9506,6 +9540,9 @@ document.getElementById('group-creation-container').addEventListener('change', e
 
 document.getElementById('filter-groups-academic-year')?.addEventListener('change', () => {
     filterStudentGroupsForSelectedYear();
+    renderStudentGroups();
+});
+document.getElementById('filter-groups-size')?.addEventListener('change', () => {
     renderStudentGroups();
 });
 

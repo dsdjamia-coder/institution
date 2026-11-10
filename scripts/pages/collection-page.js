@@ -1484,14 +1484,21 @@ const getAvailableFeeYearsForStudent = (student) => {
     const configuredYears = academicYearSettings
         .filter((y) => y.status !== 'archived')
         .map((y) => y.label);
-    const years = [...new Set(
-        feeItems
-            .map((item) => item.academicYear)
-            .filter(Boolean)
-            .concat(configuredYears)
-            .concat([fallbackYear])
-    )]
-        .filter((year) => isYearVisibleInCollection(year))
+
+    const isAlum = student?.isAlumni === true || String(student?.status || '').toLowerCase() === 'alumni' || String(student?.class || '').toLowerCase() === 'alumni';
+    const studentHistYears = student?.academicYears ? Object.keys(student.academicYears) : [];
+    const gradYear = student?.passedOutYear || student?.graduatedYear;
+
+    const allYears = [
+        ...feeItems.map((item) => item.academicYear).filter(Boolean),
+        ...configuredYears,
+        fallbackYear,
+        ...studentHistYears,
+        gradYear
+    ].filter(Boolean);
+
+    const years = [...new Set(allYears)]
+        .filter((year) => isYearVisibleInCollection(year) || (isAlum && (studentHistYears.includes(year) || year === gradYear || year === fallbackYear)))
         .sort(compareAcademicYears);
     return years;
 };
@@ -2189,25 +2196,42 @@ const populateClassDropdowns = () => {
     const entryClassEl = document.getElementById('entry-class');
     const stuInfoClassEl = document.getElementById('stu-info-class');
     const bulkClassEl = document.getElementById('bulk-class');
+    const allowAlumni = canUserViewAlumni();
+    const alumniFilterOpt = allowAlumni ? `<optgroup label="Alumni &amp; Historical Arrears"><option value="ALUMNI_DUES">🎓 Alumni Arrears (Collect Past Dues)</option></optgroup>` : '';
+    const alumniEntryOpt = allowAlumni ? `<optgroup label="Alumni Archive"><option value="ALUMNI_DUES">🎓 Alumni (Graduated Students)</option></optgroup>` : '';
 
     if (isSuperAdmin) {
         const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts;
-        if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts;
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts + alumniFilterOpt;
+        if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
     } else if (classOptions.length > 0) {
         const opts = classOptions.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts;
-        if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts;
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts + alumniFilterOpt;
+        if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
     } else {
         const noClassOpt = `<option value="">No classes assigned</option>`;
-        if (filterClassEl) filterClassEl.innerHTML = noClassOpt;
-        if (entryClassEl) entryClassEl.innerHTML = noClassOpt;
+        if (filterClassEl) filterClassEl.innerHTML = noClassOpt + alumniFilterOpt;
+        if (entryClassEl) entryClassEl.innerHTML = noClassOpt + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = noClassOpt;
         if (bulkClassEl) bulkClassEl.innerHTML = noClassOpt;
+    }
+
+    // Synchronize Fee Concessions Class Filters
+    const filterConc = document.getElementById('filter-conc-class');
+    if (filterConc) {
+        const prevVal = filterConc.value;
+        filterConc.innerHTML = `<option value="">-- All Classes / Select --</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (classes.includes(prevVal)) filterConc.value = prevVal;
+    }
+    const activeConcClassFilter = document.getElementById('active-conc-class-filter');
+    if (activeConcClassFilter) {
+        const prevActVal = activeConcClassFilter.value;
+        activeConcClassFilter.innerHTML = `<option value="all">All Classes</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (prevActVal === 'all' || classes.includes(prevActVal)) activeConcClassFilter.value = prevActVal;
     }
 
     if (userExplicitClass && classOptions.includes(userExplicitClass)) {
@@ -2304,7 +2328,7 @@ const populateStudentSuggestions = (searchTerm = '') => {
     }
 
     const lowerTerm = (searchTerm || '').trim().toLowerCase();
-    const rawPool = Array.isArray(students) && students.length > 0 ? students : (Array.isArray(allStudentsRaw) ? allStudentsRaw : []);
+    const rawPool = (Array.isArray(allStudentsRaw) && allStudentsRaw.length > 0) ? allStudentsRaw : (Array.isArray(students) && students.length > 0 ? students : []);
     const allowAlumni = canUserViewAlumni();
     const studentPool = isMasterSuperAdmin()
         ? rawPool
