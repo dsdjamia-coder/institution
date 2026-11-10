@@ -97,6 +97,17 @@ initFinanceManagementModule({
 registerServiceWorker();
 hardenExternalLinks();
 enableSmartSelectWindowing(document, { visibleCount: 6 });
+
+const prefillDefaultDates = () => {
+    try {
+        const todayIso = new Date().toISOString().split('T')[0];
+        const entryDate = document.getElementById('entry-date');
+        if (entryDate && !entryDate.value) entryDate.value = todayIso;
+        const donationDate = document.getElementById('donation-date');
+        if (donationDate && !donationDate.value) donationDate.value = todayIso;
+    } catch (_) {}
+};
+prefillDefaultDates();
 const syncCollectionPwaMode = () => {
     const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator?.standalone === true;
     document.body.classList.toggle('pwa-standalone', Boolean(isStandalone));
@@ -228,7 +239,7 @@ collectionMoreSheet?.addEventListener('click', (e) => {
 });
 document.getElementById('mobile-more-logout-btn')?.addEventListener('click', () => {
     closeCollectionMoreSheet();
-    document.getElementById('logout-btn')?.click();
+    handleCollectionLogout();
 });
 document.getElementById('collection-mobile-menu-btn')?.addEventListener('click', () => {
     setCollectionSidebarCollapsed(false);
@@ -1037,12 +1048,23 @@ const openProfileHandler = (e) => {
 document.getElementById('open-profile-btn')?.addEventListener('click', openProfileHandler);
 document.getElementById('header-user-badge')?.addEventListener('click', openProfileHandler);
 
-document.getElementById('logout-btn')?.addEventListener('click', () => {
-    signOut(auth).then(async () => {
-        await window.AppSession?.clearAll({ purgeClientData: true });
+const handleCollectionLogout = async () => {
+    try {
+        if (window.AppSession?.signOut) {
+            await window.AppSession.signOut(auth, { redirectUrl: 'index.html' });
+        } else {
+            await signOut(auth);
+            await window.AppSession?.clearAll({ purgeClientData: true });
+            window.location.href = 'index.html';
+        }
+    } catch (err) {
+        console.warn('Logout error, forcing redirect:', err);
         window.location.href = 'index.html';
-    });
-});
+    }
+};
+
+document.getElementById('logout-btn')?.addEventListener('click', handleCollectionLogout);
+document.getElementById('sidebar-logout-btn')?.addEventListener('click', handleCollectionLogout);
 
 // --- HELPER FUNCTIONS ---
 const getStudentById = (id) => students.find(s => s.id === id) || (allStudentsRaw || []).find(s => s.id === id);

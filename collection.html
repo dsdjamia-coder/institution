@@ -378,13 +378,13 @@
                 </div>
             </nav>
             <div class="p-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2 shrink-0">
-                <a href="official.html" id="back-to-official-btn" class="sidebar-footer-btn bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-lg font-bold transition text-xs" title="Back to Official Portal">
+                <a href="official.html" id="back-to-official-btn" class="sidebar-footer-btn bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-xl font-bold transition text-xs" title="Official Hub">
                     <i class="fas fa-th-large text-indigo-600 shrink-0"></i>
-                    <span class="sidebar-btn-label truncate">Back to Official Portal</span>
+                    <span class="sidebar-btn-label truncate">Official Hub</span>
                 </a>
-                <button id="logout-btn" class="sidebar-footer-btn btn-danger flex items-center justify-center gap-2 w-full p-2.5 rounded-lg font-bold transition text-xs" title="Logout">
+                <button id="sidebar-logout-btn" type="button" class="sidebar-footer-btn bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center justify-center gap-2 w-full p-2.5 rounded-xl font-bold transition text-xs cursor-pointer" title="Sign Out">
                     <i class="fas fa-sign-out-alt shrink-0"></i>
-                    <span class="sidebar-btn-label truncate">Logout</span>
+                    <span class="sidebar-btn-label truncate">Sign Out</span>
                 </button>
             </div>
         </aside>
@@ -1735,9 +1735,12 @@
                         <i class="fas fa-sign-out-alt"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Sign Out</span>
-                </button></div>
+                </button>
+            </div>
         </div>
     </div>
+
+    </div><!-- /#collection-app -->
 
     <!-- Unify Family & Guardian Details Confirmation Modal for Student Group -->
     <div id="group-unify-family-modal" class="fixed inset-0 bg-black/60 items-center justify-center hidden p-4 z-[9999] overflow-y-auto">
@@ -1843,6 +1846,10 @@
             </div>
         </div>
     </div>
+
+    <!-- UI Logic Script (For Tabs & Menus) -->
+    <script src="scripts/shared/hub-navigation.js"></script>
+    <script type="module" src="scripts/pages/collection-page.js"></script>
 
 </body>
 </html>
