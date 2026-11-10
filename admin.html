@@ -80,7 +80,8 @@
                 
                 <div class="drawer-heading">Student Management</div>
                 <a href="#add-students" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Add Students"><i class="fas fa-user-plus w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Add Students</span></a>
-                <a href="#manage-students" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Manage Students"><i class="fas fa-users-cog w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Manage Students</span></a>
+                <a href="#manage-students" id="nav-manage-students" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Manage Students"><i class="fas fa-users-cog w-5 text-center shrink-0"></i><span class="text-sm nav-text truncate">Manage Students</span></a>
+                <a href="#manage-alumni" id="nav-manage-alumni" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Manage Alumni"><i class="fas fa-graduation-cap w-5 text-center shrink-0 text-purple-600"></i><span class="text-sm nav-text truncate">Manage Alumni</span></a>
                 <a href="#manage-classes" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Classes & Divisions"><i class="fas fa-chalkboard text-center w-5 shrink-0"></i><span class="text-sm nav-text truncate">Classes & Divisions</span></a>
                 <a href="#student-counts" class="nav-link drawer-link flex items-center gap-3 p-3 transition" title="Student Counts by Class"><i class="fas fa-chart-bar text-center w-5 shrink-0"></i><span class="text-sm nav-text truncate">Student Counts</span></a>
                 
@@ -719,20 +720,13 @@
                                     <div class="pr-2">
                                         <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                                             <i class="fas fa-user-shield text-violet-600"></i>
-                                            <span>8. Admin Panel</span>
+                                            <span>8. Admin Panel Access</span>
                                         </div>
-                                        <p class="text-[10px] text-slate-500 mt-1">Full system &amp; settings control</p>
+                                        <p class="text-[10px] text-slate-500 mt-1">Full administrative control across all portals and settings.</p>
+                                        <p class="text-[10px] text-violet-600 font-semibold mt-0.5">Enabling this grants complete Super Admin privileges.</p>
                                     </div>
                                     <input type="checkbox" id="st-can-access-admin" class="w-4 h-4 mt-0.5 rounded text-violet-600 shrink-0">
                                 </label>
-                                <!-- Sub-option: Act like Super Admin -->
-                                <div id="st-super-admin-subwrap" class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between pl-2.5 pr-1 py-1 rounded-lg bg-amber-50/70 border border-amber-200">
-                                    <label for="st-act-like-super-admin" class="cursor-pointer text-[11px] font-semibold text-amber-900 flex items-center gap-1.5">
-                                        <i class="fas fa-crown text-amber-500 text-xs"></i>
-                                        <span>Act like Super Admin</span>
-                                    </label>
-                                    <input type="checkbox" id="st-act-like-super-admin" class="w-4 h-4 rounded text-amber-600 shrink-0">
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1013,22 +1007,12 @@
                         </div>
                     </div>
                     
-                    <!-- Student Roster View Sub-Tabs (Active Classes vs Alumni Archive) -->
-                    <div id="student-roster-view-tabs" class="flex items-center gap-2 mb-4 p-1 bg-gray-100 rounded-xl w-fit border border-gray-200">
-                        <button id="student-view-tab-active" type="button" class="px-4 py-2 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm flex items-center gap-1.5 cursor-pointer">
-                            <i class="fas fa-users text-indigo-600"></i> Active Students (<span id="count-active-students">0</span>)
-                        </button>
-                        <button id="student-view-tab-alumni" type="button" class="px-4 py-2 rounded-lg text-xs font-bold transition text-gray-600 hover:text-gray-900 flex items-center gap-1.5 cursor-pointer">
-                            <i class="fas fa-graduation-cap text-purple-600"></i> Alumni Archive (<span id="count-alumni-students">0</span>)
-                        </button>
-                    </div>
-
                     <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-5">
                         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 mb-2">
                             <div><label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Academic Year</label><select id="filter-manage-academic-year" class="w-full p-2.5 border rounded-lg bg-white font-bold text-gray-800"></select></div>
-                            <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Class</label><select id="filter-manage-class" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All Classes</option><option value="ALUMNI">Alumni</option></select></div>
+                            <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Class</label><select id="filter-manage-class" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All Classes</option></select></div>
                             <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Gender</label><select id="filter-manage-gender" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
-                            <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Status</label><select id="filter-manage-status" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All Active</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Alumni">Alumni</option><option value="Discontinued">Discontinued</option></select></div>
+                            <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Filter by Status</label><select id="filter-manage-status" class="w-full p-2.5 border rounded-lg bg-white"><option value="all">All Active</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Discontinued">Discontinued</option></select></div>
                             <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sort Students</label><select id="sort-manage-students" class="w-full p-2.5 border rounded-lg bg-white"><option value="name-asc">Alphabet Order</option><option value="adm-asc">Number Order</option><option value="male-first">Male then Female</option></select></div>
                             <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quick Search</label><div class="relative"><input type="text" id="search-student-input" placeholder="Search name, adm, phone, UID..." class="w-full p-2.5 pl-9 border rounded-lg bg-white"><i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i></div></div>
                         </div>
@@ -1091,6 +1075,108 @@
                             <span id="student-page-number-display-bottom" class="font-extrabold text-gray-800 px-2">Page 1 / 5</span>
                             <button type="button" id="student-next-page-btn-bottom" class="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white font-extrabold text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition flex items-center gap-1">
                                 Next <i class="fas fa-chevron-right text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3.5 Dedicated Manage Alumni Archive -->
+            <section id="manage-alumni-page" class="page hidden">
+                <div class="card p-5 rounded-xl shadow-sm">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 text-lg shrink-0 shadow-2xs">
+                                <i class="fas fa-graduation-cap"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    Manage Alumni Archive
+                                    <span id="alumni-total-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-purple-100 text-purple-800 border border-purple-200">0 Alumni</span>
+                                </h2>
+                                <p class="text-xs text-gray-500 mt-0.5">Comprehensive graduated student archive with completion classes, graduation batches, and records.</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="admin-quick-action bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition" data-target-page="batch-promotion"><i class="fas fa-graduation-cap"></i> Class Promotion</button>
+                            <button type="button" id="export-alumni-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition cursor-pointer"><i class="fas fa-file-excel"></i> Excel</button>
+                            <button type="button" id="export-alumni-csv-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition cursor-pointer"><i class="fas fa-file-csv"></i> CSV</button>
+                            <button type="button" id="export-alumni-pdf-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-2 transition cursor-pointer"><i class="fas fa-file-pdf"></i> PDF</button>
+                        </div>
+                    </div>
+
+                    <!-- Alumni Filter Bar -->
+                    <div class="bg-purple-50/50 p-4 rounded-xl border border-purple-100 mb-5">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-purple-900 uppercase tracking-wider mb-1">Graduation Batch / Year</label>
+                                <select id="filter-alumni-batch" class="w-full p-2.5 border border-purple-200 rounded-lg bg-white font-semibold text-gray-800">
+                                    <option value="all">All Batches (All Alumni)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Filter by Gender</label>
+                                <select id="filter-alumni-gender" class="w-full p-2.5 border border-gray-300 rounded-lg bg-white font-medium text-gray-800">
+                                    <option value="all">All Genders</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Search Alumni</label>
+                                <div class="relative">
+                                    <input type="text" id="search-alumni-input" placeholder="Search by name, admission no, phone, father name..." class="w-full p-2.5 pl-9 border border-gray-300 rounded-lg bg-white font-medium">
+                                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alumni Table Container -->
+                    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-2xs">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="bg-gray-100/80 text-gray-700 uppercase text-[11px] font-extrabold tracking-wider border-b border-gray-200">
+                                <tr>
+                                    <th class="p-3 text-center w-12">#</th>
+                                    <th class="p-3 text-center w-14">Photo</th>
+                                    <th class="p-3">Adm No</th>
+                                    <th class="p-3">Student Name</th>
+                                    <th class="p-3">Graduation Batch</th>
+                                    <th class="p-3">Completed Class</th>
+                                    <th class="p-3">Guardian &amp; Contact</th>
+                                    <th class="p-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alumni-table-body" class="divide-y divide-gray-100">
+                                <tr>
+                                    <td colspan="8" class="text-center py-12 text-gray-400 font-medium">
+                                        <i class="fas fa-spinner fa-spin text-2xl mb-2 text-purple-600 block"></i>
+                                        Loading alumni records...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Alumni Empty State -->
+                    <div id="alumni-list-empty-state" class="hidden text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300 mt-4">
+                        <div class="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                            <i class="fas fa-graduation-cap"></i>
+                        </div>
+                        <h4 class="text-base font-bold text-gray-800">No Alumni Records Found</h4>
+                        <p class="text-xs text-gray-500 mt-1 max-w-md mx-auto">No graduated students match the selected batch or search filter.</p>
+                    </div>
+
+                    <!-- Alumni Pagination -->
+                    <div id="alumni-pagination-container" class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div class="text-gray-500 font-semibold" id="alumni-pagination-count">Showing 0 alumni</div>
+                        <div class="flex items-center gap-1.5" id="alumni-pagination-controls">
+                            <button type="button" id="alumni-prev-page-btn" class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition">
+                                <i class="fas fa-chevron-left mr-1"></i> Prev
+                            </button>
+                            <span id="alumni-page-indicator" class="font-bold text-gray-800 px-2">Page 1</span>
+                            <button type="button" id="alumni-next-page-btn" class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition">
+                                Next <i class="fas fa-chevron-right ml-1"></i>
                             </button>
                         </div>
                     </div>
@@ -3209,20 +3295,13 @@
                             <div class="pr-2">
                                 <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                                     <i class="fas fa-user-shield text-violet-600"></i>
-                                    <span>8. Admin Panel</span>
+                                    <span>8. Admin Panel Access</span>
                                 </div>
-                                <p class="text-[10px] text-slate-500 mt-0.5">Full system &amp; settings control</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Full administrative control across all portals and settings.</p>
+                                <p class="text-[10px] text-violet-600 font-semibold mt-0.5">Enabling this grants complete Super Admin privileges.</p>
                             </div>
                             <input type="checkbox" id="e-st-can-access-admin" class="w-4 h-4 mt-0.5 rounded text-violet-600 shrink-0">
                         </label>
-                        <!-- Sub-option: Act like Super Admin -->
-                        <div id="e-st-super-admin-subwrap" class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between pl-2.5 pr-1 py-1 rounded-lg bg-amber-50/70 border border-amber-200">
-                            <label for="e-st-act-like-super-admin" class="cursor-pointer text-[11px] font-semibold text-amber-900 flex items-center gap-1.5">
-                                <i class="fas fa-crown text-amber-500 text-xs"></i>
-                                <span>Act like Super Admin</span>
-                            </label>
-                            <input type="checkbox" id="e-st-act-like-super-admin" class="w-4 h-4 rounded text-amber-600 shrink-0">
-                        </div>
                     </div>
                 </div>
             </div>

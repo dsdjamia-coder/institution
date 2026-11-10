@@ -601,7 +601,9 @@
         canViewAlumni() {
             if (hasAdminSession()) return true;
             const access = this.getStaffAccess();
-            return access?.actLikeSuperAdmin === true || access?.canAccessAdmin === true;
+            if (access?.actLikeSuperAdmin === true || access?.canAccessAdmin === true) return true;
+            const duty = Array.isArray(access?.dutyClasses) ? access.dutyClasses : [];
+            return duty.some(c => String(c).trim().toUpperCase() === 'ALUMNI');
         },
         touchSession,
         guardStudentPage() {

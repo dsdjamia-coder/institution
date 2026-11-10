@@ -1063,6 +1063,17 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
       return true;
     }
 
+    function canUserViewAlumni() {
+      if (!isStaffClassRestricted()) return true;
+      const staffAccess = window.AppSession?.getStaffAccess?.() || userSession?.access || {};
+      const staffProfile = getCurrentSessionProfile() || {};
+      if (staffAccess?.actLikeSuperAdmin === true || staffProfile?.actLikeSuperAdmin === true || staffAccess?.canAccessAdmin === true || staffProfile?.canAccessAdmin === true) {
+        return true;
+      }
+      const duty = getEffectiveStaffAssignedClasses();
+      return duty.some((d) => String(d).trim().toUpperCase() === 'ALUMNI');
+    }
+
     function isClassInDutyScope(clsName = '', dutyList = []) {
       if (!isStaffClassRestricted()) return true;
       if (!Array.isArray(dutyList) || dutyList.length === 0) return false;
@@ -5055,8 +5066,8 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
         </div>
       `;
 
-      const isRestrictedExport = isStaffClassRestricted();
-      if (isRestrictedExport && builderConfig.sourceType === 'alumni') {
+      const canAccessAlumni = canUserViewAlumni();
+      if (!canAccessAlumni && builderConfig.sourceType === 'alumni') {
         builderConfig.sourceType = 'students';
       }
       const ribbonData = `
@@ -5067,13 +5078,13 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">1. Data Module</label>
                 <select id="builder-source-type" class="excel-input-ribbon w-40 font-bold text-indigo-900">
                   <option value="students" ${builderConfig.sourceType === 'students' ? 'selected' : ''}>Students Register</option>
-                  ${!isRestrictedExport ? `<option value="alumni" ${builderConfig.sourceType === 'alumni' ? 'selected' : ''}>🎓 Alumni</option>` : ''}
+                  ${canAccessAlumni ? `<option value="alumni" ${builderConfig.sourceType === 'alumni' ? 'selected' : ''}>🎓 Alumni</option>` : ''}
                   <option value="staff" ${builderConfig.sourceType === 'staff' ? 'selected' : ''}>Staff & Management</option>
                   <option value="fees" ${builderConfig.sourceType === 'fees' ? 'selected' : ''}>Fee Collection Status</option>
                   <option value="results" ${builderConfig.sourceType === 'results' ? 'selected' : ''}>Exam Results & Marks</option>
                 </select>
               </div>
-              ${builderConfig.sourceType === 'alumni' && !isRestrictedExport ? `
+              ${builderConfig.sourceType === 'alumni' && canAccessAlumni ? `
               <div class="flex flex-col">
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">2. Alumni Year</label>
                 <select id="builder-academic-year" class="excel-input-ribbon w-40 font-bold">
@@ -7557,16 +7568,20 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
     };
 
     const renderAll = () => {
-      const isRestricted = isStaffClassRestricted();
-      if (isRestricted) {
+      const canAccessAlumni = canUserViewAlumni();
+      if (!canAccessAlumni) {
         document.querySelectorAll('[data-tab="alumni"], a[href="#alumni"], .worksheet-more-tile[data-tab="alumni"]').forEach((el) => {
           el.classList.add('hidden');
+        });
+      } else {
+        document.querySelectorAll('[data-tab="alumni"], a[href="#alumni"], .worksheet-more-tile[data-tab="alumni"]').forEach((el) => {
+          el.classList.remove('hidden');
         });
       }
       renderDashboard();
       buildClassSummary();
       renderStudents();
-      if (!isRestricted) renderAlumniTab();
+      if (canAccessAlumni) renderAlumniTab();
       renderStaffTab();
       if(document.getElementById('official-tab-export')?.classList.contains('flex')) {
           renderExportTab();

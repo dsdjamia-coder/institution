@@ -93,6 +93,7 @@ const PAGE_PERMISSIONS = {
     'manage-staff': 'staff.manage',
     'add-students': 'students.manage',
     'manage-students': 'students.manage',
+    'manage-alumni': 'students.manage',
     'student-continuity': 'students.manage',
     'student-counts': 'students.manage',
     'manage-classes': 'classes.manage',
@@ -1752,10 +1753,14 @@ const renderAuditLogList = () => {
     }).join('') : '<p class="text-xs text-slate-500 py-6 text-center italic">No audit entries match the current filters.</p>';
 };
 const applyRoleAccessUI = () => {
+    const allowAlumni = typeof canUserViewAlumni === 'function' ? canUserViewAlumni() : true;
     document.querySelectorAll('.nav-link').forEach((link) => {
         const target = link.getAttribute('href')?.replace('#', '');
         const permission = PAGE_PERMISSIONS[target];
-        const allowed = !permission || hasPermission(permission);
+        let allowed = !permission || hasPermission(permission);
+        if (target === 'manage-alumni') {
+            allowed = allowed && allowAlumni;
+        }
         link.classList.toggle('hidden', !allowed);
     });
 
@@ -2562,6 +2567,7 @@ const refreshAcademicYearScopedData = (forceActive = false) => {
 
     if(!document.getElementById('manage-classes-page').classList.contains('hidden')) renderClassList();
     if(!document.getElementById('manage-students-page').classList.contains('hidden')) renderStudentList();
+    if(!document.getElementById('manage-alumni-page')?.classList.contains('hidden') && typeof renderAlumniList === 'function') renderAlumniList();
     if(!document.getElementById('student-continuity-page')?.classList.contains('hidden')) renderContinuityPage();
     if(!document.getElementById('manage-groups-page').classList.contains('hidden')) renderStudentGroups();
     if(!document.getElementById('fee-concessions-page').classList.contains('hidden')) renderConcessionsList();
@@ -2781,6 +2787,7 @@ const activateAdminPage = (targetId, options = {}) => {
     if(targetId === 'academic-years') renderAcademicYears();
     if(targetId === 'workflow-modules') renderWorkflowModules();
     if(targetId === 'manage-students') { populateManageAcademicYearDropdown(); populateClassDropdowns(); renderStudentList(); }
+    if(targetId === 'manage-alumni') { if(typeof renderAlumniList === 'function') renderAlumniList(); }
     if(targetId === 'student-counts') renderStudentCountsTab();
     if(targetId === 'batch-promotion' || targetId === 'promote-students') renderBatchPromotionPage();
     if(targetId === 'student-continuity') renderContinuityPage();
@@ -3472,9 +3479,9 @@ const renderStaffClassCheckboxes = (prefix = 'st', selectedClasses = []) => {
         grid.innerHTML = '<p class="col-span-full text-xs text-gray-500 italic p-2">No classes configured for active academic year. Please add classes in Classes &amp; Divisions first.</p>';
         return;
     }
-    const selectedSet = new Set((Array.isArray(selectedClasses) ? selectedClasses : []).map(c => String(c).trim()));
-    grid.innerHTML = dutyClassList.map((cls) => {
-        const checked = selectedSet.has(String(cls).trim()) ? 'checked' : '';
+    const selectedSet = new Set((Array.isArray(selectedClasses) ? selectedClasses : []).map(c => String(c).trim().toUpperCase()));
+    const classCheckboxesHtml = dutyClassList.map((cls) => {
+        const checked = selectedSet.has(String(cls).trim().toUpperCase()) ? 'checked' : '';
         return `
             <label class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold cursor-pointer hover:bg-blue-50 transition">
                 <input type="checkbox" class="staff-class-checkbox w-4 h-4 text-blue-600 rounded" value="${escapeHtml(cls)}" ${checked}>
@@ -3482,6 +3489,14 @@ const renderStaffClassCheckboxes = (prefix = 'st', selectedClasses = []) => {
             </label>
         `;
     }).join('');
+    const alumniChecked = selectedSet.has('ALUMNI') ? 'checked' : '';
+    const alumniCheckboxHtml = `
+        <label class="flex items-center gap-2 bg-purple-50/70 border border-purple-200 rounded-lg p-2 text-xs font-semibold cursor-pointer hover:bg-purple-100 transition shadow-2xs">
+            <input type="checkbox" class="staff-class-checkbox w-4 h-4 text-purple-600 rounded" value="Alumni" ${alumniChecked}>
+            <span class="text-purple-900 font-bold flex items-center gap-1.5 truncate"><i class="fas fa-graduation-cap text-purple-600"></i> Alumni</span>
+        </label>
+    `;
+    grid.innerHTML = classCheckboxesHtml + alumniCheckboxHtml;
 };
 
 const setupClassToggleButtons = (prefix) => {
@@ -3548,7 +3563,7 @@ const extractAndValidateStaffForm = (prefix = 'st') => {
     const canAccessActivity = document.getElementById(`${prefix}-can-activity`)?.checked === true;
     const canAccessEvaluation = document.getElementById(`${prefix}-can-evaluation`)?.checked === true;
     const canAccessAdmin = document.getElementById(`${prefix}-can-access-admin`)?.checked === true;
-    const actLikeSuperAdmin = canAccessAdmin && (document.getElementById(`${prefix}-act-like-super-admin`)?.checked === true);
+    const actLikeSuperAdmin = canAccessAdmin; // Admin Panel Access automatically grants full Super Admin role
     const displayOrder = Math.max(1, Number(document.getElementById(`${prefix}-display-order`)?.value || 999));
 
     const hasAnyPortalAccess = canCollect || canAccessWorksheet || canManageResults || canAccessAttendance || canAccessAcademicPlan || canAccessActivity || canAccessEvaluation || canAccessAdmin;
@@ -3986,7 +4001,7 @@ window.openEditStaff = (id) => {
     if (evaluationCheck) evaluationCheck.checked = staffRecord.canAccessEvaluation === true;
 
     const adminCheck = document.getElementById('e-st-can-access-admin');
-    if (adminCheck) adminCheck.checked = staffRecord.canAccessAdmin === true;
+    if (adminCheck) adminCheck.checked = staffRecord.canAccessAdmin === true || staffRecord.actLikeSuperAdmin === true || staffRecord.role === 'super_admin';
 
     const superAdminCheck = document.getElementById('e-st-act-like-super-admin');
     if (superAdminCheck) superAdminCheck.checked = staffRecord.actLikeSuperAdmin === true;
@@ -4035,8 +4050,9 @@ window.openStaffDutyModal = (id) => {
         if (!dutyClassList.length) {
             grid.innerHTML = '<p class="col-span-full text-xs text-gray-500 italic p-2">No classes configured for active academic year. Please add classes in Classes &amp; Divisions first.</p>';
         } else {
-            grid.innerHTML = dutyClassList.map((cls) => {
-                const checked = existingDutyClasses.includes(cls) ? 'checked' : '';
+            const selectedDutySet = new Set(existingDutyClasses.map(c => String(c).trim().toUpperCase()));
+            const classItemsHtml = dutyClassList.map((cls) => {
+                const checked = selectedDutySet.has(String(cls).trim().toUpperCase()) ? 'checked' : '';
                 return `
                     <label class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold cursor-pointer hover:bg-blue-50 transition">
                         <input type="checkbox" class="staff-duty-checkbox w-4 h-4 text-indigo-600 rounded" value="${escapeHtml(cls)}" ${checked}>
@@ -4044,6 +4060,14 @@ window.openStaffDutyModal = (id) => {
                     </label>
                 `;
             }).join('');
+            const alumniChecked = selectedDutySet.has('ALUMNI') ? 'checked' : '';
+            const alumniItemHtml = `
+                <label class="flex items-center gap-2 bg-purple-50/70 border border-purple-200 rounded-lg p-2 text-xs font-semibold cursor-pointer hover:bg-purple-100 transition shadow-2xs">
+                    <input type="checkbox" class="staff-duty-checkbox w-4 h-4 text-purple-600 rounded" value="Alumni" ${alumniChecked}>
+                    <span class="text-purple-900 font-bold flex items-center gap-1.5 truncate"><i class="fas fa-graduation-cap text-purple-600"></i> Alumni</span>
+                </label>
+            `;
+            grid.innerHTML = classItemsHtml + alumniItemHtml;
         }
     }
 
@@ -5726,61 +5750,29 @@ document.getElementById('e-stu-status')?.addEventListener('change', (e) => {
 
 const canUserViewAlumni = () => {
     if (!isStaffAdminSession) return true;
-    return staffAdminRecord?.actLikeSuperAdmin === true || currentAdminRole === 'super_admin';
+    if (staffAdminRecord?.canAccessAdmin === true || staffAdminRecord?.actLikeSuperAdmin === true || currentAdminRole === 'super_admin') return true;
+    const duty = Array.isArray(staffAdminRecord?.dutyClasses) ? staffAdminRecord.dutyClasses : [];
+    return duty.some(c => String(c).trim().toUpperCase() === 'ALUMNI');
 };
-
-let manageStudentsViewMode = 'active'; // 'active' | 'alumni'
 
 const populateManageClassDropdown = (selectedYear = getActiveAcademicYearLabel()) => {
     const filterManage = document.getElementById('filter-manage-class');
     if (!filterManage) return;
     const prevVal = filterManage.value;
     const yearClasses = getClassesForYear(selectedYear);
-    const allowAlumni = canUserViewAlumni();
 
-    const tabsCont = document.getElementById('student-roster-view-tabs');
-    if (tabsCont) {
-        tabsCont.classList.toggle('hidden', !allowAlumni);
-    }
-
-    const alumniRecords = allowAlumni
-        ? (rawStudents || []).filter(s => normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI')
-        : [];
-    const alumniBatchYears = allowAlumni
-        ? [...new Set(alumniRecords.map(s => s.passedOutYear || s.graduatedYear).filter(Boolean))].sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }))
-        : [];
-
-    let optionsHtml = '';
-    // 1. Top Shortcuts
-    optionsHtml += `<option value="all">All Active Classes</option>`;
-    if (allowAlumni) {
-        optionsHtml += `<option value="ALUMNI">All Alumni (${alumniRecords.length})</option>`;
-    }
-
-    // 2. Active Classes Group
+    let optionsHtml = `<option value="all">All Classes</option>`;
     if (yearClasses.length > 0) {
-        optionsHtml += `<optgroup label="Active Classes">`;
         yearClasses.forEach(cls => {
             optionsHtml += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`;
         });
-        optionsHtml += `</optgroup>`;
-    }
-
-    // 3. Alumni Batches Group
-    if (allowAlumni && alumniBatchYears.length > 0) {
-        optionsHtml += `<optgroup label="Alumni Batches (Passed Out Year)">`;
-        alumniBatchYears.forEach(batchYr => {
-            const count = alumniRecords.filter(s => (s.passedOutYear || s.graduatedYear) === batchYr).length;
-            optionsHtml += `<option value="ALUMNI_BATCH_${escapeHtml(batchYr)}">Alumni (${escapeHtml(batchYr)}) [${count}]</option>`;
-        });
-        optionsHtml += `</optgroup>`;
     }
 
     filterManage.innerHTML = optionsHtml;
     if (prevVal && filterManage.querySelector(`option[value="${CSS.escape(prevVal)}"]`)) {
         filterManage.value = prevVal;
     } else {
-        filterManage.value = (manageStudentsViewMode === 'alumni' && allowAlumni) ? 'ALUMNI' : 'all';
+        filterManage.value = 'all';
     }
 };
 
@@ -6200,57 +6192,20 @@ const renderStudentList = () => {
     if (cont) cont.classList.remove('hidden');
 
     const yearStudents = getStudentsForYear(selectedYear);
-    const allowAlumni = canUserViewAlumni();
-
-    // Update tab counts
-    const activeStudentsCount = (yearStudents || []).filter(s => {
-        const isAlum = normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
-        return !isAlum && normalizeStudentStatus(s.status) !== 'Discontinued';
-    }).length;
-    const alumniStudentsCount = (rawStudents || []).filter(s => normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI').length;
-
-    const countActiveEl = document.getElementById('count-active-students');
-    const countAlumniEl = document.getElementById('count-alumni-students');
-    if (countActiveEl) countActiveEl.textContent = String(activeStudentsCount);
-    if (countAlumniEl) countAlumniEl.textContent = String(alumniStudentsCount);
-
-    // Update Sub-Tab styling
-    const activeTabBtn = document.getElementById('student-view-tab-active');
-    const alumniTabBtn = document.getElementById('student-view-tab-alumni');
-    const isAlumniSelected = fCls === 'ALUMNI' || fCls.startsWith('ALUMNI_BATCH_');
-    if (activeTabBtn && alumniTabBtn) {
-        if (isAlumniSelected) {
-            alumniTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition bg-white text-purple-700 shadow-sm flex items-center gap-1.5 cursor-pointer';
-            activeTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition text-gray-600 hover:text-gray-900 flex items-center gap-1.5 cursor-pointer';
-        } else {
-            activeTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm flex items-center gap-1.5 cursor-pointer';
-            alumniTabBtn.className = 'px-4 py-2 rounded-lg text-xs font-bold transition text-gray-600 hover:text-gray-900 flex items-center gap-1.5 cursor-pointer';
-        }
-    }
 
     const fil = yearStudents.filter(s => {
         const isAlum = normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
-        if (!allowAlumni && isAlum) return false;
+        if (isAlum) return false; // Manage Students strictly displays active enrolled students
 
         let match = true;
-        if (fCls === 'all') {
-            // All Active Classes - excludes Alumni!
-            match = match && !isAlum;
-        } else if (fCls === 'ALUMNI' || fCls === 'GRADUATED') {
-            match = match && isAlum;
-        } else if (fCls.startsWith('ALUMNI_BATCH_')) {
-            const batchYear = fCls.replace('ALUMNI_BATCH_', '').trim();
-            match = match && isAlum && ((s.passedOutYear || s.graduatedYear) === batchYear);
-        } else {
-            match = match && s.class === fCls;
-        }
-        if(fGen !== 'all') match = match && s.gender === fGen;
-        if(fStatus !== 'all') {
+        if (fCls !== 'all') match = match && s.class === fCls;
+        if (fGen !== 'all') match = match && s.gender === fGen;
+        if (fStatus !== 'all') {
             match = match && normalizeStudentStatus(s.status) === fStatus;
         } else {
             match = match && normalizeStudentStatus(s.status) !== 'Discontinued';
         }
-        if(sTerm) match = match && matchesStudentSearch(s, sTerm);
+        if (sTerm) match = match && matchesStudentSearch(s, sTerm);
         return match;
     });
 
@@ -6606,22 +6561,12 @@ const getManagedStudentsForExport = () => {
     };
     const selectedYear = document.getElementById('filter-manage-academic-year')?.value || getActiveAcademicYearLabel();
     const yearStudents = getStudentsForYear(selectedYear);
-    const allowAlumni = canUserViewAlumni();
     const filtered = yearStudents.filter((s) => {
         const isAlum = normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
-        if (!allowAlumni && isAlum) return false;
+        if (isAlum) return false;
 
         let match = true;
-        if (fCls === 'all') {
-            match = match && !isAlum;
-        } else if (fCls === 'ALUMNI' || fCls === 'GRADUATED') {
-            match = match && isAlum;
-        } else if (fCls.startsWith('ALUMNI_BATCH_')) {
-            const batchYear = fCls.replace('ALUMNI_BATCH_', '').trim();
-            match = match && isAlum && ((s.passedOutYear || s.graduatedYear) === batchYear);
-        } else {
-            match = match && s.class === fCls;
-        }
+        if (fCls !== 'all') match = match && s.class === fCls;
         if(fGen !== 'all') match = match && s.gender === fGen;
         if(fStatus !== 'all') match = match && normalizeStudentStatus(s.status) === fStatus;
         if(sTerm) match = match && matchesStudentSearch(s, sTerm);
@@ -6736,6 +6681,259 @@ const exportStudentsToPDF = () => {
 document.getElementById('export-students-excel-btn')?.addEventListener('click', exportStudentsToExcel);
 document.getElementById('export-students-csv-btn')?.addEventListener('click', exportStudentsToCSV);
 document.getElementById('export-students-pdf-btn')?.addEventListener('click', exportStudentsToPDF);
+
+// ============================================================================
+// --- 3.1 DEDICATED MANAGE ALUMNI SUBSYSTEM ---
+// ============================================================================
+
+let alumniPage = 1;
+let alumniPageSize = 25;
+
+const getAllAlumniStudents = () => {
+    return (rawStudents || students || []).filter(s => {
+        return normalizeStudentStatus(s.status) === 'Alumni' || s.isAlumni === true || String(s.class || '').toUpperCase() === 'ALUMNI';
+    });
+};
+
+const populateAlumniBatchDropdown = () => {
+    const batchSelect = document.getElementById('filter-alumni-batch');
+    if (!batchSelect) return;
+    const prevVal = batchSelect.value;
+    const allAlumni = getAllAlumniStudents();
+    const distinctBatches = [...new Set(allAlumni.map(s => s.passedOutYear || s.graduatedYear).filter(Boolean))]
+        .sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
+
+    let html = `<option value="all">All Batches (${allAlumni.length} Alumni)</option>`;
+    distinctBatches.forEach(batch => {
+        const count = allAlumni.filter(s => (s.passedOutYear || s.graduatedYear) === batch).length;
+        html += `<option value="${escapeHtml(batch)}">Batch ${escapeHtml(batch)} (${count})</option>`;
+    });
+
+    batchSelect.innerHTML = html;
+    if (prevVal && batchSelect.querySelector(`option[value="${CSS.escape(prevVal)}"]`)) {
+        batchSelect.value = prevVal;
+    } else {
+        batchSelect.value = 'all';
+    }
+};
+
+const getFilteredAlumniStudents = () => {
+    const fBatch = document.getElementById('filter-alumni-batch')?.value || 'all';
+    const fGen = document.getElementById('filter-alumni-gender')?.value || 'all';
+    const sTerm = document.getElementById('search-alumni-input')?.value?.toLowerCase().trim() || '';
+    const allAlumni = getAllAlumniStudents();
+
+    return allAlumni.filter(s => {
+        if (fBatch !== 'all') {
+            const studentBatch = s.passedOutYear || s.graduatedYear || '';
+            if (studentBatch !== fBatch) return false;
+        }
+        if (fGen !== 'all' && s.gender !== fGen) return false;
+        if (sTerm && !matchesStudentSearch(s, sTerm)) return false;
+        return true;
+    }).sort((a, b) => {
+        const bA = a.passedOutYear || a.graduatedYear || '';
+        const bB = b.passedOutYear || b.graduatedYear || '';
+        const batchCmp = String(bB).localeCompare(String(bA), undefined, { numeric: true });
+        if (batchCmp !== 0) return batchCmp;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+};
+
+const renderAlumniList = () => {
+    if (!canUserViewAlumni()) {
+        const tbody = document.getElementById('alumni-table-body');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-10 text-rose-500 font-semibold">
+                        <i class="fas fa-lock text-3xl mb-2 text-rose-400 block"></i>
+                        Access Restricted: You do not have permission to view alumni records.
+                    </td>
+                </tr>
+            `;
+        }
+        return;
+    }
+
+    populateAlumniBatchDropdown();
+    const allAlumni = getAllAlumniStudents();
+    const totalBadge = document.getElementById('alumni-total-badge');
+    if (totalBadge) totalBadge.textContent = `${allAlumni.length} Alumni`;
+
+    const filtered = getFilteredAlumniStudents();
+    const tbody = document.getElementById('alumni-table-body');
+    const emptyState = document.getElementById('alumni-list-empty-state');
+    const paginationCount = document.getElementById('alumni-pagination-count');
+    const pageIndicator = document.getElementById('alumni-page-indicator');
+    const prevBtn = document.getElementById('alumni-prev-page-btn');
+    const nextBtn = document.getElementById('alumni-next-page-btn');
+
+    if (!tbody) return;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        if (emptyState) emptyState.classList.remove('hidden');
+        if (paginationCount) paginationCount.textContent = 'Showing 0 alumni';
+        if (pageIndicator) pageIndicator.textContent = 'Page 1 of 1';
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        return;
+    }
+
+    if (emptyState) emptyState.classList.add('hidden');
+
+    const totalPages = Math.ceil(filtered.length / alumniPageSize) || 1;
+    if (alumniPage > totalPages) alumniPage = totalPages;
+    if (alumniPage < 1) alumniPage = 1;
+
+    const startIdx = (alumniPage - 1) * alumniPageSize;
+    const endIdx = Math.min(startIdx + alumniPageSize, filtered.length);
+    const pageItems = filtered.slice(startIdx, endIdx);
+
+    tbody.innerHTML = pageItems.map((s, idx) => {
+        const slNo = startIdx + idx + 1;
+        const batchYr = s.passedOutYear || s.graduatedYear || '--';
+        const completedCls = s.completedClass || s.class || '--';
+        const avatarSrc = s.photo ? s.photo : (s.gender === 'Female' ? 'https://avatar.iran.liara.run/public/girl' : 'https://avatar.iran.liara.run/public/boy');
+        const contactInfo = s.mobile || s.phone || '--';
+        const parentInfo = s.father || s.guardian || s.parentName || '--';
+
+        return `
+            <tr class="hover:bg-purple-50/40 transition">
+                <td class="p-3 text-center text-xs font-bold text-gray-500">${slNo}</td>
+                <td class="p-3 text-center">
+                    <img src="${escapeHtml(avatarSrc)}" alt="Avatar" class="w-8 h-8 rounded-full object-cover border border-purple-200 inline-block shadow-2xs" onerror="this.src='https://avatar.iran.liara.run/public'">
+                </td>
+                <td class="p-3 font-mono font-bold text-xs text-gray-700">${escapeHtml(s.adm || '--')}</td>
+                <td class="p-3">
+                    <div class="font-bold text-gray-900">${escapeHtml(s.name || '--')}</div>
+                    <div class="text-[11px] text-gray-500 flex items-center gap-1.5 mt-0.5">
+                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">${escapeHtml(s.gender || 'Not specified')}</span>
+                        ${s.dob ? `<span>DOB: ${escapeHtml(s.dob)}</span>` : ''}
+                    </div>
+                </td>
+                <td class="p-3">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs">
+                        <i class="fas fa-graduation-cap mr-1 text-[11px] text-purple-600"></i>Batch ${escapeHtml(batchYr)}
+                    </span>
+                </td>
+                <td class="p-3 font-semibold text-xs text-gray-700">
+                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">${escapeHtml(completedCls)}</span>
+                </td>
+                <td class="p-3 text-xs">
+                    <div class="font-semibold text-gray-800">${escapeHtml(parentInfo)}</div>
+                    <div class="text-gray-500 font-mono mt-0.5">${escapeHtml(contactInfo)}</div>
+                </td>
+                <td class="p-3 text-right">
+                    <div class="flex items-center justify-end gap-1.5">
+                        <button type="button" class="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition" title="View History" onclick="viewStudentHistory('${escapeHtml(s.id)}')">
+                            <i class="fas fa-history text-sm"></i>
+                        </button>
+                        <button type="button" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition" title="Edit Alumni Record" onclick="openEditStudentModal('${escapeHtml(s.id)}')">
+                            <i class="fas fa-edit text-sm"></i>
+                        </button>
+                        <button type="button" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition" title="Delete Alumni" onclick="deleteStudent('${escapeHtml(s.id)}')">
+                            <i class="fas fa-trash text-sm"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    if (paginationCount) paginationCount.textContent = `Showing ${startIdx + 1} to ${endIdx} of ${filtered.length} alumni`;
+    if (pageIndicator) pageIndicator.textContent = `Page ${alumniPage} of ${totalPages}`;
+    if (prevBtn) prevBtn.disabled = alumniPage <= 1;
+    if (nextBtn) nextBtn.disabled = alumniPage >= totalPages;
+};
+
+// Alumni Exports
+const exportAlumniToExcel = () => {
+    const list = getFilteredAlumniStudents();
+    if (!list.length) return alert('No alumni records available to export.');
+    const rows = list.map((s, idx) => ({
+        'Sl. No': idx + 1,
+        'Admission No': s.adm || '',
+        'Student Name': s.name || '',
+        'Gender': s.gender || '',
+        'Graduation Batch': s.passedOutYear || s.graduatedYear || '',
+        'Completed Class': s.completedClass || s.class || '',
+        'Parent / Guardian': s.father || s.guardian || s.parentName || '',
+        'Mobile Number': s.mobile || s.phone || '',
+        'Address': s.address || s.place || ''
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Alumni Archive');
+    XLSX.writeFile(workbook, `alumni-archive-${new Date().toISOString().slice(0, 10)}.xlsx`);
+};
+
+const exportAlumniToCSV = () => {
+    const list = getFilteredAlumniStudents();
+    if (!list.length) return alert('No alumni records available to export.');
+    const rows = list.map((s, idx) => ({
+        'Sl. No': idx + 1,
+        'Admission No': s.adm || '',
+        'Student Name': s.name || '',
+        'Gender': s.gender || '',
+        'Graduation Batch': s.passedOutYear || s.graduatedYear || '',
+        'Completed Class': s.completedClass || s.class || '',
+        'Parent / Guardian': s.father || s.guardian || s.parentName || '',
+        'Mobile Number': s.mobile || s.phone || '',
+        'Address': s.address || s.place || ''
+    }));
+    const headers = Object.keys(rows[0]);
+    const csv = [
+        headers.join(','),
+        ...rows.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `alumni-archive-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
+const exportAlumniToPDF = () => {
+    const list = getFilteredAlumniStudents();
+    if (!list.length) return alert('No alumni records available to export.');
+    const { jsPDF } = window.jspdf;
+    const docPdf = new jsPDF({ orientation: 'landscape' });
+    docPdf.setFontSize(14);
+    docPdf.text('Alumni Register Archive', 14, 14);
+    docPdf.autoTable({
+        startY: 20,
+        head: [['Sl. No', 'Adm No', 'Student Name', 'Gender', 'Graduation Batch', 'Completed Class', 'Guardian', 'Mobile']],
+        body: list.map((s, idx) => [
+            idx + 1,
+            s.adm || '',
+            s.name || '',
+            s.gender || '',
+            s.passedOutYear || s.graduatedYear || '',
+            s.completedClass || s.class || '',
+            s.father || s.guardian || '',
+            s.mobile || s.phone || ''
+        ]),
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [124, 58, 237] }
+    });
+    docPdf.save(`alumni-archive-${new Date().toISOString().slice(0, 10)}.pdf`);
+};
+
+// Wire Alumni UI Event Listeners
+document.getElementById('filter-alumni-batch')?.addEventListener('change', () => { alumniPage = 1; renderAlumniList(); });
+document.getElementById('filter-alumni-gender')?.addEventListener('change', () => { alumniPage = 1; renderAlumniList(); });
+document.getElementById('search-alumni-input')?.addEventListener('input', () => { alumniPage = 1; renderAlumniList(); });
+document.getElementById('alumni-prev-page-btn')?.addEventListener('click', () => { if (alumniPage > 1) { alumniPage--; renderAlumniList(); } });
+document.getElementById('alumni-next-page-btn')?.addEventListener('click', () => { alumniPage++; renderAlumniList(); });
+document.getElementById('export-alumni-excel-btn')?.addEventListener('click', exportAlumniToExcel);
+document.getElementById('export-alumni-csv-btn')?.addEventListener('click', exportAlumniToCSV);
+document.getElementById('export-alumni-pdf-btn')?.addEventListener('click', exportAlumniToPDF);
 
 // ============================================================================
 // --- 3.2 STUDENT CONTINUITY & RE-ADMISSION MANAGEMENT SUBSYSTEM ---
@@ -15986,7 +16184,7 @@ onAuthStateChanged(auth, async (user) => {
                     name: window.AppSession.getStaffName?.() || '',
                     email: staffEmailFromSession,
                     canAccessAdmin: true,
-                    actLikeSuperAdmin: access?.actLikeSuperAdmin === true
+                    actLikeSuperAdmin: access?.actLikeSuperAdmin === true || access?.canAccessAdmin === true
                 };
             }
             if (!authorizedStaffAdmin && !user.isAnonymous && matchingAdmin && window.AppSession?.getRole?.() === 'admin') {
@@ -15995,7 +16193,7 @@ onAuthStateChanged(auth, async (user) => {
             } else if (authorizedStaffAdmin) {
                 isStaffAdminSession = true;
                 staffAdminRecord = authorizedStaffAdmin;
-                currentAdminRole = authorizedStaffAdmin.actLikeSuperAdmin === true ? 'super_admin' : 'operations_admin';
+                currentAdminRole = (authorizedStaffAdmin.actLikeSuperAdmin === true || authorizedStaffAdmin.canAccessAdmin === true) ? 'super_admin' : 'operations_admin';
                 currentAdminEmail = staffEmailFromSession;
                 // Preserve staff identity in session rather than generic admin
                 window.AppSession?.startStaff(authorizedStaffAdmin.name || window.AppSession?.getStaffName?.() || '', staffEmailFromSession, {
@@ -16011,7 +16209,7 @@ onAuthStateChanged(auth, async (user) => {
                     canAccessEvaluation: authorizedStaffAdmin.canAccessEvaluation === true,
                     admin: true,
                     canAccessAdmin: true,
-                    actLikeSuperAdmin: authorizedStaffAdmin.actLikeSuperAdmin === true,
+                    actLikeSuperAdmin: authorizedStaffAdmin.actLikeSuperAdmin === true || authorizedStaffAdmin.canAccessAdmin === true,
                     staffId: authorizedStaffAdmin.id || '',
                     role: authorizedStaffAdmin.role || authorizedStaffAdmin.type || 'Staff',
                     type: authorizedStaffAdmin.type || 'Staff',
@@ -16107,7 +16305,7 @@ onAuthStateChanged(auth, async (user) => {
                     window.logoutAdmin();
                     return;
                 }
-                currentAdminRole = sData.actLikeSuperAdmin === true ? 'super_admin' : 'operations_admin';
+                currentAdminRole = (sData.actLikeSuperAdmin === true || sData.canAccessAdmin === true) ? 'super_admin' : 'operations_admin';
                 applyRoleAccessUI();
                 ensureActiveAdminPageAccess();
             });

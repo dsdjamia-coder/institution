@@ -506,16 +506,24 @@ const getCollectorKey = () => normalizeEmail(currentCollectorKey || window.AppSe
 
 const isMasterSuperAdmin = () => {
     const staffAccess = window.AppSession?.getStaffAccess?.();
-    if (staffAccess?.actLikeSuperAdmin === true) return true;
+    if (staffAccess?.actLikeSuperAdmin === true || staffAccess?.canAccessAdmin === true) return true;
     if (staffAccess && (staffAccess.source === 'staff' || staffAccess.staffId || staffAccess.userKey)) {
         return false;
     }
     const officialSession = getOfficialSession();
-    if (officialSession?.actLikeSuperAdmin === true) return true;
+    if (officialSession?.actLikeSuperAdmin === true || officialSession?.canAccessAdmin === true) return true;
     if (officialSession && (officialSession.source === 'staff' || (officialSession.id && officialSession.id !== 'admin'))) {
         return false;
     }
     return Boolean(isCurrentAdmin || window.AppSession?.getRole?.() === 'admin');
+};
+
+const canUserViewAlumni = () => {
+    if (isMasterSuperAdmin()) return true;
+    const staffAccess = window.AppSession?.getStaffAccess?.();
+    if (staffAccess?.actLikeSuperAdmin === true || staffAccess?.canAccessAdmin === true) return true;
+    const duty = Array.isArray(selectedDutyClasses) ? selectedDutyClasses : [];
+    return duty.some(c => String(c).trim().toUpperCase() === 'ALUMNI');
 };
 
 const findCurrentStaffMember = (staffList = []) => {
@@ -801,15 +809,14 @@ const buildFeeStatusMatrix = () => {
     const fGen = document.getElementById('filter-gender')?.value || 'all';
     const fYear = document.getElementById('filter-academic-year')?.value || currentWorkingAcademicYear;
     let dutyFilteredStudents = [];
-    if (isMasterSuperAdmin()) {
-        if (fCls === 'ALUMNI_DUES') {
-            dutyFilteredStudents = (allStudentsRaw || []).filter(s => {
-                const isAlum = s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni';
-                return isAlum;
-            });
-        } else {
-            dutyFilteredStudents = students;
-        }
+    const allowAlumni = canUserViewAlumni();
+    if (allowAlumni && fCls === 'ALUMNI_DUES') {
+        dutyFilteredStudents = (allStudentsRaw || []).filter(s => {
+            const isAlum = s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni';
+            return isAlum;
+        });
+    } else if (isMasterSuperAdmin()) {
+        dutyFilteredStudents = students;
     } else if (selectedDutyClasses && selectedDutyClasses.length > 0) {
         dutyFilteredStudents = students.filter((student) => isClassInDutyScope(student.class, selectedDutyClasses));
     } else {
@@ -2174,17 +2181,18 @@ const populateClassDropdowns = () => {
     const entryClassEl = document.getElementById('entry-class');
     const stuInfoClassEl = document.getElementById('stu-info-class');
     const bulkClassEl = document.getElementById('bulk-class');
+    const allowAlumni = canUserViewAlumni();
+    const alumniOption = allowAlumni ? `<option value="ALUMNI_DUES">🎓 Alumni Arrears (Graduated Dues)</option>` : '';
 
     if (isSuperAdmin) {
         const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        const alumniOption = `<option value="ALUMNI_DUES">🎓 Alumni Arrears (Graduated Dues)</option>`;
         if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts + alumniOption;
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
     } else if (classOptions.length > 0) {
         const opts = classOptions.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts;
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts + alumniOption;
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
@@ -2291,12 +2299,17 @@ const populateStudentSuggestions = (searchTerm = '') => {
 
     const lowerTerm = (searchTerm || '').trim().toLowerCase();
     const rawPool = Array.isArray(students) && students.length > 0 ? students : (Array.isArray(allStudentsRaw) ? allStudentsRaw : []);
+    const allowAlumni = canUserViewAlumni();
     const studentPool = isMasterSuperAdmin()
         ? rawPool
-        : rawPool.filter(s => isClassInDutyScope(s.class, selectedDutyClasses));
+        : rawPool.filter(s => {
+            const isAlum = s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni';
+            if (isAlum) return allowAlumni;
+            return isClassInDutyScope(s.class, selectedDutyClasses);
+        });
 
     const fil = studentPool.filter(s => {
-        const classMatch = !cls || cls === 'all' || s.class === cls;
+        const classMatch = !cls || cls === 'all' || s.class === cls || (cls === 'ALUMNI_DUES' && (s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni'));
         const genderMatch = !gen || gen === 'all' || s.gender === gen;
         if (!classMatch || !genderMatch) return false;
         if (!lowerTerm) return true;
@@ -2312,13 +2325,19 @@ const populateStudentSuggestions = (searchTerm = '') => {
 
     if (fil.length > 0) {
         fil.forEach(s => {
+            const isAlum = s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni';
+            const alumBatch = s.passedOutYear || s.graduatedYear || '';
+            const statusOrBatchBadge = isAlum
+                ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200"><i class="fas fa-graduation-cap mr-1"></i>Alumni ${alumBatch ? `(Batch ${escapeHtml(alumBatch)})` : ''}</span>`
+                : `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">Class: ${escapeHtml(s.class || '-')}</span>`;
+
             const d = document.createElement('div');
             d.className = 'p-3 hover:bg-blue-50/80 cursor-pointer border-b border-slate-100 flex items-center justify-between gap-3 text-sm transition';
             d.innerHTML = `
                 <div class="min-w-0 flex-1">
                     <div class="font-bold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
                         <span>${escapeHtml(s.name)}</span>
-                        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">Class: ${escapeHtml(s.class || '-')}</span>
+                        ${statusOrBatchBadge}
                         ${s.gender ? `<span class="text-[10px] font-bold text-slate-500">(${escapeHtml(s.gender.charAt(0))})</span>` : ''}
                         ${String(s.status || '').toLowerCase() === 'discontinued' ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">Discontinued</span>` : ''}
                     </div>
@@ -2350,7 +2369,9 @@ const populateStudentSuggestions = (searchTerm = '') => {
                 } else {
                     selectedGroupMemberIds = new Set([s.id]);
                 }
-                document.getElementById('entry-student-input').value = `${s.name} (Adm: ${s.adm||'-'}, Class: ${s.class||'-'})`;
+                document.getElementById('entry-student-input').value = isAlum
+                    ? `${s.name} (Alumni ${alumBatch ? `• Batch ${alumBatch}` : ''} • Adm: ${s.adm||'-'})`
+                    : `${s.name} (Adm: ${s.adm||'-'}, Class: ${s.class||'-'})`;
                 lSugg.classList.add('hidden');
                 updateStudentInputClearButton();
                 populateFeeItemSelection();
@@ -3702,13 +3723,18 @@ const renderFeeTable = () => {
         }
 
         const isRowAllSelected = items.length > 0 && items.every(i => selectedFeeStatusCells.has(`${s.id}__${i.key}`));
+        const isAlumStudent = s.isAlumni === true || String(s.status || '').trim().toLowerCase() === 'alumni' || String(s.class || '').trim().toLowerCase() === 'alumni';
+        const alumBatch = s.passedOutYear || s.graduatedYear || '';
 
         html += `<tr class="hover:bg-slate-50/80 bg-white transition border-b border-slate-100">
             <td class="p-2.5 font-bold text-slate-500 text-center sticky left-0 bg-white z-10 border-r border-slate-200 w-12">${serialNo}</td>
             <td class="p-2.5 font-mono text-slate-600 sticky left-12 bg-white z-10 border-r border-slate-200 w-20">${escapeHtml(s.adm || '-')}</td>
             <td class="p-2.5 font-bold text-slate-900 border-r border-slate-200 sticky left-32 bg-white z-10 min-w-[220px]">
                 <div class="flex items-center justify-between gap-2">
-                    <span class="truncate">${escapeHtml(s.name)}</span>
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="truncate">${escapeHtml(s.name)}</span>
+                        ${isAlumStudent ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shrink-0"><i class="fas fa-graduation-cap mr-1 text-[8px]"></i>${alumBatch ? `Batch ${escapeHtml(alumBatch)}` : 'Alumni'}</span>` : ''}
+                    </div>
                     <input type="checkbox" class="fee-status-row-all-cb w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0" data-student-id="${escapeHtml(s.id)}" ${isRowAllSelected ? 'checked' : ''} title="Select all fees for ${escapeHtml(s.name)}">
                 </div>
             </td>`;
