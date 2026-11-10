@@ -11093,16 +11093,12 @@ const renderPromoReviewTable = () => {
     }).join('');
 };
 
-const executeBatchPromotion = async () => {
+const runPromotionExecutionPipeline = async ({ srcYear, tgtYear, selectedItems, title = 'Class Promotion' }) => {
     if (!requirePermission('academic-years.manage')) return;
 
-    const selectedItems = promoStudentsList.filter((p) => p.selected);
-    if (!selectedItems.length) return alert('No students selected for promotion. Please select at least one student checkbox.');
-
-    const srcYear = document.getElementById('promo-source-year')?.value;
-    const tgtYear = document.getElementById('promo-target-year')?.value;
-    if (!srcYear || !tgtYear) return alert('Please specify both source and destination academic sessions.');
-    if (srcYear === tgtYear) return alert('Source and target academic sessions must be different.');
+    if (!selectedItems || !selectedItems.length) {
+        return alert('No students selected for promotion. Please select at least one student.');
+    }
 
     const promotedCount = selectedItems.filter((p) => p.decision === 'promoted').length;
     const retainedCount = selectedItems.filter((p) => p.decision === 'retained').length;
@@ -11116,12 +11112,11 @@ const executeBatchPromotion = async () => {
     const chosenConcessionsCount = promoConcessionsSelection.filter((c) => c.selected).length;
     const chosenGroups = promoGroupConfigurations.filter((g) => g.selected && g.activeMembers.length > 0);
 
-    const confirmMsg = `Execute Academic Promotion & Rollover?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nSelected Students: ${selectedItems.length}\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nConfigurations:\n• Fee Structure: ${optCloneFees ? `12 Monthly Heads + ${chosenCustomFeesCount} Custom Heads` : 'Skipped'}\n• Concessions: ${optCarryConcessions ? `${chosenConcessionsCount} Students Selected` : 'Skipped'}\n• Family Groups: ${optRolloverGroups ? `${chosenGroups.length} Groups (Alumni Detached)` : 'Skipped'}\n\nNote: Active institutional session will NOT be automatically switched. Historical records will be preserved in longitudinal student profiles. Continue?`;
-    if (!confirm(confirmMsg)) return;
-
     const execBtns = [
         document.getElementById('btn-execute-promotion'),
-        document.getElementById('btn-execute-promotion-top')
+        document.getElementById('promo-btn-direct-promote-all'),
+        document.getElementById('promo-btn-exam-promote'),
+        document.getElementById('promo-btn-load-students')
     ].filter(Boolean);
     const progressContainer = document.getElementById('promo-progress-container');
     const progressBar = document.getElementById('promo-progress-bar');
@@ -11246,7 +11241,7 @@ const executeBatchPromotion = async () => {
             targetYearRecord = {
                 id: toAcademicYearDocId(tgtYear),
                 label: tgtYear,
-                status: 'active', // Never auto-set to current; admin does it intentionally
+                status: 'active',
                 classes: promoClasses,
                 createdAt: nowIso
             };
@@ -11256,11 +11251,10 @@ const executeBatchPromotion = async () => {
             targetYearRecord.classes = sortClassLabels([...new Set([...existingClasses, ...promoClasses])]);
         }
 
-        // Clone fee structures
+        // Clone fee structures if enabled
         if (optCloneFees) {
             await ensureFeeItemsForAcademicYears(academicYears);
 
-            // Clone selected custom fee items
             if (promoCustomFeeSelection.length) {
                 const confRef = getConfigRef();
                 const configSnap = await getDoc(confRef);
@@ -11291,7 +11285,7 @@ const executeBatchPromotion = async () => {
             }
         }
 
-        // Rollover Student Groups (Family Sibling Groups)
+        // Rollover Student Groups if enabled
         if (optRolloverGroups && chosenGroups.length) {
             const groupOps = chosenGroups.map(async (grp) => {
                 const activeMemberIds = grp.activeMembers.map((m) => m.id);
@@ -11318,11 +11312,11 @@ const executeBatchPromotion = async () => {
             action: 'batch-promotion.execute',
             entityType: 'academicYear',
             entityId: tgtYear,
-            message: `Batch promotion executed from ${srcYear} to ${tgtYear} for ${total} students (Promoted: ${promotedCount}, Retained: ${retainedCount}, Alumni: ${alumniCount}). Groups rolled over: ${chosenGroups.length}.`
+            message: `${title} executed from ${srcYear} to ${tgtYear} for ${total} students (Promoted: ${promotedCount}, Retained: ${retainedCount}, Alumni: ${alumniCount}). Groups rolled over: ${chosenGroups.length}.`
         });
 
-        showToast(`Batch promotion successful! ${total} student(s) enrolled into ${tgtYear}.`, 'success');
-        alert(`Academic Promotion & Rollover Completed!\n\n${total} students have been successfully enrolled into session "${tgtYear}".\n${optRolloverGroups ? `${chosenGroups.length} family group(s) carried forward with Alumni members detached.\n` : ''}${optCloneFees ? `Fee structures and custom heads created for ${tgtYear}.\n` : ''}\nImportant: Active institutional session remains "${srcYear}". You can switch the current active session in Academic Years Control when you are ready.`);
+        showToast(`${title} successful! ${total} student(s) enrolled into ${tgtYear}.`, 'success');
+        alert(`Class Promotion & Rollover Completed!\n\n${total} students have been successfully enrolled into session "${tgtYear}".\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n${optRolloverGroups ? `\n${chosenGroups.length} family group(s) carried forward with Alumni members detached.\n` : ''}${optCloneFees ? `Fee structures and custom heads created for ${tgtYear}.\n` : ''}\nImportant: Active institutional session remains "${srcYear}". You can switch the current active session in Academic Years Control when you are ready.`);
 
         renderBatchPromotionPage();
     } catch (err) {
@@ -11337,6 +11331,298 @@ const executeBatchPromotion = async () => {
     }
 };
 
+const executeDirectAllPromotion = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!srcYear || !tgtYear) return alert('Please specify both source and destination academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target academic sessions must be different.');
+
+    const eligible = getStudentsForYear(srcYear).filter((s) => {
+        const st = normalizeStudentStatus(s.status);
+        return st !== 'Alumni' && st !== 'Discontinued' && !s.isAlumni && String(s.class || '').toUpperCase() !== 'ALUMNI';
+    });
+
+    if (!eligible.length) {
+        return alert(`No active enrolled students found in source session "${srcYear}".`);
+    }
+
+    const items = eligible.map((student) => {
+        const sc = student.class || '--';
+        const mappedDest = promoProgressionMappings[sc] || suggestNextClass(sc);
+        let decision = 'promoted';
+        let destinationClass = mappedDest;
+
+        if (mappedDest === 'ALUMNI') {
+            decision = 'alumni';
+            destinationClass = 'Alumni';
+        } else if (mappedDest === 'RETAIN') {
+            decision = 'retained';
+            destinationClass = sc;
+        }
+
+        return {
+            student,
+            sourceClass: sc,
+            destinationClass,
+            decision,
+            examStatus: 'NONE',
+            selected: true
+        };
+    });
+
+    const promotedCount = items.filter((p) => p.decision === 'promoted').length;
+    const alumniCount = items.filter((p) => p.decision === 'alumni').length;
+    const retainedCount = items.filter((p) => p.decision === 'retained').length;
+
+    const optCloneFees = document.getElementById('promo-opt-clone-fees')?.checked ?? true;
+    const optCarryConcessions = document.getElementById('promo-opt-carry-concessions')?.checked ?? true;
+    const optRolloverGroups = document.getElementById('promo-opt-rollover-groups')?.checked ?? true;
+
+    const confirmMsg = `Execute Direct Promotion (All Pass)?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nTotal Eligible Students: ${items.length}\n• Advancing to Next Class: ${promotedCount}\n• Graduating to Alumni: ${alumniCount}${retainedCount > 0 ? `\n• Retained in Same Class: ${retainedCount}` : ''}\n\nConfigurations:\n• Fee Structure Clone: ${optCloneFees ? 'Enabled' : 'Disabled'}\n• Concessions Rollover: ${optCarryConcessions ? 'Enabled' : 'Disabled'}\n• Sibling Groups Rollover: ${optRolloverGroups ? 'Enabled' : 'Disabled'}\n\nNote: Active institutional session will remain "${srcYear}". Historical student records are archived in student dossiers.\n\nProceed with direct promotion?`;
+    if (!confirm(confirmMsg)) return;
+
+    await runPromotionExecutionPipeline({
+        srcYear,
+        tgtYear,
+        selectedItems: items,
+        title: 'Direct Promotion (All Pass)'
+    });
+};
+
+const executeExamBasedPromotion = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!srcYear || !tgtYear) return alert('Please specify both source and destination academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target academic sessions must be different.');
+
+    const eligible = getStudentsForYear(srcYear).filter((s) => {
+        const st = normalizeStudentStatus(s.status);
+        return st !== 'Alumni' && st !== 'Discontinued' && !s.isAlumni && String(s.class || '').toUpperCase() !== 'ALUMNI';
+    });
+
+    if (!eligible.length) {
+        return alert(`No active enrolled students found in source session "${srcYear}".`);
+    }
+
+    let examResults = [];
+    try {
+        const snap = await getDocs(query(collection(db, `${BASE_PATH}/examResults`), where('academicYear', '==', srcYear)));
+        examResults = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+        console.warn('Could not query examResults by year, checking cache:', e);
+        if (Array.isArray(examResultsCache) && examResultsCache.length) {
+            examResults = examResultsCache.filter((r) => r.academicYear === srcYear);
+        }
+    }
+
+    const items = eligible.map((student) => {
+        const sc = student.class || '--';
+        const mappedDest = promoProgressionMappings[sc] || suggestNextClass(sc);
+        const studentExam = examResults.find((r) => (r.studentId === student.id || (r.admissionNo && r.admissionNo === student.adm)) && (r.examType === 'annual' || r.type === 'annual' || r.isAnnual === true));
+
+        let examStatus = 'NONE';
+        if (studentExam) {
+            const rawPass = (studentExam.totals?.passStatus || studentExam.passStatus || studentExam.status || '').toUpperCase();
+            examStatus = rawPass === 'PASS' ? 'PASS' : (rawPass === 'FAIL' ? 'FAIL' : 'NONE');
+        }
+
+        let decision = 'promoted';
+        let destinationClass = mappedDest;
+
+        if (examStatus === 'PASS') {
+            if (mappedDest === 'ALUMNI') {
+                decision = 'alumni';
+                destinationClass = 'Alumni';
+            } else {
+                decision = 'promoted';
+                destinationClass = mappedDest;
+            }
+        } else {
+            decision = 'retained';
+            destinationClass = sc;
+        }
+
+        return {
+            student,
+            sourceClass: sc,
+            destinationClass,
+            decision,
+            examStatus,
+            selected: true
+        };
+    });
+
+    const promotedCount = items.filter((p) => p.decision === 'promoted').length;
+    const retainedCount = items.filter((p) => p.decision === 'retained').length;
+    const alumniCount = items.filter((p) => p.decision === 'alumni').length;
+
+    const optCloneFees = document.getElementById('promo-opt-clone-fees')?.checked ?? true;
+    const optCarryConcessions = document.getElementById('promo-opt-carry-concessions')?.checked ?? true;
+    const optRolloverGroups = document.getElementById('promo-opt-rollover-groups')?.checked ?? true;
+
+    const confirmMsg = `Execute Promotion by Annual Exam Results?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nTotal Students Evaluated: ${items.length}\n• Promoted (Passed Exam): ${promotedCount}\n• Retained in Same Class (Failed / Absent): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nConfigurations:\n• Fee Structure Clone: ${optCloneFees ? 'Enabled' : 'Disabled'}\n• Concessions Rollover: ${optCarryConcessions ? 'Enabled' : 'Disabled'}\n• Sibling Groups Rollover: ${optRolloverGroups ? 'Enabled' : 'Disabled'}\n\nProceed with exam-based promotion?`;
+    if (!confirm(confirmMsg)) return;
+
+    await runPromotionExecutionPipeline({
+        srcYear,
+        tgtYear,
+        selectedItems: items,
+        title: 'Exam-Based Promotion (Pass/Fail)'
+    });
+};
+
+const executeBatchPromotion = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const selectedItems = promoStudentsList.filter((p) => p.selected);
+    if (!selectedItems.length) return alert('No students selected for promotion. Please select at least one student checkbox.');
+
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!srcYear || !tgtYear) return alert('Please specify both source and destination academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target academic sessions must be different.');
+
+    const promotedCount = selectedItems.filter((p) => p.decision === 'promoted').length;
+    const retainedCount = selectedItems.filter((p) => p.decision === 'retained').length;
+    const alumniCount = selectedItems.filter((p) => p.decision === 'alumni').length;
+
+    const confirmMsg = `Execute Promotion for Reviewed Students?\n\nSource Session: ${srcYear}\nDestination Session: ${tgtYear}\n\nSelected Reviewed Students: ${selectedItems.length}\n• Promoted: ${promotedCount}\n• Retained (Repeaters): ${retainedCount}\n• Graduated to Alumni: ${alumniCount}\n\nProceed with promotion for reviewed students?`;
+    if (!confirm(confirmMsg)) return;
+
+    await runPromotionExecutionPipeline({
+        srcYear,
+        tgtYear,
+        selectedItems,
+        title: 'Reviewed Roster Promotion'
+    });
+};
+
+const executeCloneFeeStructureStandalone = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!tgtYear) return alert('Please select a destination/target academic year.');
+
+    const chosenCustom = promoCustomFeeSelection.filter((f) => f.selected);
+    if (!confirm(`Clone Fee Structure for Session "${tgtYear}"?\n\nThis will configure 12 monthly fee heads and clone ${chosenCustom.length} custom fee items into ${tgtYear}. Continue?`)) return;
+
+    try {
+        await ensureFeeItemsForAcademicYears(academicYears);
+
+        if (promoCustomFeeSelection.length) {
+            const confRef = getConfigRef();
+            const configSnap = await getDoc(confRef);
+            const d = configSnap.exists() ? configSnap.data() : {};
+            let existingItems = Array.isArray(d.feeItems) ? [...d.feeItems] : [];
+
+            chosenCustom.forEach((f) => {
+                const alreadyExists = existingItems.some((i) => (i.academicYear || '') === tgtYear && i.name === f.name);
+                if (!alreadyExists) {
+                    const newKey = `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+                    existingItems.push({
+                        key: newKey,
+                        name: f.name,
+                        type: 'custom',
+                        scope: f.scope,
+                        amount: Number(f.targetAmount) || f.amount || 0,
+                        classValues: f.classValues || {},
+                        targetClass: f.targetClass || '',
+                        academicYear: tgtYear,
+                        isVisible: true,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            });
+
+            await setDoc(confRef, { feeItems: existingItems }, { merge: true });
+        }
+
+        showToast(`Fee structure successfully configured for ${tgtYear}!`, 'success');
+        alert(`Fee Structure Ready!\n\n12 monthly fee heads and ${chosenCustom.length} custom fee heads have been successfully set up for session "${tgtYear}".`);
+    } catch (err) {
+        console.error('Fee clone error:', err);
+        alert('Failed to clone fee structure: ' + err.message);
+    }
+};
+
+const executeRolloverConcessionsStandalone = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!srcYear || !tgtYear) return alert('Please specify both source and target academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target sessions must be different.');
+
+    const chosen = promoConcessionsSelection.filter((c) => c.selected);
+    if (!chosen.length) {
+        return alert(`No fee concessions selected or available to rollover from session "${srcYear}".`);
+    }
+
+    if (!confirm(`Rollover Fee Concessions to "${tgtYear}"?\n\nThis will carry forward special fee concessions for ${chosen.length} student(s) into session "${tgtYear}". Continue?`)) return;
+
+    try {
+        const nowIso = new Date().toISOString();
+        const ops = chosen.map(async (c) => {
+            await updateDoc(doc(db, `${BASE_PATH}/students`, c.studentId), {
+                concessionFee: Number(c.concessionFee) || 0,
+                concessionAppliedAt: Date.now(),
+                concessionUpdatedAt: Date.now(),
+                updatedAt: nowIso
+            });
+        });
+
+        await Promise.all(ops);
+        showToast(`Fee concessions rolled over for ${chosen.length} student(s)!`, 'success');
+        alert(`Concessions Rollover Completed!\n\nFee concessions for ${chosen.length} student(s) have been successfully carried forward into "${tgtYear}".`);
+    } catch (err) {
+        console.error('Concessions rollover error:', err);
+        alert('Failed to rollover concessions: ' + err.message);
+    }
+};
+
+const executeRolloverSiblingGroupsStandalone = async () => {
+    if (!requirePermission('academic-years.manage')) return;
+
+    const srcYear = document.getElementById('promo-source-year')?.value;
+    const tgtYear = document.getElementById('promo-target-year')?.value;
+    if (!srcYear || !tgtYear) return alert('Please specify both source and target academic sessions.');
+    if (srcYear === tgtYear) return alert('Source and target sessions must be different.');
+
+    const chosenGroups = promoGroupConfigurations.filter((g) => g.selected && g.activeMembers.length > 0);
+    if (!chosenGroups.length) {
+        return alert(`No sibling groups available to rollover from session "${srcYear}".`);
+    }
+
+    if (!confirm(`Rollover Sibling Groups to "${tgtYear}"?\n\nThis will carry forward ${chosenGroups.length} family group(s) with graduating Alumni members automatically detached. Continue?`)) return;
+
+    try {
+        const nowIso = new Date().toISOString();
+        const groupOps = chosenGroups.map(async (grp) => {
+            const activeMemberIds = grp.activeMembers.map((m) => m.id);
+            const groupRef = doc(collection(db, `${BASE_PATH}/studentGroups`));
+            const groupPayload = {
+                academicYear: tgtYear,
+                memberIds: activeMemberIds,
+                fee: Number(grp.adjustedFee) || 0,
+                sourceGroupId: grp.id,
+                createdAt: nowIso,
+                updatedAt: nowIso
+            };
+            await setDoc(groupRef, groupPayload);
+        });
+
+        await Promise.all(groupOps);
+        showToast(`${chosenGroups.length} sibling group(s) rolled over to ${tgtYear}!`, 'success');
+        alert(`Sibling Groups Rolled Over!\n\n${chosenGroups.length} sibling group(s) have been successfully configured for session "${tgtYear}".`);
+    } catch (err) {
+        console.error('Groups rollover error:', err);
+        alert('Failed to rollover sibling groups: ' + err.message);
+    }
+};
 // --- Promotion Wizard UI Event Listeners ---
 document.getElementById('promo-source-year')?.addEventListener('change', () => {
     const srcSelect = document.getElementById('promo-source-year');
@@ -11425,60 +11711,6 @@ document.getElementById('promo-th-select-all')?.addEventListener('change', (e) =
     renderPromoReviewTable();
 });
 
-document.getElementById('promo-btn-bulk-promote-all')?.addEventListener('click', () => {
-    let count = 0;
-    promoStudentsList.forEach((item) => {
-        item.decision = 'promoted';
-        item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
-        if (item.destinationClass === 'ALUMNI') {
-            item.decision = 'alumni';
-            item.destinationClass = 'Alumni';
-        }
-        count += 1;
-    });
-    showToast(`Marked all ${count} student(s) as Promoted (Direct Pass).`, 'info');
-    renderPromoReviewTable();
-    initPromoGroupsData();
-});
-
-document.getElementById('promo-btn-bulk-promote-pass')?.addEventListener('click', () => {
-    let passCount = 0;
-    let failCount = 0;
-    promoStudentsList.forEach((item) => {
-        if (item.examStatus === 'PASS') {
-            item.decision = 'promoted';
-            item.destinationClass = promoProgressionMappings[item.sourceClass] || suggestNextClass(item.sourceClass);
-            if (item.destinationClass === 'ALUMNI') {
-                item.decision = 'alumni';
-                item.destinationClass = 'Alumni';
-            }
-            passCount += 1;
-        } else if (item.examStatus === 'FAIL') {
-            item.decision = 'retained';
-            item.destinationClass = item.sourceClass;
-            failCount += 1;
-        }
-    });
-    showToast(`Applied exam results: ${passCount} Promoted, ${failCount} Retained.`, 'info');
-    renderPromoReviewTable();
-    initPromoGroupsData();
-});
-
-document.getElementById('promo-btn-bulk-retain-fail')?.addEventListener('click', () => {
-    let count = 0;
-    const hasSelected = promoStudentsList.some((p) => p.selected);
-    promoStudentsList.forEach((item) => {
-        if ((hasSelected && item.selected) || (!hasSelected && item.examStatus === 'FAIL')) {
-            item.decision = 'retained';
-            item.destinationClass = item.sourceClass;
-            count += 1;
-        }
-    });
-    showToast(`Marked ${count} student(s) as Retained (Repeaters).`, 'info');
-    renderPromoReviewTable();
-    initPromoGroupsData();
-});
-
 document.getElementById('promo-students-tbody')?.addEventListener('change', (e) => {
     const stuId = e.target.dataset.studentId;
     if (!stuId) return;
@@ -11522,8 +11754,12 @@ document.getElementById('promo-students-tbody')?.addEventListener('change', (e) 
     }
 });
 
+document.getElementById('promo-btn-direct-promote-all')?.addEventListener('click', executeDirectAllPromotion);
+document.getElementById('promo-btn-exam-promote')?.addEventListener('click', executeExamBasedPromotion);
 document.getElementById('btn-execute-promotion')?.addEventListener('click', executeBatchPromotion);
-document.getElementById('btn-execute-promotion-top')?.addEventListener('click', executeBatchPromotion);
+document.getElementById('promo-btn-exec-clone-fees')?.addEventListener('click', executeCloneFeeStructureStandalone);
+document.getElementById('promo-btn-exec-rollover-concessions')?.addEventListener('click', executeRolloverConcessionsStandalone);
+document.getElementById('promo-btn-exec-rollover-groups')?.addEventListener('click', executeRolloverSiblingGroupsStandalone);
 
 // --- Modal Trigger and Action Listeners ---
 // 1. Fee Structure Modal
