@@ -1,5 +1,5 @@
 import { doc, collection, writeBatch, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { db } from '../../config/firebase-config.js';
+import { db } from '../../../config/firebase-config.js';
 import { BASE_PATH, escapeHtml, formatCurrency } from '../../shared/app-common.js';
 import { showToast } from '../../shared/toaster.js';
 

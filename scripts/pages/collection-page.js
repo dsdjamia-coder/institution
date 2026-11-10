@@ -371,7 +371,6 @@ const OVERFLOW_COLLECTION_TABS = new Set([
 const activateTab = (targetId) => {
     const safeTargetId = document.getElementById(targetId) ? targetId : defaultTabId;
     const activeLink = getLinkForTarget(safeTargetId);
-    if (!activeLink) return;
 
     try {
         sessionStorage.setItem(ACTIVE_TAB_STORAGE_KEY, safeTargetId);
