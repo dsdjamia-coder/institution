@@ -535,37 +535,41 @@ const getStudentsForYear = (targetYearLabel) => {
         const isCurrentYear = studentMasterYear === target;
 
         if (yearEntry && typeof yearEntry === 'object') {
+            const entryClass = yearEntry.class || student.class;
+            const entryStatus = yearEntry.status || student.status;
+            if (normalizeStudentStatus(entryStatus) === 'Alumni' || String(entryClass || '').toUpperCase() === 'ALUMNI') {
+                return null;
+            }
             return {
                 ...student,
                 _historicalYear: target,
                 _isHistoricalView: target !== activeLabel,
-                class: yearEntry.class || student.class,
-                studentClass: yearEntry.class || student.studentClass || student.class,
-                status: yearEntry.status || student.status
+                class: entryClass,
+                studentClass: entryClass,
+                status: entryStatus
             };
         } else if (isCurrentYear) {
+            if (normalizeStudentStatus(student.status) === 'Alumni' || student.isAlumni === true || String(student.class || '').toUpperCase() === 'ALUMNI') {
+                return null;
+            }
             return {
                 ...student,
                 _historicalYear: target,
                 _isHistoricalView: target !== activeLabel
             };
         } else if (!student.academicYear && (!student.academicYears || Object.keys(student.academicYears).length === 0) && target === activeAcademicYear) {
+            if (normalizeStudentStatus(student.status) === 'Alumni' || student.isAlumni === true || String(student.class || '').toUpperCase() === 'ALUMNI') {
+                return null;
+            }
             return {
                 ...student,
                 _historicalYear: target,
                 _isHistoricalView: target !== activeLabel
             };
-        } else if (normalizeStudentStatus(student.status) === 'Alumni' || student.isAlumni === true || String(student.class || '').toUpperCase() === 'ALUMNI') {
-            // Institutional Alumni are unified globally with their passedOutYear field
-            return {
-                ...student,
-                _historicalYear: target,
-                _isHistoricalView: target !== activeLabel,
-                class: 'Alumni',
-                studentClass: 'Alumni',
-                status: 'Alumni'
-            };
         } else if (student.admDate) {
+            if (normalizeStudentStatus(student.status) === 'Alumni' || student.isAlumni === true || String(student.class || '').toUpperCase() === 'ALUMNI') {
+                return null;
+            }
             // Intelligent fallback for legacy students without academicYears map:
             // Match admission date to academic session (e.g. 2024-06-10 -> 2024-2025)
             const d = new Date(student.admDate);
@@ -594,10 +598,17 @@ const getClassesForYear = (targetYearLabel) => {
     const yearRecord = academicYears.find((year) => year.label === target);
     const structuredClasses = Array.isArray(yearRecord?.classes) ? yearRecord.classes : [];
     const studentClasses = getStudentsForYear(target).map((student) => student.class).filter(Boolean);
-    const combined = sortClassLabels([...new Set([...structuredClasses, ...studentClasses])]);
+    const combined = sortClassLabels([...new Set([...structuredClasses, ...studentClasses])])
+        .filter(c => {
+            const u = String(c).trim().toUpperCase();
+            return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+        });
     if (combined.length > 0) return combined;
     const fallbackActive = Array.isArray(classes) && classes.length ? classes : (typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : []);
-    return sortClassLabels([...new Set(fallbackActive)]);
+    return sortClassLabels([...new Set(fallbackActive)]).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
 };
 
 const getClassesForActiveYear = () => getClassesForYear(getActiveAcademicYearLabel());
@@ -631,12 +642,17 @@ const setAcademicYearBadges = () => {
     if (bulkUploadBadge) bulkUploadBadge.textContent = activeYear;
 };
 const syncActiveAcademicYearClasses = async (classNames, { replace = false } = {}) => {
-    const normalizedClasses = sortClassLabels([...new Set(classNames.map((name) => name?.toString().trim().toUpperCase()).filter(Boolean))]);
+    const normalizedClasses = sortClassLabels([...new Set(classNames.map((name) => name?.toString().trim().toUpperCase()).filter(Boolean))])
+        .filter(c => c !== 'ALUMNI' && c !== 'GRADUATED');
     const activeLabel = getActiveAcademicYearLabel();
     let didChange = false;
     academicYears = academicYears.map((year) => {
         if (year.label !== activeLabel) return year;
-        const existingClasses = Array.isArray(year.classes) ? sortClassLabels(year.classes) : [];
+        const existingClasses = (Array.isArray(year.classes) ? sortClassLabels(year.classes) : [])
+            .filter(c => {
+                const u = String(c).trim().toUpperCase();
+                return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+            });
         const nextClasses = replace ? normalizedClasses : sortClassLabels([...new Set([...existingClasses, ...normalizedClasses])]);
         if (JSON.stringify(existingClasses) !== JSON.stringify(nextClasses)) {
             didChange = true;
@@ -1292,7 +1308,8 @@ const syncAllStudentsLookupIndex = async (studentsList = rawStudents, onProgress
 const computeInstitutionalStats = (targetYear = null) => {
     const activeYear = targetYear || getActiveAcademicYearLabel();
     const studentsInYear = rawStudents.filter((st) => {
-        if (!st || st.status === 'Discontinued') return false;
+        if (!st || st.status === 'Discontinued' || normalizeStudentStatus(st.status) === 'Alumni' || st.isAlumni === true) return false;
+        if (String(st.class || '').trim().toUpperCase() === 'ALUMNI' || String(st.class || '').trim().toUpperCase() === 'GRADUATED') return false;
         const sYear = st.academicYear || activeYear;
         return sYear === activeYear;
     });
@@ -1302,13 +1319,14 @@ const computeInstitutionalStats = (targetYear = null) => {
     const byClass = {};
 
     studentsInYear.forEach((st) => {
+        const className = String(st.class || 'Unassigned').trim();
+        if (className.toUpperCase() === 'ALUMNI' || className.toUpperCase() === 'GRADUATED') return;
         const g = String(st.gender || '').trim().toLowerCase();
         const isMale = g === 'male' || g === 'boy' || g === 'm';
         const isFemale = g === 'female' || g === 'girl' || g === 'f';
         if (isMale) totalMale++;
         else if (isFemale) totalFemale++;
 
-        const className = String(st.class || 'Unassigned').trim();
         if (!byClass[className]) {
             byClass[className] = { male: 0, female: 0, total: 0 };
         }
@@ -1319,7 +1337,7 @@ const computeInstitutionalStats = (targetYear = null) => {
 
     return {
         academicYear: activeYear,
-        total: studentsInYear.length,
+        total: totalMale + totalFemale,
         male: totalMale,
         female: totalFemale,
         byClass,
@@ -1369,8 +1387,14 @@ const renderStudentCountsTab = () => {
     if (maleEl) maleEl.textContent = stats.male;
     if (femaleEl) femaleEl.textContent = stats.female;
 
-    const registeredClasses = getClassesForActiveYear() || [];
-    const studentClasses = Object.keys(stats.byClass);
+    const registeredClasses = (getClassesForActiveYear() || []).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
+    const studentClasses = Object.keys(stats.byClass).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
     const allClasses = Array.from(new Set([...registeredClasses, ...studentClasses]));
     const sortedClasses = sortClassLabels(allClasses);
 
@@ -5759,7 +5783,10 @@ const populateManageClassDropdown = (selectedYear = getActiveAcademicYearLabel()
     const filterManage = document.getElementById('filter-manage-class');
     if (!filterManage) return;
     const prevVal = filterManage.value;
-    const yearClasses = getClassesForYear(selectedYear);
+    const yearClasses = getClassesForYear(selectedYear).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
 
     let optionsHtml = `<option value="all">All Classes</option>`;
     if (yearClasses.length > 0) {
@@ -6827,14 +6854,14 @@ const renderAlumniList = () => {
                 </td>
                 <td class="p-3 text-right">
                     <div class="flex items-center justify-end gap-1.5">
-                        <button type="button" class="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition" title="View History" onclick="viewStudentHistory('${escapeHtml(s.id)}')">
-                            <i class="fas fa-history text-sm"></i>
+                        <button type="button" class="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition view-alumni-history-btn" title="View History" data-id="${escapeHtml(s.id)}" onclick="viewStudentHistory('${escapeHtml(s.id)}')">
+                            <i class="fas fa-history text-sm pointer-events-none"></i>
                         </button>
-                        <button type="button" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition" title="Edit Alumni Record" onclick="openEditStudentModal('${escapeHtml(s.id)}')">
-                            <i class="fas fa-edit text-sm"></i>
+                        <button type="button" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition edit-alumni-btn" title="Edit Alumni Record" data-id="${escapeHtml(s.id)}" onclick="openEditStudentModal('${escapeHtml(s.id)}')">
+                            <i class="fas fa-edit text-sm pointer-events-none"></i>
                         </button>
-                        <button type="button" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition" title="Delete Alumni" onclick="deleteStudent('${escapeHtml(s.id)}')">
-                            <i class="fas fa-trash text-sm"></i>
+                        <button type="button" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition delete-alumni-btn" title="Delete Alumni" data-id="${escapeHtml(s.id)}" onclick="deleteStudent('${escapeHtml(s.id)}')">
+                            <i class="fas fa-trash text-sm pointer-events-none"></i>
                         </button>
                     </div>
                 </td>
@@ -6935,6 +6962,54 @@ document.getElementById('export-alumni-excel-btn')?.addEventListener('click', ex
 document.getElementById('export-alumni-csv-btn')?.addEventListener('click', exportAlumniToCSV);
 document.getElementById('export-alumni-pdf-btn')?.addEventListener('click', exportAlumniToPDF);
 
+// Alumni table action handlers (History, Edit, Delete)
+document.getElementById('alumni-table-body')?.addEventListener('click', (e) => {
+    const histBtn = e.target.closest('.view-alumni-history-btn');
+    if (histBtn) {
+        e.preventDefault();
+        openStudentHistoryModal(histBtn.dataset.id);
+        return;
+    }
+    const editBtn = e.target.closest('.edit-alumni-btn');
+    if (editBtn) {
+        e.preventDefault();
+        openEditStudentModal(editBtn.dataset.id);
+        return;
+    }
+    const delBtn = e.target.closest('.delete-alumni-btn');
+    if (delBtn) {
+        e.preventDefault();
+        if (!confirm("Are you sure you want to permanently delete this alumni student and all linked records?")) return;
+        deleteStudentsAndDependencies([delBtn.dataset.id])
+            .then(async () => {
+                await logAuditEvent({ category: 'alumni', action: 'alumni.delete', entityType: 'student', entityId: delBtn.dataset.id, message: 'Alumni record permanently deleted.' });
+                renderAlumniList();
+                if (typeof renderStudentList === 'function') renderStudentList();
+            })
+            .catch((error) => {
+                console.error('Failed to delete alumni student.', error);
+                alert('Failed to delete the alumni student. Please try again.');
+            });
+    }
+});
+
+// Safe global fallbacks for inline handlers
+window.viewStudentHistory = (id) => openStudentHistoryModal(id);
+window.openStudentHistoryModal = openStudentHistoryModal;
+window.openEditStudentModal = openEditStudentModal;
+window.deleteStudent = (id) => {
+    if (!confirm("Are you sure you want to permanently delete this student and all linked records?")) return;
+    deleteStudentsAndDependencies([id])
+        .then(async () => {
+            renderAlumniList();
+            if (typeof renderStudentList === 'function') renderStudentList();
+        })
+        .catch((error) => {
+            console.error('Failed to delete student.', error);
+            alert('Failed to delete the student. Please try again.');
+        });
+};
+
 // ============================================================================
 // --- 3.2 STUDENT CONTINUITY & RE-ADMISSION MANAGEMENT SUBSYSTEM ---
 // ============================================================================
@@ -6999,14 +7074,21 @@ const populateContinuityClassDropdown = () => {
     const classFilter = document.getElementById('continuity-class-filter');
     if (!classSelect || !classFilter) return;
 
-    const activeClasses = getClassesForActiveYear();
+    const activeClasses = (getClassesForActiveYear() || []).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
     const currentVal = classSelect.value;
     classSelect.innerHTML = `<option value="">All Classes</option>` +
         activeClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     if (activeClasses.includes(currentVal)) classSelect.value = currentVal;
 
     const discontinuedStudents = (rawStudents || []).filter(s => normalizeStudentStatus(s.status) === 'Discontinued');
-    const departureClasses = sortClassLabels([...new Set(discontinuedStudents.map(s => s.discontinuationDetails?.lastClass || s.class).filter(Boolean))]);
+    const departureClasses = sortClassLabels([...new Set(discontinuedStudents.map(s => s.discontinuationDetails?.lastClass || s.class).filter(Boolean))])
+        .filter(c => {
+            const u = String(c).trim().toUpperCase();
+            return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+        });
     const currentFilterVal = classFilter.value;
     classFilter.innerHTML = `<option value="all">All Departure Classes</option>` +
         departureClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -8003,7 +8085,10 @@ const openReadmitModal = (studentId) => {
             const selectedTargetYear = targetYearSelect.value;
             const targetClassSelect = document.getElementById('readmit-target-class');
             if (!targetClassSelect) return;
-            const yearClasses = getClassesForYear(selectedTargetYear);
+            const yearClasses = getClassesForYear(selectedTargetYear).filter(c => {
+                const u = String(c).trim().toUpperCase();
+                return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+            });
 
             targetClassSelect.innerHTML = '<option value="">Select Target Class &amp; Division...</option>' +
                 yearClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -8681,7 +8766,10 @@ const renderClassList = () => {
         }
     }
 
-    const yearClasses = getClassesForYear(selYear);
+    const yearClasses = getClassesForYear(selYear).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
 
     // Disable new class creation if viewing historical session
     const createInput = document.getElementById('new-class-name-input');
@@ -8736,6 +8824,9 @@ document.getElementById('create-class-btn').addEventListener('click', async () =
     if(!requirePermission('classes.manage')) return;
     const className = cleanClassInput(document.getElementById('new-class-name-input').value);
     if(!className) return alert('Enter a class/division name.');
+    if (className === 'ALUMNI' || className === 'GRADUATED') {
+        return alert('Alumni is reserved for graduated students and cannot be added as a regular class.');
+    }
     if(classes.includes(className)) return alert('This class/division already exists in the active academic year.');
     await syncActiveAcademicYearClasses([className]);
     await logAuditEvent({ category: 'class', action: 'class.create', entityType: 'class', entityId: className, message: `Class created: ${className}.` });
@@ -8782,6 +8873,9 @@ document.getElementById('edit-class-cancel').addEventListener('click', () => doc
 document.getElementById('edit-class-update').addEventListener('click', async () => {
     if(!requirePermission('classes.manage')) return;
     const newName = cleanClassInput(document.getElementById('edit-class-name').value);
+    if (newName === 'ALUMNI' || newName === 'GRADUATED') {
+        return alert('Alumni is reserved for graduated students and cannot be used as a regular class name.');
+    }
     if(newName && newName !== editingClassName) {
         if(!confirm("Rename class?")) return;
         const activeYear = getActiveAcademicYearLabel();
@@ -11170,9 +11264,19 @@ const updatePromotionProgressionGrid = () => {
     const container = document.getElementById('promo-progression-container');
     if (!container) return;
 
-    const srcClasses = getClassesForYear(srcYear);
-    const tgtClasses = getClassesForYear(tgtYear);
-    const allKnown = sortClassLabels([...new Set([...srcClasses, ...tgtClasses, ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])]);
+    const srcClasses = getClassesForYear(srcYear).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
+    const tgtClasses = getClassesForYear(tgtYear).filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+    });
+    const allKnown = sortClassLabels([...new Set([...srcClasses, ...tgtClasses, ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])])
+        .filter(c => {
+            const u = String(c).trim().toUpperCase();
+            return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+        });
 
     if (!srcClasses.length) {
         container.innerHTML = '<div class="p-6 text-center text-xs text-amber-600 bg-amber-50 rounded-xl border border-amber-200 col-span-full font-bold">No classes found in source academic session. Configure classes first in Class Management.</div>';
@@ -11291,7 +11395,11 @@ const loadPromoStudentsForReview = async () => {
         // Populate class filter dropdown
         const classFilter = document.getElementById('promo-filter-class');
         if (classFilter) {
-            const distinctClasses = sortClassLabels([...new Set(promoStudentsList.map((p) => p.sourceClass))]);
+            const distinctClasses = sortClassLabels([...new Set(promoStudentsList.map((p) => p.sourceClass))])
+                .filter(c => {
+                    const u = String(c).trim().toUpperCase();
+                    return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+                });
             classFilter.innerHTML = '<option value="all">All Classes</option>' + distinctClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         }
 
@@ -11397,7 +11505,11 @@ const renderPromoReviewTable = () => {
 
     const srcYear = document.getElementById('promo-source-year')?.value || getActiveAcademicYearLabel();
     const tgtYear = document.getElementById('promo-target-year')?.value || '';
-    const allKnown = sortClassLabels([...new Set([...getClassesForYear(srcYear), ...getClassesForYear(tgtYear), ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])]);
+    const allKnown = sortClassLabels([...new Set([...getClassesForYear(srcYear), ...getClassesForYear(tgtYear), ...classes, ...(typeof getDefaultClassLadder === 'function' ? getDefaultClassLadder() : [])])])
+        .filter(c => {
+            const u = String(c).trim().toUpperCase();
+            return u && u !== 'ALUMNI' && u !== 'GRADUATED';
+        });
 
     const pageSlice = filtered.slice(startIdx, endIdx);
 

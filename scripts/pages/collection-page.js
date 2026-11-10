@@ -2173,26 +2173,32 @@ const editMultiEntryItem = (index = -1) => {
 
 // --- FEE ENTRY & LOGIC ---
 const populateClassDropdowns = () => {
-    classes = [...new Set(students.map(s => s.class).filter(Boolean))].sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+    classes = [...new Set(students.map(s => s.class).filter(Boolean))]
+        .filter(c => {
+            const u = String(c).trim().toUpperCase();
+            return u && u !== 'ALUMNI' && u !== 'GRADUATED' && u !== 'ALUMNI_DUES';
+        })
+        .sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
     const isSuperAdmin = isMasterSuperAdmin();
-    const classOptions = getClassOptionsForCollector();
+    const classOptions = getClassOptionsForCollector().filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED' && u !== 'ALUMNI_DUES';
+    });
 
     const filterClassEl = document.getElementById('filter-class');
     const entryClassEl = document.getElementById('entry-class');
     const stuInfoClassEl = document.getElementById('stu-info-class');
     const bulkClassEl = document.getElementById('bulk-class');
-    const allowAlumni = canUserViewAlumni();
-    const alumniOption = allowAlumni ? `<option value="ALUMNI_DUES">🎓 Alumni Arrears (Graduated Dues)</option>` : '';
 
     if (isSuperAdmin) {
         const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts + alumniOption;
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts;
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
     } else if (classOptions.length > 0) {
         const opts = classOptions.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts + alumniOption;
+        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts;
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
