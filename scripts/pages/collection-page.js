@@ -1467,54 +1467,7 @@ const renderMonthlySummaryCards = (payments, searchTerm = '') => {
     `;
 };
 
-const exportMonthlySummaryCsv = (searchTerm = '') => {
-    const lowerTerm = searchTerm.toLowerCase();
-    const visiblePayments = [...getVisiblePayments(), ...getVisibleDonations()].filter((payment) => {
-        if (!searchTerm) return true;
-        if (payment.entryType === 'donation') {
-            return (payment.donorName || '').toLowerCase().includes(lowerTerm)
-                || (payment.description || '').toLowerCase().includes(lowerTerm)
-                || (payment.receiptNo && payment.receiptNo.toString().includes(lowerTerm));
-        }
-        const student = getStudentById(payment.studentId);
-        return Boolean(student) && (
-            student.name.toLowerCase().includes(lowerTerm) ||
-            (student.adm && student.adm.toLowerCase().includes(lowerTerm)) ||
-            student.class.toLowerCase().includes(lowerTerm) ||
-            (payment.receiptNo && payment.receiptNo.toString().includes(lowerTerm))
-        );
-    });
-
-    if (visiblePayments.length === 0) {
-        alert('No monthly report data available to export.');
-        return;
-    }
-
-    const monthlyGroups = visiblePayments.reduce((acc, payment) => {
-        if (!payment.paymentDate) return acc;
-        const monthKey = payment.paymentDate.substring(0, 7);
-        if (!acc[monthKey]) acc[monthKey] = [];
-        acc[monthKey].push(payment);
-        return acc;
-    }, {});
-
-    const rows = [['Month', 'Total Collected', 'Monthly Fees', 'Other Fees', 'Receipts', 'Students']];
-    Object.keys(monthlyGroups).sort().reverse().forEach((monthKey) => {
-        const summary = buildMonthlyReportSummary(monthlyGroups[monthKey]);
-        rows.push([
-            formatMonthLabel(monthKey),
-            summary.totalAmount.toFixed(0),
-            summary.defaultAmount.toFixed(0),
-            summary.otherAmount.toFixed(0),
-            summary.receipts.size.toString(),
-            summary.students.size.toString()
-        ]);
-    });
-
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const suffix = searchTerm ? `-${searchTerm.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : '';
-    downloadTextFile(`monthly-report-summary${suffix || ''}.csv`, csv, 'text/csv;charset=utf-8');
-};
+const exportMonthlySummaryCsv = () => openReportMonthExportModal('monthly');
 
 // --- DASHBOARD RENDER ---
 const renderDashboardStudentClassTable = () => {
@@ -5574,6 +5527,17 @@ document.getElementById('history-content-container').addEventListener('click', e
     }
 });
 
+const receiptSort = (a, b) => {
+    const aNum = Number(a?.receiptNo ?? a ?? 0);
+    const bNum = Number(b?.receiptNo ?? b ?? 0);
+    const aValid = Number.isFinite(aNum);
+    const bValid = Number.isFinite(bNum);
+    if (aValid && bValid) return aNum - bNum;
+    if (aValid) return -1;
+    if (bValid) return 1;
+    return String(a?.receiptNo ?? a ?? '').localeCompare(String(b?.receiptNo ?? b ?? ''), undefined, { numeric: true });
+};
+
 // --- MONTHLY REPORT RENDER ---
 const renderMonthlyCollectedPage = (searchTerm = '') => {
     const cont = document.getElementById('monthly-collected-container'), lowerTerm = searchTerm.toLowerCase(); cont.innerHTML = '';
@@ -5714,7 +5678,7 @@ const renderMonthlyCollectedPage = (searchTerm = '') => {
     });
 };
 document.getElementById('monthly-collected-search-input').addEventListener('input', e => renderMonthlyCollectedPage(e.target.value));
-document.getElementById('monthly-report-download-btn').addEventListener('click', () => exportMonthlySummaryCsv(document.getElementById('monthly-collected-search-input').value));
+document.getElementById('monthly-report-download-btn')?.addEventListener('click', () => openReportMonthExportModal('monthly'));
 document.getElementById('monthly-collected-container').addEventListener('click', e => {
     const h = e.target.closest('.month-header'), sel = e.target.closest('.monthly-student-select'), back = e.target.closest('#back-to-monthly-view-btn'), share = e.target.closest('#share-whatsapp-btn-monthly');
     if(h) { h.nextElementSibling.classList.toggle('hidden'); h.querySelector('.month-toggle-icon').classList.toggle('rotate-180'); }
@@ -5799,6 +5763,743 @@ window.prepareHistoryData = prepareHistoryData;
 window.updateDashboardMetrics = updateDashboardMetrics;
 window.renderMonthlyCollectedPage = renderMonthlyCollectedPage;
 window.renderCollectorWiseMonthlyPage = renderCollectorWiseMonthlyPage;
+
+// ============================================================================
+// --- MONTHLY & COLLECTOR-WISE PDF REPORT EXPORT SUBSYSTEM ---
+// ============================================================================
+let activeReportExportType = 'monthly';
+
+const getAcademicYearMonthKeys = (yearLabel = '') => {
+    const effectiveYear = yearLabel || currentWorkingAcademicYear || getAcademicYearFromDate();
+    if (!effectiveYear) return [];
+    const parts = effectiveYear.split('-').map(p => Number(p.trim()));
+    const y1 = parts[0];
+    const y2 = parts[1] || y1;
+    const seq = getAcademicMonthSequence(effectiveYear);
+    const startMonth = seq.length ? seq[0] : 5;
+    return seq.map(mIdx => {
+        const calYear = (mIdx >= startMonth) ? y1 : y2;
+        const calMonth = String(mIdx + 1).padStart(2, '0');
+        return `${calYear}-${calMonth}`;
+    });
+};
+
+const getAvailableReportMonthKeys = (exportType = 'monthly') => {
+    const monthKeySet = new Set();
+
+    // 1. Current calendar month
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    monthKeySet.add(currentMonthKey);
+
+    // 2. Academic year months for current working year
+    const academicMonths = getAcademicYearMonthKeys(currentWorkingAcademicYear || getAcademicYearFromDate());
+    academicMonths.forEach(mk => monthKeySet.add(mk));
+
+    // 3. Any additional months from recorded data
+    const records = exportType === 'collector'
+        ? [...allPayments, ...allDonations]
+        : [...getVisiblePayments(), ...getVisibleDonations()];
+
+    records.forEach(r => {
+        if (r?.paymentDate) {
+            const mk = r.paymentDate.substring(0, 7);
+            if (/^\d{4}-\d{2}$/.test(mk)) {
+                monthKeySet.add(mk);
+            }
+        }
+    });
+
+    return Array.from(monthKeySet).sort().reverse();
+};
+
+const openReportMonthExportModal = (exportType = 'monthly') => {
+    activeReportExportType = exportType;
+    const modal = document.getElementById('report-month-select-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('report-modal-title');
+    const subtitleEl = document.getElementById('report-modal-subtitle');
+    const listCont = document.getElementById('report-modal-months-list');
+    const submitLabel = document.getElementById('report-modal-submit-label');
+
+    if (exportType === 'collector') {
+        if (titleEl) titleEl.textContent = 'Download Collector-wise Report (PDF)';
+        if (subtitleEl) subtitleEl.textContent = 'Select months to include in the collector breakdown PDF';
+        if (submitLabel) submitLabel.textContent = 'Download Collector PDF';
+    } else {
+        if (titleEl) titleEl.textContent = 'Download Monthly Report (PDF)';
+        if (subtitleEl) subtitleEl.textContent = 'Select months to include in the monthly collection PDF';
+        if (submitLabel) submitLabel.textContent = 'Download Monthly PDF';
+    }
+
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const availableMonths = getAvailableReportMonthKeys(exportType);
+
+    const records = exportType === 'collector'
+        ? [...allPayments, ...allDonations]
+        : [...getVisiblePayments(), ...getVisibleDonations()];
+
+    if (listCont) {
+        listCont.innerHTML = availableMonths.map(mk => {
+            const isCurrent = (mk === currentMonthKey);
+            const label = formatMonthLabel(mk);
+            const count = records.filter(r => r.paymentDate?.startsWith(mk)).length;
+            const countText = count > 0 ? `${count} record${count > 1 ? 's' : ''}` : 'No records';
+
+            return `
+                <label class="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 cursor-pointer transition select-none">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <input type="checkbox" class="report-month-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" value="${mk}" ${isCurrent ? 'checked' : ''}>
+                        <span class="font-bold text-slate-800 text-xs">${escapeHtml(label)}</span>
+                        ${isCurrent ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Current</span>' : ''}
+                    </div>
+                    <span class="text-[11px] font-medium text-slate-500">${countText}</span>
+                </label>
+            `;
+        }).join('');
+    }
+
+    modal.classList.remove('hidden');
+};
+
+const closeReportMonthExportModal = () => {
+    const modal = document.getElementById('report-month-select-modal');
+    if (modal) modal.classList.add('hidden');
+};
+
+const generateMonthlyReportPdf = (selectedMonths = []) => {
+    if (!window.jspdf?.jsPDF) {
+        showToast('PDF generator is loading, please try again.', 'info');
+        return;
+    }
+    if (!selectedMonths || selectedMonths.length === 0) {
+        showToast('Please select at least one month to export.', 'info');
+        return;
+    }
+
+    const searchTerm = document.getElementById('monthly-collected-search-input')?.value?.trim() || '';
+    const lowerTerm = searchTerm.toLowerCase();
+    const myPays = getVisiblePayments();
+    const myDonations = getVisibleDonations();
+    const combinedEntries = [...myPays, ...myDonations].filter((payment) => {
+        if (!searchTerm) return true;
+        if (payment.entryType === 'donation') {
+            return (payment.donorName || '').toLowerCase().includes(lowerTerm)
+                || (payment.description || '').toLowerCase().includes(lowerTerm)
+                || (payment.receiptNo && String(payment.receiptNo).includes(lowerTerm));
+        }
+        const student = getStudentById(payment.studentId);
+        return Boolean(student) && (
+            student.name.toLowerCase().includes(lowerTerm) ||
+            (student.adm && student.adm.toLowerCase().includes(lowerTerm)) ||
+            student.class.toLowerCase().includes(lowerTerm) ||
+            (payment.receiptNo && String(payment.receiptNo).includes(lowerTerm))
+        );
+    });
+
+    const { jsPDF } = window.jspdf;
+    const docPdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageWidth = docPdf.internal.pageSize.getWidth();
+    const pageHeight = docPdf.internal.pageSize.getHeight();
+
+    const conf = window.institutionConfig || {};
+    const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
+    const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
+    const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
+    const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${currentWorkingAcademicYear || 'Current'}`].filter(Boolean).join(' • ');
+
+    const formatInr = (num) => 'Rs. ' + Math.round(Number(num) || 0).toLocaleString('en-IN');
+
+    const drawHeader = (startY = 32) => {
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(14);
+        docPdf.setTextColor(15, 23, 42);
+        docPdf.text(instName.toUpperCase(), pageWidth / 2, startY, { align: 'center' });
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(9);
+        docPdf.setTextColor(100, 116, 139);
+        docPdf.text(subtitleLine, pageWidth / 2, startY + 14, { align: 'center' });
+
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(30, 41, 59);
+        docPdf.text('MONTHLY COLLECTION & REVENUE REPORT', 24, startY + 34);
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(100, 116, 139);
+        const periodStr = selectedMonths.length === 1 
+            ? `Month: ${formatMonthLabel(selectedMonths[0])}`
+            : `Selected Period: ${selectedMonths.length} Months (${formatMonthLabel(selectedMonths[selectedMonths.length - 1])} to ${formatMonthLabel(selectedMonths[0])})`;
+        docPdf.text(periodStr, 24, startY + 46);
+        docPdf.text(`Generated: ${new Date().toLocaleString('en-GB')}`, pageWidth - 24, startY + 34, { align: 'right' });
+        if (searchTerm) {
+            docPdf.text(`Filter: "${searchTerm}"`, pageWidth - 24, startY + 46, { align: 'right' });
+        }
+        return startY + 54;
+    };
+
+    let currentY = drawHeader(32);
+    const sortedMonths = [...selectedMonths].sort().reverse();
+
+    // If multiple months are selected, render Consolidated Summary Table first
+    if (sortedMonths.length > 1) {
+        const summaryRows = [];
+        let grandDefault = 0, grandOthers = 0, grandDonations = 0, grandAll = 0, totalRcpts = 0, allStudentsSet = new Set();
+
+        sortedMonths.forEach(mk => {
+            const mPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+            const uTxns = {};
+            mPays.forEach(p => {
+                const tid = p.transactionId || p.receiptNo;
+                if (!uTxns[tid]) {
+                    const pt = mPays.filter(pay => (pay.transactionId || pay.receiptNo) === tid);
+                    const m = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'month');
+                    const c = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'custom');
+                    uTxns[tid] = { m, c };
+                }
+            });
+            const mTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.m, 0));
+            const cTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.c, 0));
+            const donationPays = mPays.filter((entry) => entry.entryType === 'donation');
+            const feePays = mPays.filter((entry) => entry.entryType !== 'donation');
+            const studentDonationPays = feePays.filter((p) => p.itemKey === STUDENT_DONATION_ITEM_KEY);
+            const donTot = roundMoney(donationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+                + studentDonationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
+            const mGrand = roundMoney(mTot + donTot + cTot);
+            const rCount = Object.keys(uTxns).length;
+            const sCount = new Set(mPays.map(p => p.studentId).filter(Boolean)).size;
+
+            grandDefault += mTot;
+            grandOthers += cTot;
+            grandDonations += donTot;
+            grandAll += mGrand;
+            totalRcpts += rCount;
+            mPays.forEach(p => { if (p.studentId) allStudentsSet.add(p.studentId); });
+
+            summaryRows.push([
+                formatMonthLabel(mk),
+                formatInr(mTot),
+                formatInr(cTot),
+                formatInr(donTot),
+                formatInr(mGrand),
+                String(rCount),
+                String(sCount)
+            ]);
+        });
+
+        docPdf.autoTable({
+            startY: currentY,
+            margin: { left: 24, right: 24 },
+            head: [['Month', 'Default Fees', 'Other Fees', 'Donations', 'Total Collected', 'Receipts', 'Students']],
+            body: summaryRows,
+            foot: [[
+                'GRAND TOTAL',
+                formatInr(grandDefault),
+                formatInr(grandOthers),
+                formatInr(grandDonations),
+                formatInr(grandAll),
+                String(totalRcpts),
+                String(allStudentsSet.size)
+            ]],
+            styles: { fontSize: 8, cellPadding: 3.5, halign: 'right' },
+            columnStyles: {
+                0: { halign: 'left', fontStyle: 'bold' }
+            },
+            headStyles: { fillColor: [15, 23, 42], textColor: 255, halign: 'right', fontStyle: 'bold' },
+            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'right' },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        currentY = docPdf.lastAutoTable.finalY + 18;
+    }
+
+    // Render month-by-month breakdowns
+    sortedMonths.forEach(mk => {
+        const monthPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+        const uTxns = {};
+        monthPays.forEach(p => {
+            const tid = p.transactionId || p.receiptNo;
+            if (!uTxns[tid]) {
+                const pt = monthPays.filter(pay => (pay.transactionId || pay.receiptNo) === tid);
+                const m = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'month');
+                const c = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'custom');
+                uTxns[tid] = { m, c };
+            }
+        });
+        const mTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.m, 0));
+        const cTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.c, 0));
+        const donationPays = monthPays.filter((entry) => entry.entryType === 'donation');
+        const feePays = monthPays.filter((entry) => entry.entryType !== 'donation');
+        const mF = feePays.filter((p) => getPaymentItemType(p) === 'month');
+        const studentDonationPays = feePays.filter((p) => p.itemKey === STUDENT_DONATION_ITEM_KEY);
+        const cF = feePays.filter((p) => getPaymentItemType(p) === 'custom' && p.itemKey !== STUDENT_DONATION_ITEM_KEY);
+        const defaultTotal = mTot;
+        const donationTotal = roundMoney(donationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+            + studentDonationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
+        const otherTotal = cTot;
+        const grandTotal = roundMoney(defaultTotal + donationTotal + otherTotal);
+
+        if (currentY > pageHeight - 140) {
+            docPdf.addPage();
+            currentY = drawHeader(32);
+        }
+
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(30, 41, 59);
+        docPdf.text(`MONTH: ${formatMonthLabel(mk).toUpperCase()}`, 24, currentY);
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8.5);
+        docPdf.setTextColor(71, 85, 105);
+        const monthStats = `Total: ${formatInr(grandTotal)}  |  Default: ${formatInr(defaultTotal)}  |  Others: ${formatInr(otherTotal)}  |  Donations: ${formatInr(donationTotal)}  (${Object.keys(uTxns).length} receipts)`;
+        docPdf.text(monthStats, 24, currentY + 12);
+        currentY += 18;
+
+        if (monthPays.length === 0) {
+            docPdf.setFont('helvetica', 'italic');
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(148, 163, 184);
+            docPdf.text('No payment or donation records recorded for this month.', 24, currentY + 10);
+            currentY += 24;
+            return;
+        }
+
+        // Table 1: Default Monthly Fees
+        if (mF.length > 0) {
+            const monthlyTxnRows = Object.values(mF.reduce((acc, payment) => {
+                const txnKey = payment.transactionId || payment.receiptNo || `tx-${payment.timestamp || Math.random()}`;
+                if (!acc[txnKey]) acc[txnKey] = { receiptNo: payment.receiptNo || '-', total: 0, students: {}, seenBilling: new Set() };
+                const billingKey = payment.billingGroupId
+                    ? `${txnKey}__${payment.itemKey || ''}__${payment.academicYear || ''}__${payment.billingGroupId}`
+                    : '';
+                if (!(billingKey && acc[txnKey].seenBilling.has(billingKey))) {
+                    acc[txnKey].total = roundMoney(acc[txnKey].total + getMonthlyReportPaymentAmount(payment));
+                    if (billingKey) acc[txnKey].seenBilling.add(billingKey);
+                }
+                const student = getStudentById(payment.studentId) || {};
+                acc[txnKey].students[payment.studentId || txnKey] = {
+                    name: student.name || 'Unknown',
+                    class: student.class || '-',
+                    adm: student.adm || '-'
+                };
+                return acc;
+            }, {})).sort(receiptSort);
+
+            const bodyRows = monthlyTxnRows.map(row => {
+                const studentsFormatted = Object.values(row.students).map(s => `${s.name} (${s.class} · Adm: ${s.adm})`).join('\n');
+                return [
+                    row.receiptNo,
+                    studentsFormatted,
+                    formatInr(row.total)
+                ];
+            });
+
+            docPdf.autoTable({
+                startY: currentY,
+                margin: { left: 24, right: 24 },
+                head: [['Rcpt No', 'Student Name, Class & Adm', 'Default Fee Amount']],
+                body: bodyRows,
+                foot: [['Total Default Fees', '', formatInr(defaultTotal)]],
+                styles: { fontSize: 8, cellPadding: 3 },
+                columnStyles: {
+                    0: { width: 60, halign: 'center' },
+                    1: { halign: 'left' },
+                    2: { width: 90, halign: 'right' }
+                },
+                headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+                footStyles: { fillColor: [239, 246, 255], textColor: [30, 58, 138], fontStyle: 'bold', halign: 'right' },
+                alternateRowStyles: { fillColor: [248, 250, 252] }
+            });
+            currentY = docPdf.lastAutoTable.finalY + 10;
+        }
+
+        // Table 2: Other Fees
+        const sortedCustomFees = [...cF].sort(receiptSort);
+        if (sortedCustomFees.length > 0) {
+            if (currentY > pageHeight - 90) {
+                docPdf.addPage();
+                currentY = drawHeader(32);
+            }
+
+            const bodyRows = sortedCustomFees.map(p => {
+                const s = getStudentById(p.studentId) || {};
+                const itemName = normalizeFeeItemName(feeItems.find(fi => fi.key === p.itemKey)?.name || p.itemKey);
+                return [
+                    p.receiptNo || '-',
+                    s.name || 'Unknown',
+                    s.class || '-',
+                    s.adm || '-',
+                    itemName,
+                    formatInr(p.amount)
+                ];
+            });
+
+            docPdf.autoTable({
+                startY: currentY,
+                margin: { left: 24, right: 24 },
+                head: [['Rcpt No', 'Student Name', 'Class', 'Adm', 'Fee Item', 'Amount']],
+                body: bodyRows,
+                foot: [['Total Other Fees', '', '', '', '', formatInr(otherTotal)]],
+                styles: { fontSize: 8, cellPadding: 3 },
+                columnStyles: {
+                    0: { width: 55, halign: 'center' },
+                    1: { halign: 'left' },
+                    2: { width: 50, halign: 'center' },
+                    3: { width: 50, halign: 'center' },
+                    4: { halign: 'left' },
+                    5: { width: 80, halign: 'right' }
+                },
+                headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: 'bold' },
+                footStyles: { fillColor: [245, 243, 255], textColor: [91, 33, 182], fontStyle: 'bold', halign: 'right' },
+                alternateRowStyles: { fillColor: [248, 250, 252] }
+            });
+            currentY = docPdf.lastAutoTable.finalY + 10;
+        }
+
+        // Table 3: Donations
+        if (donationPays.length > 0 || studentDonationPays.length > 0) {
+            if (currentY > pageHeight - 90) {
+                docPdf.addPage();
+                currentY = drawHeader(32);
+            }
+
+            const donationRows = [
+                ...donationPays.map((entry) => ({
+                    receiptNo: entry.receiptNo || '-',
+                    name: entry.donorName || '-',
+                    description: entry.description || '-',
+                    amount: Number(entry.amount || 0),
+                    by: getStaffName(entry.collectedBy, entry.collectedByName)
+                })),
+                ...studentDonationPays.map((entry) => {
+                    const student = getStudentById(entry.studentId) || {};
+                    return {
+                        receiptNo: entry.receiptNo || '-',
+                        name: student.name ? `${student.name} (Student)` : 'Student Donation',
+                        description: `Class: ${student.class || '-'} · Adm: ${student.adm || '-'}`,
+                        amount: Number(entry.amount || 0),
+                        by: getStaffName(entry.collectedBy, entry.collectedByName)
+                    };
+                })
+            ].sort(receiptSort);
+
+            const bodyRows = donationRows.map(entry => [
+                entry.receiptNo,
+                entry.name,
+                entry.description,
+                formatInr(entry.amount),
+                entry.by
+            ]);
+
+            docPdf.autoTable({
+                startY: currentY,
+                margin: { left: 24, right: 24 },
+                head: [['Rcpt No', 'Donor / Student Name', 'Description', 'Amount', 'Collected By']],
+                body: bodyRows,
+                foot: [['Total Donations', '', '', formatInr(donationTotal), '']],
+                styles: { fontSize: 8, cellPadding: 3 },
+                columnStyles: {
+                    0: { width: 55, halign: 'center' },
+                    1: { halign: 'left' },
+                    2: { halign: 'left' },
+                    3: { width: 80, halign: 'right' },
+                    4: { width: 90, halign: 'left' }
+                },
+                headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+                footStyles: { fillColor: [236, 253, 245], textColor: [6, 95, 70], fontStyle: 'bold', halign: 'right' },
+                alternateRowStyles: { fillColor: [248, 250, 252] }
+            });
+            currentY = docPdf.lastAutoTable.finalY + 14;
+        }
+
+        currentY += 8;
+    });
+
+    const totalPages = docPdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        docPdf.setPage(i);
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(148, 163, 184);
+        docPdf.text(`Page ${i} of ${totalPages}`, pageWidth - 24, pageHeight - 16, { align: 'right' });
+        docPdf.text('FEEE050 Management System • Confidential & Administrative Document', 24, pageHeight - 16);
+    }
+
+    const safeFileSuffix = selectedMonths.length === 1 ? selectedMonths[0] : `Multiple_${selectedMonths.length}_Months`;
+    docPdf.save(`Monthly-Report-${safeFileSuffix}.pdf`);
+    showToast('Monthly PDF report downloaded successfully.', 'success');
+};
+
+const generateCollectorWiseReportPdf = (selectedMonths = []) => {
+    if (!window.jspdf?.jsPDF) {
+        showToast('PDF generator is loading, please try again.', 'info');
+        return;
+    }
+    if (!selectedMonths || selectedMonths.length === 0) {
+        showToast('Please select at least one month to export.', 'info');
+        return;
+    }
+
+    const allRecords = [...allPayments, ...allDonations];
+    const { jsPDF } = window.jspdf;
+    const docPdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageWidth = docPdf.internal.pageSize.getWidth();
+    const pageHeight = docPdf.internal.pageSize.getHeight();
+
+    const conf = window.institutionConfig || {};
+    const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
+    const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
+    const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
+    const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${currentWorkingAcademicYear || 'Current'}`].filter(Boolean).join(' • ');
+
+    const formatInr = (num) => 'Rs. ' + Math.round(Number(num) || 0).toLocaleString('en-IN');
+
+    const drawHeader = (startY = 32) => {
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(14);
+        docPdf.setTextColor(15, 23, 42);
+        docPdf.text(instName.toUpperCase(), pageWidth / 2, startY, { align: 'center' });
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(9);
+        docPdf.setTextColor(100, 116, 139);
+        docPdf.text(subtitleLine, pageWidth / 2, startY + 14, { align: 'center' });
+
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(30, 41, 59);
+        docPdf.text('COLLECTOR-WISE MONTHLY COLLECTION TOTAL REPORT', 24, startY + 34);
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(100, 116, 139);
+        const periodStr = selectedMonths.length === 1 
+            ? `Month: ${formatMonthLabel(selectedMonths[0])}`
+            : `Selected Period: ${selectedMonths.length} Months (${formatMonthLabel(selectedMonths[selectedMonths.length - 1])} to ${formatMonthLabel(selectedMonths[0])})`;
+        docPdf.text(periodStr, 24, startY + 46);
+        docPdf.text(`Generated: ${new Date().toLocaleString('en-GB')}`, pageWidth - 24, startY + 34, { align: 'right' });
+        docPdf.text('Confidential Administrative Audit', pageWidth - 24, startY + 46, { align: 'right' });
+        return startY + 54;
+    };
+
+    let currentY = drawHeader(32);
+    const sortedMonths = [...selectedMonths].sort().reverse();
+
+    // If multiple months selected, render Consolidated Collector Breakdown first
+    if (sortedMonths.length > 1) {
+        const consolidatedMap = {};
+        allRecords.forEach(payment => {
+            if (!payment.paymentDate) return;
+            const mk = payment.paymentDate.substring(0, 7);
+            if (!selectedMonths.includes(mk)) return;
+
+            const collectorKey = payment.collectedBy || 'unknown';
+            if (!consolidatedMap[collectorKey]) {
+                consolidatedMap[collectorKey] = {
+                    collectorLabel: getStaffName(payment.collectedBy, payment.collectedByName),
+                    defaultTotal: 0,
+                    othersTotal: 0
+                };
+            }
+            if (payment.entryType === 'donation') {
+                consolidatedMap[collectorKey].othersTotal += Number(payment.amount || 0);
+            } else if (getPaymentItemType(payment) === 'month') {
+                consolidatedMap[collectorKey].defaultTotal += Number(payment.amount || 0);
+            } else {
+                consolidatedMap[collectorKey].othersTotal += Number(payment.amount || 0);
+            }
+        });
+
+        const consolidatedRows = Object.values(consolidatedMap)
+            .sort((a, b) => (b.defaultTotal + b.othersTotal) - (a.defaultTotal + a.othersTotal));
+
+        const grandDefault = consolidatedRows.reduce((sum, r) => sum + r.defaultTotal, 0);
+        const grandOthers = consolidatedRows.reduce((sum, r) => sum + r.othersTotal, 0);
+        const grandAll = grandDefault + grandOthers;
+
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(10.5);
+        docPdf.setTextColor(30, 41, 59);
+        docPdf.text('CONSOLIDATED COLLECTOR TOTALS (SELECTED PERIOD)', 24, currentY + 4);
+        currentY += 12;
+
+        const bodyRows = consolidatedRows.map((r, i) => [
+            String(i + 1),
+            r.collectorLabel,
+            formatInr(r.defaultTotal),
+            formatInr(r.othersTotal),
+            formatInr(r.defaultTotal + r.othersTotal)
+        ]);
+
+        docPdf.autoTable({
+            startY: currentY,
+            margin: { left: 24, right: 24 },
+            head: [['Sl No', 'Collector Name', 'Default Fees Total', 'Other Fees & Donations', 'Period Grand Total']],
+            body: bodyRows,
+            foot: [['', 'GRAND TOTAL', formatInr(grandDefault), formatInr(grandOthers), formatInr(grandAll)]],
+            styles: { fontSize: 8.5, cellPadding: 3.5 },
+            columnStyles: {
+                0: { width: 36, halign: 'center' },
+                1: { halign: 'left', fontStyle: 'bold' },
+                2: { halign: 'right' },
+                3: { halign: 'right' },
+                4: { halign: 'right', fontStyle: 'bold' }
+            },
+            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        currentY = docPdf.lastAutoTable.finalY + 18;
+    }
+
+    // Month-by-Month collector tables
+    sortedMonths.forEach(mk => {
+        const monthPayments = allRecords.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+        const collectorRows = Object.values(monthPayments.reduce((acc, payment) => {
+            const collectorKey = payment.collectedBy || 'unknown';
+            if (!acc[collectorKey]) {
+                acc[collectorKey] = {
+                    collectorLabel: getStaffName(payment.collectedBy, payment.collectedByName),
+                    monthlyDefaultTotal: 0,
+                    monthlyOthersTotal: 0
+                };
+            }
+            if (payment.entryType === 'donation') {
+                acc[collectorKey].monthlyOthersTotal += Number(payment.amount || 0);
+            } else if (getPaymentItemType(payment) === 'month') {
+                acc[collectorKey].monthlyDefaultTotal += Number(payment.amount || 0);
+            } else {
+                acc[collectorKey].monthlyOthersTotal += Number(payment.amount || 0);
+            }
+            return acc;
+        }, {})).sort((a, b) => (b.monthlyDefaultTotal + b.monthlyOthersTotal) - (a.monthlyDefaultTotal + a.monthlyOthersTotal));
+
+        const monthTotalDefault = collectorRows.reduce((sum, row) => sum + row.monthlyDefaultTotal, 0);
+        const monthTotalOthers = collectorRows.reduce((sum, row) => sum + row.monthlyOthersTotal, 0);
+        const monthGrandTotal = monthTotalDefault + monthTotalOthers;
+
+        if (currentY > pageHeight - 120) {
+            docPdf.addPage();
+            currentY = drawHeader(32);
+        }
+
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(10.5);
+        docPdf.setTextColor(30, 41, 59);
+        docPdf.text(`MONTH: ${formatMonthLabel(mk).toUpperCase()}`, 24, currentY);
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8.5);
+        docPdf.setTextColor(71, 85, 105);
+        docPdf.text(`Default: ${formatInr(monthTotalDefault)}  |  Others: ${formatInr(monthTotalOthers)}  |  Month Grand Total: ${formatInr(monthGrandTotal)}`, 24, currentY + 12);
+        currentY += 18;
+
+        if (collectorRows.length === 0) {
+            docPdf.setFont('helvetica', 'italic');
+            docPdf.setFontSize(8);
+            docPdf.setTextColor(148, 163, 184);
+            docPdf.text('No collector records for this month.', 24, currentY + 10);
+            currentY += 24;
+            return;
+        }
+
+        const bodyRows = collectorRows.map((r, i) => [
+            String(i + 1),
+            r.collectorLabel,
+            formatInr(r.monthlyDefaultTotal),
+            formatInr(r.monthlyOthersTotal),
+            formatInr(r.monthlyDefaultTotal + r.monthlyOthersTotal)
+        ]);
+
+        docPdf.autoTable({
+            startY: currentY,
+            margin: { left: 24, right: 24 },
+            head: [['Sl No', 'Collector Name', 'Default Fee Total', 'Others Fee Total', 'Grand Total']],
+            body: bodyRows,
+            foot: [['', 'Month Total', formatInr(monthTotalDefault), formatInr(monthTotalOthers), formatInr(monthGrandTotal)]],
+            styles: { fontSize: 8.5, cellPadding: 3.5 },
+            columnStyles: {
+                0: { width: 36, halign: 'center' },
+                1: { halign: 'left', fontStyle: 'bold' },
+                2: { halign: 'right' },
+                3: { halign: 'right' },
+                4: { halign: 'right', fontStyle: 'bold' }
+            },
+            headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [238, 242, 255], textColor: [49, 46, 129], fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        currentY = docPdf.lastAutoTable.finalY + 16;
+    });
+
+    const totalPages = docPdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        docPdf.setPage(i);
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(148, 163, 184);
+        docPdf.text(`Page ${i} of ${totalPages}`, pageWidth - 24, pageHeight - 16, { align: 'right' });
+        docPdf.text('FEEE050 Management System • Confidential Collector Audit', 24, pageHeight - 16);
+    }
+
+    const safeFileSuffix = selectedMonths.length === 1 ? selectedMonths[0] : `Multiple_${selectedMonths.length}_Months`;
+    docPdf.save(`Collector-Wise-Report-${safeFileSuffix}.pdf`);
+    showToast('Collector-wise PDF report downloaded successfully.', 'success');
+};
+
+// Wire Report PDF Modal Event Listeners
+document.getElementById('collector-wise-download-btn')?.addEventListener('click', () => openReportMonthExportModal('collector'));
+document.getElementById('report-modal-close-x')?.addEventListener('click', closeReportMonthExportModal);
+document.getElementById('report-modal-cancel-btn')?.addEventListener('click', closeReportMonthExportModal);
+
+document.getElementById('report-modal-current-month-btn')?.addEventListener('click', () => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.querySelectorAll('.report-month-checkbox').forEach(cb => {
+        cb.checked = (cb.value === currentMonthKey);
+    });
+});
+
+document.getElementById('report-modal-select-all-btn')?.addEventListener('click', () => {
+    document.querySelectorAll('.report-month-checkbox').forEach(cb => {
+        cb.checked = true;
+    });
+});
+
+document.getElementById('report-modal-clear-btn')?.addEventListener('click', () => {
+    document.querySelectorAll('.report-month-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+});
+
+document.getElementById('report-month-select-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'report-month-select-modal') closeReportMonthExportModal();
+});
+
+document.getElementById('report-modal-submit-pdf-btn')?.addEventListener('click', () => {
+    const checkedBoxes = Array.from(document.querySelectorAll('.report-month-checkbox:checked'));
+    const selectedMonths = checkedBoxes.map(cb => cb.value);
+
+    if (selectedMonths.length === 0) {
+        showToast('Please select at least one month to export.', 'warning');
+        return;
+    }
+
+    closeReportMonthExportModal();
+
+    if (activeReportExportType === 'collector') {
+        generateCollectorWiseReportPdf(selectedMonths);
+    } else {
+        generateMonthlyReportPdf(selectedMonths);
+    }
+});
 
 // --- STUDENTS INFO RENDER ---
 const renderStudentInfoList = () => {

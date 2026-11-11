@@ -1128,12 +1128,12 @@
                         <input type="text" id="monthly-collected-search-input" placeholder="Search by name, adm no or receipt..." class="w-full p-3 pl-10 border rounded-lg shadow-sm bg-gray-50">
                         <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
-                     <div class="flex flex-col sm:flex-row gap-3 mb-5">
-                        <button id="monthly-report-download-btn" class="btn-primary font-bold py-3 px-5 rounded-xl shadow-md inline-flex items-center justify-center gap-2">
-                            <i class="fas fa-file-csv"></i> Download CSV Summary
+                     <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+                        <button id="monthly-report-download-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer shrink-0">
+                            <i class="fas fa-file-pdf"></i> Download PDF Report
                         </button>
                         <div class="text-xs text-gray-500 font-medium flex items-center">
-                            Filter by student name, admission number, class, or receipt to update the report and export.
+                            Filter by student name, admission number, class, or receipt to update the report and export to PDF.
                         </div>
                      </div>
                      <div id="monthly-collected-container" class="space-y-4"></div>
@@ -1171,10 +1171,15 @@
 
             <section id="collector-wise-monthly-page" class="page-content hidden">
                 <div class="card p-5 shadow-sm">
-                    <div class="flex items-center gap-2 mb-4 border-b pb-2">
-                        <h2 class="text-xl font-bold text-gray-800">Collector-wise Monthly Total</h2>
-                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Administrative breakdown of fee collections partitioned by collector staff members." title="Administrative breakdown of fee collections partitioned by collector staff members.">
-                            <i class="fas fa-info-circle"></i>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3">
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-xl font-bold text-gray-800">Collector-wise Monthly Total</h2>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Administrative breakdown of fee collections partitioned by collector staff members." title="Administrative breakdown of fee collections partitioned by collector staff members.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
+                        <button id="collector-wise-download-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto">
+                            <i class="fas fa-file-pdf"></i> Download PDF Report
                         </button>
                     </div>
                     <p class="text-xs text-gray-500 font-medium mb-4">Admin view: monthly split by collector with default fee and other fee totals.</p>
@@ -2006,6 +2011,55 @@
                         <i class="fas fa-edit"></i> Edit Payment
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month Selection & PDF Export Modal -->
+    <div id="report-month-select-modal" class="modal-overlay hidden !p-3 sm:!p-4">
+        <div class="modal-box relative !max-w-md w-full !p-0 text-left flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl border border-slate-200 bg-white">
+            <!-- Header -->
+            <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 bg-white shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-sm shrink-0">
+                        <i class="fas fa-file-pdf"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 id="report-modal-title" class="text-sm font-black text-slate-800 leading-tight truncate">Export Report (PDF)</h3>
+                        <p id="report-modal-subtitle" class="text-[11px] text-slate-500 leading-tight truncate">Select months to generate printable document</p>
+                    </div>
+                </div>
+                <button type="button" id="report-modal-close-x" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition" title="Close"><i class="fas fa-times text-base"></i></button>
+            </div>
+
+            <!-- Quick Action Toolbar -->
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
+                <div class="flex items-center gap-1.5">
+                    <button type="button" id="report-modal-current-month-btn" class="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-slate-200 rounded-lg text-xs font-bold transition shadow-2xs">
+                        Current Month
+                    </button>
+                    <button type="button" id="report-modal-select-all-btn" class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition shadow-2xs">
+                        Full Academic Year
+                    </button>
+                </div>
+                <button type="button" id="report-modal-clear-btn" class="text-slate-500 hover:text-slate-800 text-xs font-bold transition">
+                    Clear
+                </button>
+            </div>
+
+            <!-- Months Checkbox List -->
+            <div id="report-modal-months-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-white text-xs">
+                <!-- Checkboxes injected dynamically -->
+            </div>
+
+            <!-- Pinned Footer -->
+            <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-200 bg-white shrink-0">
+                <button type="button" id="report-modal-cancel-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition border border-slate-200 flex items-center gap-1.5">
+                    Cancel
+                </button>
+                <button type="button" id="report-modal-submit-pdf-btn" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+                    <i class="fas fa-file-pdf"></i> <span id="report-modal-submit-label">Download PDF</span>
+                </button>
             </div>
         </div>
     </div>
