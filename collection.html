@@ -49,6 +49,72 @@
       box-sizing: border-box;
     }
 
+    /* Immersive Fullscreen / Landscape Spreadsheet Mode */
+    #collection-app.spreadsheet-fullscreen-mode .collection-sticky-header,
+    #collection-app.spreadsheet-fullscreen-mode #side-drawer,
+    #collection-app.spreadsheet-fullscreen-mode #collection-bottom-nav,
+    #collection-app.spreadsheet-fullscreen-mode .collection-bottom-nav,
+    #collection-app.spreadsheet-fullscreen-mode #collection-more-sheet {
+      display: none !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode .collection-main-wrapper {
+      margin-left: 0 !important;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      padding: 0 !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode #app {
+      width: 100vw !important;
+      max-width: 100vw !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      padding: 6px 10px !important;
+      margin: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+      box-sizing: border-box !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode #page-content {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
+      flex: 1 !important;
+      overflow: hidden !important;
+      min-width: 0 !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode .page-content:not(.hidden) {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
+      flex: 1 !important;
+      overflow: hidden !important;
+      min-width: 0 !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode #master-ledger-table-container,
+    #collection-app.spreadsheet-fullscreen-mode #fee-table-container {
+      flex: 1 1 auto !important;
+      height: 100% !important;
+      max-height: none !important;
+      overflow: auto !important;
+      border-radius: 12px !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode .card {
+      margin-bottom: 6px !important;
+      padding: 6px 10px !important;
+      border-radius: 12px !important;
+    }
+
+    #collection-app.spreadsheet-fullscreen-mode .mobile-rotate-suggestion {
+      display: none !important;
+    }
+
     /* Collapsible Navigation Styling */
     .drawer-heading {
       font-size: 0.65rem;
@@ -714,9 +780,26 @@
             </section>
 
             <!-- 3. Fee Status Page (Full Width Desktop Spreadsheet) -->
-            <section id="fee-page" class="page-content hidden w-full">
-                <div class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200">
+            <section id="fee-page" class="page-content hidden w-full max-w-full min-w-0">
+                <!-- Mobile Rotate & Fullscreen Suggestion Banner -->
+                <div class="mobile-rotate-suggestion sm:hidden flex items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-semibold mb-2.5 shadow-2xs">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <i class="fas fa-mobile-screen-button text-indigo-600 text-sm animate-pulse shrink-0 transform rotate-90"></i>
+                        <span class="truncate text-[11px]">Rotate device or use Fullscreen for wide view</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" class="quick-fullscreen-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer" data-target="fee-page">
+                            <i class="fas fa-expand mr-0.5"></i> Fullscreen
+                        </button>
+                        <button type="button" class="dismiss-rotate-tip-btn text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer" title="Dismiss">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200 w-full max-w-full min-w-0 box-border">
                     <div class="flex flex-col 2xl:flex-row items-stretch 2xl:items-center justify-between gap-3 min-w-0">
+                        <!-- 4 Filter Dropdowns in Compact Responsive Grid (2x2 on Mobile, 4 in row on Desktop) -->
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 flex-1 min-w-0">
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
@@ -725,7 +808,7 @@
                                         <i class="fas fa-info-circle"></i>
                                     </button>
                                 </label>
-                                <select id="filter-academic-year" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="">Current Year</option></select>
+                                <select id="filter-academic-year" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="">Current Year</option></select>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
@@ -734,15 +817,15 @@
                                         <i class="fas fa-info-circle"></i>
                                     </button>
                                 </label>
-                                <select id="filter-class" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="all">All Classes</option></select>
+                                <select id="filter-class" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="all">All Classes</option></select>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-slate-700">Gender Filter</label>
-                                <select id="filter-gender" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                                <select id="filter-gender" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-slate-700">Rows Limit</label>
-                                <select id="fee-status-row-limit" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer">
+                                <select id="fee-status-row-limit" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
                                     <option value="25" selected>Rows: 25</option>
                                     <option value="50">Rows: 50</option>
                                     <option value="75">Rows: 75</option>
@@ -767,6 +850,10 @@
                                     <i class="fas fa-pen-to-square"></i> <span id="fee-status-bulk-edit-label">Edit (0)</span>
                                 </button>
                             </div>
+                            <!-- Fullscreen / Rotate Button -->
+                            <button type="button" id="fee-fullscreen-btn" class="fullscreen-toggle-btn px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer" data-target="fee-page" title="Fullscreen / Landscape View">
+                                <i class="fas fa-expand"></i> <span>Fullscreen</span>
+                            </button>
                             <button id="fee-download-pdf-btn" class="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm flex items-center gap-2 text-xs transition"><i class="fas fa-file-pdf"></i> Download PDF</button>
                         </div>
                     </div>
@@ -792,71 +879,35 @@
             </section>
 
             <!-- Master Fee Ledger Page (Full Width Spreadsheet) -->
-            <section id="master-ledger-page" class="page-content hidden w-full">
-                <!-- Toolbar and Filter Bar Matching Reference Screenshot -->
-                <div class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200">
-                    <div class="flex flex-col 2xl:flex-row items-stretch 2xl:items-center justify-between gap-3 min-w-0">
+            <section id="master-ledger-page" class="page-content hidden w-full max-w-full min-w-0">
+                <!-- Mobile Rotate & Fullscreen Suggestion Banner -->
+                <div class="mobile-rotate-suggestion sm:hidden flex items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-semibold mb-2.5 shadow-2xs">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <i class="fas fa-mobile-screen-button text-indigo-600 text-sm animate-pulse shrink-0 transform rotate-90"></i>
+                        <span class="truncate text-[11px]">Rotate device or use Fullscreen for wide ledger</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" class="quick-fullscreen-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer" data-target="master-ledger-page">
+                            <i class="fas fa-expand mr-0.5"></i> Fullscreen
+                        </button>
+                        <button type="button" class="dismiss-rotate-tip-btn text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer" title="Dismiss">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Toolbar and Filter Bar: Organized Row 1 (Search + Actions) & Row 2 (Compact Filter Grid) -->
+                <div class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200 w-full max-w-full min-w-0 box-border">
+                    <!-- Row 1: Search Bar & Primary Actions -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100 min-w-0">
                         <!-- Search Bar -->
-                        <div class="relative w-full 2xl:w-72 shrink-0 min-w-0 flex items-center gap-2">
-                            <div class="relative flex-1 min-w-0">
-                                <input type="text" id="ledger-search-input" placeholder="Search students..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition">
-                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                            </div>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-1 focus:outline-none transition inline-flex items-center shrink-0" data-info="Comprehensive institutional fee ledger tracking monthly fee clearance, arrears, and fee heads." title="Comprehensive institutional fee ledger tracking monthly fee clearance, arrears, and fee heads.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                        <div class="relative flex-1 min-w-0">
+                            <input type="text" id="ledger-search-input" placeholder="Search students by name, admission no, or phone..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition">
+                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         </div>
 
-                        <!-- Filters Strip -->
-                        <div class="flex flex-wrap items-center gap-2 w-full 2xl:w-auto min-w-0">
-                            <!-- Academic Year Filter -->
-                            <select id="ledger-academic-year-select" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="">Year: Current</option>
-                            </select>
-
-                            <!-- Rows Limit -->
-                            <select id="ledger-row-limit" class="max-w-[130px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="25" selected>Rows: 25</option>
-                                <option value="50">Rows: 50</option>
-                                <option value="75">Rows: 75</option>
-                                <option value="100">Rows: 100</option>
-                                <option value="all">Rows: All</option>
-                            </select>
-
-                            <!-- Filter: All Classes -->
-                            <select id="ledger-class-filter" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="">Filter: All Classes</option>
-                            </select>
-
-                            <!-- Class Order Dynamic -->
-                            <select id="ledger-class-order" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="DESC">Class Order: +2 to 1</option>
-                                <option value="ASC">Class Order: 1 to +2</option>
-                            </select>
-
-                            <!-- Student Sort -->
-                            <select id="ledger-student-sort" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="DEFAULT">Student Sort: Default</option>
-                                <option value="ADM">Admission No</option>
-                                <option value="A-Z">Name (A - Z)</option>
-                                <option value="Z-A">Name (Z - A)</option>
-                            </select>
-
-                            <!-- Gender Filter -->
-                            <select id="ledger-gender-mode" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="MIXED">Gender: Mixed</option>
-                                <option value="CLASS_BOYS_FIRST">Class-wise (Boys then Girls)</option>
-                                <option value="GLOBAL_BOYS_FIRST">Global (All Boys then All Girls)</option>
-                            </select>
-
-                            <!-- Status Filter -->
-                            <select id="ledger-status-filter" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
-                                <option value="ALL">Status: All</option>
-                                <option value="CONCESSION">Concession Only</option>
-                                <option value="GROUP">Group Only</option>
-                                <option value="PENDING">Pending Fees</option>
-                            </select>
-
+                        <!-- Action Buttons Strip -->
+                        <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
                             <!-- Clear Button -->
                             <button type="button" id="ledger-clear-filters-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs">
                                 Clear
@@ -872,6 +923,11 @@
                                 </button>
                             </div>
 
+                            <!-- Fullscreen / Rotate Action -->
+                            <button type="button" id="ledger-fullscreen-btn" class="fullscreen-toggle-btn px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer" data-target="master-ledger-page" title="Fullscreen / Landscape View">
+                                <i class="fas fa-expand"></i> <span>Fullscreen</span>
+                            </button>
+
                             <!-- Preview PDF Action -->
                             <button type="button" id="master-ledger-pdf-btn" class="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
                                 <i class="fas fa-file-pdf"></i> Preview PDF
@@ -881,7 +937,68 @@
                             </button>
                         </div>
                     </div>
+
+                    <!-- Row 2: 7 Filters in Clean Responsive Grid (2 cols on mobile, 3 on sm, 4 on md, 7 on xl) -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-2 pt-2.5 min-w-0">
+                        <div>
+                            <select id="ledger-academic-year-select" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="">Year: Current</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="ledger-row-limit" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="25" selected>Rows: 25</option>
+                                <option value="50">Rows: 50</option>
+                                <option value="75">Rows: 75</option>
+                                <option value="100">Rows: 100</option>
+                                <option value="all">Rows: All</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="ledger-class-filter" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="">Filter: All Classes</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="ledger-class-order" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="DESC">Class Order: +2 to 1</option>
+                                <option value="ASC">Class Order: 1 to +2</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="ledger-student-sort" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="DEFAULT">Student Sort: Default</option>
+                                <option value="ADM">Admission No</option>
+                                <option value="A-Z">Name (A - Z)</option>
+                                <option value="Z-A">Name (Z - A)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="ledger-gender-mode" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="MIXED">Gender: Mixed</option>
+                                <option value="CLASS_BOYS_FIRST">Class-wise (Boys then Girls)</option>
+                                <option value="GLOBAL_BOYS_FIRST">Global (All Boys then All Girls)</option>
+                            </select>
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
+                            <select id="ledger-status-filter" class="w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                <option value="ALL">Status: All</option>
+                                <option value="CONCESSION">Concession Only</option>
+                                <option value="GROUP">Group Only</option>
+                                <option value="PENDING">Pending Fees</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Master Fee Ledger Table Canvas (Edge-to-Edge) -->
+                <div id="master-ledger-table-container" class="w-full overflow-x-auto rounded-2xl shadow-sm border border-slate-200 bg-white custom-scroll max-h-[78vh]">
+                    <div class="text-center py-16 text-slate-400">
+                        <i class="fas fa-spinner fa-spin text-3xl mb-2 text-blue-500"></i>
+                        <p class="font-bold text-xs">Loading Master Fee Ledger...</p>
+                    </div>
+                </div>
+            </section>
 
                 <!-- Master Fee Ledger Table Canvas (Edge-to-Edge) -->
                 <div id="master-ledger-table-container" class="w-full overflow-x-auto rounded-2xl shadow-sm border border-slate-200 bg-white custom-scroll max-h-[78vh]">

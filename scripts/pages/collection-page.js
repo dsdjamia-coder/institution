@@ -399,10 +399,11 @@ const activateTab = (targetId) => {
     const mainApp = document.getElementById('app');
     if (mainApp) {
         if (safeTargetId === 'master-ledger-page' || safeTargetId === 'fee-page') {
-            mainApp.style.maxWidth = '99vw';
-            mainApp.style.width = '99vw';
-            mainApp.style.padding = '12px 10px';
-            document.body.classList.add('ledger-fullwidth');
+            mainApp.style.maxWidth = '100%';
+            mainApp.style.width = '100%';
+            mainApp.style.boxSizing = 'border-box';
+            mainApp.style.padding = '';
+            document.body.classList.remove('ledger-fullwidth');
             if (safeTargetId === 'master-ledger-page' && typeof syncMasterLedgerState === 'function') {
                 syncMasterLedgerState();
             }
@@ -416,6 +417,7 @@ const activateTab = (targetId) => {
             mainApp.style.width = '';
             mainApp.style.padding = '';
             document.body.classList.remove('ledger-fullwidth');
+            exitSpreadsheetFullscreen();
         }
     }
 
@@ -479,6 +481,134 @@ document.getElementById('new-fee-entry-btn')?.addEventListener('click', () => { 
 document.getElementById('back-to-official-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     window.location.href = 'official.html';
+});
+
+// ============================================================
+// SPREADSHEET FULLSCREEN & MOBILE LANDSCAPE CONTROLLER
+// ============================================================
+export function toggleSpreadsheetFullscreen(targetPageId) {
+    const appEl = document.getElementById('collection-app');
+    if (!appEl) return;
+    if (appEl.classList.contains('spreadsheet-fullscreen-mode')) {
+        exitSpreadsheetFullscreen();
+    } else {
+        enterSpreadsheetFullscreen(targetPageId);
+    }
+}
+
+export function enterSpreadsheetFullscreen(targetPageId) {
+    const appEl = document.getElementById('collection-app');
+    if (!appEl) return;
+    appEl.classList.add('spreadsheet-fullscreen-mode');
+
+    // Request native browser fullscreen where available
+    try {
+        const root = document.documentElement;
+        if (root.requestFullscreen) {
+            root.requestFullscreen().catch(() => {});
+        } else if (root.webkitRequestFullscreen) {
+            root.webkitRequestFullscreen();
+        }
+    } catch (_) {}
+
+    // Lock screen orientation to landscape on mobile devices
+    try {
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
+        }
+    } catch (_) {}
+
+    updateFullscreenButtons(true);
+
+    let floatingExitBtn = document.getElementById('floating-exit-fullscreen-btn');
+    if (!floatingExitBtn) {
+        floatingExitBtn = document.createElement('button');
+        floatingExitBtn.id = 'floating-exit-fullscreen-btn';
+        floatingExitBtn.type = 'button';
+        floatingExitBtn.className = 'fixed top-3 right-4 z-[99999] px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-2xl flex items-center gap-1.5 cursor-pointer transition border border-white/40 backdrop-blur';
+        floatingExitBtn.innerHTML = '<i class="fas fa-compress"></i> <span>Exit Fullscreen</span>';
+        floatingExitBtn.onclick = () => exitSpreadsheetFullscreen();
+        document.body.appendChild(floatingExitBtn);
+    } else {
+        floatingExitBtn.classList.remove('hidden');
+    }
+}
+
+export function exitSpreadsheetFullscreen() {
+    const appEl = document.getElementById('collection-app');
+    if (appEl) {
+        appEl.classList.remove('spreadsheet-fullscreen-mode');
+    }
+
+    try {
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+        } else if (document.webkitFullscreenElement) {
+            document.webkitExitFullscreen();
+        }
+    } catch (_) {}
+
+    try {
+        if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock();
+        }
+    } catch (_) {}
+
+    updateFullscreenButtons(false);
+
+    const floatingExitBtn = document.getElementById('floating-exit-fullscreen-btn');
+    if (floatingExitBtn) {
+        floatingExitBtn.classList.add('hidden');
+    }
+}
+
+function updateFullscreenButtons(isFullscreen) {
+    document.querySelectorAll('.fullscreen-toggle-btn').forEach(btn => {
+        if (isFullscreen) {
+            btn.innerHTML = '<i class="fas fa-compress"></i> <span>Exit</span>';
+            btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            btn.classList.add('bg-rose-600', 'hover:bg-rose-700');
+        } else {
+            btn.innerHTML = '<i class="fas fa-expand"></i> <span>Fullscreen</span>';
+            btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            btn.classList.remove('bg-rose-600', 'hover:bg-rose-700');
+        }
+    });
+}
+
+// Global Fullscreen and Keyboard Event Listeners
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+        exitSpreadsheetFullscreen();
+    }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+    if (!document.webkitFullscreenElement) {
+        exitSpreadsheetFullscreen();
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const appEl = document.getElementById('collection-app');
+        if (appEl && appEl.classList.contains('spreadsheet-fullscreen-mode')) {
+            exitSpreadsheetFullscreen();
+        }
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const fsBtn = e.target.closest('.fullscreen-toggle-btn, .quick-fullscreen-btn');
+    if (fsBtn) {
+        const targetPage = fsBtn.dataset.target || (document.getElementById('fee-page')?.classList.contains('hidden') ? 'master-ledger-page' : 'fee-page');
+        toggleSpreadsheetFullscreen(targetPage);
+        return;
+    }
+    const dismissTipBtn = e.target.closest('.dismiss-rotate-tip-btn');
+    if (dismissTipBtn) {
+        const tipContainer = dismissTipBtn.closest('.mobile-rotate-suggestion');
+        if (tipContainer) tipContainer.style.display = 'none';
+        return;
+    }
 });
 let isDonationSaveInFlight = false;
 let collectorPaymentDetails = {
