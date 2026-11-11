@@ -5678,7 +5678,6 @@ const renderMonthlyCollectedPage = (searchTerm = '') => {
     });
 };
 document.getElementById('monthly-collected-search-input').addEventListener('input', e => renderMonthlyCollectedPage(e.target.value));
-document.getElementById('monthly-report-download-btn')?.addEventListener('click', () => openReportMonthExportModal('monthly'));
 document.getElementById('monthly-collected-container').addEventListener('click', e => {
     const h = e.target.closest('.month-header'), sel = e.target.closest('.monthly-student-select'), back = e.target.closest('#back-to-monthly-view-btn'), share = e.target.closest('#share-whatsapp-btn-monthly');
     if(h) { h.nextElementSibling.classList.toggle('hidden'); h.querySelector('.month-toggle-icon').classList.toggle('rotate-180'); }
@@ -5816,7 +5815,10 @@ const getAvailableReportMonthKeys = (exportType = 'monthly') => {
 const openReportMonthExportModal = (exportType = 'monthly') => {
     activeReportExportType = exportType;
     const modal = document.getElementById('report-month-select-modal');
-    if (!modal) return;
+    if (!modal) {
+        console.error('Report month selection modal (#report-month-select-modal) not found in DOM.');
+        return;
+    }
 
     const titleEl = document.getElementById('report-modal-title');
     const subtitleEl = document.getElementById('report-modal-subtitle');
@@ -5838,14 +5840,14 @@ const openReportMonthExportModal = (exportType = 'monthly') => {
     const availableMonths = getAvailableReportMonthKeys(exportType);
 
     const records = exportType === 'collector'
-        ? [...allPayments, ...allDonations]
-        : [...getVisiblePayments(), ...getVisibleDonations()];
+        ? [...(allPayments || []), ...(allDonations || [])]
+        : [...(typeof getVisiblePayments === 'function' ? getVisiblePayments() : (allPayments || [])), ...(typeof getVisibleDonations === 'function' ? getVisibleDonations() : (allDonations || []))];
 
     if (listCont) {
         listCont.innerHTML = availableMonths.map(mk => {
             const isCurrent = (mk === currentMonthKey);
             const label = formatMonthLabel(mk);
-            const count = records.filter(r => r.paymentDate?.startsWith(mk)).length;
+            const count = records.filter(r => r?.paymentDate?.startsWith(mk)).length;
             const countText = count > 0 ? `${count} record${count > 1 ? 's' : ''}` : 'No records';
 
             return `
@@ -5862,12 +5864,21 @@ const openReportMonthExportModal = (exportType = 'monthly') => {
     }
 
     modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modal.style.display = 'flex';
 };
 
 const closeReportMonthExportModal = () => {
     const modal = document.getElementById('report-month-select-modal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
 };
+
+window.openReportMonthExportModal = openReportMonthExportModal;
+window.closeReportMonthExportModal = closeReportMonthExportModal;
 
 const generateMonthlyReportPdf = (selectedMonths = []) => {
     if (!window.jspdf?.jsPDF) {
@@ -6455,7 +6466,31 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
 };
 
 // Wire Report PDF Modal Event Listeners
-document.getElementById('collector-wise-download-btn')?.addEventListener('click', () => openReportMonthExportModal('collector'));
+document.getElementById('monthly-report-download-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openReportMonthExportModal('monthly');
+});
+document.getElementById('collector-wise-download-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openReportMonthExportModal('collector');
+});
+
+// Document-level delegated click handling for bulletproof activation
+document.addEventListener('click', (e) => {
+    const monthlyBtn = e.target.closest('#monthly-report-download-btn');
+    if (monthlyBtn) {
+        e.preventDefault();
+        openReportMonthExportModal('monthly');
+        return;
+    }
+    const collectorBtn = e.target.closest('#collector-wise-download-btn');
+    if (collectorBtn) {
+        e.preventDefault();
+        openReportMonthExportModal('collector');
+        return;
+    }
+});
+
 document.getElementById('report-modal-close-x')?.addEventListener('click', closeReportMonthExportModal);
 document.getElementById('report-modal-cancel-btn')?.addEventListener('click', closeReportMonthExportModal);
 
@@ -6481,6 +6516,15 @@ document.getElementById('report-modal-clear-btn')?.addEventListener('click', () 
 
 document.getElementById('report-month-select-modal')?.addEventListener('click', (e) => {
     if (e.target.id === 'report-month-select-modal') closeReportMonthExportModal();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('report-month-select-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            closeReportMonthExportModal();
+        }
+    }
 });
 
 document.getElementById('report-modal-submit-pdf-btn')?.addEventListener('click', () => {
