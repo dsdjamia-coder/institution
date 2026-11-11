@@ -471,12 +471,17 @@ body.collection-shell .fee-item-new-green {
     }
 
     #collection-app .collection-main-wrapper,
+    #collection-app:not(.sidebar-collapsed) .collection-main-wrapper,
+    #collection-app.sidebar-collapsed .collection-main-wrapper,
     #collection-app .collection-sticky-header,
+    #collection-app:not(.sidebar-collapsed) .collection-sticky-header,
+    #collection-app.sidebar-collapsed .collection-sticky-header,
     #official-app .worksheet-main-wrapper,
     #official-app .worksheet-sticky-header {
         margin-left: 0 !important;
         width: 100% !important;
-        transition: none;
+        max-width: 100% !important;
+        transition: none !important;
     }
 
     #collection-app .collection-main-wrapper,
