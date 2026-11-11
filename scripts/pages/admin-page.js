@@ -11340,7 +11340,7 @@ const updatePromotionProgressionGrid = () => {
                     <span class="text-xs text-slate-500 font-bold shrink-0">Advances to:</span>
                     <select class="promo-dest-class-select w-full p-1.5 border rounded-lg bg-white font-bold text-xs text-indigo-950 focus:border-indigo-500 outline-none" data-source-class="${escapeHtml(cls)}">
                         ${optionItems}
-                        <option value="ALUMNI" ${suggestedNext === 'ALUMNI' ? 'selected' : ''}>🎓 Alumni (Graduated)</option>
+                        <option value="ALUMNI" ${suggestedNext === 'ALUMNI' ? 'selected' : ''}>🎓 Alumni</option>
                         <option value="RETAIN" ${suggestedNext === 'RETAIN' ? 'selected' : ''}>🔁 Retain (Repeat Class)</option>
                     </select>
                 </div>

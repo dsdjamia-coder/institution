@@ -1624,7 +1624,7 @@ const renderPromotionCandidatesUI = () => {
             ${Array.from(summaryMap.entries()).map(([cls, stat]) => {
                 const selectedTarget = stat.nextClass;
                 const options = [
-                    `<option value="Alumni" ${selectedTarget === 'Alumni' ? 'selected' : ''}>🎓 Alumni (Pass Out)</option>`,
+                    `<option value="Alumni" ${selectedTarget === 'Alumni' ? 'selected' : ''}>🎓 Alumni</option>`,
                     ...targetChoices.filter((opt) => opt !== 'Alumni').map((opt) => `<option value="${escapeHtml(opt)}" ${selectedTarget === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`),
                     `<option value="" ${selectedTarget === '' ? 'selected' : ''}>-- No Promotion (Remain / Discontinue) --</option>`
                 ].join('');

@@ -1479,28 +1479,218 @@ const updateDashboardMetrics = () => {
     renderDashboardStudentClassTable();
 };
 
+const getStudentEnrolledAcademicYears = (student) => {
+    if (!student) return [];
+    const years = new Set();
+    const isAlum = student.isAlumni === true || 
+        String(student.status || '').toLowerCase() === 'alumni' || 
+        String(student.class || '').toLowerCase() === 'alumni';
+
+    // 1. History keys from student.academicYears
+    if (student.academicYears && typeof student.academicYears === 'object') {
+        Object.keys(student.academicYears).forEach((y) => {
+            if (/^\d{4}-\d{4}$/.test(y)) years.add(y);
+        });
+    }
+
+    // 2. student.academicYear (if valid session format)
+    if (student.academicYear && /^\d{4}-\d{4}$/.test(student.academicYear)) {
+        years.add(student.academicYear);
+    }
+
+    // 3. Admission date session
+    let admStartYear = null;
+    if (student.admDate) {
+        const d = new Date(student.admDate);
+        if (!isNaN(d.getTime())) {
+            const startY = (d.getMonth() >= 4) ? d.getFullYear() : d.getFullYear() - 1;
+            admStartYear = startY;
+            years.add(`${startY}-${startY + 1}`);
+        }
+    }
+
+    // 4. Passed out / graduated year
+    const gradYear = student.passedOutYear || student.graduatedYear;
+    let gradStartYear = null;
+    if (gradYear && /^\d{4}-\d{4}$/.test(gradYear)) {
+        years.add(gradYear);
+        const [gStart] = gradYear.split('-').map(Number);
+        if (Number.isFinite(gStart)) gradStartYear = gStart;
+    }
+
+    // 5. Payment records for this student
+    if (Array.isArray(allPayments)) {
+        allPayments.forEach((p) => {
+            if (p.studentId === student.id || (student.adm && p.admissionNo === student.adm)) {
+                if (p.academicYear && /^\d{4}-\d{4}$/.test(p.academicYear)) {
+                    years.add(p.academicYear);
+                }
+            }
+        });
+    }
+
+    // 6. Fill intermediate continuous years between admStartYear and gradStartYear (if both exist)
+    if (admStartYear !== null && gradStartYear !== null && gradStartYear >= admStartYear) {
+        for (let y = admStartYear; y <= gradStartYear; y++) {
+            years.add(`${y}-${y + 1}`);
+        }
+    }
+
+    // 7. For non-alumni active students, also include up to current working academic year
+    if (!isAlum && currentWorkingAcademicYear && /^\d{4}-\d{4}$/.test(currentWorkingAcademicYear)) {
+        years.add(currentWorkingAcademicYear);
+        const [curStart] = currentWorkingAcademicYear.split('-').map(Number);
+        if (admStartYear !== null && Number.isFinite(curStart) && curStart >= admStartYear) {
+            for (let y = admStartYear; y <= curStart; y++) {
+                years.add(`${y}-${y + 1}`);
+            }
+        }
+    }
+
+    return Array.from(years).sort(compareAcademicYears);
+};
+
 const getAvailableFeeYearsForStudent = (student) => {
-    const fallbackYear = student?.academicYear || getAcademicYearFromDate();
+    if (!student) return [];
+    const isAlum = student?.isAlumni === true || 
+        String(student?.status || '').toLowerCase() === 'alumni' || 
+        String(student?.class || '').toLowerCase() === 'alumni';
+
+    const enrolledYears = getStudentEnrolledAcademicYears(student);
+
+    if (isAlum) {
+        // Strictly enrolled years only! Under NO circumstance include non-enrolled or future years.
+        if (enrolledYears.length > 0) return enrolledYears;
+        const fallback = student.passedOutYear || student.graduatedYear || student.academicYear;
+        return (fallback && /^\d{4}-\d{4}$/.test(fallback)) ? [fallback] : [];
+    }
+
+    // Regular active students
     const configuredYears = academicYearSettings
         .filter((y) => y.status !== 'archived')
         .map((y) => y.label);
 
-    const isAlum = student?.isAlumni === true || String(student?.status || '').toLowerCase() === 'alumni' || String(student?.class || '').toLowerCase() === 'alumni';
-    const studentHistYears = student?.academicYears ? Object.keys(student.academicYears) : [];
-    const gradYear = student?.passedOutYear || student?.graduatedYear;
+    const fallbackYear = student.academicYear || currentWorkingAcademicYear || getAcademicYearFromDate();
 
-    const allYears = [
-        ...feeItems.map((item) => item.academicYear).filter(Boolean),
+    const allCandidateYears = [
+        ...enrolledYears,
         ...configuredYears,
-        fallbackYear,
-        ...studentHistYears,
-        gradYear
-    ].filter(Boolean);
+        fallbackYear
+    ].filter(y => y && /^\d{4}-\d{4}$/.test(y));
 
-    const years = [...new Set(allYears)]
-        .filter((year) => isYearVisibleInCollection(year) || (isAlum && (studentHistYears.includes(year) || year === gradYear || year === fallbackYear)))
+    return [...new Set(allCandidateYears)]
+        .filter(isYearVisibleInCollection)
         .sort(compareAcademicYears);
-    return years;
+};
+
+const calculateStudentDuesForYear = (student, year) => {
+    if (!student || !year) return { totalDues: 0, unpaidCount: 0 };
+
+    const yearItems = (feeItems || []).filter((item) => {
+        const itemYear = item.academicYear || getAcademicYearFromDate();
+        if (itemYear !== year) return false;
+        if (item.isVisible === false) return false;
+        return true;
+    });
+
+    if (yearItems.length === 0) return { totalDues: 0, unpaidCount: 0 };
+
+    const studentClassInYear = student.academicYears?.[year]?.class || 
+        (student.class !== 'Alumni' && student.class !== 'ALUMNI_DUES' ? student.class : '') || '';
+
+    const studentConcession = student.academicYears?.[year]?.concessionFee ?? student.concessionFee;
+    const effectiveMonthly = (studentConcession !== undefined && studentConcession !== null && studentConcession !== '')
+        ? Number(studentConcession)
+        : defaultFee;
+
+    let unpaidTotal = 0;
+    let unpaidCount = 0;
+
+    yearItems.forEach((item) => {
+        const itemType = item.type || 'month';
+        let itemAmount = 0;
+
+        if (itemType === 'custom') {
+            if (item.scope === 'specific') {
+                if (studentClassInYear && item.targetClass && item.targetClass !== studentClassInYear) return;
+                itemAmount = Number(item.amount || 0);
+            } else if (item.scope === 'class-wise') {
+                itemAmount = Number(item.classValues?.[studentClassInYear] || item.amount || 0);
+            } else {
+                itemAmount = Number(item.amount || 0);
+            }
+        } else {
+            itemAmount = effectiveMonthly;
+        }
+
+        if (itemAmount <= 0) return;
+
+        const isPaid = (allPayments || []).some((payment) => {
+            if (payment.studentId !== student.id && (!student.adm || payment.admissionNo !== student.adm)) return false;
+            const matchesItem = payment.itemKey === item.key || isFeeItemMatch(payment.itemKey, item);
+            if (!matchesItem) return false;
+            return (payment.academicYear || '') === year;
+        });
+
+        if (!isPaid) {
+            unpaidTotal += itemAmount;
+            unpaidCount += 1;
+        }
+    });
+
+    return {
+        totalDues: Math.max(0, roundMoney(unpaidTotal)),
+        unpaidCount
+    };
+};
+
+const renderFeePastDuesBanner = (student) => {
+    const banner = document.getElementById('fee-past-dues-banner');
+    if (!banner) return;
+
+    if (!student || !availableFeeAcademicYears || availableFeeAcademicYears.length <= 1) {
+        banner.innerHTML = '';
+        banner.classList.add('hidden');
+        return;
+    }
+
+    // Check all enrolled years other than the currently selected year
+    const pastDueItems = [];
+    availableFeeAcademicYears.forEach((year) => {
+        if (year === selectedFeeAcademicYear) return;
+        const duesInfo = calculateStudentDuesForYear(student, year);
+        if (duesInfo.totalDues > 0) {
+            pastDueItems.push({
+                year: year,
+                totalDues: duesInfo.totalDues,
+                unpaidCount: duesInfo.unpaidCount
+            });
+        }
+    });
+
+    if (pastDueItems.length === 0) {
+        banner.innerHTML = '';
+        banner.classList.add('hidden');
+        return;
+    }
+
+    banner.className = 'mb-3 p-2.5 rounded-lg border border-amber-200 bg-amber-50/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2';
+    banner.innerHTML = `
+        <div class="flex items-center gap-1.5 text-xs font-bold text-amber-900 shrink-0">
+            <i class="fas fa-history text-amber-600"></i>
+            <span>Past Academic Year Dues:</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+            ${pastDueItems.map(p => `
+                <button type="button" class="past-due-year-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-white text-amber-950 border border-amber-300 hover:bg-amber-100 hover:border-amber-400 active:scale-95 transition shadow-2xs cursor-pointer" data-year="${escapeHtml(p.year)}" title="Switch to ${escapeHtml(p.year)} to view and collect dues">
+                    <span>${escapeHtml(p.year)}:</span>
+                    <span class="text-rose-700 font-black">₹${p.totalDues.toLocaleString('en-IN')} Due</span>
+                    <i class="fas fa-arrow-right text-[10px] text-amber-600"></i>
+                </button>
+            `).join('')}
+        </div>
+    `;
+    banner.classList.remove('hidden');
 };
 const renderFeeYearSwitcher = () => {
     const switcher = document.getElementById('fee-year-switcher');
@@ -2197,8 +2387,8 @@ const populateClassDropdowns = () => {
     const stuInfoClassEl = document.getElementById('stu-info-class');
     const bulkClassEl = document.getElementById('bulk-class');
     const allowAlumni = canUserViewAlumni();
-    const alumniFilterOpt = allowAlumni ? `<optgroup label="Alumni &amp; Historical Arrears"><option value="ALUMNI_DUES">🎓 Alumni Arrears (Collect Past Dues)</option></optgroup>` : '';
-    const alumniEntryOpt = allowAlumni ? `<optgroup label="Alumni Archive"><option value="ALUMNI_DUES">🎓 Alumni (Graduated Students)</option></optgroup>` : '';
+    const alumniFilterOpt = allowAlumni ? `<optgroup label="Alumni"><option value="ALUMNI_DUES">🎓 Alumni</option></optgroup>` : '';
+    const alumniEntryOpt = allowAlumni ? `<optgroup label="Alumni"><option value="ALUMNI_DUES">🎓 Alumni</option></optgroup>` : '';
 
     if (isSuperAdmin) {
         const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -2380,6 +2570,7 @@ const populateStudentSuggestions = (searchTerm = '') => {
             `;
             d.onclick = () => {
                 selectedStudentId = s.id;
+                selectedFeeAcademicYear = '';
                 // Preserve top dropdowns as selected by user:
                 // If user did not select Class at top, keep it on All Classes ('').
                 // If user selected Class at top, keep user's selection.
@@ -2535,6 +2726,11 @@ const populateFeeItemSelection = () => {
             dueNotice.textContent = '';
             dueNotice.classList.add('hidden');
         }
+        const pastDuesBanner = document.getElementById('fee-past-dues-banner');
+        if (pastDuesBanner) {
+            pastDuesBanner.innerHTML = '';
+            pastDuesBanner.classList.add('hidden');
+        }
         availableFeeAcademicYears = [];
         selectedFeeAcademicYear = '';
         renderFeeYearSwitcher();
@@ -2542,23 +2738,46 @@ const populateFeeItemSelection = () => {
     }
 
     availableFeeAcademicYears = getAvailableFeeYearsForStudent(st);
-    if (!selectedFeeAcademicYear || !availableFeeAcademicYears.includes(selectedFeeAcademicYear)) {
-        if (currentWorkingAcademicYear && availableFeeAcademicYears.includes(currentWorkingAcademicYear)) {
-            selectedFeeAcademicYear = currentWorkingAcademicYear;
-        } else {
-            selectedFeeAcademicYear = st.academicYear && availableFeeAcademicYears.includes(st.academicYear)
-                ? st.academicYear
-                : availableFeeAcademicYears[0];
+
+    const isAlum = st.isAlumni === true || 
+        String(st.status || '').toLowerCase() === 'alumni' || 
+        String(st.class || '').toLowerCase() === 'alumni';
+
+    if (isAlum) {
+        if (!selectedFeeAcademicYear || !availableFeeAcademicYears.includes(selectedFeeAcademicYear)) {
+            let yearWithDues = null;
+            for (const yr of availableFeeAcademicYears) {
+                const duesInfo = calculateStudentDuesForYear(st, yr);
+                if (duesInfo.totalDues > 0) {
+                    yearWithDues = yr;
+                    break;
+                }
+            }
+            selectedFeeAcademicYear = yearWithDues || availableFeeAcademicYears[0] || '';
+        }
+    } else {
+        if (!selectedFeeAcademicYear || !availableFeeAcademicYears.includes(selectedFeeAcademicYear)) {
+            if (currentWorkingAcademicYear && availableFeeAcademicYears.includes(currentWorkingAcademicYear)) {
+                selectedFeeAcademicYear = currentWorkingAcademicYear;
+            } else {
+                selectedFeeAcademicYear = st.academicYear && availableFeeAcademicYears.includes(st.academicYear)
+                    ? st.academicYear
+                    : availableFeeAcademicYears[0];
+            }
         }
     }
     renderFeeYearSwitcher();
+    renderFeePastDuesBanner(st);
+
+    const studentClassInSelectedYear = st.academicYears?.[selectedFeeAcademicYear]?.class || 
+        (st.class !== 'Alumni' && st.class !== 'ALUMNI_DUES' ? st.class : '') || '';
 
     const visibleItems = feeItems.filter(i => {
         const itemYear = i.academicYear || getAcademicYearFromDate();
         if (selectedFeeAcademicYear && itemYear !== selectedFeeAcademicYear) return false;
         if(i.isVisible === false) return false;
         if(i.type === 'custom' && st) {
-            if(i.scope === 'specific' && i.targetClass !== st.class) return false;
+            if(i.scope === 'specific' && studentClassInSelectedYear && i.targetClass !== studentClassInSelectedYear) return false;
         }
         return true;
     });
@@ -2574,7 +2793,7 @@ const populateFeeItemSelection = () => {
         let amountLocked = false;
         if(item.type === 'custom' && st) {
             if(item.scope === 'global') defaultAmt = item.amount || '';
-            else if(item.scope === 'class-wise' && item.classValues) defaultAmt = item.classValues[st.class] || '';
+            else if(item.scope === 'class-wise' && item.classValues) defaultAmt = item.classValues[studentClassInSelectedYear] || item.classValues[st.class] || '';
             else if(item.scope === 'specific') defaultAmt = item.amount || '';
             amountLocked = defaultAmt !== '' && defaultAmt !== null && defaultAmt !== undefined;
         }
@@ -2767,6 +2986,17 @@ document.getElementById('fee-year-next-btn')?.addEventListener('click', () => {
     const index = availableFeeAcademicYears.indexOf(selectedFeeAcademicYear);
     if (index <= 0) return;
     selectedFeeAcademicYear = availableFeeAcademicYears[index - 1];
+    populateFeeItemSelection();
+});
+document.getElementById('fee-past-dues-banner')?.addEventListener('click', (e) => {
+    const pill = e.target.closest('.past-due-year-pill');
+    if (!pill) return;
+    const targetYear = pill.dataset.year;
+    if (!targetYear || targetYear === selectedFeeAcademicYear) return;
+    if (!availableFeeAcademicYears.includes(targetYear)) return;
+
+    captureCurrentYearFeeSelections();
+    selectedFeeAcademicYear = targetYear;
     populateFeeItemSelection();
 });
 const setupFeeEntryUI = () => {
