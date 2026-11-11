@@ -40,6 +40,15 @@
       border-bottom: 1px solid rgba(226, 232, 240, 0.8);
     }
 
+    body.collection-shell {
+      overflow-x: hidden;
+    }
+    .collection-main-wrapper {
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
     /* Collapsible Navigation Styling */
     .drawer-heading {
       font-size: 0.65rem;
@@ -391,60 +400,108 @@
 
         <!-- MAIN CONTENT WRAPPER -->
         <div class="collection-main-wrapper transition-all duration-300">
-            <main id="app" class="w-full max-w-none px-4 sm:px-6 lg:px-8 py-4 mt-2">
+            <main id="app" class="w-full max-w-none px-3.5 sm:px-6 lg:px-8 py-3.5 sm:py-6">
         <div id="page-content">
 
             <!-- Dashboard -->
             <section id="dashboard-page" class="page-content">
-                <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2 px-2">Overview</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden flex justify-between items-center">
-                        <div class="relative z-10">
-                            <h2 class="text-xs font-bold text-blue-100 uppercase tracking-wider mb-1">Today's Collection</h2>
-                            <div class="text-3xl font-bold font-mono">₹<span id="dash-today-amt">0</span></div>
-                        </div>
-                        <i class="fas fa-calendar-day text-5xl opacity-20 transform translate-x-2 absolute right-4"></i>
-                    </div>
-                    
-                    <div class="bg-gradient-to-r from-green-600 to-green-500 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden flex justify-between items-center">
-                        <div class="relative z-10">
-                            <h2 class="text-xs font-bold text-green-100 uppercase tracking-wider mb-1">This Month</h2>
-                            <div class="text-3xl font-bold font-mono">₹<span id="dash-month-amt">0</span></div>
-                        </div>
-                        <i class="fas fa-chart-line text-5xl opacity-20 transform translate-x-2 absolute right-4"></i>
-                    </div>
-
-                    <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl"><i class="fas fa-users"></i></div>
+                <div class="max-w-7xl mx-auto space-y-5">
+                    <!-- Top Welcome & Command Center Banner -->
+                    <div class="card p-4 sm:p-5 rounded-2xl shadow-xs bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Students</h2>
-                            <div class="text-2xl font-bold text-gray-800" id="dash-students-count">0</div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100">Collection Overview</span>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Real-time fee collection counters, daily receipts, and student summaries for the active session." title="Real-time fee collection counters, daily receipts, and student summaries for the active session.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
+                            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">Dashboard</h2>
+                            <p class="text-xs text-slate-500 font-medium mt-0.5">Summary of today's collections, monthly totals, and class-wise student enrollment.</p>
+                        </div>
+                        <div class="flex items-center gap-3 self-start sm:self-auto shrink-0">
+                            <button id="new-fee-entry-btn" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-sm transition inline-flex items-center gap-2 text-xs cursor-pointer">
+                                <i class="fas fa-plus-circle"></i> New Fee Entry
+                            </button>
                         </div>
                     </div>
 
-                    <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-2xl"><i class="fas fa-file-invoice"></i></div>
-                        <div>
-                            <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Receipts Today</h2>
-                            <div class="text-2xl font-bold text-gray-800" id="dash-today-receipts">0</div>
+                    <!-- 4 Metric Cards Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-5 rounded-2xl shadow-md relative overflow-hidden flex justify-between items-center border border-blue-600/30">
+                            <div class="relative z-10">
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <h2 class="text-xs font-bold text-blue-100 uppercase tracking-wider">Today's Collection</h2>
+                                    <button type="button" class="info-tooltip-btn text-blue-200 hover:text-white cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Total revenue collected today across all payment channels (Cash, UPI, Bank Transfer)." title="Total revenue collected today across all payment channels (Cash, UPI, Bank Transfer).">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </div>
+                                <div class="text-3xl font-bold font-mono">₹<span id="dash-today-amt">0</span></div>
+                            </div>
+                            <i class="fas fa-calendar-day text-5xl opacity-20 transform translate-x-2 absolute right-4"></i>
                         </div>
-                    </div>
-                </div>
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm mt-4 overflow-hidden">
-                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
-                        <div>
-                            <h2 class="text-sm font-extrabold text-gray-800">Class-wise Student Summary</h2>
-                            <p class="text-[11px] text-gray-500 font-semibold">Boys, girls and total students by class</p>
+                        
+                        <div class="bg-gradient-to-r from-green-600 to-green-500 text-white p-5 rounded-2xl shadow-md relative overflow-hidden flex justify-between items-center border border-green-600/30">
+                            <div class="relative z-10">
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <h2 class="text-xs font-bold text-green-100 uppercase tracking-wider">This Month</h2>
+                                    <button type="button" class="info-tooltip-btn text-green-200 hover:text-white cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Cumulative fee revenue recorded during the current calendar month." title="Cumulative fee revenue recorded during the current calendar month.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </div>
+                                <div class="text-3xl font-bold font-mono">₹<span id="dash-month-amt">0</span></div>
+                            </div>
+                            <i class="fas fa-chart-line text-5xl opacity-20 transform translate-x-2 absolute right-4"></i>
                         </div>
-                        <i class="fas fa-table text-indigo-500"></i>
-                    </div>
-                    <div id="dash-students-class-table" class="overflow-x-auto"></div>
-                </div>
 
-                <div class="text-center mt-6">
-                    <button id="new-fee-entry-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition inline-flex items-center gap-2">
-                        <i class="fas fa-plus-circle"></i> New Fee Entry
-                    </button>
+                        <div class="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-xs flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl border border-indigo-100"><i class="fas fa-users"></i></div>
+                                <div>
+                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                        <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Students</h2>
+                                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Total active enrolled students in the currently selected academic year." title="Total active enrolled students in the currently selected academic year.">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="text-2xl font-bold text-gray-800" id="dash-students-count">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-xs flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl border border-amber-100"><i class="fas fa-file-invoice"></i></div>
+                                <div>
+                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                        <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Receipts Today</h2>
+                                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Total number of individual receipts issued today." title="Total number of individual receipts issued today.">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="text-2xl font-bold text-gray-800" id="dash-today-receipts">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Class Summary Table Card -->
+                    <div class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+                        <div class="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/60">
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <h2 class="text-sm font-extrabold text-gray-800">Class-wise Student Summary</h2>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Breakdown of enrolled boys, girls, and total students per class for this academic year." title="Breakdown of enrolled boys, girls, and total students per class for this academic year.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </div>
+                                <p class="text-[11px] text-gray-500 font-semibold mt-0.5">Boys, girls and total students by class</p>
+                            </div>
+                            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm border border-indigo-100">
+                                <i class="fas fa-table"></i>
+                            </div>
+                        </div>
+                        <div id="dash-students-class-table" class="overflow-x-auto p-1 sm:p-2"></div>
+                    </div>
                 </div>
             </section>
 
@@ -453,9 +510,20 @@
             <!-- 2. Fee Entry Page -->
             <section id="home-page" class="page-content hidden">
                 <div id="fee-entry-card" class="card p-5 mb-6 shadow-sm transition-all duration-300 max-w-4xl mx-auto">
-                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 border-b pb-2 gap-3"><h2 id="fee-entry-title" class="text-xl font-bold text-gray-800">Fee Entry</h2>
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 border-b pb-2 gap-3">
+                        <div class="flex items-center gap-2">
+                            <h2 id="fee-entry-title" class="text-xl font-bold text-gray-800">Fee Entry</h2>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Record regular monthly tuition, arrears, and optional fee collections for enrolled students." title="Record regular monthly tuition, arrears, and optional fee collections for enrolled students.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
                         <div class="flex items-center gap-2 ml-auto whitespace-nowrap">
-                            <label for="multi-entry-toggle" class="text-sm font-semibold text-gray-700">Multiple Entry</label>
+                            <label for="multi-entry-toggle" class="text-sm font-semibold text-gray-700 flex items-center gap-1.5 cursor-pointer">
+                                <span>Multiple Entry</span>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Enable to select and record fee payments for multiple students or siblings simultaneously." title="Enable to select and record fee payments for multiple students or siblings simultaneously.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </label>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input id="multi-entry-toggle" type="checkbox" class="sr-only peer">
                                 <span class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:bg-green-500 transition"></span>
@@ -479,7 +547,12 @@
                             <div><label class="block text-sm font-semibold mb-1 text-gray-700">Gender</label><select id="entry-gender" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white"><option value="">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Student</label>
+                            <label class="block text-sm font-semibold mb-1 text-gray-700 flex items-center gap-1.5">
+                                <span>Student</span>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Search by Student Name, Admission Number, or Registered Mobile Number." title="Search by Student Name, Admission Number, or Registered Mobile Number.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </label>
                             <div class="relative" id="student-combobox-container">
                                 <input type="text" id="entry-student-input" class="w-full p-2.5 pr-10 rounded-lg" placeholder="Type name or Adm No..." autocomplete="off">
                                 <button id="entry-student-clear-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 hidden" title="Clear student input"><i class="fas fa-times text-xs"></i></button>
@@ -500,17 +573,27 @@
                     </div>
                     
                     <div class="mt-5">
-                        <label class="block text-sm font-semibold mb-2 text-gray-700">Fee Items</label>
+                        <label class="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-1.5">
+                            <span>Fee Items</span>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select monthly fee installments or additional institutional fee items (Admission, Books, Uniform) to collect." title="Select monthly fee installments or additional institutional fee items (Admission, Books, Uniform) to collect.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </label>
                         <div id="fee-year-switcher" class="hidden mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
                             <div class="flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <button id="fee-year-prev-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button">&lt;</button>
+                                    <button id="fee-year-prev-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button" title="Previous Session Dues">&lt;</button>
                                     <span id="fee-year-prev-label" class="text-[11px] font-semibold text-blue-700 whitespace-nowrap">--</span>
                                 </div>
-                                <div id="fee-year-label" class="text-base sm:text-lg font-extrabold text-emerald-700">--</div>
+                                <div class="flex items-center gap-1.5">
+                                    <div id="fee-year-label" class="text-base sm:text-lg font-extrabold text-emerald-700">--</div>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Navigate between academic years to view or settle historical arrears and future session dues." title="Navigate between academic years to view or settle historical arrears and future session dues.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </div>
                                 <div class="flex items-center gap-2 min-w-0">
                                     <span id="fee-year-next-label" class="text-[11px] font-semibold text-blue-700 whitespace-nowrap">--</span>
-                                    <button id="fee-year-next-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button">&gt;</button>
+                                    <button id="fee-year-next-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button" title="Next Session Fees">&gt;</button>
                                 </div>
                             </div>
                         </div>
@@ -529,7 +612,12 @@
                                 <input type="number" id="total-amount" class="p-2.5 w-full sm:w-32 font-mono text-xl font-bold text-green-700 bg-green-50 border border-green-300 rounded-lg text-center focus:ring-2 focus:ring-green-400 focus:outline-none" value="0">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">Payment Mode</label>
+                                <label class="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1.5">
+                                    <span>Payment Mode</span>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select the payment method (Cash, UPI / GPay, Bank Transfer, Cheque) and record transaction notes." title="Select the payment method (Cash, UPI / GPay, Bank Transfer, Cheque) and record transaction notes.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </label>
                                 <select id="entry-payment-mode" class="p-2.5 w-full sm:w-48 font-semibold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none text-sm">
                                     <option value="Cash" selected>Cash</option>
                                     <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe</option>
@@ -551,7 +639,12 @@
             <section id="bulk-upload-page" class="page-content hidden">
                 <div class="card p-5 mb-6 shadow-sm border-blue-200 bg-blue-50/30 max-w-4xl mx-auto">
                     <div class="flex justify-between items-center mb-4 border-b border-blue-200 pb-2">
-                        <h2 class="text-xl font-bold text-blue-900"><i class="fas fa-download text-blue-600 mr-2"></i>1. Download Template</h2>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-xl font-bold text-blue-900"><i class="fas fa-download text-blue-600 mr-2"></i>1. Download Template</h2>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Generate an Excel template pre-filled with student names and admission numbers for offline fee entry." title="Generate an Excel template pre-filled with student names and admission numbers for offline fee entry.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Select an academic year and class to download a pre-filled Excel (.xlsx) template for those students. The first row will be a sample entry.</p>
                     
@@ -578,7 +671,12 @@
 
                 <div class="card p-5 shadow-sm border-green-200 bg-green-50/20 max-w-4xl mx-auto">
                     <div class="flex justify-between items-center mb-4 border-b border-green-200 pb-2">
-                        <h2 class="text-xl font-bold text-green-900"><i class="fas fa-upload text-green-600 mr-2"></i>2. Upload Data</h2>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-xl font-bold text-green-900"><i class="fas fa-upload text-green-600 mr-2"></i>2. Upload Data</h2>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-green-700 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Upload the completed fee spreadsheet (.xlsx or .csv) to automatically record batch payments." title="Upload the completed fee spreadsheet (.xlsx or .csv) to automatically record batch payments.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Fill the downloaded template and upload it here. Supported formats: <b>.xlsx, .xls, .csv</b>.</p>
                     
@@ -618,11 +716,30 @@
             <!-- 3. Fee Status Page (Full Width Desktop Spreadsheet) -->
             <section id="fee-page" class="page-content hidden w-full">
                 <div class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200">
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 flex-1">
-                            <div><label class="block text-xs font-bold mb-1 text-slate-700">Academic Year</label><select id="filter-academic-year" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="">Current Year</option></select></div>
-                            <div><label class="block text-xs font-bold mb-1 text-slate-700">Class Filter</label><select id="filter-class" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="all">All Classes</option></select></div>
-                            <div><label class="block text-xs font-bold mb-1 text-slate-700">Gender Filter</label><select id="filter-gender" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+                    <div class="flex flex-col 2xl:flex-row items-stretch 2xl:items-center justify-between gap-3 min-w-0">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 flex-1 min-w-0">
+                            <div>
+                                <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
+                                    <span>Academic Year</span>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select current academic year or past sessions to view historical fee settlement status." title="Select current academic year or past sessions to view historical fee settlement status.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </label>
+                                <select id="filter-academic-year" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="">Current Year</option></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
+                                    <span>Class Filter</span>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Filter by regular classes or select graduated alumni batches to inspect archive records." title="Filter by regular classes or select graduated alumni batches to inspect archive records.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </label>
+                                <select id="filter-class" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="all">All Classes</option></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1 text-slate-700">Gender Filter</label>
+                                <select id="filter-gender" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                            </div>
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-slate-700">Rows Limit</label>
                                 <select id="fee-status-row-limit" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer">
@@ -634,7 +751,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                        <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 2xl:pt-0 border-t 2xl:border-t-0 border-slate-100">
                             <span class="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
                                 <i class="fas fa-hand-pointer text-xs"></i> Tick boxes for multi-entry or click cell
                             </span>
@@ -656,10 +773,18 @@
                 </div>
                 <div class="card p-0 shadow-sm overflow-hidden bg-white rounded-2xl border border-slate-200">
                     <div class="flex justify-between items-center p-3 sm:p-4 border-b border-slate-200 bg-slate-50">
-                         <h2 id="fee-status-title-header" class="text-sm font-extrabold text-slate-800">Fee Status</h2>
-                         <div class="text-[11px] text-slate-500 font-semibold hidden sm:block">
-                             <span class="inline-flex items-center gap-1 text-emerald-700 font-bold mr-3"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Paid (Click for Slip / Tick to Edit)</span>
-                             <span class="inline-flex items-center gap-1 text-rose-600 font-bold"><span class="w-2 h-2 rounded-full bg-rose-400"></span> Unpaid (Click or Tick to Pay)</span>
+                         <div class="flex items-center gap-2">
+                             <h2 id="fee-status-title-header" class="text-sm font-extrabold text-slate-800">Fee Status</h2>
+                             <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Spreadsheet view tracking monthly fee clearance for all enrolled students and alumni." title="Spreadsheet view tracking monthly fee clearance for all enrolled students and alumni.">
+                                 <i class="fas fa-info-circle"></i>
+                             </button>
+                         </div>
+                         <div class="text-[11px] text-slate-500 font-semibold hidden sm:flex items-center gap-2">
+                             <span class="inline-flex items-center gap-1 text-emerald-700 font-bold mr-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Paid</span>
+                             <span class="inline-flex items-center gap-1 text-rose-600 font-bold mr-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span> Unpaid</span>
+                             <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Green indicates paid fees (click to view receipt). Red indicates unpaid dues (click to record payment)." title="Green indicates paid fees (click to view receipt). Red indicates unpaid dues (click to record payment).">
+                                 <i class="fas fa-info-circle"></i>
+                             </button>
                          </div>
                     </div>
                     <div id="fee-table-container" class="overflow-x-auto p-2 sm:p-4 custom-scroll max-h-[75vh]"></div>
@@ -670,22 +795,27 @@
             <section id="master-ledger-page" class="page-content hidden w-full">
                 <!-- Toolbar and Filter Bar Matching Reference Screenshot -->
                 <div class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200">
-                    <div class="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+                    <div class="flex flex-col 2xl:flex-row items-stretch 2xl:items-center justify-between gap-3 min-w-0">
                         <!-- Search Bar -->
-                        <div class="relative flex-1 min-w-[220px]">
-                            <input type="text" id="ledger-search-input" placeholder="Search..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition">
-                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <div class="relative w-full 2xl:w-72 shrink-0 min-w-0 flex items-center gap-2">
+                            <div class="relative flex-1 min-w-0">
+                                <input type="text" id="ledger-search-input" placeholder="Search students..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition">
+                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            </div>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-1 focus:outline-none transition inline-flex items-center shrink-0" data-info="Comprehensive institutional fee ledger tracking monthly fee clearance, arrears, and fee heads." title="Comprehensive institutional fee ledger tracking monthly fee clearance, arrears, and fee heads.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
                         </div>
 
                         <!-- Filters Strip -->
-                        <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2 w-full 2xl:w-auto min-w-0">
                             <!-- Academic Year Filter -->
-                            <select id="ledger-academic-year-select" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-academic-year-select" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="">Year: Current</option>
                             </select>
 
                             <!-- Rows Limit -->
-                            <select id="ledger-row-limit" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-row-limit" class="max-w-[130px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="25" selected>Rows: 25</option>
                                 <option value="50">Rows: 50</option>
                                 <option value="75">Rows: 75</option>
@@ -694,18 +824,18 @@
                             </select>
 
                             <!-- Filter: All Classes -->
-                            <select id="ledger-class-filter" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-class-filter" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="">Filter: All Classes</option>
                             </select>
 
                             <!-- Class Order Dynamic -->
-                            <select id="ledger-class-order" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-class-order" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="DESC">Class Order: +2 to 1</option>
                                 <option value="ASC">Class Order: 1 to +2</option>
                             </select>
 
                             <!-- Student Sort -->
-                            <select id="ledger-student-sort" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-student-sort" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="DEFAULT">Student Sort: Default</option>
                                 <option value="ADM">Admission No</option>
                                 <option value="A-Z">Name (A - Z)</option>
@@ -713,14 +843,14 @@
                             </select>
 
                             <!-- Gender Filter -->
-                            <select id="ledger-gender-mode" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-gender-mode" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="MIXED">Gender: Mixed</option>
                                 <option value="CLASS_BOYS_FIRST">Class-wise (Boys then Girls)</option>
                                 <option value="GLOBAL_BOYS_FIRST">Global (All Boys then All Girls)</option>
                             </select>
 
                             <!-- Status Filter -->
-                            <select id="ledger-status-filter" class="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
+                            <select id="ledger-status-filter" class="max-w-[155px] truncate px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer">
                                 <option value="ALL">Status: All</option>
                                 <option value="CONCESSION">Concession Only</option>
                                 <option value="GROUP">Group Only</option>
@@ -746,6 +876,9 @@
                             <button type="button" id="master-ledger-pdf-btn" class="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
                                 <i class="fas fa-file-pdf"></i> Preview PDF
                             </button>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-red-600 cursor-pointer text-xs p-1 focus:outline-none transition inline-flex items-center shrink-0" data-info="Generate an edge-to-edge printable tabular ledger report formatted for institutional archiving." title="Generate an edge-to-edge printable tabular ledger report formatted for institutional archiving.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -764,7 +897,12 @@
                 <div class="card p-0 shadow-sm overflow-hidden">
                     <div class="p-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
                         <div class="flex items-center gap-3 w-full sm:w-auto">
-                            <h2 class="text-lg font-bold text-gray-800">Payment History</h2>
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-lg font-bold text-gray-800">Payment History</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Comprehensive audit log of all processed fee transactions and generated receipt records." title="Comprehensive audit log of all processed fee transactions and generated receipt records.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
                             <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded" id="history-count-badge">Loading...</span>
                         </div>
                         
@@ -788,7 +926,22 @@
                     <div id="history-content-container" class="overflow-x-auto custom-scroll max-h-[65vh] p-4 relative">
                         <table class="w-full text-sm text-left whitespace-nowrap">
                             <thead class="table-header">
-                                <tr><th class="p-3">Rcpt</th><th class="p-3">Date</th><th class="p-3">Student / Donor</th><th class="p-3">Collected By</th><th class="p-3 text-center">Items</th><th class="p-3">Total</th><th class="p-3 text-center w-28">Actions</th></tr>
+                                <tr>
+                                    <th class="p-3">Rcpt</th>
+                                    <th class="p-3">Date</th>
+                                    <th class="p-3">Student / Donor</th>
+                                    <th class="p-3">Collected By</th>
+                                    <th class="p-3 text-center">
+                                        <span class="inline-flex items-center gap-1 justify-center">
+                                            <span>Items</span>
+                                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-[10px] p-0.5 focus:outline-none transition inline-flex items-center" data-info="Click the item count tag in any transaction row to inspect itemized fee splits and payment components." title="Click the item count tag in any transaction row to inspect itemized fee splits and payment components.">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </span>
+                                    </th>
+                                    <th class="p-3">Total</th>
+                                    <th class="p-3 text-center w-28">Actions</th>
+                                </tr>
                             </thead>
                             <tbody id="history-content-tbody" class="divide-y divide-gray-200">
                             </tbody>
@@ -816,7 +969,12 @@
             <!-- 5. Monthly Collected Page -->
             <section id="monthly-collected-page" class="page-content hidden">
                  <div class="card p-5 shadow-sm">
-                     <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Monthly Report</h2>
+                     <div class="flex items-center gap-2 mb-4 border-b pb-2">
+                         <h2 class="text-xl font-bold text-gray-800">Monthly Report</h2>
+                         <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel." title="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel.">
+                             <i class="fas fa-info-circle"></i>
+                         </button>
+                     </div>
                      <div id="monthly-report-summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5"></div>
                      <div class="relative mb-5">
                         <input type="text" id="monthly-collected-search-input" placeholder="Search by name, adm no or receipt..." class="w-full p-3 pl-10 border rounded-lg shadow-sm bg-gray-50">
@@ -836,7 +994,12 @@
 
             <section id="donation-page" class="page-content hidden">
                 <div class="card p-5 shadow-sm max-w-3xl mx-auto">
-                    <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Donation Entry</h2>
+                    <div class="flex items-center gap-2 mb-4 border-b pb-2">
+                        <h2 class="text-xl font-bold text-gray-800">Donation Entry</h2>
+                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Record general contributions, institutional endowments, and special donor receipts." title="Record general contributions, institutional endowments, and special donor receipts.">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold mb-1 text-gray-700">Donor Name</label>
@@ -860,7 +1023,12 @@
 
             <section id="collector-wise-monthly-page" class="page-content hidden">
                 <div class="card p-5 shadow-sm">
-                    <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Collector-wise Monthly Total</h2>
+                    <div class="flex items-center gap-2 mb-4 border-b pb-2">
+                        <h2 class="text-xl font-bold text-gray-800">Collector-wise Monthly Total</h2>
+                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Administrative breakdown of fee collections partitioned by collector staff members." title="Administrative breakdown of fee collections partitioned by collector staff members.">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
                     <p class="text-xs text-gray-500 font-medium mb-4">Admin view: monthly split by collector with default fee and other fee totals.</p>
                     <div id="collector-wise-monthly-container" class="space-y-4"></div>
                 </div>
@@ -874,6 +1042,9 @@
                             <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                                 <i class="fas fa-user-graduate text-blue-600"></i>
                                 <span>Student Directory</span>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Browse student profiles, parent contacts, and admission records by class." title="Browse student profiles, parent contacts, and admission records by class.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
                             </h2>
                             <p class="text-xs text-gray-500 font-medium mt-0.5">Select a class to view its complete student list and profiles.</p>
                         </div>
@@ -960,7 +1131,12 @@
             <section id="manage-groups-page" class="page-content hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                     <div class="card p-5 rounded-xl shadow-sm lg:col-span-5">
-                        <h2 class="text-xl font-bold mb-3 text-gray-800 border-b pb-2">Create Student Group</h2>
+                        <div class="flex items-center gap-2 mb-3 border-b pb-2">
+                            <h2 class="text-xl font-bold text-gray-800">Create Student Group</h2>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Combine siblings or related students to apply shared monthly fees and consolidated billing." title="Combine siblings or related students to apply shared monthly fees and consolidated billing.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
                         <div class="space-y-4">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div><label class="block text-sm font-semibold mb-1">Number of Students to Group</label><input type="number" id="num-of-students-group" min="2" class="w-full p-2.5 border rounded-lg shadow-sm" placeholder="e.g. 2"></div>
@@ -975,6 +1151,9 @@
                             <div>
                                 <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                                     <i class="fas fa-users-cog text-blue-600 text-lg"></i> Existing Groups
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Manage linked student groups, search family members, and view consolidated monthly rates." title="Manage linked student groups, search family members, and view consolidated monthly rates.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
                                 </h2>
                                 <p class="text-xs text-gray-500 mt-0.5">Manage linked student groups and group monthly fee rates.</p>
                             </div>
@@ -1020,7 +1199,12 @@
                             <i class="fas fa-hand-holding-usd"></i>
                         </div>
                         <div>
-                            <h2 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Fee Concessions Management</h2>
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Fee Concessions Management</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Manage approved fee waivers, fixed-amount discounts, and percentage concessions." title="Manage approved fee waivers, fixed-amount discounts, and percentage concessions.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
                             <p class="text-xs text-slate-500 mt-0.5">Assign special custom monthly fees or manage active concessions across all classes.</p>
                         </div>
                     </div>
@@ -1074,7 +1258,10 @@
                             <div>
                                 <h3 class="text-xs sm:text-sm font-bold text-emerald-900 flex items-center gap-2">
                                     <i class="fas fa-tags text-emerald-600 text-xs"></i>
-                                    Active Concessions Directory
+                                    <span>Active Concessions Directory</span>
+                                    <button type="button" class="info-tooltip-btn text-emerald-600/60 hover:text-emerald-700 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Directory of approved student fee reductions and custom monthly discount rates." title="Directory of approved student fee reductions and custom monthly discount rates.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
                                 </h3>
                                 <p class="text-[11px] text-slate-500 mt-0.5">Students with special monthly fee rates applied.</p>
                             </div>
