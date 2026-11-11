@@ -1147,7 +1147,7 @@
                                         </span>
                                         <span class="block text-[10px] text-gray-400 font-semibold lowercase tracking-normal -mt-0.5">(every month)</span>
                                     </label>
-                                    <select id="fee-collect-start-day" class="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold text-sm text-gray-800"></select>
+                                    <input type="number" id="fee-collect-start-day" min="1" max="31" value="1" placeholder="1 - 31" class="w-full p-2.5 border rounded-lg bg-white font-bold text-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
@@ -1157,7 +1157,7 @@
                                         </span>
                                         <span class="block text-[10px] text-gray-400 font-semibold lowercase tracking-normal -mt-0.5">(every month)</span>
                                     </label>
-                                    <select id="fee-collect-end-day" class="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold text-sm text-gray-800"></select>
+                                    <input type="number" id="fee-collect-end-day" min="1" max="31" value="10" placeholder="1 - 31" class="w-full p-2.5 border rounded-lg bg-white font-bold text-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
                                 </div>
                             </div>
 
@@ -1213,9 +1213,9 @@
                                 <div>
                                     <label class="block text-sm font-semibold mb-1">Fee Scope (Category) *</label>
                                     <select id="adv-fee-scope" class="w-full p-2.5 border rounded-lg font-medium text-blue-700">
-                                        <option value="global">Option A: Global (Same for all classes)</option>
-                                        <option value="class-wise">Option B: Class-wise (Different for each class)</option>
-                                        <option value="specific">Option C: Specific Class Only</option>
+                                        <option value="global">Global (Same for all classes)</option>
+                                        <option value="class-wise">Class-wise (Different for each class)</option>
+                                        <option value="specific">Specific Class Only</option>
                                     </select>
                                 </div>
                             </div>

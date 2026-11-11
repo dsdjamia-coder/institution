@@ -859,23 +859,27 @@ const closeConcModal = () => {
 export const initFinanceManagementModule = (stateContext) => {
     ctx = { ...ctx, ...stateContext };
 
-    // --- Populate 1..31 Date Selectors ---
-    const startSelect = document.getElementById('fee-collect-start-day');
-    const endSelect = document.getElementById('fee-collect-end-day');
-    if (startSelect && startSelect.options.length === 0) {
-        let opts = '';
-        for (let i = 1; i <= 31; i++) {
-            const s = ["th", "st", "nd", "rd"];
-            const v = i % 100;
-            const ord = s[(v - 20) % 10] || s[v] || s[0];
-            const label = i === 31 ? `Date 31 (${i}${ord} / Month End)` : `Date ${i} (${i}${ord})`;
-            opts += `<option value="${i}">${label}</option>`;
-        }
-        startSelect.innerHTML = opts;
-        endSelect.innerHTML = opts;
-        startSelect.value = '1';
-        endSelect.value = '10';
-    }
+    // --- Number Range Validation (1 to 31) for Collection Days ---
+    const startInput = document.getElementById('fee-collect-start-day');
+    const endInput = document.getElementById('fee-collect-end-day');
+    if (startInput && !startInput.value) startInput.value = '1';
+    if (endInput && !endInput.value) endInput.value = '10';
+
+    [startInput, endInput].forEach((inp) => {
+        inp?.addEventListener('input', () => {
+            if (inp.value === '') return;
+            let val = parseInt(inp.value, 10);
+            if (isNaN(val)) inp.value = '';
+            else if (val > 31) inp.value = 31;
+            else if (val < 1 && inp.value.length > 0) inp.value = 1;
+        });
+        inp?.addEventListener('blur', () => {
+            let val = parseInt(inp.value, 10);
+            if (isNaN(val) || val < 1) inp.value = inp.id.includes('start') ? '1' : '10';
+            else if (val > 31) inp.value = 31;
+            updateFeeScheduleSummary();
+        });
+    });
 
     // --- Fee Settings Listeners ---
     document.getElementById('save-fee-config-btn')?.addEventListener('click', saveFeeConfiguration);

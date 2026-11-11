@@ -13044,18 +13044,32 @@ const populateFeeCollectionScheduleSelectors = () => {
     const startSel = document.getElementById('fee-collect-start-day');
     const endSel = document.getElementById('fee-collect-end-day');
     if (!startSel || !endSel) return;
-    const opts = Array.from({ length: 31 }, (_, idx) => {
-        const d = idx + 1;
-        const s = ["th", "st", "nd", "rd"];
-        const v = d % 100;
-        const ord = s[(v - 20) % 10] || s[v] || s[0];
-        const label = d === 31 ? `Date 31 (${d}${ord} / Month End)` : `Date ${d} (${d}${ord})`;
-        return `<option value="${d}">${label}</option>`;
-    }).join('');
-    startSel.innerHTML = opts;
-    endSel.innerHTML = opts;
-    startSel.value = '1';
-    endSel.value = '10';
+    if (startSel.tagName === 'SELECT') {
+        const opts = Array.from({ length: 31 }, (_, idx) => {
+            const d = idx + 1;
+            return `<option value="${d}">${d}</option>`;
+        }).join('');
+        startSel.innerHTML = opts;
+        endSel.innerHTML = opts;
+    } else {
+        if (!startSel.value) startSel.value = '1';
+        if (!endSel.value) endSel.value = '10';
+        [startSel, endSel].forEach((inp) => {
+            inp.addEventListener('input', () => {
+                if (inp.value === '') return;
+                let val = parseInt(inp.value, 10);
+                if (isNaN(val)) inp.value = '';
+                else if (val > 31) inp.value = 31;
+                else if (val < 1 && inp.value.length > 0) inp.value = 1;
+            });
+            inp.addEventListener('blur', () => {
+                let val = parseInt(inp.value, 10);
+                if (isNaN(val) || val < 1) inp.value = inp.id.includes('start') ? '1' : '10';
+                else if (val > 31) inp.value = 31;
+                updateFeeScheduleLiveSummary();
+            });
+        });
+    }
 };
 
 const updateFeeScheduleLiveSummary = () => {
