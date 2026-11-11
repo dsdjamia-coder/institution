@@ -525,7 +525,7 @@ export function enterSpreadsheetFullscreen(targetPageId) {
         floatingExitBtn = document.createElement('button');
         floatingExitBtn.id = 'floating-exit-fullscreen-btn';
         floatingExitBtn.type = 'button';
-        floatingExitBtn.className = 'fixed top-3 right-4 z-[99999] px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-2xl flex items-center gap-1.5 cursor-pointer transition border border-white/40 backdrop-blur';
+        floatingExitBtn.className = 'fixed bottom-4 right-4 z-40 px-3.5 py-2 bg-slate-900/90 hover:bg-slate-900 text-white font-black text-xs rounded-xl shadow-2xl flex items-center gap-1.5 cursor-pointer transition border border-white/20 backdrop-blur';
         floatingExitBtn.innerHTML = '<i class="fas fa-compress"></i> <span>Exit Fullscreen</span>';
         floatingExitBtn.onclick = () => exitSpreadsheetFullscreen();
         document.body.appendChild(floatingExitBtn);
@@ -597,6 +597,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('click', (e) => {
+    const exitFsBtn = e.target.closest('.exit-fullscreen-btn');
+    if (exitFsBtn) {
+        exitSpreadsheetFullscreen();
+        return;
+    }
     const fsBtn = e.target.closest('.fullscreen-toggle-btn, .quick-fullscreen-btn');
     if (fsBtn) {
         const targetPage = fsBtn.dataset.target || (document.getElementById('fee-page')?.classList.contains('hidden') ? 'master-ledger-page' : 'fee-page');
