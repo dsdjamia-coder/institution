@@ -6123,13 +6123,26 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
             String(totalRcpts),
             String(allStudentsSet.size)
         ]],
-        styles: { fontSize: 8, cellPadding: 3.5, halign: 'right' },
+        styles: { fontSize: 8, cellPadding: 3.5 },
         columnStyles: {
-            0: { halign: 'left', fontStyle: 'bold' }
+            0: { cellWidth: 117, width: 117, halign: 'left', fontStyle: 'bold' },
+            1: { cellWidth: 72, width: 72, halign: 'right' },
+            2: { cellWidth: 72, width: 72, halign: 'right' },
+            3: { cellWidth: 72, width: 72, halign: 'right' },
+            4: { cellWidth: 78, width: 78, halign: 'right', fontStyle: 'bold' },
+            5: { cellWidth: 68, width: 68, halign: 'right' },
+            6: { cellWidth: 68, width: 68, halign: 'right' }
         },
-        headStyles: { fillColor: [15, 23, 42], textColor: 255, halign: 'right', fontStyle: 'bold' },
-        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'right' },
-        alternateRowStyles: { fillColor: [248, 250, 252] }
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        didParseCell: (data) => {
+            if (data.column.index === 0) {
+                data.cell.styles.halign = 'left';
+            } else {
+                data.cell.styles.halign = 'right';
+            }
+        }
     });
 
     currentY = docPdf.lastAutoTable.finalY + 18;
@@ -6235,14 +6248,19 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
                 foot: [['', 'Total Default Fees', formatInr(defaultTotal), '']],
                 styles: { fontSize: 8, cellPadding: 3 },
                 columnStyles: {
-                    0: { width: 55, halign: 'center' },
-                    1: { halign: 'left' },
-                    2: { width: 95, halign: 'right', fontStyle: 'bold' },
-                    3: { width: 85, halign: 'left' }
+                    0: { cellWidth: 55, width: 55, halign: 'center' },
+                    1: { cellWidth: 262, width: 262, halign: 'left' },
+                    2: { cellWidth: 115, width: 115, halign: 'right', fontStyle: 'bold' },
+                    3: { cellWidth: 115, width: 115, halign: 'left' }
                 },
                 headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-                footStyles: { fillColor: [239, 246, 255], textColor: [30, 58, 138], fontStyle: 'bold', halign: 'right' },
-                alternateRowStyles: { fillColor: [248, 250, 252] }
+                footStyles: { fillColor: [239, 246, 255], textColor: [30, 58, 138], fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                didParseCell: (data) => {
+                    if (data.column.index === 0) data.cell.styles.halign = 'center';
+                    else if (data.column.index === 2) data.cell.styles.halign = 'right';
+                    else data.cell.styles.halign = 'left';
+                }
             });
             currentY = docPdf.lastAutoTable.finalY + 10;
         }
@@ -6277,17 +6295,22 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
                 foot: [['', 'Total Other Fees', '', '', '', formatInr(otherTotal), '']],
                 styles: { fontSize: 8, cellPadding: 3 },
                 columnStyles: {
-                    0: { width: 50, halign: 'center' },
-                    1: { halign: 'left' },
-                    2: { width: 45, halign: 'center' },
-                    3: { width: 45, halign: 'center' },
-                    4: { halign: 'left' },
-                    5: { width: 75, halign: 'right', fontStyle: 'bold' },
-                    6: { width: 80, halign: 'left' }
+                    0: { cellWidth: 48, width: 48, halign: 'center' },
+                    1: { cellWidth: 140, width: 140, halign: 'left' },
+                    2: { cellWidth: 44, width: 44, halign: 'center' },
+                    3: { cellWidth: 45, width: 45, halign: 'center' },
+                    4: { cellWidth: 100, width: 100, halign: 'left' },
+                    5: { cellWidth: 80, width: 80, halign: 'right', fontStyle: 'bold' },
+                    6: { cellWidth: 90, width: 90, halign: 'left' }
                 },
                 headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: 'bold' },
-                footStyles: { fillColor: [245, 243, 255], textColor: [91, 33, 182], fontStyle: 'bold', halign: 'right' },
-                alternateRowStyles: { fillColor: [248, 250, 252] }
+                footStyles: { fillColor: [245, 243, 255], textColor: [91, 33, 182], fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                didParseCell: (data) => {
+                    if (data.column.index === 0 || data.column.index === 2 || data.column.index === 3) data.cell.styles.halign = 'center';
+                    else if (data.column.index === 5) data.cell.styles.halign = 'right';
+                    else data.cell.styles.halign = 'left';
+                }
             });
             currentY = docPdf.lastAutoTable.finalY + 10;
         }
@@ -6335,15 +6358,20 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
                 foot: [['', 'Total Donations', '', formatInr(donationTotal), '']],
                 styles: { fontSize: 8, cellPadding: 3 },
                 columnStyles: {
-                    0: { width: 55, halign: 'center' },
-                    1: { halign: 'left' },
-                    2: { halign: 'left' },
-                    3: { width: 80, halign: 'right', fontStyle: 'bold' },
-                    4: { width: 85, halign: 'left' }
+                    0: { cellWidth: 50, width: 50, halign: 'center' },
+                    1: { cellWidth: 157, width: 157, halign: 'left' },
+                    2: { cellWidth: 150, width: 150, halign: 'left' },
+                    3: { cellWidth: 95, width: 95, halign: 'right', fontStyle: 'bold' },
+                    4: { cellWidth: 95, width: 95, halign: 'left' }
                 },
                 headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-                footStyles: { fillColor: [236, 253, 245], textColor: [6, 95, 70], fontStyle: 'bold', halign: 'right' },
-                alternateRowStyles: { fillColor: [248, 250, 252] }
+                footStyles: { fillColor: [236, 253, 245], textColor: [6, 95, 70], fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                didParseCell: (data) => {
+                    if (data.column.index === 0) data.cell.styles.halign = 'center';
+                    else if (data.column.index === 3) data.cell.styles.halign = 'right';
+                    else data.cell.styles.halign = 'left';
+                }
             });
             currentY = docPdf.lastAutoTable.finalY + 14;
         }
@@ -6474,15 +6502,24 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
             foot: [['', 'GRAND TOTAL', formatInr(grandDefault), formatInr(grandOthers), formatInr(grandAll)]],
             styles: { fontSize: 8.5, cellPadding: 3.5 },
             columnStyles: {
-                0: { width: 36, halign: 'center' },
-                1: { halign: 'left', fontStyle: 'bold' },
-                2: { halign: 'right' },
-                3: { halign: 'right' },
-                4: { halign: 'right', fontStyle: 'bold' }
+                0: { cellWidth: 40, width: 40, halign: 'center' },
+                1: { cellWidth: 177, width: 177, halign: 'left', fontStyle: 'bold' },
+                2: { cellWidth: 110, width: 110, halign: 'right' },
+                3: { cellWidth: 110, width: 110, halign: 'right' },
+                4: { cellWidth: 110, width: 110, halign: 'right', fontStyle: 'bold' }
             },
             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
             footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [248, 250, 252] }
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            didParseCell: (data) => {
+                if (data.column.index === 0) {
+                    data.cell.styles.halign = 'center';
+                } else if (data.column.index === 1) {
+                    data.cell.styles.halign = 'left';
+                } else {
+                    data.cell.styles.halign = 'right';
+                }
+            }
         });
 
         currentY = docPdf.lastAutoTable.finalY + 18;
@@ -6555,15 +6592,24 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
             foot: [['', 'GRAND TOTAL', formatInr(monthTotalDefault), formatInr(monthTotalOthers), formatInr(monthGrandTotal)]],
             styles: { fontSize: 8.5, cellPadding: 3.5 },
             columnStyles: {
-                0: { width: 36, halign: 'center' },
-                1: { halign: 'left', fontStyle: 'bold' },
-                2: { halign: 'right' },
-                3: { halign: 'right' },
-                4: { halign: 'right', fontStyle: 'bold' }
+                0: { cellWidth: 40, width: 40, halign: 'center' },
+                1: { cellWidth: 177, width: 177, halign: 'left', fontStyle: 'bold' },
+                2: { cellWidth: 110, width: 110, halign: 'right' },
+                3: { cellWidth: 110, width: 110, halign: 'right' },
+                4: { cellWidth: 110, width: 110, halign: 'right', fontStyle: 'bold' }
             },
             headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
             footStyles: { fillColor: [238, 242, 255], textColor: [49, 46, 129], fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [248, 250, 252] }
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            didParseCell: (data) => {
+                if (data.column.index === 0) {
+                    data.cell.styles.halign = 'center';
+                } else if (data.column.index === 1) {
+                    data.cell.styles.halign = 'left';
+                } else {
+                    data.cell.styles.halign = 'right';
+                }
+            }
         });
 
         currentY = docPdf.lastAutoTable.finalY + 16;
