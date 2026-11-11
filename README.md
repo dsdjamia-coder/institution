@@ -1,6 +1,6 @@
 # Noorul Islam Madrasa - Enterprise Educational & Financial Management System
 
-A comprehensive, production-grade institutional web platform built for **Noorul Islam Higher Secondary Madrasa**. The platform provides an all-in-one suite covering student information management, counter fee collection, academic curriculum planning, dynamic routine and exam timetabling, interactive syllabus tracking, daily session attendance, co-curricular activities, marksheet generation, and granular administrative controls.
+A comprehensive, production-grade institutional web platform built for **Noorul Islam Higher Secondary Madrasa**. The platform provides an all-in-one suite covering student information management, counter fee collection, academic curriculum planning, dynamic routine and exam timetabling, interactive syllabus tracking, daily session attendance, co-curricular activities, marksheet generation, dynamic classroom spreadsheets, emergency rollback runbooks, and granular administrative controls.
 
 ---
 
@@ -17,7 +17,7 @@ A comprehensive, production-grade institutional web platform built for **Noorul 
    - [7. Student Attendance Register (`attendance.html`)](#7-student-attendance-register-attendancehtml)
    - [8. Student Activities, Clubs & Rewards (`activity.html`)](#8-student-activities-clubs--rewards-activityhtml)
    - [9. Examination & Results Publishing Center (`result.html`)](#9-examination--results-publishing-center-resulthtml)
-   - [10. Teacher Class Worksheet (`worksheet.html`)](#10-teacher-class-worksheet-worksheethtml)
+   - [10. Class Worksheet & Spreadsheet Engine (`worksheet.html`)](#10-class-worksheet--spreadsheet-engine-worksheethtml)
    - [11. Student & Parent Self-Service Portal (`student-fee-system.html`)](#11-student--parent-self-service-portal-student-fee-systemhtml)
 3. [Super Admin Setup & Configuration Guide](#super-admin-setup--configuration-guide)
    - [Method 1: Initial Bootstrap via Firebase Console](#method-1-initial-bootstrap-via-firebase-console)
@@ -26,10 +26,14 @@ A comprehensive, production-grade institutional web platform built for **Noorul 
    - [Method 4: Promoting Staff via RBAC (`actLikeSuperAdmin`)](#method-4-promoting-staff-via-rbac-actlikesuperadmin)
 4. [Role-Based Access Control (RBAC) & Duty Scoping](#role-based-access-control-rbac--duty-scoping)
 5. [Firestore Database Schema & Document Architecture](#firestore-database-schema--document-architecture)
-6. [Getting Started & Local Development](#getting-started--local-development)
-7. [Official Print Engine & Export Specifications](#official-print-engine--export-specifications)
-8. [Security & Session Management](#security--session-management)
-9. [License & Institutional Information](#license--institutional-information)
+6. [Firebase Security Hardening & App Check Enforcement](#firebase-security-hardening--app-check-enforcement)
+7. [Getting Started & Local Development](#getting-started--local-development)
+8. [Official Print Engine & Export Specifications](#official-print-engine--export-specifications)
+9. [Emergency Rollback & Disaster Recovery Runbook](#emergency-rollback--disaster-recovery-runbook)
+10. [User Acceptance Testing (UAT) Checklist](#user-acceptance-testing-uat-checklist)
+11. [Bug Triage Framework & Historical Fixes](#bug-triage-framework--historical-fixes)
+12. [Developer Reference & Guidelines](#developer-reference--guidelines)
+13. [License & Institutional Information](#license--institutional-information)
 
 ---
 
@@ -44,7 +48,7 @@ The system is designed as a modular **Multi-Page Application (MPA)** optimized f
 - **Authentication**: Firebase Authentication (Email/Password, Anonymous Session) + Document-level Emergency Fallback.
 - **PWA & Offline Support**: Web App Manifest (`manifest.json`), Service Worker (`sw.js`) with asset caching.
 - **Document & PDF Generation**: jsPDF, jsPDF-AutoTable, and Native Publication-Grade CSS Print Engine (`@media print`).
-- **Image Processing**: Client-side interactive canvas image cropper (`InteractiveCropper`).
+- **Image Processing**: Client-side interactive canvas image cropper (`InteractiveCropper`) with automated downscaling.
 
 ---
 
@@ -58,6 +62,7 @@ The public-facing digital gateway for parents, prospective students, and communi
 - **Managing Committee Directory**: Institutional board members with designations and profiles.
 - **Campus Photo Gallery**: Responsive image gallery with full-screen lightbox preview.
 - **Direct Login Gateway**: Modals for quick student lookup (by admission number and date of birth) and official staff access.
+- **Privacy Hardening**: Public client-side state strips sensitive personal phone numbers and private records from unauthenticated memory.
 - **PWA Install Prompt**: Native browser installation prompt integration.
 
 ---
@@ -84,7 +89,7 @@ The core institutional administration suite with comprehensive management panels
 - **Faculty & Staff Directory**: Manage staff records, employee IDs, contact details, photos, and assign duty classes.
 - **Granular RBAC Permissions**: Toggle access per staff member for Collection, Worksheet, Student Directory, Result Center, Attendance, Academic Plan, and Activity modules.
 - **Security & Credentials**: Update Super Admin login credentials, manage multiple co-administrators, and review automated audit logs.
-- **System Backup & Restore**: Export full Firestore database state to JSON and restore data snapshots.
+- **System Backup & Restore**: Export full Firestore database state to JSON and restore data snapshots with dry-run diff previews.
 
 ---
 
@@ -128,9 +133,9 @@ A unified academic management module divided into specialized sub-tabs:
 Full-lifecycle student record management:
 - **Student Profile**: Admission number, roll number, class, division, gender, date of birth, blood group, father/guardian name, address, contact phone numbers.
 - **Sibling Relationship Linking**: Connects brothers and sisters to a shared family parent account for consolidated fee management.
-- **Interactive Photo Upload**: Integrated crop tool (`InteractiveCropper`) for student ID photographs.
-- **Class Promotions & Transfers**: Single-click student promotion wizard between academic years.
-- **Search & Filter**: Live instant filtering by class, division, admission number, name, or phone.
+- **Memory-Safe Photo Upload**: Zero-copy canvas downscaler and crop tool (`InteractiveCropper`) preventing memory allocation spikes on mobile devices.
+- **Class Promotions & Transfers**: Single-click student promotion wizard between academic years, updating class, division, and status atomically.
+- **Multi-Field Instant Search**: High-performance instant filtering by Name, Admission Number, UID, Father, Mother, Guardian, Phone, or Aadhaar number.
 
 ---
 
@@ -138,7 +143,8 @@ Full-lifecycle student record management:
 A robust financial collection terminal built for madrasa fee counters:
 - **Instant Student Lookup**: Search by student name or admission number with auto-complete suggestions.
 - **Interactive Fee Matrix**: Monthly fee checklist (June to March cycle) and custom fees (Admission, Books, Exam, Building Fund).
-- **Concessions & Discounts**: Apply approved sibling discounts, merit concessions, or custom fee waivers.
+- **Sibling Group Rates**: Automatically recognizes sibling discount groups and bills proportional group rates instead of individual default fees.
+- **Atomic Global Receipts**: Guarantees zero duplicate receipt numbers across multiple concurrent counters via Firestore atomic transactions (`receipt-service.js`).
 - **Multi-Payment Modes**: Record payments via Cash, UPI (Google Pay, PhonePe), or Bank Transfer.
 - **Receipt Printing**: Instant thermal or A4 receipt generation with institution logo, itemized breakdown, and receipt numbering.
 - **Duplicate Watermark**: Reprint past receipts with a clear `DUPLICATE RECEIPT` audit watermark.
@@ -175,11 +181,29 @@ Comprehensive academic evaluation and marksheet portal:
 
 ---
 
-### 10. Teacher Class Worksheet (`worksheet.html`)
-A lightweight, dynamic spreadsheet for classroom management:
-- **Dynamic Columns**: Add custom columns (e.g., Homework, Project, Tajweed Recitation, Conduct).
-- **Inline Editing**: Teachers record scores directly within table cells.
-- **Sorting & Exporting**: Sort by Admission Number, Roll Number, or Name, with direct CSV/Excel export.
+### 10. Class Worksheet & Spreadsheet Engine (`worksheet.html`)
+A high-performance **mini Excel workspace** embedded in the Official Portal for classroom teachers and administrative staff. It enables rapid entry, calculation, formatting, and publication of rosters, attendance, marks, fees, and notes:
+
+#### Key Architectural Principles
+1. **Excel-like Familiarity**: Familiar ribbon interface, active cell green borders, formula bar, name box, and spreadsheet coordinate indexing (A, B, C... and 1, 2, 3...).
+2. **Print-First Architecture**: Live screen-to-print parity on A4 paper with repeat headers and page-break optimization.
+3. **Template-Driven Workflow**: Design custom column layouts once and reuse them across different classes or academic years.
+4. **Fail-Safe Editing**: Local undo/redo history stack, auto-save state, and unsaved changes confirmation.
+
+#### Interface Specifications
+- **Ribbon Tabs**:
+  - **Home Tab**: Typography styling (Font family, size +/-), Bold, Italic, Underline, Text color, Cell fill color, Text alignment, Wrap text, Insert/Delete row/column, Undo/Redo.
+  - **Data Tab**: Dynamic auto-fill dropdown (Student Name, Admission No, Roll No, Gender, Guardian Name, Phone), Sort (Name A-Z/Z-A, Admission No, Roll No), and Grouping (Mixed, Boys First, Girls First, Separate Pages with forced print page breaks).
+  - **Page Layout Tab**: A4 lock, Orientation (Portrait / Landscape), Margins (Normal / Narrow / Wide), Show/Repeat Official Header on all pages, and Page break view toggles.
+- **Worksheet Interactions**:
+  - Cell click selection with synchronized Formula Bar and Name Box ($A1, B4$).
+  - Full column/row selection by clicking headers.
+  - Multi-cell clipboard matrix paste from Microsoft Excel and Google Sheets ($\text{Tab} / \text{Newline}$ delimiters).
+  - Manual boundary drag-resizing for both columns and rows with width persistence.
+  - Fixed columns (S.No, Student Name) with customizable dynamic data columns.
+- **Export Engines**:
+  - **PDF Export**: Clean vector A4 print with stripped application chrome and embedded institutional letterhead.
+  - **Excel Export**: True `.xlsx` binary export via SheetJS with styled header fills, cell borders, and fallback to CSV.
 
 ---
 
@@ -334,6 +358,7 @@ institutions/{INSTITUTION_ID}/
 - **`staff/{staffId}`**: Staff member directory (name, designation, phone, duty classes, photo).
 - **`staffAccess/{staffId}`**: Granular permission switches (`collection`, `worksheet`, `student`, `result`, `attendance`, `academicPlan`, `studentActivity`, `actLikeSuperAdmin`).
 - **`collections/{receiptNo}`**: Real-time fee collection transactions (student ID, amount, payment mode, months, timestamp).
+- **`counters/receiptSeq`**: Atomic transaction counter for sequential, zero-collision receipt number generation.
 - **`yearPlans/{academicYear}__{class}`**: Annual syllabus portions and daily lesson execution checklists.
 - **`timetables/{academicYear}__{class}`**: Class weekly routine timetable periods, timeslots, and working day configurations.
 - **`examTimetables/{academicYear}__{class}__{examTitle}`**: Examination schedules, hall allotments, and invigilator duties.
@@ -343,7 +368,31 @@ institutions/{INSTITUTION_ID}/
 - **`resultSchemas/{academicYear}__{class}__{examTitle}`**: Examination grading rules, max marks, and grade boundaries.
 - **`examResults/{academicYear}__{class}__{examTitle}`**: Computed student exam marks, rankings, grades, and pass/fail statuses.
 - **`notices/{noticeId}`**: Public notice board announcements and circulars.
-- **`auditLogs/{logId}`**: Automated security and transaction audit log entries.
+- **`auditLogs/{logId}`**: Automated security and transaction audit log entries (limited queries with descending timestamp indices).
+
+---
+
+## Firebase Security Hardening & App Check Enforcement
+
+To protect sensitive institutional records, student PII, and financial ledgers, the following security measures are strictly enforced:
+
+### 1. Firestore Security Rules
+- Configured in `firestore.rules`.
+- Disallows unauthenticated reads/writes across financial, staff, and student collections.
+- Blocks client-side privilege escalation and anonymous deletion of fee records.
+
+### 2. App Check Enforcement
+Client bootstrap is configured in `config/firebase-config.js`.
+1. Open **Firebase Console > Build > App Check**.
+2. Register **reCAPTCHA v3** for the production web domain.
+3. Inject the site key into `window.__APP_CHECK_SITE_KEY` at deployment time.
+4. Enable enforcement for **Cloud Firestore** and **Cloud Storage**.
+
+### 3. Authorized Domains Lock
+In **Firebase Console > Authentication > Settings > Authorized Domains**, strictly permit:
+- Production domain (`feee050.web.app` or custom domain)
+- `localhost` (exclusively for local development)
+- Authorized staging/preview domains. Remove all obsolete or unverified hosts.
 
 ---
 
@@ -354,7 +403,7 @@ institutions/{INSTITUTION_ID}/
 - npm (v9.0.0 or higher)
 - A Google Firebase project with Cloud Firestore and Firebase Authentication enabled.
 
-### Installation
+### Installation & Commands
 
 1. **Clone the repository**:
    ```bash
@@ -368,12 +417,12 @@ institutions/{INSTITUTION_ID}/
    ```
 
 3. **Configure Environment Parameters**:
-   - Check `config/app-config.js` to adjust your `INSTITUTION_ID` if deploying for multiple institutions:
+   - Check `config/app-config.js` to adjust `INSTITUTION_ID` if deploying for multiple institutions:
      ```javascript
-     export const INSTITUTION_ID = 'NOORUL_ISLAM_01';
+     export const INSTITUTION_ID = 'school';
      export const BASE_PATH = `institutions/${INSTITUTION_ID}`;
      ```
-   - Check `config/firebase-config.js` to ensure your Firebase project credentials (`apiKey`, `projectId`, `firestoreDatabaseId`) match your Firebase project.
+   - Check `config/firebase-config.js` to ensure your Firebase project credentials match your environment.
 
 4. **Start the local development server**:
    ```bash
@@ -412,16 +461,114 @@ All printable documents across the platform are engineered for publication-grade
   - **Master Exam Timetable**: Landscape A4.
   - **Class Exam Routine**: Landscape A4.
   - **Student Result Marksheet / Report Card**: Portrait A4.
+  - **Class Worksheet Printout**: Configurable Landscape/Portrait A4.
 - **Official Letterhead & Signatures**: Every printed sheet includes institutional branding, official logo, document publication date, and dual signature blocks for the **Subject/Class Teacher** and the **Head of Institution / Principal**.
 
 ---
 
-## Security & Session Management
+## Emergency Rollback & Disaster Recovery Runbook
 
-- **Session Guard (`AppSession`)**: Enforces session freshness, idle-timeout management, and role switching across browser tabs.
-- **Official Lockdown**: Instantly disables non-admin logins across all operational hubs during examinations or audits.
-- **Audit Logging**: Sensitive operations (credential updates, fee deletions, marksheet publishing, data exports) record timestamped audit entries in `auditLogs/`.
-- **Harden External Links**: Automated DOM sanitizer prevents tab-nabbing vulnerabilities across all external hyperlinks.
+**Document Code:** QA-RR-01  
+**Purpose:** Standard operating procedure to rollback frontend deployments or recover Firestore database state in case of runtime regressions or data inconsistencies.
+
+### 1. Rollback Triggers
+- Core fee collection or receipt printing fails in production.
+- Database authorization regression preventing staff or students from accessing portals.
+- Breaking frontend build error released to clients.
+
+### 2. Code Deployment Rollback Procedure
+```bash
+# Step 1: Check status
+git status
+
+# Step 2: Roll back to last verified stable commit
+git log --oneline -n 5
+git checkout <LAST_STABLE_COMMIT_HASH>
+npm install
+npm run lint
+npm run build
+```
+
+### 3. Service Worker Cache Invalidation
+If client devices have cached faulty assets via `sw.js`:
+1. Open `sw.js` and increment `CACHE_NAME` (e.g., from `fee-tracker-v26` to `fee-tracker-v27`).
+2. Deploy the updated `sw.js`. The browser `activate` event will delete legacy caches and download fresh bundles on client devices immediately.
+
+### 4. Database Snapshot Recovery Procedure
+1. **Safety Precaution**: Before any restore, export current state via **Admin Portal > Security Settings > Export JSON Backup**.
+2. **Restore from Archive**:
+   - Open `admin.html#security-settings`.
+   - Under **Restore from Backup**, upload the last verified healthy JSON snapshot.
+   - Review the collection diff preview and execute the restore.
+
+---
+
+## User Acceptance Testing (UAT) Checklist
+
+Before clearing any production release, complete the following verification steps:
+
+- [ ] **Public Portal (`index.html`)**:
+  - Live student tally loads correctly.
+  - Student login operates cleanly with Admission No and Date of Birth / Mobile.
+  - Console verifies zero student PII is exposed in unauthenticated memory.
+- [ ] **Fee Collection Desk (`collection.html`)**:
+  - Student lookup auto-suggests results quickly.
+  - Cash, UPI, and Bank Transfer receipts generate correct sequential numbering without collisions.
+  - Sibling group discount rates calculate accurately.
+- [ ] **Result Management (`result.html`)**:
+  - Marks enter cleanly, grades and percentages compute dynamically.
+  - Publishing toggle instantly unlocks report cards on the Student Portal.
+  - Auto-promotion wizard migrates passed students to the next academic year.
+- [ ] **Admin Console (`admin.html`)**:
+  - Super Admin authentication functions securely.
+  - Academic year switching and fee structure updates persist cleanly.
+  - Automated JSON backup export downloads successfully.
+
+---
+
+## Bug Triage Framework & Historical Fixes
+
+*Framework: The Triage Kit*  
+*Prioritization Principle: "No new feature until the Red list is empty. Fix blockers first."*
+
+### Historical Resolved Defects:
+
+1. **Photo Upload Base64 OOM Crash on Budget Phones (Red List)**
+   - **Root Cause**: `FileReader.readAsDataURL` read 15MB+ camera images directly into string memory without pre-checks.
+   - **Fix**: Implemented `safelyPrepareImageForCropping` across `admin-page.js` and `student-page.js`. Rejects $>15\text{MB}$, downscales via offscreen Canvas to $\le 1200\text{px}$, and outputs $\approx 150\text{KB}$ image buffers for `InteractiveCropper`.
+   - **Status**: [x] Fixed & Verified
+
+2. **Sibling Group Fee Disparity in Student Ledger vs Counter (Red List)**
+   - **Root Cause**: Collection counter billed group rates, but student profile ledger billed standard individual dues.
+   - **Fix**: Added `getStudentEffectiveMonthlyFee(student, targetAcademicYear)` to distribute sibling group rates proportionally.
+   - **Status**: [x] Fixed & Verified
+
+3. **Student Search Restriction to Name and Admission No (Yellow List)**
+   - **Root Cause**: Search function only checked `s.name` and `s.adm`.
+   - **Fix**: Created `matchesStudentSearch(s, term)` checking Name, Adm, UID, Father, Mother, Guardian, and 3+ digit matches on mobile/Aadhaar.
+   - **Status**: [x] Fixed & Verified
+
+4. **Heavy Initial Audit Log Downloads on Cellular Networks (Yellow List)**
+   - **Root Cause**: Unbounded `onSnapshot` query on `auditLogs` downloaded thousands of historical documents.
+   - **Fix**: Applied `limit(50)` with `orderBy('createdAt', 'desc')` and a visual Live Sync indicator.
+   - **Status**: [x] Fixed & Verified
+
+5. **Inconsistent Currency Formatting (Green List)**
+   - **Root Cause**: Raw template strings caused unformatted numbers (`₹1200` vs `₹1,200.00`).
+   - **Fix**: Standardized `formatCurrency` in `app-common.js` using `Intl.NumberFormat('en-IN')`.
+   - **Status**: [x] Fixed & Verified
+
+6. **Softening of Small Logos on High-DPI Mobile Screens (Green List)**
+   - **Root Cause**: Browser interpolation softened small logo badges.
+   - **Fix**: Applied `image-rendering: crisp-edges` and `-webkit-optimize-contrast` in `styles/main.css`.
+   - **Status**: [x] Fixed & Verified
+
+---
+
+## Developer Reference & Guidelines
+
+For the complete development workflow instructions, approval protocol, and safe editing rules, refer to:
+👉 [**DEVELOPER_GUIDELINES.md**](file:///c:/sanjide/feee%20web%20app/feee050/DEVELOPER_GUIDELINES.md)
 
 ---
 
