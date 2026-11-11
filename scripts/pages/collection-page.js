@@ -5527,6 +5527,27 @@ document.getElementById('history-content-container').addEventListener('click', e
     }
 });
 
+const getPaymentMonthKey = (entry) => {
+    if (!entry) return '';
+    const raw = entry.paymentDate || entry.date || entry.createdAt;
+    if (!raw) return '';
+    if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        const match = trimmed.match(/^(\d{4})-(\d{2})/);
+        if (match) return `${match[1]}-${match[2]}`;
+        const d = new Date(trimmed);
+        if (!isNaN(d.getTime())) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+    } else if (raw instanceof Date) {
+        return `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, '0')}`;
+    } else if (typeof raw === 'object' && typeof raw.toDate === 'function') {
+        const d = raw.toDate();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return '';
+};
+
 const receiptSort = (a, b) => {
     const aNum = Number(a?.receiptNo ?? a ?? 0);
     const bNum = Number(b?.receiptNo ?? b ?? 0);
@@ -5585,7 +5606,14 @@ const renderMonthlyCollectedPage = (searchTerm = '') => {
             return student && (student.class.toLowerCase().includes(lowerTerm) || (entry.receiptNo && entry.receiptNo.toString().includes(lowerTerm)));
         })
         : combinedEntries;
-    const sortedKeys = Object.keys(pays.reduce((a, p) => { if (p.paymentDate) { const mk = p.paymentDate.substring(0, 7); if (!a[mk]) a[mk] = []; a[mk].push(p); } return a; }, {})).sort().reverse();
+    const sortedKeys = Object.keys(pays.reduce((a, p) => {
+        const mk = getPaymentMonthKey(p);
+        if (mk) {
+            if (!a[mk]) a[mk] = [];
+            a[mk].push(p);
+        }
+        return a;
+    }, {})).sort().reverse();
     if (sortedKeys.length === 0) { cont.innerHTML = buildEmptyState('No monthly report data found for the selected filter.', 'fa-chart-column'); return; }
 
     const currentMK = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -5601,7 +5629,7 @@ const renderMonthlyCollectedPage = (searchTerm = '') => {
     };
 
     sortedKeys.forEach(mk => {
-        const monthPays = pays.filter(p => p.paymentDate.substring(0,7) === mk), uTxns = {};
+        const monthPays = pays.filter(p => getPaymentMonthKey(p) === mk), uTxns = {};
         monthPays.forEach(p => {
             const tid = p.transactionId || p.receiptNo;
             if (!uTxns[tid]) {
@@ -5694,8 +5722,8 @@ const renderCollectorWiseMonthlyPage = () => {
         return;
     }
     const groupedByMonth = [...allPayments, ...allDonations].reduce((acc, payment) => {
-        if (!payment?.paymentDate) return acc;
-        const monthKey = payment.paymentDate.substring(0, 7);
+        const monthKey = getPaymentMonthKey(payment);
+        if (!monthKey) return acc;
         if (!acc[monthKey]) acc[monthKey] = [];
         acc[monthKey].push(payment);
         return acc;
@@ -5768,15 +5796,62 @@ window.renderCollectorWiseMonthlyPage = renderCollectorWiseMonthlyPage;
 // ============================================================================
 let activeReportExportType = 'monthly';
 
+const normalizeAcademicYearLabel = (label = '') => {
+    if (!label) return '';
+    const trimmed = String(label).trim();
+    const parts = trimmed.split('-');
+    if (parts.length === 2) {
+        const y1 = parts[0].trim();
+        let y2 = parts[1].trim();
+        if (y1.length === 4 && y2.length === 2) {
+            y2 = y1.substring(0, 2) + y2;
+        }
+        return `${y1}-${y2}`;
+    }
+    return trimmed;
+};
+
+const getAllReportAcademicYears = () => {
+    const yearsSet = new Set();
+    const todayAcademicYear = getAcademicYearFromDate(new Date());
+    if (todayAcademicYear) yearsSet.add(todayAcademicYear);
+    if (currentWorkingAcademicYear) yearsSet.add(currentWorkingAcademicYear);
+
+    (academicYearSettings || []).forEach(y => {
+        if (y && y.label && y.status !== 'archived') {
+            yearsSet.add(y.label);
+        }
+    });
+
+    const records = [...(allPayments || []), ...(allDonations || [])];
+    records.forEach(r => {
+        if (r?.academicYear && typeof r.academicYear === 'string') {
+            yearsSet.add(r.academicYear.trim());
+        }
+    });
+
+    const yearsList = Array.from(yearsSet).filter(Boolean);
+    return yearsList.sort((a, b) => {
+        const [aStart = 0] = String(a).split('-').map(Number);
+        const [bStart = 0] = String(b).split('-').map(Number);
+        return bStart - aStart;
+    });
+};
+
 const getAcademicYearMonthKeys = (yearLabel = '') => {
-    const effectiveYear = yearLabel || currentWorkingAcademicYear || getAcademicYearFromDate();
-    if (!effectiveYear) return [];
-    const parts = effectiveYear.split('-').map(p => Number(p.trim()));
+    const rawYear = yearLabel || getAcademicYearFromDate(new Date()) || currentWorkingAcademicYear || '';
+    if (!rawYear) return [];
+    const normalized = normalizeAcademicYearLabel(rawYear);
+    const parts = normalized.split('-').map(p => Number(p.trim()));
     const y1 = parts[0];
-    const y2 = parts[1] || y1;
-    const seq = getAcademicMonthSequence(effectiveYear);
-    const startMonth = seq.length ? seq[0] : 5;
-    return seq.map(mIdx => {
+    let y2 = parts[1] || y1;
+    if (y2 < 100 && y1 >= 2000) {
+        y2 = Math.floor(y1 / 100) * 100 + y2;
+    }
+    const seq = getAcademicMonthSequence(yearLabel) || getAcademicMonthSequence(normalized);
+    const startMonth = (seq && seq.length) ? seq[0] : 5;
+    const effectiveSeq = (seq && seq.length) ? seq : [5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4];
+    return effectiveSeq.map(mIdx => {
         const calYear = (mIdx >= startMonth) ? y1 : y2;
         const calMonth = String(mIdx + 1).padStart(2, '0');
         return `${calYear}-${calMonth}`;
@@ -5788,7 +5863,7 @@ const renderReportModalMonths = (yearLabel = '', exportType = '') => {
     if (!listCont) return;
 
     const resolvedType = exportType || activeReportExportType || 'monthly';
-    const effectiveYear = yearLabel || currentWorkingAcademicYear || getAcademicYearFromDate();
+    const effectiveYear = yearLabel || getAcademicYearFromDate(new Date()) || currentWorkingAcademicYear || '';
 
     // 12 months for this academic year in reverse-chronological order (newest month at the top)
     const academicMonths = getAcademicYearMonthKeys(effectiveYear).slice().reverse();
@@ -5806,13 +5881,17 @@ const renderReportModalMonths = (yearLabel = '', exportType = '') => {
         return;
     }
 
-    listCont.innerHTML = academicMonths.map((mk, idx) => {
-        // If the selected academic year contains the current calendar month, check only current month
-        // Otherwise, check the newest/top month of that year by default
+    let defaultCheckedKey = hasCurrentMonth ? currentMonthKey : '';
+    if (!defaultCheckedKey) {
+        const monthWithRecords = academicMonths.find(mk => records.some(r => getPaymentMonthKey(r) === mk));
+        defaultCheckedKey = monthWithRecords || academicMonths[0];
+    }
+
+    listCont.innerHTML = academicMonths.map((mk) => {
         const isCurrent = (mk === currentMonthKey);
-        const isChecked = hasCurrentMonth ? isCurrent : (idx === 0);
+        const isChecked = (mk === defaultCheckedKey);
         const label = formatMonthLabel(mk);
-        const count = records.filter(r => r?.paymentDate?.startsWith(mk)).length;
+        const count = records.filter(r => getPaymentMonthKey(r) === mk).length;
         const countText = count > 0 ? `${count} record${count > 1 ? 's' : ''}` : 'No records';
 
         return `
@@ -5822,7 +5901,7 @@ const renderReportModalMonths = (yearLabel = '', exportType = '') => {
                     <span class="font-bold text-slate-800 text-xs">${escapeHtml(label)}</span>
                     ${isCurrent ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Current</span>' : ''}
                 </div>
-                <span class="text-[11px] font-medium text-slate-500">${countText}</span>
+                <span class="text-[11px] font-medium ${count > 0 ? 'text-blue-600 font-semibold' : 'text-slate-400'}">${countText}</span>
             </label>
         `;
     }).join('');
@@ -5856,21 +5935,19 @@ const openReportMonthExportModal = (exportType = '') => {
         if (submitLabel) submitLabel.textContent = 'Download Monthly PDF';
     }
 
+    const calendarYear = getAcademicYearFromDate(new Date());
+    const yearList = getAllReportAcademicYears();
+    const defaultYear = (calendarYear && yearList.includes(calendarYear))
+        ? calendarYear
+        : (currentWorkingAcademicYear && yearList.includes(currentWorkingAcademicYear))
+            ? currentWorkingAcademicYear
+            : (yearList[0] || calendarYear || currentWorkingAcademicYear || '');
+
     // Populate Academic Year selector
     const yearSelect = document.getElementById('report-modal-year-select');
-    const defaultYear = currentWorkingAcademicYear || getAcademicYearFromDate() || '';
     if (yearSelect) {
-        const availableYears = (academicYearSettings || []).filter(y => y && y.label && y.status !== 'archived');
-        let yearList = availableYears.map(y => y.label);
-        if (defaultYear && !yearList.includes(defaultYear)) {
-            yearList.unshift(defaultYear);
-        }
-        if (!yearList.length && defaultYear) {
-            yearList = [defaultYear];
-        }
-
         yearSelect.innerHTML = yearList.map(yLabel => `
-            <option value="${escapeHtml(yLabel)}" ${yLabel === defaultYear ? 'selected' : ''}>${escapeHtml(yLabel)}</option>
+            <option value="${escapeHtml(yLabel)}" ${yLabel === defaultYear ? 'selected' : ''}>${escapeHtml(yLabel)}${yLabel === currentWorkingAcademicYear ? ' (Active)' : ''}</option>
         `).join('');
 
         yearSelect.value = defaultYear;
@@ -5943,7 +6020,7 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
     const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
     const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
     const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
-    const selectedYear = document.getElementById('report-modal-year-select')?.value || currentWorkingAcademicYear || 'Current';
+    const selectedYear = document.getElementById('report-modal-year-select')?.value || currentWorkingAcademicYear || getAcademicYearFromDate(new Date()) || 'Current';
     const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${selectedYear}`].filter(Boolean).join(' • ');
 
     const formatInr = (num) => 'Rs. ' + Math.round(Number(num) || 0).toLocaleString('en-IN');
@@ -5986,7 +6063,7 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
     let grandDefault = 0, grandOthers = 0, grandDonations = 0, grandAll = 0, totalRcpts = 0, allStudentsSet = new Set();
 
     sortedMonths.forEach(mk => {
-        const mPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+        const mPays = combinedEntries.filter(p => getPaymentMonthKey(p) === mk);
         const uTxns = {};
         mPays.forEach(p => {
             const tid = p.transactionId || p.receiptNo;
@@ -6059,7 +6136,7 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
 
     // Render month-by-month breakdowns (newest month first)
     sortedMonths.forEach(mk => {
-        const monthPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+        const monthPays = combinedEntries.filter(p => getPaymentMonthKey(p) === mk);
         const uTxns = {};
         monthPays.forEach(p => {
             const tid = p.transactionId || p.receiptNo;
@@ -6308,7 +6385,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
     const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
     const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
     const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
-    const selectedYear = document.getElementById('report-modal-year-select')?.value || currentWorkingAcademicYear || 'Current';
+    const selectedYear = document.getElementById('report-modal-year-select')?.value || currentWorkingAcademicYear || getAcademicYearFromDate(new Date()) || 'Current';
     const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${selectedYear}`].filter(Boolean).join(' • ');
 
     const formatInr = (num) => 'Rs. ' + Math.round(Number(num) || 0).toLocaleString('en-IN');
@@ -6348,9 +6425,8 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
     if (sortedMonths.length > 1) {
         const consolidatedMap = {};
         allRecords.forEach(payment => {
-            if (!payment.paymentDate) return;
-            const mk = payment.paymentDate.substring(0, 7);
-            if (!selectedMonths.includes(mk)) return;
+            const mk = getPaymentMonthKey(payment);
+            if (!mk || !selectedMonths.includes(mk)) return;
 
             const collectorKey = payment.collectedBy || 'unknown';
             if (!consolidatedMap[collectorKey]) {
@@ -6414,7 +6490,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
 
     // Month-by-Month collector tables (reverse-chronological order)
     sortedMonths.forEach(mk => {
-        const monthPayments = allRecords.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+        const monthPayments = allRecords.filter(p => getPaymentMonthKey(p) === mk);
         const collectorRows = Object.values(monthPayments.reduce((acc, payment) => {
             const collectorKey = payment.collectedBy || 'unknown';
             if (!acc[collectorKey]) {
@@ -6539,8 +6615,21 @@ document.getElementById('report-modal-cancel-btn')?.addEventListener('click', cl
 document.getElementById('report-modal-current-month-btn')?.addEventListener('click', () => {
     const now = new Date();
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const checkboxes = Array.from(document.querySelectorAll('.report-month-checkbox'));
-    const hasCurrent = checkboxes.some(cb => cb.value === currentMonthKey);
+    const targetAcademicYear = getAcademicYearFromDate(now);
+    const yearSelect = document.getElementById('report-modal-year-select');
+
+    let checkboxes = Array.from(document.querySelectorAll('.report-month-checkbox'));
+    let hasCurrent = checkboxes.some(cb => cb.value === currentMonthKey);
+
+    if (!hasCurrent && yearSelect && targetAcademicYear && yearSelect.value !== targetAcademicYear) {
+        if (Array.from(yearSelect.options).some(opt => opt.value === targetAcademicYear)) {
+            yearSelect.value = targetAcademicYear;
+        }
+        renderReportModalMonths(yearSelect.value, activeReportExportType);
+        checkboxes = Array.from(document.querySelectorAll('.report-month-checkbox'));
+        hasCurrent = checkboxes.some(cb => cb.value === currentMonthKey);
+    }
+
     checkboxes.forEach((cb, idx) => {
         if (hasCurrent) {
             cb.checked = (cb.value === currentMonthKey);
