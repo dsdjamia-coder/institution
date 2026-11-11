@@ -5783,33 +5783,49 @@ const getAcademicYearMonthKeys = (yearLabel = '') => {
     });
 };
 
-const getAvailableReportMonthKeys = (exportType = 'monthly') => {
-    const monthKeySet = new Set();
+const renderReportModalMonths = (yearLabel = '', exportType = '') => {
+    const listCont = document.getElementById('report-modal-months-list');
+    if (!listCont) return;
 
-    // 1. Current calendar month
+    const resolvedType = exportType || activeReportExportType || 'monthly';
+    const effectiveYear = yearLabel || currentWorkingAcademicYear || getAcademicYearFromDate();
+
+    // 12 months for this academic year in reverse-chronological order (newest month at the top)
+    const academicMonths = getAcademicYearMonthKeys(effectiveYear).slice().reverse();
+
     const now = new Date();
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    monthKeySet.add(currentMonthKey);
+    const hasCurrentMonth = academicMonths.includes(currentMonthKey);
 
-    // 2. Academic year months for current working year
-    const academicMonths = getAcademicYearMonthKeys(currentWorkingAcademicYear || getAcademicYearFromDate());
-    academicMonths.forEach(mk => monthKeySet.add(mk));
+    const records = resolvedType === 'collector'
+        ? [...(allPayments || []), ...(allDonations || [])]
+        : [...(typeof getVisiblePayments === 'function' ? getVisiblePayments() : (allPayments || [])), ...(typeof getVisibleDonations === 'function' ? getVisibleDonations() : (allDonations || []))];
 
-    // 3. Any additional months from recorded data
-    const records = exportType === 'collector'
-        ? [...allPayments, ...allDonations]
-        : [...getVisiblePayments(), ...getVisibleDonations()];
+    if (!academicMonths.length) {
+        listCont.innerHTML = '<div class="p-4 text-center text-xs text-slate-400 font-semibold">No months configured for this academic year.</div>';
+        return;
+    }
 
-    records.forEach(r => {
-        if (r?.paymentDate) {
-            const mk = r.paymentDate.substring(0, 7);
-            if (/^\d{4}-\d{2}$/.test(mk)) {
-                monthKeySet.add(mk);
-            }
-        }
-    });
+    listCont.innerHTML = academicMonths.map((mk, idx) => {
+        // If the selected academic year contains the current calendar month, check only current month
+        // Otherwise, check the newest/top month of that year by default
+        const isCurrent = (mk === currentMonthKey);
+        const isChecked = hasCurrentMonth ? isCurrent : (idx === 0);
+        const label = formatMonthLabel(mk);
+        const count = records.filter(r => r?.paymentDate?.startsWith(mk)).length;
+        const countText = count > 0 ? `${count} record${count > 1 ? 's' : ''}` : 'No records';
 
-    return Array.from(monthKeySet).sort().reverse();
+        return `
+            <label class="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 cursor-pointer transition select-none">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <input type="checkbox" class="report-month-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" value="${mk}" ${isChecked ? 'checked' : ''}>
+                    <span class="font-bold text-slate-800 text-xs">${escapeHtml(label)}</span>
+                    ${isCurrent ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Current</span>' : ''}
+                </div>
+                <span class="text-[11px] font-medium text-slate-500">${countText}</span>
+            </label>
+        `;
+    }).join('');
 };
 
 const openReportMonthExportModal = (exportType = '') => {
@@ -5826,7 +5842,6 @@ const openReportMonthExportModal = (exportType = '') => {
 
     const titleEl = document.getElementById('report-modal-title');
     const subtitleEl = document.getElementById('report-modal-subtitle');
-    const listCont = document.getElementById('report-modal-months-list');
     const submitLabel = document.getElementById('report-modal-submit-label');
     const submitBtn = document.getElementById('report-modal-submit-pdf-btn');
     if (submitBtn) submitBtn.dataset.exportType = resolvedType;
@@ -5841,33 +5856,36 @@ const openReportMonthExportModal = (exportType = '') => {
         if (submitLabel) submitLabel.textContent = 'Download Monthly PDF';
     }
 
-    const now = new Date();
-    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const availableMonths = getAvailableReportMonthKeys(resolvedType);
+    // Populate Academic Year selector
+    const yearSelect = document.getElementById('report-modal-year-select');
+    const defaultYear = currentWorkingAcademicYear || getAcademicYearFromDate() || '';
+    if (yearSelect) {
+        const availableYears = (academicYearSettings || []).filter(y => y && y.label && y.status !== 'archived');
+        let yearList = availableYears.map(y => y.label);
+        if (defaultYear && !yearList.includes(defaultYear)) {
+            yearList.unshift(defaultYear);
+        }
+        if (!yearList.length && defaultYear) {
+            yearList = [defaultYear];
+        }
 
-    const records = resolvedType === 'collector'
-        ? [...(allPayments || []), ...(allDonations || [])]
-        : [...(typeof getVisiblePayments === 'function' ? getVisiblePayments() : (allPayments || [])), ...(typeof getVisibleDonations === 'function' ? getVisibleDonations() : (allDonations || []))];
+        yearSelect.innerHTML = yearList.map(yLabel => `
+            <option value="${escapeHtml(yLabel)}" ${yLabel === defaultYear ? 'selected' : ''}>${escapeHtml(yLabel)}</option>
+        `).join('');
 
-    if (listCont) {
-        listCont.innerHTML = availableMonths.map(mk => {
-            const isCurrent = (mk === currentMonthKey);
-            const label = formatMonthLabel(mk);
-            const count = records.filter(r => r?.paymentDate?.startsWith(mk)).length;
-            const countText = count > 0 ? `${count} record${count > 1 ? 's' : ''}` : 'No records';
+        yearSelect.value = defaultYear;
 
-            return `
-                <label class="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 cursor-pointer transition select-none">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <input type="checkbox" class="report-month-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" value="${mk}" ${isCurrent ? 'checked' : ''}>
-                        <span class="font-bold text-slate-800 text-xs">${escapeHtml(label)}</span>
-                        ${isCurrent ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Current</span>' : ''}
-                    </div>
-                    <span class="text-[11px] font-medium text-slate-500">${countText}</span>
-                </label>
-            `;
-        }).join('');
+        // Wire change event once
+        if (!yearSelect.dataset.wired) {
+            yearSelect.dataset.wired = 'true';
+            yearSelect.addEventListener('change', () => {
+                renderReportModalMonths(yearSelect.value, activeReportExportType);
+            });
+        }
     }
+
+    // Render months for selected academic year in reverse chronological order
+    renderReportModalMonths(defaultYear, resolvedType);
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -5925,7 +5943,8 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
     const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
     const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
     const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
-    const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${currentWorkingAcademicYear || 'Current'}`].filter(Boolean).join(' • ');
+    const selectedYear = document.getElementById('report-modal-year-select')?.value || currentWorkingAcademicYear || 'Current';
+    const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${selectedYear}`].filter(Boolean).join(' • ');
 
     const formatInr = (num) => 'Rs. ' + Math.round(Number(num) || 0).toLocaleString('en-IN');
 
@@ -5962,79 +5981,83 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
     let currentY = drawHeader(32);
     const sortedMonths = [...selectedMonths].sort().reverse();
 
-    // If multiple months are selected, render Consolidated Summary Table first
-    if (sortedMonths.length > 1) {
-        const summaryRows = [];
-        let grandDefault = 0, grandOthers = 0, grandDonations = 0, grandAll = 0, totalRcpts = 0, allStudentsSet = new Set();
+    // Top Consolidated Summary of all selected months (latest months first)
+    const summaryRows = [];
+    let grandDefault = 0, grandOthers = 0, grandDonations = 0, grandAll = 0, totalRcpts = 0, allStudentsSet = new Set();
 
-        sortedMonths.forEach(mk => {
-            const mPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
-            const uTxns = {};
-            mPays.forEach(p => {
-                const tid = p.transactionId || p.receiptNo;
-                if (!uTxns[tid]) {
-                    const pt = mPays.filter(pay => (pay.transactionId || pay.receiptNo) === tid);
-                    const m = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'month');
-                    const c = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'custom');
-                    uTxns[tid] = { m, c };
-                }
-            });
-            const mTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.m, 0));
-            const cTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.c, 0));
-            const donationPays = mPays.filter((entry) => entry.entryType === 'donation');
-            const feePays = mPays.filter((entry) => entry.entryType !== 'donation');
-            const studentDonationPays = feePays.filter((p) => p.itemKey === STUDENT_DONATION_ITEM_KEY);
-            const donTot = roundMoney(donationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
-                + studentDonationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
-            const mGrand = roundMoney(mTot + donTot + cTot);
-            const rCount = Object.keys(uTxns).length;
-            const sCount = new Set(mPays.map(p => p.studentId).filter(Boolean)).size;
-
-            grandDefault += mTot;
-            grandOthers += cTot;
-            grandDonations += donTot;
-            grandAll += mGrand;
-            totalRcpts += rCount;
-            mPays.forEach(p => { if (p.studentId) allStudentsSet.add(p.studentId); });
-
-            summaryRows.push([
-                formatMonthLabel(mk),
-                formatInr(mTot),
-                formatInr(cTot),
-                formatInr(donTot),
-                formatInr(mGrand),
-                String(rCount),
-                String(sCount)
-            ]);
+    sortedMonths.forEach(mk => {
+        const mPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
+        const uTxns = {};
+        mPays.forEach(p => {
+            const tid = p.transactionId || p.receiptNo;
+            if (!uTxns[tid]) {
+                const pt = mPays.filter(pay => (pay.transactionId || pay.receiptNo) === tid);
+                const m = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'month');
+                const c = sumReportPaymentsOnce(pt, (pay) => getPaymentItemType(pay) === 'custom');
+                uTxns[tid] = { m, c };
+            }
         });
+        const mTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.m, 0));
+        const cTot = roundMoney(Object.values(uTxns).reduce((s, d) => s + d.c, 0));
+        const donationPays = mPays.filter((entry) => entry.entryType === 'donation');
+        const feePays = mPays.filter((entry) => entry.entryType !== 'donation');
+        const studentDonationPays = feePays.filter((p) => p.itemKey === STUDENT_DONATION_ITEM_KEY);
+        const donTot = roundMoney(donationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+            + studentDonationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
+        const mGrand = roundMoney(mTot + donTot + cTot);
+        const rCount = Object.keys(uTxns).length;
+        const sCount = new Set(mPays.map(p => p.studentId).filter(Boolean)).size;
 
-        docPdf.autoTable({
-            startY: currentY,
-            margin: { left: 24, right: 24 },
-            head: [['Month', 'Default Fees', 'Other Fees', 'Donations', 'Total Collected', 'Receipts', 'Students']],
-            body: summaryRows,
-            foot: [[
-                'GRAND TOTAL',
-                formatInr(grandDefault),
-                formatInr(grandOthers),
-                formatInr(grandDonations),
-                formatInr(grandAll),
-                String(totalRcpts),
-                String(allStudentsSet.size)
-            ]],
-            styles: { fontSize: 8, cellPadding: 3.5, halign: 'right' },
-            columnStyles: {
-                0: { halign: 'left', fontStyle: 'bold' }
-            },
-            headStyles: { fillColor: [15, 23, 42], textColor: 255, halign: 'right', fontStyle: 'bold' },
-            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'right' },
-            alternateRowStyles: { fillColor: [248, 250, 252] }
-        });
+        grandDefault += mTot;
+        grandOthers += cTot;
+        grandDonations += donTot;
+        grandAll += mGrand;
+        totalRcpts += rCount;
+        mPays.forEach(p => { if (p.studentId) allStudentsSet.add(p.studentId); });
 
-        currentY = docPdf.lastAutoTable.finalY + 18;
-    }
+        summaryRows.push([
+            formatMonthLabel(mk),
+            formatInr(mTot),
+            formatInr(cTot),
+            formatInr(donTot),
+            formatInr(mGrand),
+            String(rCount),
+            String(sCount)
+        ]);
+    });
 
-    // Render month-by-month breakdowns
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setFontSize(10.5);
+    docPdf.setTextColor(30, 41, 59);
+    docPdf.text('CONSOLIDATED SUMMARY (SELECTED PERIOD)', 24, currentY + 4);
+    currentY += 12;
+
+    docPdf.autoTable({
+        startY: currentY,
+        margin: { left: 24, right: 24 },
+        head: [['Month', 'Default Fees', 'Other Fees', 'Donations', 'Total Collected', 'Receipts', 'Students']],
+        body: summaryRows,
+        foot: [[
+            'OVERALL GRAND TOTAL',
+            formatInr(grandDefault),
+            formatInr(grandOthers),
+            formatInr(grandDonations),
+            formatInr(grandAll),
+            String(totalRcpts),
+            String(allStudentsSet.size)
+        ]],
+        styles: { fontSize: 8, cellPadding: 3.5, halign: 'right' },
+        columnStyles: {
+            0: { halign: 'left', fontStyle: 'bold' }
+        },
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, halign: 'right', fontStyle: 'bold' },
+        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'right' },
+        alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+
+    currentY = docPdf.lastAutoTable.finalY + 18;
+
+    // Render month-by-month breakdowns (newest month first)
     sortedMonths.forEach(mk => {
         const monthPays = combinedEntries.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
         const uTxns = {};
@@ -6059,6 +6082,8 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
             + studentDonationPays.reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
         const otherTotal = cTot;
         const grandTotal = roundMoney(defaultTotal + donationTotal + otherTotal);
+        const rCount = Object.keys(uTxns).length;
+        const sCount = new Set(monthPays.map(p => p.studentId).filter(Boolean)).size;
 
         if (currentY > pageHeight - 140) {
             docPdf.addPage();
@@ -6073,7 +6098,7 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
         docPdf.setFont('helvetica', 'normal');
         docPdf.setFontSize(8.5);
         docPdf.setTextColor(71, 85, 105);
-        const monthStats = `Total: ${formatInr(grandTotal)}  |  Default: ${formatInr(defaultTotal)}  |  Others: ${formatInr(otherTotal)}  |  Donations: ${formatInr(donationTotal)}  (${Object.keys(uTxns).length} receipts)`;
+        const monthStats = `Receipts: ${rCount}  |  Students: ${sCount}  •  Default Fees: ${formatInr(defaultTotal)}  |  Other Fees: ${formatInr(otherTotal)}  |  Donations: ${formatInr(donationTotal)}  |  Month Grand Total: ${formatInr(grandTotal)}`;
         docPdf.text(monthStats, 24, currentY + 12);
         currentY += 18;
 
@@ -6090,7 +6115,15 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
         if (mF.length > 0) {
             const monthlyTxnRows = Object.values(mF.reduce((acc, payment) => {
                 const txnKey = payment.transactionId || payment.receiptNo || `tx-${payment.timestamp || Math.random()}`;
-                if (!acc[txnKey]) acc[txnKey] = { receiptNo: payment.receiptNo || '-', total: 0, students: {}, seenBilling: new Set() };
+                if (!acc[txnKey]) {
+                    acc[txnKey] = {
+                        receiptNo: payment.receiptNo || '-',
+                        total: 0,
+                        students: {},
+                        seenBilling: new Set(),
+                        collector: getStaffName(payment.collectedBy, payment.collectedByName)
+                    };
+                }
                 const billingKey = payment.billingGroupId
                     ? `${txnKey}__${payment.itemKey || ''}__${payment.academicYear || ''}__${payment.billingGroupId}`
                     : '';
@@ -6112,21 +6145,23 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
                 return [
                     row.receiptNo,
                     studentsFormatted,
-                    formatInr(row.total)
+                    formatInr(row.total),
+                    row.collector || '-'
                 ];
             });
 
             docPdf.autoTable({
                 startY: currentY,
                 margin: { left: 24, right: 24 },
-                head: [['Rcpt No', 'Student Name, Class & Adm', 'Default Fee Amount']],
+                head: [['Rcpt No', 'Student Details (Name, Class, Adm)', 'Default Fee Amount', 'Collected By']],
                 body: bodyRows,
-                foot: [['Total Default Fees', '', formatInr(defaultTotal)]],
+                foot: [['', 'Total Default Fees', formatInr(defaultTotal), '']],
                 styles: { fontSize: 8, cellPadding: 3 },
                 columnStyles: {
-                    0: { width: 60, halign: 'center' },
+                    0: { width: 55, halign: 'center' },
                     1: { halign: 'left' },
-                    2: { width: 90, halign: 'right' }
+                    2: { width: 95, halign: 'right', fontStyle: 'bold' },
+                    3: { width: 85, halign: 'left' }
                 },
                 headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
                 footStyles: { fillColor: [239, 246, 255], textColor: [30, 58, 138], fontStyle: 'bold', halign: 'right' },
@@ -6152,24 +6187,26 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
                     s.class || '-',
                     s.adm || '-',
                     itemName,
-                    formatInr(p.amount)
+                    formatInr(p.amount),
+                    getStaffName(p.collectedBy, p.collectedByName)
                 ];
             });
 
             docPdf.autoTable({
                 startY: currentY,
                 margin: { left: 24, right: 24 },
-                head: [['Rcpt No', 'Student Name', 'Class', 'Adm', 'Fee Item', 'Amount']],
+                head: [['Rcpt No', 'Student Name', 'Class', 'Adm', 'Fee Item', 'Amount', 'Collected By']],
                 body: bodyRows,
-                foot: [['Total Other Fees', '', '', '', '', formatInr(otherTotal)]],
+                foot: [['', 'Total Other Fees', '', '', '', formatInr(otherTotal), '']],
                 styles: { fontSize: 8, cellPadding: 3 },
                 columnStyles: {
-                    0: { width: 55, halign: 'center' },
+                    0: { width: 50, halign: 'center' },
                     1: { halign: 'left' },
-                    2: { width: 50, halign: 'center' },
-                    3: { width: 50, halign: 'center' },
+                    2: { width: 45, halign: 'center' },
+                    3: { width: 45, halign: 'center' },
                     4: { halign: 'left' },
-                    5: { width: 80, halign: 'right' }
+                    5: { width: 75, halign: 'right', fontStyle: 'bold' },
+                    6: { width: 80, halign: 'left' }
                 },
                 headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: 'bold' },
                 footStyles: { fillColor: [245, 243, 255], textColor: [91, 33, 182], fontStyle: 'bold', halign: 'right' },
@@ -6218,14 +6255,14 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
                 margin: { left: 24, right: 24 },
                 head: [['Rcpt No', 'Donor / Student Name', 'Description', 'Amount', 'Collected By']],
                 body: bodyRows,
-                foot: [['Total Donations', '', '', formatInr(donationTotal), '']],
+                foot: [['', 'Total Donations', '', formatInr(donationTotal), '']],
                 styles: { fontSize: 8, cellPadding: 3 },
                 columnStyles: {
                     0: { width: 55, halign: 'center' },
                     1: { halign: 'left' },
                     2: { halign: 'left' },
-                    3: { width: 80, halign: 'right' },
-                    4: { width: 90, halign: 'left' }
+                    3: { width: 80, halign: 'right', fontStyle: 'bold' },
+                    4: { width: 85, halign: 'left' }
                 },
                 headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
                 footStyles: { fillColor: [236, 253, 245], textColor: [6, 95, 70], fontStyle: 'bold', halign: 'right' },
@@ -6271,7 +6308,8 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
     const instName = conf.appName || document.getElementById('header-title')?.textContent?.trim() || 'Institution Name';
     const place = conf.place || document.getElementById('header-place')?.textContent?.trim() || '';
     const regNo = conf.regNo || document.getElementById('header-regno')?.textContent?.trim() || '';
-    const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${currentWorkingAcademicYear || 'Current'}`].filter(Boolean).join(' • ');
+    const selectedYear = document.getElementById('report-modal-year-select')?.value || currentWorkingAcademicYear || 'Current';
+    const subtitleLine = [place, regNo ? `Reg No: ${regNo}` : '', `Academic Year: ${selectedYear}`].filter(Boolean).join(' • ');
 
     const formatInr = (num) => 'Rs. ' + Math.round(Number(num) || 0).toLocaleString('en-IN');
 
@@ -6303,6 +6341,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
     };
 
     let currentY = drawHeader(32);
+    // Sort months reverse-chronological (latest month first)
     const sortedMonths = [...selectedMonths].sort().reverse();
 
     // If multiple months selected, render Consolidated Collector Breakdown first
@@ -6354,7 +6393,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
         docPdf.autoTable({
             startY: currentY,
             margin: { left: 24, right: 24 },
-            head: [['Sl No', 'Collector Name', 'Default Fees Total', 'Other Fees & Donations', 'Period Grand Total']],
+            head: [['Sl No', 'Collector Name', 'Default Fee Total', 'Others Fee Total', 'Grand Total']],
             body: bodyRows,
             foot: [['', 'GRAND TOTAL', formatInr(grandDefault), formatInr(grandOthers), formatInr(grandAll)]],
             styles: { fontSize: 8.5, cellPadding: 3.5 },
@@ -6373,7 +6412,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
         currentY = docPdf.lastAutoTable.finalY + 18;
     }
 
-    // Month-by-Month collector tables
+    // Month-by-Month collector tables (reverse-chronological order)
     sortedMonths.forEach(mk => {
         const monthPayments = allRecords.filter(p => p.paymentDate && p.paymentDate.substring(0, 7) === mk);
         const collectorRows = Object.values(monthPayments.reduce((acc, payment) => {
@@ -6412,7 +6451,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
         docPdf.setFont('helvetica', 'normal');
         docPdf.setFontSize(8.5);
         docPdf.setTextColor(71, 85, 105);
-        docPdf.text(`Default: ${formatInr(monthTotalDefault)}  |  Others: ${formatInr(monthTotalOthers)}  |  Month Grand Total: ${formatInr(monthGrandTotal)}`, 24, currentY + 12);
+        docPdf.text(`Default Fee: ${formatInr(monthTotalDefault)}  |  Others Fee: ${formatInr(monthTotalOthers)}  |  Grand Total: ${formatInr(monthGrandTotal)}`, 24, currentY + 12);
         currentY += 18;
 
         if (collectorRows.length === 0) {
@@ -6437,7 +6476,7 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
             margin: { left: 24, right: 24 },
             head: [['Sl No', 'Collector Name', 'Default Fee Total', 'Others Fee Total', 'Grand Total']],
             body: bodyRows,
-            foot: [['', 'Month Total', formatInr(monthTotalDefault), formatInr(monthTotalOthers), formatInr(monthGrandTotal)]],
+            foot: [['', 'GRAND TOTAL', formatInr(monthTotalDefault), formatInr(monthTotalOthers), formatInr(monthGrandTotal)]],
             styles: { fontSize: 8.5, cellPadding: 3.5 },
             columnStyles: {
                 0: { width: 36, halign: 'center' },
@@ -6500,8 +6539,14 @@ document.getElementById('report-modal-cancel-btn')?.addEventListener('click', cl
 document.getElementById('report-modal-current-month-btn')?.addEventListener('click', () => {
     const now = new Date();
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    document.querySelectorAll('.report-month-checkbox').forEach(cb => {
-        cb.checked = (cb.value === currentMonthKey);
+    const checkboxes = Array.from(document.querySelectorAll('.report-month-checkbox'));
+    const hasCurrent = checkboxes.some(cb => cb.value === currentMonthKey);
+    checkboxes.forEach((cb, idx) => {
+        if (hasCurrent) {
+            cb.checked = (cb.value === currentMonthKey);
+        } else {
+            cb.checked = (idx === 0);
+        }
     });
 });
 

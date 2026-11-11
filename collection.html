@@ -1117,10 +1117,15 @@
             <!-- 5. Monthly Collected Page -->
             <section id="monthly-collected-page" class="page-content hidden">
                  <div class="card p-5 shadow-sm">
-                     <div class="flex items-center gap-2 mb-4 border-b pb-2">
-                         <h2 class="text-xl font-bold text-gray-800">Monthly Report</h2>
-                         <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel." title="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel.">
-                             <i class="fas fa-info-circle"></i>
+                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3">
+                         <div class="flex items-center gap-2">
+                             <h2 class="text-xl font-bold text-gray-800">Monthly Report</h2>
+                             <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel." title="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel.">
+                                 <i class="fas fa-info-circle"></i>
+                             </button>
+                         </div>
+                         <button type="button" id="monthly-report-download-btn" data-export-type="monthly" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto">
+                             <i class="fas fa-file-pdf"></i> Download PDF Report
                          </button>
                      </div>
                      <div id="monthly-report-summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5"></div>
@@ -1128,14 +1133,6 @@
                         <input type="text" id="monthly-collected-search-input" placeholder="Search by name, adm no or receipt..." class="w-full p-3 pl-10 border rounded-lg shadow-sm bg-gray-50">
                         <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
-                     <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-                        <button type="button" id="monthly-report-download-btn" data-export-type="monthly" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer shrink-0">
-                            <i class="fas fa-file-pdf"></i> Download PDF Report
-                        </button>
-                        <div class="text-xs text-gray-500 font-medium flex items-center">
-                            Filter by student name, admission number, class, or receipt to update the report and export to PDF.
-                        </div>
-                     </div>
                      <div id="monthly-collected-container" class="space-y-4"></div>
                  </div>
             </section>
@@ -2030,6 +2027,15 @@
                     </div>
                 </div>
                 <button type="button" id="report-modal-close-x" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition" title="Close"><i class="fas fa-times text-base"></i></button>
+            </div>
+
+            <!-- Academic Year Selector Bar -->
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                <label for="report-modal-year-select" class="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                    <i class="fas fa-calendar-alt text-slate-400"></i> Academic Year:
+                </label>
+                <select id="report-modal-year-select" class="text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 flex-1 max-w-[200px]">
+                </select>
             </div>
 
             <!-- Quick Action Toolbar -->
