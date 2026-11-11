@@ -9188,11 +9188,9 @@ const populateExistingGroupSizeFilter = (uniqueGroups = []) => {
     });
 
     const sortedSizes = Object.keys(sizeCounts).map(Number).sort((a, b) => a - b);
-    let optionsHtml = `<option value="all">All Group Sizes (${uniqueGroups.length} Groups)</option>`;
+    let optionsHtml = `<option value="all">All Groups</option>`;
     sortedSizes.forEach(sz => {
-        const count = sizeCounts[sz];
-        const label = sz === 2 ? `2 Students (Pairs)` : `${sz} Students`;
-        optionsHtml += `<option value="${sz}">${label} (${count} Groups)</option>`;
+        optionsHtml += `<option value="${sz}">${sz} Students</option>`;
     });
 
     sizeSelect.innerHTML = optionsHtml;
@@ -12458,11 +12456,11 @@ const renderActiveConcessionsList = () => {
                 </td>
                 <td class="py-2.5 px-3 text-center">
                     <div class="inline-flex items-center justify-center gap-1">
-                        <button type="button" class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded-md text-[11px] transition inline-flex items-center gap-1 concession-open-btn" data-id="${s.id}" title="Edit Concession">
-                            <i class="fas fa-edit text-[10px]"></i> Edit
+                        <button type="button" class="bg-blue-50 hover:bg-blue-100 text-blue-700 p-1.5 rounded-md text-xs transition concession-open-btn" data-id="${s.id}" title="Edit Concession">
+                            <i class="fas fa-edit"></i>
                         </button>
-                        <button type="button" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-md text-[11px] transition inline-flex items-center gap-1 concession-delete-btn" data-id="${s.id}" title="Remove Concession">
-                            <i class="fas fa-trash-alt text-[10px]"></i>
+                        <button type="button" class="bg-rose-50 hover:bg-rose-100 text-rose-700 p-1.5 rounded-md text-xs transition concession-delete-btn" data-id="${s.id}" title="Remove Concession">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </div>
                 </td>
@@ -13102,9 +13100,11 @@ const updateFeeScheduleLiveSummary = () => {
     }
 
     if (endHintEl) {
-        endHintEl.textContent = isCrossMonth
+        const hintText = isCrossMonth
             ? `Collection window spans into the following month: deadline is on the ${endLabel} of next month.`
             : `Last date of monthly collection window (after this date, fee is treated as overdue).`;
+        endHintEl.setAttribute('title', hintText);
+        endHintEl.innerHTML = `<i class="fas fa-info-circle"></i>`;
     }
 
     let alertTimingSummary = '';

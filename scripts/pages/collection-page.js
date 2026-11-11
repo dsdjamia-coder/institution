@@ -679,12 +679,11 @@ const setDutyPaymentDetailsInputs = (details = {}) => {
 
 // History Pagination State
 let sortedHistoryList = [];
-let historyDisplayedCount = 0;
+let historyPageOffset = 0;
+let historyRowLimit = 25;
 let historyRenderToken = 0;
 let historyLoadTimer = null;
 let multiEntryQueue = [];
-const INITIAL_LOAD = 30;
-const LOAD_MORE = 10;
 const MONTH_SEQUENCE = ['january','february','march','april','may','june','july','august','september','october','november','december'];
 const STUDENT_DONATION_ITEM_KEY = '__student_donation__';
 const STUDENT_DONATION_ITEM = {
@@ -2516,7 +2515,8 @@ document.getElementById('filter-gender').addEventListener('change', () => {
     renderFeeTable();
 });
 document.getElementById('fee-status-row-limit')?.addEventListener('change', (e) => {
-    feeStatusRowLimit = parseInt(e.target.value, 10) || 25;
+    const val = e.target.value;
+    feeStatusRowLimit = val === 'all' ? 'all' : (parseInt(val, 10) || 25);
     feeStatusPageOffset = 0;
     renderFeeTable();
 });
@@ -4015,13 +4015,18 @@ const renderFeeTable = () => {
     }
 
     const totalStudentsCount = orderedEntries.length;
-    if (feeStatusPageOffset >= totalStudentsCount) {
-        feeStatusPageOffset = Math.max(0, Math.floor((totalStudentsCount - 1) / feeStatusRowLimit) * feeStatusRowLimit);
+    const isAll = feeStatusRowLimit === 'all';
+    const effectiveLimit = isAll ? totalStudentsCount : (parseInt(feeStatusRowLimit, 10) || 25);
+
+    if (!isAll && feeStatusPageOffset >= totalStudentsCount) {
+        feeStatusPageOffset = Math.max(0, Math.floor((totalStudentsCount - 1) / effectiveLimit) * effectiveLimit);
+    } else if (isAll) {
+        feeStatusPageOffset = 0;
     }
 
-    const pageSlice = orderedEntries.slice(feeStatusPageOffset, feeStatusPageOffset + feeStatusRowLimit);
-    const startNumber = totalStudentsCount > 0 ? feeStatusPageOffset + 1 : 0;
-    const endNumber = feeStatusPageOffset + pageSlice.length;
+    const pageSlice = isAll ? orderedEntries : orderedEntries.slice(feeStatusPageOffset, feeStatusPageOffset + effectiveLimit);
+    const startNumber = totalStudentsCount > 0 ? (isAll ? 1 : feeStatusPageOffset + 1) : 0;
+    const endNumber = isAll ? totalStudentsCount : (feeStatusPageOffset + pageSlice.length);
 
     let currentGroupKey = null;
 
@@ -4138,8 +4143,8 @@ const renderFeeTable = () => {
 
     html += `</tbody></table>`;
 
-    const hasPrevPage = feeStatusPageOffset > 0;
-    const hasNextPage = endNumber < totalStudentsCount;
+    const hasPrevPage = !isAll && feeStatusPageOffset > 0;
+    const hasNextPage = !isAll && (endNumber < totalStudentsCount);
 
     if (totalStudentsCount > 0) {
         html += `
@@ -4167,15 +4172,15 @@ const renderFeeTable = () => {
     cont.scrollLeft = prevScrollLeft;
 
     document.getElementById('fee-status-prev-btn')?.addEventListener('click', () => {
-        if (feeStatusPageOffset > 0) {
-            feeStatusPageOffset = Math.max(0, feeStatusPageOffset - feeStatusRowLimit);
+        if (!isAll && feeStatusPageOffset > 0) {
+            feeStatusPageOffset = Math.max(0, feeStatusPageOffset - effectiveLimit);
             renderFeeTable();
         }
     });
 
     document.getElementById('fee-status-load-next-btn')?.addEventListener('click', () => {
-        if (feeStatusPageOffset + feeStatusRowLimit < totalStudentsCount) {
-            feeStatusPageOffset += feeStatusRowLimit;
+        if (!isAll && (feeStatusPageOffset + effectiveLimit < totalStudentsCount)) {
+            feeStatusPageOffset += effectiveLimit;
             renderFeeTable();
         }
     });
@@ -4955,97 +4960,128 @@ const prepareHistoryData = () => {
     });
 
     document.getElementById('history-count-badge').textContent = `${sortedHistoryList.length} Transactions`;
+    const loader = document.getElementById('history-loading-indicator');
+    if (loader) loader.classList.add('hidden');
+    historyPageOffset = 0;
+    renderHistoryPage();
+};
+
+const renderHistoryPage = () => {
     const tbody = document.getElementById('history-content-tbody');
-    document.getElementById('history-loading-indicator').classList.add('hidden');
-    if(sortedHistoryList.length === 0) {
-        historyDisplayedCount = 0;
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-500">No payment history found.</td></tr>`;
+    const infoEl = document.getElementById('history-pagination-info');
+    const prevBtn = document.getElementById('history-prev-btn');
+    const nextBtn = document.getElementById('history-next-btn');
+    const loader = document.getElementById('history-loading-indicator');
+    if (loader) loader.classList.add('hidden');
+    if (!tbody) return;
+
+    const totalTxnCount = sortedHistoryList.length;
+    if (totalTxnCount === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-500 font-medium">No payment history found.</td></tr>`;
+        if (infoEl) infoEl.innerHTML = `Showing <span class="text-slate-900 font-extrabold">0</span> transactions`;
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
         return;
     }
-    tbody.innerHTML = '';
-    historyDisplayedCount = 0;
-    loadMoreHistory(historyRenderToken);
+
+    const isAll = historyRowLimit === 'all';
+    const effectiveLimit = isAll ? totalTxnCount : (parseInt(historyRowLimit, 10) || 25);
+
+    if (!isAll && historyPageOffset >= totalTxnCount) {
+        historyPageOffset = Math.max(0, Math.floor((totalTxnCount - 1) / effectiveLimit) * effectiveLimit);
+    } else if (isAll) {
+        historyPageOffset = 0;
+    }
+
+    const pageSlice = isAll ? sortedHistoryList : sortedHistoryList.slice(historyPageOffset, historyPageOffset + effectiveLimit);
+    const startNumber = isAll ? 1 : (historyPageOffset + 1);
+    const endNumber = isAll ? totalTxnCount : (historyPageOffset + pageSlice.length);
+
+    let html = '';
+    pageSlice.forEach(i => {
+        const seenStudentIds = new Set();
+        const txnStudents = (i.studentIds || [])
+            .filter((id) => {
+                if (!id || seenStudentIds.has(id)) return false;
+                seenStudentIds.add(id);
+                return true;
+            })
+            .map((id) => getStudentById(id))
+            .filter(Boolean);
+        const primaryStudent = txnStudents[0] || getStudentById(i.sId);
+        const isDonationRow = i.kind === 'donation';
+        if(!primaryStudent && !isDonationRow) return;
+        const formatStudentMeta = (student) => `${student.name} (Adm: ${student.adm||'-'}, Class: ${student.class||'-'})`;
+        const primaryStudentLabel = isDonationRow
+            ? `Donation: ${i.donorName || '-'}`
+            : formatStudentMeta(primaryStudent);
+        const otherStudentRows = txnStudents.slice(1).map((student) => formatStudentMeta(student));
+        const studentCount = isDonationRow ? 1 : (txnStudents.length || 1);
+        const totalLabel = `₹${Number(i.tot || 0).toFixed(0)} (${studentCount})`;
+        const hasDescription = Boolean(i.description && String(i.description).trim());
+        const descHtml = hasDescription
+            ? `<div class="text-[11px] font-normal text-slate-500 truncate max-w-[200px] sm:max-w-[260px] mt-0.5" title="${escapeHtml(i.description)}"><i class="fas fa-comment-dots text-[10px] text-slate-400 mr-1"></i>${escapeHtml(i.description)}</div>`
+            : '';
+        html += `<tr class="bg-white hover:bg-gray-50 transition">
+            <td class="p-3 font-medium text-gray-900">${i.r}</td>
+            <td class="p-3 text-gray-600">${new Date(i.dt).toLocaleDateString('en-GB')}</td>
+            <td class="p-3 font-medium text-blue-700 max-w-[220px] sm:max-w-[300px]">
+                <div class="truncate font-semibold text-slate-900" title="${escapeHtml(primaryStudentLabel)}">${escapeHtml(primaryStudentLabel)}</div>
+                ${descHtml}
+                ${otherStudentRows.length ? `<span class="text-[10px] text-gray-500 block mt-1">${otherStudentRows.map((row) => escapeHtml(row)).join('<br>')}</span>` : ''}
+            </td>
+            <td class="p-3"><span class="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 whitespace-nowrap">${i.by}</span></td>
+            <td class="p-3 text-center">
+                <button type="button" class="view-history-breakdown-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isDonationRow ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'} transition cursor-pointer shadow-2xs" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="Click to view fee breakdown">
+                    <span>${isDonationRow ? 'Donation' : `${i.i.length} ${i.i.length === 1 ? 'Item' : 'Items'}`}</span>
+                    <i class="fas fa-list-check text-[10px]"></i>
+                </button>
+            </td>
+            <td class="p-3 font-bold text-gray-800">${totalLabel}</td>
+            <td class="p-3 text-center whitespace-nowrap">
+                <button type="button" class="view-history-breakdown-btn text-emerald-600 hover:text-emerald-800 mr-2.5 transition" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="View Items Breakdown">
+                    <i class="fas fa-list-check"></i>
+                </button>
+                ${isDonationRow
+                ? `<button class="donation-edit-btn text-blue-500 hover:text-blue-700 mr-2.5" data-id="${i.tId.replace('donation:', '')}" title="Edit Donation"><i class="fas fa-edit"></i></button><button class="donation-del-btn text-red-500 hover:text-red-700" data-id="${i.tId.replace('donation:', '')}" title="Delete Donation"><i class="fas fa-trash"></i></button>`
+                : `<button class="edit-payment-btn text-blue-500 hover:text-blue-700 mr-2.5" data-sid="${i.sId}" data-tid="${i.tId}" title="Edit Payment"><i class="fas fa-edit"></i></button><button class="delete-payment-btn text-red-500 hover:text-red-700" data-sid="${i.sId}" data-tid="${i.tId}" title="Delete Payment"><i class="fas fa-trash"></i></button>`}
+            </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+
+    if (infoEl) {
+        infoEl.innerHTML = `Showing <span class="text-slate-900 font-extrabold">${startNumber} - ${endNumber}</span> of <span class="text-slate-900 font-extrabold">${totalTxnCount}</span> transactions`;
+    }
+
+    const hasPrev = !isAll && historyPageOffset > 0;
+    const hasNext = !isAll && (endNumber < totalTxnCount);
+    if (prevBtn) prevBtn.disabled = !hasPrev;
+    if (nextBtn) nextBtn.disabled = !hasNext;
 };
 
-document.getElementById('history-staff-filter').addEventListener('change', prepareHistoryData);
-document.getElementById('history-search-input').addEventListener('input', prepareHistoryData);
-
-const loadMoreHistory = (renderToken = historyRenderToken) => {
-    if(historyDisplayedCount >= sortedHistoryList.length) return;
-
-    const limit = historyDisplayedCount === 0 ? INITIAL_LOAD : LOAD_MORE;
-    const toAdd = sortedHistoryList.slice(historyDisplayedCount, historyDisplayedCount + limit);
-    const tbody = document.getElementById('history-content-tbody');
-    const loader = document.getElementById('history-loading-indicator');
-
-    loader.classList.remove('hidden');
-
-    historyLoadTimer = setTimeout(() => {
-        if (renderToken !== historyRenderToken) {
-            loader.classList.add('hidden');
-            return;
+document.getElementById('history-staff-filter')?.addEventListener('change', prepareHistoryData);
+document.getElementById('history-search-input')?.addEventListener('input', prepareHistoryData);
+document.getElementById('history-row-limit')?.addEventListener('change', (e) => {
+    const val = e.target.value;
+    historyRowLimit = val === 'all' ? 'all' : (parseInt(val, 10) || 25);
+    historyPageOffset = 0;
+    renderHistoryPage();
+});
+document.getElementById('history-prev-btn')?.addEventListener('click', () => {
+    if (historyRowLimit !== 'all' && historyPageOffset > 0) {
+        const effectiveLimit = parseInt(historyRowLimit, 10) || 25;
+        historyPageOffset = Math.max(0, historyPageOffset - effectiveLimit);
+        renderHistoryPage();
+    }
+});
+document.getElementById('history-next-btn')?.addEventListener('click', () => {
+    if (historyRowLimit !== 'all') {
+        const effectiveLimit = parseInt(historyRowLimit, 10) || 25;
+        if (historyPageOffset + effectiveLimit < sortedHistoryList.length) {
+            historyPageOffset += effectiveLimit;
+            renderHistoryPage();
         }
-        let html = '';
-        toAdd.forEach(i => {
-            const seenStudentIds = new Set();
-            const txnStudents = i.studentIds
-                .filter((id) => {
-                    if (!id || seenStudentIds.has(id)) return false;
-                    seenStudentIds.add(id);
-                    return true;
-                })
-                .map((id) => getStudentById(id))
-                .filter(Boolean);
-            const primaryStudent = txnStudents[0] || getStudentById(i.sId);
-            const isDonationRow = i.kind === 'donation';
-            if(!primaryStudent && !isDonationRow) return;
-            const formatStudentMeta = (student) => `${student.name} (Adm: ${student.adm||'-'}, Class: ${student.class||'-'})`;
-            const primaryStudentLabel = isDonationRow
-                ? `Donation: ${i.donorName || '-'}`
-                : formatStudentMeta(primaryStudent);
-            const otherStudentRows = txnStudents.slice(1).map((student) => formatStudentMeta(student));
-            const studentCount = isDonationRow ? 1 : (txnStudents.length || 1);
-            const totalLabel = `₹${Number(i.tot || 0).toFixed(0)} (${studentCount})`;
-            const hasDescription = Boolean(i.description && String(i.description).trim());
-            const descHtml = hasDescription
-                ? `<div class="text-[11px] font-normal text-slate-500 truncate max-w-[200px] sm:max-w-[260px] mt-0.5" title="${escapeHtml(i.description)}"><i class="fas fa-comment-dots text-[10px] text-slate-400 mr-1"></i>${escapeHtml(i.description)}</div>`
-                : '';
-            html += `<tr class="bg-white hover:bg-gray-50 transition">
-                <td class="p-3 font-medium text-gray-900">${i.r}</td>
-                <td class="p-3 text-gray-600">${new Date(i.dt).toLocaleDateString('en-GB')}</td>
-                <td class="p-3 font-medium text-blue-700 max-w-[220px] sm:max-w-[300px]">
-                    <div class="truncate font-semibold text-slate-900" title="${escapeHtml(primaryStudentLabel)}">${escapeHtml(primaryStudentLabel)}</div>
-                    ${descHtml}
-                    ${otherStudentRows.length ? `<span class="text-[10px] text-gray-500 block mt-1">${otherStudentRows.map((row) => escapeHtml(row)).join('<br>')}</span>` : ''}
-                </td>
-                <td class="p-3"><span class="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 whitespace-nowrap">${i.by}</span></td>
-                <td class="p-3 text-center">
-                    <button type="button" class="view-history-breakdown-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isDonationRow ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'} transition cursor-pointer shadow-2xs" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="Click to view fee breakdown">
-                        <span>${isDonationRow ? 'Donation' : `${i.i.length} ${i.i.length === 1 ? 'Item' : 'Items'}`}</span>
-                        <i class="fas fa-list-check text-[10px]"></i>
-                    </button>
-                </td>
-                <td class="p-3 font-bold text-gray-800">${totalLabel}</td>
-                <td class="p-3 text-center whitespace-nowrap">
-                    <button type="button" class="view-history-breakdown-btn text-emerald-600 hover:text-emerald-800 mr-2.5 transition" data-tid="${escapeHtml(i.tId)}" data-sid="${escapeHtml(i.sId || '')}" title="View Items Breakdown">
-                        <i class="fas fa-list-check"></i>
-                    </button>
-                    ${isDonationRow
-                    ? `<button class="donation-edit-btn text-blue-500 hover:text-blue-700 mr-2.5" data-id="${i.tId.replace('donation:', '')}" title="Edit Donation"><i class="fas fa-edit"></i></button><button class="donation-del-btn text-red-500 hover:text-red-700" data-id="${i.tId.replace('donation:', '')}" title="Delete Donation"><i class="fas fa-trash"></i></button>`
-                    : `<button class="edit-payment-btn text-blue-500 hover:text-blue-700 mr-2.5" data-sid="${i.sId}" data-tid="${i.tId}" title="Edit Payment"><i class="fas fa-edit"></i></button><button class="delete-payment-btn text-red-500 hover:text-red-700" data-sid="${i.sId}" data-tid="${i.tId}" title="Delete Payment"><i class="fas fa-trash"></i></button>`}
-                </td>
-            </tr>`;
-        });
-        tbody.insertAdjacentHTML('beforeend', html);
-        historyDisplayedCount += toAdd.length;
-        loader.classList.add('hidden');
-        historyLoadTimer = null;
-    }, 300);
-};
-
-document.getElementById('history-content-container').addEventListener('scroll', function() {
-    if (this.scrollTop + this.clientHeight >= this.scrollHeight - 20) {
-        if (historyDisplayedCount < sortedHistoryList.length) { loadMoreHistory(); }
     }
 });
 

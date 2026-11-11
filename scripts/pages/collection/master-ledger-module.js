@@ -414,13 +414,18 @@ const renderLedgerTable = () => {
     }
 
     const totalUnitsCount = list.length;
-    if (ledgerPageOffset >= totalUnitsCount) {
-        ledgerPageOffset = Math.max(0, Math.floor((totalUnitsCount - 1) / ledgerRowLimit) * ledgerRowLimit);
+    const isAll = ledgerRowLimit === 'all';
+    const effectiveLimit = isAll ? totalUnitsCount : (parseInt(ledgerRowLimit, 10) || 25);
+
+    if (!isAll && ledgerPageOffset >= totalUnitsCount) {
+        ledgerPageOffset = Math.max(0, Math.floor((totalUnitsCount - 1) / effectiveLimit) * effectiveLimit);
+    } else if (isAll) {
+        ledgerPageOffset = 0;
     }
 
-    const visibleList = list.slice(ledgerPageOffset, ledgerPageOffset + ledgerRowLimit);
-    const startNumber = totalUnitsCount > 0 ? ledgerPageOffset + 1 : 0;
-    const endNumber = ledgerPageOffset + visibleList.length;
+    const visibleList = isAll ? list : list.slice(ledgerPageOffset, ledgerPageOffset + effectiveLimit);
+    const startNumber = totalUnitsCount > 0 ? (isAll ? 1 : ledgerPageOffset + 1) : 0;
+    const endNumber = isAll ? totalUnitsCount : (ledgerPageOffset + visibleList.length);
 
     let html = `
         <table class="min-w-full text-xs text-left border-collapse border border-slate-200 bg-white shadow-sm master-ledger-sticky-table">
@@ -599,8 +604,8 @@ const renderLedgerTable = () => {
         </table>
     `;
 
-    const hasPrevPage = ledgerPageOffset > 0;
-    const hasNextPage = endNumber < totalUnitsCount;
+    const hasPrevPage = !isAll && ledgerPageOffset > 0;
+    const hasNextPage = !isAll && (endNumber < totalUnitsCount);
 
     if (totalUnitsCount > 0) {
         html += `
@@ -628,15 +633,15 @@ const renderLedgerTable = () => {
     tableContainer.scrollLeft = prevScrollLeft;
 
     document.getElementById('ledger-prev-btn')?.addEventListener('click', () => {
-        if (ledgerPageOffset > 0) {
-            ledgerPageOffset = Math.max(0, ledgerPageOffset - ledgerRowLimit);
+        if (!isAll && ledgerPageOffset > 0) {
+            ledgerPageOffset = Math.max(0, ledgerPageOffset - effectiveLimit);
             renderLedgerTable();
         }
     });
 
     document.getElementById('ledger-load-next-btn')?.addEventListener('click', () => {
-        if (ledgerPageOffset + ledgerRowLimit < totalUnitsCount) {
-            ledgerPageOffset += ledgerRowLimit;
+        if (!isAll && (ledgerPageOffset + effectiveLimit < totalUnitsCount)) {
+            ledgerPageOffset += effectiveLimit;
             renderLedgerTable();
         }
     });
@@ -1127,7 +1132,8 @@ export const initMasterLedgerModule = () => {
     const rowLimitSelect = document.getElementById('ledger-row-limit');
     if (rowLimitSelect) {
         rowLimitSelect.addEventListener('change', (e) => {
-            ledgerRowLimit = parseInt(e.target.value, 10) || 25;
+            const val = e.target.value;
+            ledgerRowLimit = val === 'all' ? 'all' : (parseInt(val, 10) || 25);
             ledgerPageOffset = 0;
             renderLedgerTable();
         });

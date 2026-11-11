@@ -1804,43 +1804,53 @@
                         <div class="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mb-4 space-y-4">
                             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-2.5">
                                 <div>
-                                    <h3 class="text-sm font-extrabold text-blue-900 flex items-center gap-2"><i class="fas fa-calendar-check text-blue-600"></i> Monthly Fee Collection Window & Alert Schedule</h3>
-                                    <p class="text-xs text-gray-500 mt-0.5">Define the monthly fee collection dates and when student fee alert notifications should start.</p>
+                                    <h3 class="text-sm font-extrabold text-blue-900 flex items-center gap-1.5">
+                                        <i class="fas fa-calendar-check text-blue-600"></i> Monthly Fee Collection Window & Alert Schedule
+                                        <span class="text-slate-400 hover:text-blue-600 cursor-pointer text-xs" title="Define the monthly fee collection dates and when student fee alert notifications should start."><i class="fas fa-info-circle"></i></span>
+                                    </h3>
                                 </div>
                                 <span id="fee-collection-window-badge" class="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full self-start sm:self-auto">Every Month: Day 1 to Day 10</span>
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Collection Start Day (Every Month)</label>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        Collection Start Day (Every Month)
+                                        <span class="text-slate-400 hover:text-blue-600 cursor-pointer text-xs normal-case" title="Starting date of each month for regular fee collection."><i class="fas fa-info-circle"></i></span>
+                                    </label>
                                     <select id="fee-collect-start-day" class="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold text-sm text-gray-800"></select>
-                                    <p class="text-[11px] text-gray-500 mt-1">Starting date of each month for regular fee collection.</p>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Collection End / Due Day (Every Month)</label>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        Collection End / Due Day (Every Month)
+                                        <span id="fee-collect-end-day-hint" class="text-slate-400 hover:text-blue-600 cursor-pointer text-xs normal-case" title="Last date of the monthly collection window (after this date, fee is treated as overdue)."><i class="fas fa-info-circle"></i></span>
+                                    </label>
                                     <select id="fee-collect-end-day" class="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold text-sm text-gray-800"></select>
-                                    <p id="fee-collect-end-day-hint" class="text-[11px] text-gray-500 mt-1">Last date of the monthly collection window (after this date, fee is treated as overdue).</p>
                                 </div>
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Student Fee Alert Notification Timing</label>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        Student Fee Alert Notification Timing
+                                        <span class="text-slate-400 hover:text-blue-600 cursor-pointer text-xs normal-case" title="Controls when the current month's unpaid fee alert appears in Student Dashboard & Phone Notification Center."><i class="fas fa-info-circle"></i></span>
+                                    </label>
                                     <select id="fee-notify-mode" class="w-full p-2.5 border rounded-lg bg-white font-semibold text-sm text-blue-800">
                                         <option value="month_start">From Month Start (Day 1 of every month)</option>
                                         <option value="collection_start">From Collection Start Date</option>
                                         <option value="days_before_end">Before Collection End Date (Days Before)</option>
                                         <option value="days_before_month_end">Before Month Ends (Days Before Month End)</option>
                                     </select>
-                                    <p class="text-[11px] text-gray-500 mt-1">Controls when the current month's unpaid fee alert appears in Student Dashboard & Phone Notification Center.</p>
                                 </div>
                                 <div id="fee-notify-days-container" class="hidden">
-                                    <label id="fee-notify-days-label" class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Notify How Many Days Before?</label>
+                                    <label id="fee-notify-days-label" class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        Notify How Many Days Before?
+                                        <span class="text-slate-400 hover:text-blue-600 cursor-pointer text-xs normal-case" title="Example: If set to 5 days, students with unpaid fee will start receiving alerts 5 days before the deadline."><i class="fas fa-info-circle"></i></span>
+                                    </label>
                                     <div class="flex items-center gap-2">
                                         <input type="number" id="fee-notify-days-before" min="1" max="28" value="5" class="w-28 p-2.5 border rounded-lg font-bold text-center text-blue-700 bg-white">
                                         <span class="text-xs font-semibold text-gray-600">days before deadline</span>
                                     </div>
-                                    <p class="text-[11px] text-gray-500 mt-1">Example: If set to 5 days, students with unpaid fee will start receiving alerts 5 days before the deadline.</p>
                                 </div>
                             </div>
 

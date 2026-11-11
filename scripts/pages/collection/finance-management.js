@@ -437,11 +437,9 @@ const populateExistingGroupSizeFilter = (uniqueGroups = []) => {
     });
 
     const sortedSizes = Object.keys(sizeCounts).map(Number).sort((a, b) => a - b);
-    let optionsHtml = `<option value="all">All Group Sizes (${uniqueGroups.length} Groups)</option>`;
+    let optionsHtml = `<option value="all">All Groups</option>`;
     sortedSizes.forEach(sz => {
-        const count = sizeCounts[sz];
-        const label = sz === 2 ? `2 Students (Pairs)` : `${sz} Students`;
-        optionsHtml += `<option value="${sz}">${label} (${count} Groups)</option>`;
+        optionsHtml += `<option value="${sz}">${sz} Students</option>`;
     });
 
     sizeSelect.innerHTML = optionsHtml;
@@ -800,8 +798,8 @@ const renderActiveConcessionsList = () => {
             <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-700">${escapeHtml(s.adm || '-')}</td>
             <td class="py-2.5 px-3 text-right font-extrabold text-emerald-700">₹${escapeHtml(String(s.concessionFee))}</td>
             <td class="py-2.5 px-3 text-center">
-                <button type="button" class="text-blue-600 hover:text-blue-800 font-bold px-2 py-1 text-xs concession-open-btn cursor-pointer mr-1" data-id="${escapeHtml(s.id)}"><i class="fas fa-edit mr-0.5"></i>Edit</button>
-                <button type="button" class="text-rose-600 hover:text-rose-800 font-bold px-2 py-1 text-xs concession-delete-btn cursor-pointer" data-id="${escapeHtml(s.id)}"><i class="fas fa-trash-alt mr-0.5"></i>Remove</button>
+                <button type="button" class="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition concession-open-btn cursor-pointer mr-1" data-id="${escapeHtml(s.id)}" title="Edit Concession"><i class="fas fa-edit"></i></button>
+                <button type="button" class="p-1.5 rounded-lg text-rose-600 hover:text-rose-800 hover:bg-rose-50 transition concession-delete-btn cursor-pointer" data-id="${escapeHtml(s.id)}" title="Remove Concession"><i class="fas fa-trash-alt"></i></button>
             </td>
         </tr>
     `).join('');
