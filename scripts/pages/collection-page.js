@@ -5812,34 +5812,40 @@ const getAvailableReportMonthKeys = (exportType = 'monthly') => {
     return Array.from(monthKeySet).sort().reverse();
 };
 
-const openReportMonthExportModal = (exportType = 'monthly') => {
-    activeReportExportType = exportType;
+const openReportMonthExportModal = (exportType = '') => {
+    const isCollectorTab = !document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden');
+    const resolvedType = exportType === 'collector' ? 'collector' : (exportType === 'monthly' ? 'monthly' : (isCollectorTab ? 'collector' : 'monthly'));
+    activeReportExportType = resolvedType;
+
     const modal = document.getElementById('report-month-select-modal');
     if (!modal) {
         console.error('Report month selection modal (#report-month-select-modal) not found in DOM.');
         return;
     }
+    modal.dataset.exportType = resolvedType;
 
     const titleEl = document.getElementById('report-modal-title');
     const subtitleEl = document.getElementById('report-modal-subtitle');
     const listCont = document.getElementById('report-modal-months-list');
     const submitLabel = document.getElementById('report-modal-submit-label');
+    const submitBtn = document.getElementById('report-modal-submit-pdf-btn');
+    if (submitBtn) submitBtn.dataset.exportType = resolvedType;
 
-    if (exportType === 'collector') {
+    if (resolvedType === 'collector') {
         if (titleEl) titleEl.textContent = 'Download Collector-wise Report (PDF)';
-        if (subtitleEl) subtitleEl.textContent = 'Select months to include in the collector breakdown PDF';
+        if (subtitleEl) subtitleEl.textContent = 'Administrative summary of collections grouped by staff member';
         if (submitLabel) submitLabel.textContent = 'Download Collector PDF';
     } else {
         if (titleEl) titleEl.textContent = 'Download Monthly Report (PDF)';
-        if (subtitleEl) subtitleEl.textContent = 'Select months to include in the monthly collection PDF';
+        if (subtitleEl) subtitleEl.textContent = 'Student collections, fee items, donations & receipts';
         if (submitLabel) submitLabel.textContent = 'Download Monthly PDF';
     }
 
     const now = new Date();
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const availableMonths = getAvailableReportMonthKeys(exportType);
+    const availableMonths = getAvailableReportMonthKeys(resolvedType);
 
-    const records = exportType === 'collector'
+    const records = resolvedType === 'collector'
         ? [...(allPayments || []), ...(allDonations || [])]
         : [...(typeof getVisiblePayments === 'function' ? getVisiblePayments() : (allPayments || [])), ...(typeof getVisibleDonations === 'function' ? getVisibleDonations() : (allDonations || []))];
 
@@ -6238,12 +6244,11 @@ const generateMonthlyReportPdf = (selectedMonths = []) => {
         docPdf.setFontSize(8);
         docPdf.setTextColor(148, 163, 184);
         docPdf.text(`Page ${i} of ${totalPages}`, pageWidth - 24, pageHeight - 16, { align: 'right' });
-        docPdf.text('FEEE050 Management System • Confidential & Administrative Document', 24, pageHeight - 16);
     }
 
     const safeFileSuffix = selectedMonths.length === 1 ? selectedMonths[0] : `Multiple_${selectedMonths.length}_Months`;
-    docPdf.save(`Monthly-Report-${safeFileSuffix}.pdf`);
-    showToast('Monthly PDF report downloaded successfully.', 'success');
+    docPdf.save(`Monthly-Collection-Report-${safeFileSuffix}.pdf`);
+    showToast('Monthly collection PDF report downloaded successfully.', 'success');
 };
 
 const generateCollectorWiseReportPdf = (selectedMonths = []) => {
@@ -6294,7 +6299,6 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
             : `Selected Period: ${selectedMonths.length} Months (${formatMonthLabel(selectedMonths[selectedMonths.length - 1])} to ${formatMonthLabel(selectedMonths[0])})`;
         docPdf.text(periodStr, 24, startY + 46);
         docPdf.text(`Generated: ${new Date().toLocaleString('en-GB')}`, pageWidth - 24, startY + 34, { align: 'right' });
-        docPdf.text('Confidential Administrative Audit', pageWidth - 24, startY + 46, { align: 'right' });
         return startY + 54;
     };
 
@@ -6457,12 +6461,11 @@ const generateCollectorWiseReportPdf = (selectedMonths = []) => {
         docPdf.setFontSize(8);
         docPdf.setTextColor(148, 163, 184);
         docPdf.text(`Page ${i} of ${totalPages}`, pageWidth - 24, pageHeight - 16, { align: 'right' });
-        docPdf.text('FEEE050 Management System • Confidential Collector Audit', 24, pageHeight - 16);
     }
 
     const safeFileSuffix = selectedMonths.length === 1 ? selectedMonths[0] : `Multiple_${selectedMonths.length}_Months`;
-    docPdf.save(`Collector-Wise-Report-${safeFileSuffix}.pdf`);
-    showToast('Collector-wise PDF report downloaded successfully.', 'success');
+    docPdf.save(`Collector-Wise-Monthly-Report-${safeFileSuffix}.pdf`);
+    showToast('Collector-wise monthly PDF report downloaded successfully.', 'success');
 };
 
 // Wire Report PDF Modal Event Listeners
@@ -6536,9 +6539,14 @@ document.getElementById('report-modal-submit-pdf-btn')?.addEventListener('click'
         return;
     }
 
+    const modal = document.getElementById('report-month-select-modal');
+    const submitBtn = document.getElementById('report-modal-submit-pdf-btn');
+    const isCollectorTab = !document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden');
+    const finalType = submitBtn?.dataset?.exportType || modal?.dataset?.exportType || activeReportExportType || (isCollectorTab ? 'collector' : 'monthly');
+
     closeReportMonthExportModal();
 
-    if (activeReportExportType === 'collector') {
+    if (finalType === 'collector') {
         generateCollectorWiseReportPdf(selectedMonths);
     } else {
         generateMonthlyReportPdf(selectedMonths);
