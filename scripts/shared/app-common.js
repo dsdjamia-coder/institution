@@ -523,4 +523,96 @@ export const getPeriodDateRange = (cadence = 'daily', { weeklyResetDay = 'sunday
     return { startDate: dStr, endDate: dStr, label: dStr, periodKey: dStr };
 };
 
+export const initInfoMessageTags = () => {
+    if (typeof document === 'undefined' || window.__infoMessageTagsInitialized) return;
+    window.__infoMessageTagsInitialized = true;
+
+    const dismissActiveTag = () => {
+        const active = document.getElementById('active-info-message-tag');
+        if (active) active.remove();
+    };
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.info-tooltip-btn, [data-info]');
+        if (!btn) {
+            if (!e.target.closest('#active-info-message-tag')) {
+                dismissActiveTag();
+            }
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const activeTag = document.getElementById('active-info-message-tag');
+        if (activeTag && activeTag._triggerEl === btn) {
+            dismissActiveTag();
+            return;
+        }
+        dismissActiveTag();
+
+        const text = btn.getAttribute('data-info') || btn.getAttribute('title');
+        if (!text) return;
+
+        const tag = document.createElement('div');
+        tag.id = 'active-info-message-tag';
+        tag.className = 'fixed z-[99999] max-w-[280px] sm:max-w-[340px] p-3 rounded-xl bg-slate-900 text-white text-xs font-medium shadow-2xl border border-slate-700 animate-fadeIn';
+        tag._triggerEl = btn;
+        tag.innerHTML = `
+            <div class="flex items-start gap-2">
+                <i class="fas fa-info-circle text-blue-400 mt-0.5 text-xs shrink-0"></i>
+                <div class="flex-1 leading-relaxed text-[11px] sm:text-xs text-slate-100 font-normal">${escapeHtml(text)}</div>
+                <button type="button" class="text-slate-400 hover:text-white p-0.5 ml-1 text-xs shrink-0 cursor-pointer" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="tag-arrow absolute w-2.5 h-2.5 bg-slate-900 border-slate-700 transform rotate-45"></div>
+        `;
+
+        tag.querySelector('button')?.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            tag.remove();
+        });
+
+        document.body.appendChild(tag);
+
+        const rect = btn.getBoundingClientRect();
+        const tagRect = tag.getBoundingClientRect();
+
+        let top = rect.bottom + 8;
+        let left = Math.min(Math.max(10, rect.left - 20), window.innerWidth - tagRect.width - 10);
+        const arrow = tag.querySelector('.tag-arrow');
+
+        if (top + tagRect.height > window.innerHeight - 10) {
+            top = Math.max(10, rect.top - tagRect.height - 8);
+            if (arrow) {
+                arrow.style.bottom = '-5px';
+                arrow.style.top = 'auto';
+                arrow.style.borderBottom = '1px solid #334155';
+                arrow.style.borderRight = '1px solid #334155';
+            }
+        } else {
+            if (arrow) {
+                arrow.style.top = '-5px';
+                arrow.style.bottom = 'auto';
+                arrow.style.borderTop = '1px solid #334155';
+                arrow.style.borderLeft = '1px solid #334155';
+            }
+        }
+
+        if (arrow) {
+            const arrowLeft = Math.max(12, Math.min(tagRect.width - 24, rect.left - left + (rect.width / 2) - 5));
+            arrow.style.left = `${arrowLeft}px`;
+        }
+
+        tag.style.top = `${top}px`;
+        tag.style.left = `${left}px`;
+    });
+};
+
 initGlobalModalScrollLock();
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initInfoMessageTags);
+    } else {
+        initInfoMessageTags();
+    }
+}

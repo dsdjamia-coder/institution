@@ -152,16 +152,21 @@ export const syncFeeConfigUI = (data = {}) => {
     if (reqCheckbox && data.defaultReceiptMandatory !== undefined) reqCheckbox.checked = !!data.defaultReceiptMandatory;
 
     const windowCfg = data.feeCollectionWindow || {};
-    if (startDaySelect && windowCfg.startDay) startDaySelect.value = String(windowCfg.startDay);
-    if (endDaySelect && windowCfg.endDay) endDaySelect.value = String(windowCfg.endDay);
-    if (notifyModeSelect && windowCfg.notifyMode) {
-        notifyModeSelect.value = windowCfg.notifyMode;
+    const startVal = windowCfg.startDay ?? data.feeCollectionStartDay;
+    const endVal = windowCfg.endDay ?? data.feeCollectionEndDay;
+    const modeVal = windowCfg.notifyMode ?? data.feeNotifyMode;
+    const daysVal = windowCfg.notifyDaysBefore ?? data.feeNotifyDaysBefore;
+
+    if (startDaySelect && startVal) startDaySelect.value = String(startVal);
+    if (endDaySelect && endVal) endDaySelect.value = String(endVal);
+    if (notifyModeSelect && modeVal) {
+        notifyModeSelect.value = modeVal;
         const daysContainer = document.getElementById('fee-notify-days-container');
         if (daysContainer) {
-            daysContainer.classList.toggle('hidden', !['days_before_end', 'days_before_month_end'].includes(windowCfg.notifyMode));
+            daysContainer.classList.toggle('hidden', !['days_before_end', 'days_before_month_end'].includes(modeVal));
         }
     }
-    if (notifyDaysInput && windowCfg.notifyDaysBefore !== undefined) notifyDaysInput.value = windowCfg.notifyDaysBefore;
+    if (notifyDaysInput && daysVal !== undefined) notifyDaysInput.value = daysVal;
 
     updateFeeScheduleSummary();
 };
@@ -174,16 +179,28 @@ const updateFeeScheduleSummary = () => {
 
     const badge = document.getElementById('fee-collection-window-badge');
     const summaryText = document.getElementById('fee-schedule-live-summary-text');
+    const isCrossMonth = endDay < startDay;
 
-    if (badge) badge.textContent = `Every Month: Day ${startDay} to Day ${endDay}`;
+    const startLabel = `Date ${startDay}`;
+    const endLabel = endDay === 31 ? 'Date 31 (Month End)' : `Date ${endDay}`;
 
-    let notifyDesc = 'on the 1st of every month';
-    if (mode === 'collection_start') notifyDesc = `on Day ${startDay} of each month (when collection begins)`;
-    else if (mode === 'days_before_end') notifyDesc = `${daysBefore} days before collection ends (Day ${Math.max(1, endDay - daysBefore)})`;
+    if (badge) {
+        if (isCrossMonth) {
+            badge.textContent = `Spans Months: ${startLabel} to ${endLabel} of next month`;
+            badge.className = 'inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 px-3 py-1 rounded-full self-start sm:self-auto';
+        } else {
+            badge.textContent = `Every Month: ${startLabel} to ${endLabel}`;
+            badge.className = 'inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full self-start sm:self-auto';
+        }
+    }
+
+    let notifyDesc = 'on Date 1 of every month';
+    if (mode === 'collection_start') notifyDesc = `on ${startLabel} of each month (when collection begins)`;
+    else if (mode === 'days_before_end') notifyDesc = `${daysBefore} days before collection ends (${isCrossMonth ? 'deadline in next month' : 'Date ' + Math.max(1, endDay - daysBefore)})`;
     else if (mode === 'days_before_month_end') notifyDesc = `${daysBefore} days before the end of each month`;
 
     if (summaryText) {
-        summaryText.textContent = `Regular monthly fee collection runs from the ${startDay} to the ${endDay} of every month. Student alerts trigger ${notifyDesc}.`;
+        summaryText.textContent = `Regular monthly fee collection runs from ${startLabel} to ${endLabel} of every month. Student alerts trigger ${notifyDesc}.`;
     }
 };
 
@@ -209,6 +226,10 @@ const saveFeeConfiguration = async () => {
         defaultFee,
         feeStatusTitle,
         defaultReceiptMandatory,
+        feeCollectionStartDay: startDay,
+        feeCollectionEndDay: endDay,
+        feeNotifyMode: notifyMode,
+        feeNotifyDaysBefore: notifyDaysBefore,
         feeCollectionWindow: {
             startDay,
             endDay,
@@ -838,16 +859,22 @@ const closeConcModal = () => {
 export const initFinanceManagementModule = (stateContext) => {
     ctx = { ...ctx, ...stateContext };
 
-    // --- Populate 1..28 Day Selectors ---
+    // --- Populate 1..31 Date Selectors ---
     const startSelect = document.getElementById('fee-collect-start-day');
     const endSelect = document.getElementById('fee-collect-end-day');
     if (startSelect && startSelect.options.length === 0) {
-        for (let i = 1; i <= 28; i++) {
-            startSelect.innerHTML += `<option value="${i}">Day ${i} of every month</option>`;
-            endSelect.innerHTML += `<option value="${i}">Day ${i} of every month</option>`;
+        let opts = '';
+        for (let i = 1; i <= 31; i++) {
+            const s = ["th", "st", "nd", "rd"];
+            const v = i % 100;
+            const ord = s[(v - 20) % 10] || s[v] || s[0];
+            const label = i === 31 ? `Date 31 (${i}${ord} / Month End)` : `Date ${i} (${i}${ord})`;
+            opts += `<option value="${i}">${label}</option>`;
         }
-        if (startSelect) startSelect.value = '1';
-        if (endSelect) endSelect.value = '10';
+        startSelect.innerHTML = opts;
+        endSelect.innerHTML = opts;
+        startSelect.value = '1';
+        endSelect.value = '10';
     }
 
     // --- Fee Settings Listeners ---

@@ -13044,16 +13044,16 @@ const populateFeeCollectionScheduleSelectors = () => {
     const startSel = document.getElementById('fee-collect-start-day');
     const endSel = document.getElementById('fee-collect-end-day');
     if (!startSel || !endSel) return;
-    const startOptions = Array.from({ length: 31 }, (_, idx) => {
+    const opts = Array.from({ length: 31 }, (_, idx) => {
         const d = idx + 1;
-        return `<option value="${d}">${formatOrdinalDay(d)} of every month</option>`;
+        const s = ["th", "st", "nd", "rd"];
+        const v = d % 100;
+        const ord = s[(v - 20) % 10] || s[v] || s[0];
+        const label = d === 31 ? `Date 31 (${d}${ord} / Month End)` : `Date ${d} (${d}${ord})`;
+        return `<option value="${d}">${label}</option>`;
     }).join('');
-    const endOptions = Array.from({ length: 30 }, (_, idx) => {
-        const d = idx + 1;
-        return `<option value="${d}">${formatOrdinalDay(d)}</option>`;
-    }).join('') + `<option value="31">Last Day of Month (28th–31st)</option>`;
-    startSel.innerHTML = startOptions;
-    endSel.innerHTML = endOptions;
+    startSel.innerHTML = opts;
+    endSel.innerHTML = opts;
     startSel.value = '1';
     endSel.value = '10';
 };
@@ -13086,12 +13086,12 @@ const updateFeeScheduleLiveSummary = () => {
             : 'Notify How Many Days Before Month End?';
     }
 
-    const startLabel = formatOrdinalDay(startDay);
-    const endLabel = endDay === 31 ? 'Last Day (31st)' : formatOrdinalDay(endDay);
+    const startLabel = `Date ${startDay}`;
+    const endLabel = endDay === 31 ? 'Date 31 (Month End)' : `Date ${endDay}`;
     
     if (badgeEl) {
         if (isCrossMonth) {
-            badgeEl.innerHTML = `<i class="fas fa-arrow-right text-[10px] text-amber-600"></i> Every Month: ${startLabel} to ${endLabel} of next month`;
+            badgeEl.innerHTML = `<i class="fas fa-arrow-right text-[10px] text-amber-600"></i> Spans Months: ${startLabel} to ${endLabel} of next month`;
             badgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 px-3 py-1 rounded-full self-start sm:self-auto shadow-sm';
         } else {
             badgeEl.innerHTML = `<i class="fas fa-calendar-check text-[10px] text-blue-600"></i> Every Month: ${startLabel} to ${endLabel}`;
@@ -13101,9 +13101,10 @@ const updateFeeScheduleLiveSummary = () => {
 
     if (endHintEl) {
         const hintText = isCrossMonth
-            ? `Collection window spans into the following month: deadline is on the ${endLabel} of next month.`
+            ? `Collection window spans into the following month: deadline is on ${endLabel} of next month.`
             : `Last date of monthly collection window (after this date, fee is treated as overdue).`;
         endHintEl.setAttribute('title', hintText);
+        endHintEl.setAttribute('data-info', hintText);
         endHintEl.innerHTML = `<i class="fas fa-info-circle"></i>`;
     }
 
@@ -13153,7 +13154,13 @@ document.getElementById('save-fee-config-btn').addEventListener('click', async (
         feeCollectionStartDay: startDay,
         feeCollectionEndDay: endDay,
         feeNotifyMode: notifyMode,
-        feeNotifyDaysBefore: notifyDaysBefore
+        feeNotifyDaysBefore: notifyDaysBefore,
+        feeCollectionWindow: {
+            startDay,
+            endDay,
+            notifyMode,
+            notifyDaysBefore
+        }
     }, {merge: true});
     const spanNote = endDay < startDay ? ` (Spans into next month: Day ${startDay} to Day ${endDay})` : ` (Day ${startDay} to Day ${endDay})`;
     await logAuditEvent({ category: 'fee', action: 'fee.config.save', entityType: 'settings', entityId: 'config', message: `Default fee configuration updated${spanNote}, Notify: ${notifyMode}).` });

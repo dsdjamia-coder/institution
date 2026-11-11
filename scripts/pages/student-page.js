@@ -6933,11 +6933,12 @@ const studentPwa = registerPortalForPwa('student', {
                     setTimeout(() => { fitText('header-title'); }, 50);
                     renderVersionInfo();
                     defaultFee = conf.defaultFee || 200;
+                    const winCfg = conf.feeCollectionWindow || {};
                     feeCollectionConfig = {
-                        startDay: Math.min(31, Math.max(1, parseInt(conf.feeCollectionStartDay, 10) || 1)),
-                        endDay: Math.min(31, Math.max(1, parseInt(conf.feeCollectionEndDay, 10) || 10)),
-                        notifyMode: conf.feeNotifyMode || 'month_start',
-                        notifyDaysBefore: Math.min(28, Math.max(1, parseInt(conf.feeNotifyDaysBefore, 10) || 5))
+                        startDay: Math.min(31, Math.max(1, parseInt(winCfg.startDay ?? conf.feeCollectionStartDay, 10) || 1)),
+                        endDay: Math.min(31, Math.max(1, parseInt(winCfg.endDay ?? conf.feeCollectionEndDay, 10) || 10)),
+                        notifyMode: winCfg.notifyMode || conf.feeNotifyMode || 'month_start',
+                        notifyDaysBefore: Math.min(28, Math.max(1, parseInt(winCfg.notifyDaysBefore ?? conf.feeNotifyDaysBefore, 10) || 5))
                     };
                     feeItems = conf.feeItems || [];
                     paymentDetails = {
