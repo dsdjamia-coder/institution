@@ -1,6 +1,6 @@
-# Noorul Islam Madrasa - Enterprise Educational & Financial Management System
+# Institutional Management System (IMS) - Enterprise Educational & Financial Platform
 
-A comprehensive, production-grade institutional web platform built for **Noorul Islam Higher Secondary Madrasa**. The platform provides an all-in-one suite covering student information management, counter fee collection, academic curriculum planning, dynamic routine and exam timetabling, interactive syllabus tracking, daily session attendance, co-curricular activities, marksheet generation, dynamic classroom spreadsheets, emergency rollback runbooks, and granular administrative controls.
+A comprehensive, production-grade institutional web platform engineered for modern educational institutions (schools, colleges, academies, and institutes). The platform provides an all-in-one suite covering student information management, counter fee collection, academic curriculum planning, dynamic routine and exam timetabling, interactive syllabus tracking, daily session attendance, co-curricular activities, marksheet generation, dynamic classroom spreadsheets, emergency rollback runbooks, and granular administrative controls.
 
 ---
 
@@ -83,7 +83,7 @@ A unified authentication and navigation terminal for all institution staff, teac
 
 ### 3. Super Administrative Console (`admin.html`)
 The core institutional administration suite with comprehensive management panels:
-- **Institution Profile & Branding**: Configure madrasa name, tagline, registration code, campus address, contact phone, email, and upload high-resolution institutional logo.
+- **Institution Profile & Branding**: Configure institution name, tagline, registration code, campus address, contact phone, email, and upload high-resolution institutional logo.
 - **Academic Year Management**: Create and switch active academic years (e.g., `2026-2027`), set start/end months, and choose between Gregorian and Hijri calendar systems.
 - **Fee Structure Setup**: Configure standard monthly tuition fees, admission fees, examination fees, and custom fee categories per class.
 - **Faculty & Staff Directory**: Manage staff records, employee IDs, contact details, photos, and assign duty classes.
@@ -107,7 +107,7 @@ A unified academic management module divided into specialized sub-tabs:
 - **7-Day Selector with Working Days vs. Weekly Off Sync**: Select active working days (Sunday through Saturday). Unchecked days are marked as Weekly Offs and synchronize with the Attendance Register.
 
 #### Tab 3: Academic Year Plan (`#tab-yearplan` - Annual Overview)
-- **12-Month Annual Syllabus Matrix**: Months along rows (Shawwal to Sha'ban / April to March) and subjects along columns.
+- **12-Month Annual Syllabus Matrix**: Months along rows (configurable academic calendar months, e.g., June to March / April to March) and subjects along columns.
 - **Target Portion Indicators**: Displays lesson units, topics, and page ranges planned for each month.
 - **Visual Status Badges**: Cells display real-time progress indicators: `Done` (100%), `In Progress` (X%), or `Planned`.
 - **Seamless Navigation**: Clicking any cell in View Mode immediately opens the Syllabus Tracker with that class, month, and subject selected.
@@ -140,7 +140,7 @@ Full-lifecycle student record management:
 ---
 
 ### 6. Cashier & Fee Collection Counter (`collection.html`)
-A robust financial collection terminal built for madrasa fee counters:
+A robust financial collection terminal built for institutional fee counters:
 - **Instant Student Lookup**: Search by student name or admission number with auto-complete suggestions.
 - **Interactive Fee Matrix**: Monthly fee checklist (June to March cycle) and custom fees (Admission, Books, Exam, Building Fund).
 - **Sibling Group Rates**: Automatically recognizes sibling discount groups and bills proportional group rates instead of individual default fees.
@@ -165,7 +165,7 @@ Session-based student attendance tracking:
 ### 8. Student Activities, Clubs & Rewards (`activity.html`)
 Co-curricular student engagement tracking:
 - **House System**: Group students into institutional houses (e.g., Red, Blue, Green, Yellow).
-- **Events & Competitions**: Arts festivals, Qur'an recitation contests, sports meets, speech competitions.
+- **Events & Competitions**: Arts festivals, recitation contests, sports meets, academic exhibitions, and speech competitions.
 - **Scoring & Leaderboards**: Real-time house leaderboard, star student ranking, and achievement badge awards.
 - **Teacher Scoring Grid**: Class teachers input and edit student event scores with instant cloud persistence.
 
@@ -281,8 +281,8 @@ To grant Super Admin access to multiple trusted officials without sharing a sing
    {
      "admins": [
        {
-         "name": "Principal Usthad",
-         "email": "principal@institute.com",
+         "name": "Academic Director",
+         "email": "director@institute.com",
          "role": "super_admin",
          "isActive": true,
          "createdAt": "2026-01-01T00:00:00.000Z"
@@ -574,4 +574,4 @@ For the complete development workflow instructions, approval protocol, and safe 
 
 ## License & Institutional Information
 
-This software is custom-developed for **Noorul Islam Higher Secondary Madrasa**. All rights reserved. Unauthorized reproduction, modification, or distribution is strictly prohibited.
+This software is an enterprise institutional management and financial platform designed for educational institutions. All rights reserved. Unauthorized reproduction, modification, or distribution without proper authorization is prohibited.
