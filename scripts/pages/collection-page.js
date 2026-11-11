@@ -1644,6 +1644,19 @@ const calculateStudentDuesForYear = (student, year) => {
     };
 };
 
+const parseAcademicStartYear = (yearStr = '') => {
+    if (!yearStr) return null;
+    const [start] = String(yearStr).split('-').map(Number);
+    return Number.isFinite(start) ? start : null;
+};
+
+const isPastAcademicYear = (yearStr, referenceYearStr = currentWorkingAcademicYear) => {
+    const yStart = parseAcademicStartYear(yearStr);
+    const refStart = parseAcademicStartYear(referenceYearStr);
+    if (yStart === null || refStart === null) return false;
+    return yStart < refStart;
+};
+
 const renderFeePastDuesBanner = (student) => {
     const banner = document.getElementById('fee-past-dues-banner');
     if (!banner) return;
@@ -1654,10 +1667,15 @@ const renderFeePastDuesBanner = (student) => {
         return;
     }
 
-    // Check all enrolled years other than the currently selected year
+    const currentRefYear = currentWorkingAcademicYear || getAcademicYearFromDate();
+
+    // Check only genuine PAST academic years (strictly earlier than current working year)
+    // Future years (startYear > currentYear) and the current year (startYear === currentYear) are EXCLUDED!
     const pastDueItems = [];
     availableFeeAcademicYears.forEach((year) => {
         if (year === selectedFeeAcademicYear) return;
+        if (!isPastAcademicYear(year, currentRefYear)) return;
+
         const duesInfo = calculateStudentDuesForYear(student, year);
         if (duesInfo.totalDues > 0) {
             pastDueItems.push({
@@ -3691,7 +3709,8 @@ const downloadFeeStatusPdf = () => {
     const regPlace = [placeText, regText].filter(Boolean).join(' • ');
     const generatedOn = new Date().toLocaleString();
     const selectedClass = document.getElementById('filter-class')?.value || 'all';
-    const classLabel = selectedClass === 'all' ? 'All Classes' : selectedClass;
+    const isAlumniView = selectedClass === 'ALUMNI_DUES';
+    const classLabel = isAlumniView ? '🎓 Alumni Archive' : (selectedClass === 'all' ? 'All Classes' : selectedClass);
     const pageWidth = docPdf.internal.pageSize.getWidth();
 
     docPdf.setFontSize(16);
@@ -3704,20 +3723,35 @@ const downloadFeeStatusPdf = () => {
     docPdf.text(`Class: ${classLabel}`, pageWidth / 2, 34, { align: 'center' });
 
     const groupedClasses = Object.values(list.reduce((acc, student) => {
-        const classKey = String(student.class || '--');
+        let classKey = '';
+        if (isAlumniView) {
+            const batchYear = student.passedOutYear || student.graduatedYear || student.academicYear || 'General Alumni';
+            classKey = `Batch ${batchYear}`;
+        } else {
+            classKey = String(student.class || '--');
+        }
         if (!acc[classKey]) acc[classKey] = { classLabel: classKey, male: [], female: [] };
         const gender = String(student.gender || '').toLowerCase();
         if (gender === 'male') acc[classKey].male.push(student);
         else acc[classKey].female.push(student);
         return acc;
-    }, {})).sort((a, b) => a.classLabel.localeCompare(b.classLabel, undefined, { numeric: true }));
+    }, {})).sort((a, b) => {
+        if (isAlumniView) {
+            const yearA = a.classLabel.replace('Batch ', '').trim();
+            const yearB = b.classLabel.replace('Batch ', '').trim();
+            return compareAcademicYears(yearA, yearB);
+        }
+        return a.classLabel.localeCompare(b.classLabel, undefined, { numeric: true });
+    });
 
     const buildRows = (students = []) => students
         .sort((a, b) => String(a.adm || '').localeCompare(String(b.adm || ''), undefined, { numeric: true }) || String(a.name || '').localeCompare(String(b.name || '')))
         .map((student, idx) => {
             const row = [idx + 1, student.adm || '-', student.name];
             items.forEach((item) => {
-                const payment = allPayments.find((pay) => pay.studentId === student.id && pay.itemKey === item.key);
+                const sBatchYear = student.passedOutYear || student.graduatedYear || student.academicYear;
+                const targetYear = isAlumniView && sBatchYear ? sBatchYear : (item.academicYear || selectedClass);
+                const payment = allPayments.find((pay) => (pay.studentId === student.id || (student.adm && pay.admissionNo === student.adm)) && isFeeItemMatch(pay.itemKey, item) && (!pay.academicYear || !targetYear || pay.academicYear === targetYear));
                 if (payment) {
                     if (payment.receiptNo !== undefined && payment.receiptNo !== null && String(payment.receiptNo).trim() !== '') {
                         row.push(String(payment.receiptNo).trim());
@@ -3843,7 +3877,7 @@ const openFeeStatusBulkActionModal = (actionType = 'pay') => {
                 itemName: sel.itemName || `${sel.itemKey} Tuition Fee`,
                 itemType: sel.itemType || 'month',
                 amount: Number(sel.defaultAmount || defaultFee || 200),
-                academicYear: effectiveAcademicYear,
+                academicYear: sel.academicYear || (s.isAlumni ? (s.passedOutYear || s.graduatedYear || s.academicYear) : effectiveAcademicYear),
                 targetCellElement: cellEl
             });
         } else if (actionType === 'edit') {
@@ -3926,15 +3960,40 @@ const renderFeeTable = () => {
         </thead>
         <tbody class="divide-y divide-slate-100 font-medium">`;
 
+    const isAlumniView = (document.getElementById('filter-class')?.value === 'ALUMNI_DUES');
+
     const sortedGroups = Object.values(list.reduce((acc, s) => {
-        const k = `${s.class}#${s.gender}`;
-        if (!acc[k]) acc[k] = { class: s.class, gender: s.gender, students: [] };
-        acc[k].students.push(s);
+        let groupKey = '';
+        let groupClassLabel = '';
+        let groupGenderLabel = s.gender === 'Male' ? 'Boys' : (s.gender === 'Female' ? 'Girls' : (s.gender || 'All'));
+        if (isAlumniView) {
+            const batchYear = s.passedOutYear || s.graduatedYear || s.academicYear || 'General Alumni';
+            groupKey = `Batch ${batchYear}#${s.gender}`;
+            groupClassLabel = `Batch ${batchYear}`;
+        } else {
+            groupKey = `${s.class}#${s.gender}`;
+            groupClassLabel = s.class;
+        }
+        if (!acc[groupKey]) acc[groupKey] = {
+            class: groupClassLabel,
+            gender: s.gender,
+            genderLabel: groupGenderLabel,
+            isAlumni: isAlumniView,
+            students: []
+        };
+        acc[groupKey].students.push(s);
         return acc;
     }, {}))
     .sort((a, b) => {
-        const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
-        if (classCompare !== 0) return classCompare;
+        if (isAlumniView) {
+            const yearA = a.class.replace('Batch ', '').trim();
+            const yearB = b.class.replace('Batch ', '').trim();
+            const yearComp = compareAcademicYears(yearA, yearB);
+            if (yearComp !== 0) return yearComp;
+        } else {
+            const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
+            if (classCompare !== 0) return classCompare;
+        }
         if (a.gender === 'Male' && b.gender !== 'Male') return -1;
         if (a.gender !== 'Male' && b.gender === 'Male') return 1;
         return 0;
@@ -3948,8 +4007,9 @@ const renderFeeTable = () => {
                 student: s,
                 groupKey: `${g.class}#${g.gender}`,
                 groupClass: g.class,
-                groupGender: g.gender,
-                groupTotalCount: g.students.length
+                groupGender: g.genderLabel || g.gender,
+                groupTotalCount: g.students.length,
+                isAlumniGroup: g.isAlumni
             });
         });
     }
@@ -3971,10 +4031,13 @@ const renderFeeTable = () => {
 
         if (entry.groupKey !== currentGroupKey) {
             currentGroupKey = entry.groupKey;
+            const badgeIcon = entry.isAlumniGroup
+                ? '<i class="fas fa-graduation-cap text-purple-600 mr-1.5"></i>'
+                : '<span class="w-2.5 h-2.5 rounded-full bg-blue-600 mr-1.5"></span>';
             html += `<tr class="bg-slate-100 font-extrabold text-slate-800 tracking-wide text-xs">
                 <td colspan="${items.length+3}" class="p-2.5 px-4 bg-slate-100 border-y border-slate-200">
-                    <span class="inline-flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                    <span class="inline-flex items-center gap-1.5">
+                        ${badgeIcon}
                         <span>${escapeHtml(entry.groupClass)} - ${escapeHtml(entry.groupGender)}</span>
                         <span class="text-[11px] text-slate-500 font-semibold font-mono">(${entry.groupTotalCount} students)</span>
                     </span>
@@ -4000,7 +4063,17 @@ const renderFeeTable = () => {
             </td>`;
 
         items.forEach(i => {
-            const p = allPayments.find(pay => pay.studentId === s.id && isFeeItemMatch(pay.itemKey, i) && (!pay.academicYear || !i.academicYear || pay.academicYear === i.academicYear));
+            const studentBatchYear = s.passedOutYear || s.graduatedYear || s.academicYear;
+            const targetYear = (isAlumniView || isAlumStudent) && studentBatchYear
+                ? studentBatchYear
+                : (i.academicYear || fYear || currentWorkingAcademicYear);
+
+            const p = allPayments.find(pay => {
+                if (pay.studentId !== s.id && (!s.adm || pay.admissionNo !== s.adm)) return false;
+                if (!isFeeItemMatch(pay.itemKey, i)) return false;
+                return (!pay.academicYear || !targetYear || pay.academicYear === targetYear);
+            });
+
             const selKey = `${s.id}__${i.key}`;
             const isSelected = selectedFeeStatusCells.has(selKey);
             const selRing = isSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/70' : '';
@@ -4010,7 +4083,7 @@ const renderFeeTable = () => {
 
             if(p) {
                 html += `<td class="p-1.5 text-center bg-emerald-50/60 border-r border-slate-200 cursor-pointer hover:bg-emerald-100/90 transition group relative ${selRing}"
-                    data-fee-action="view-receipt" data-payment-id="${p.id || ''}" data-student-id="${s.id}" data-item-key="${i.key}"
+                    data-fee-action="view-receipt" data-payment-id="${p.id || ''}" data-student-id="${s.id}" data-item-key="${i.key}" data-academic-year="${escapeHtml(targetYear)}"
                     title="Click to view receipt slip or tick checkbox to bulk edit">
                     <div class="flex items-center justify-between mb-0.5 px-0.5">
                         <input type="checkbox" class="fee-status-cell-cb w-3.5 h-3.5 rounded border-emerald-400 text-amber-600 focus:ring-amber-500 cursor-pointer"
@@ -4020,6 +4093,7 @@ const renderFeeTable = () => {
                             data-item-name="${escapeHtml(normalizeFeeItemName(i.name))}"
                             data-item-type="${escapeHtml(i.type || 'month')}"
                             data-default-amount="${itemDefaultAmt}"
+                            data-academic-year="${escapeHtml(targetYear)}"
                             data-sel-type="edit"
                             data-payment-id="${escapeHtml(p.id || '')}"
                             ${isSelected ? 'checked' : ''}
@@ -4035,7 +4109,7 @@ const renderFeeTable = () => {
                 </td>`;
             } else {
                 html += `<td class="p-1.5 text-center bg-white border-r border-slate-200 cursor-pointer hover:bg-blue-50/80 transition group relative ${selRing}"
-                    data-fee-action="pay-fee" data-student-id="${s.id}" data-item-key="${i.key}" data-item-name="${escapeHtml(normalizeFeeItemName(i.name))}" data-item-type="${i.type || 'month'}" data-default-amount="${itemDefaultAmt}"
+                    data-fee-action="pay-fee" data-student-id="${s.id}" data-item-key="${i.key}" data-item-name="${escapeHtml(normalizeFeeItemName(i.name))}" data-item-type="${i.type || 'month'}" data-default-amount="${itemDefaultAmt}" data-academic-year="${escapeHtml(targetYear)}"
                     title="Click to record fee payment or tick checkbox for multi-entry">
                     <div class="flex items-center justify-between mb-1 px-0.5">
                         <input type="checkbox" class="fee-status-cell-cb w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -4045,6 +4119,7 @@ const renderFeeTable = () => {
                             data-item-name="${escapeHtml(normalizeFeeItemName(i.name))}"
                             data-item-type="${escapeHtml(i.type || 'month')}"
                             data-default-amount="${itemDefaultAmt}"
+                            data-academic-year="${escapeHtml(targetYear)}"
                             data-sel-type="pay"
                             ${isSelected ? 'checked' : ''}
                             title="Select to collect together">
@@ -4127,6 +4202,7 @@ const renderFeeTable = () => {
                         itemName: cb.dataset.itemName,
                         itemType: cb.dataset.itemType || 'month',
                         defaultAmount: Number(cb.dataset.defaultAmount || defaultFee || 200),
+                        academicYear: cb.dataset.academicYear || '',
                         type: cb.dataset.selType,
                         paymentId: cb.dataset.paymentId || ''
                     });
@@ -4162,6 +4238,7 @@ const renderFeeTable = () => {
                         itemName: cb.dataset.itemName,
                         itemType: cb.dataset.itemType || 'month',
                         defaultAmount: Number(cb.dataset.defaultAmount || defaultFee || 200),
+                        academicYear: cb.dataset.academicYear || '',
                         type: cb.dataset.selType,
                         paymentId: cb.dataset.paymentId || ''
                     });
@@ -4187,6 +4264,7 @@ const renderFeeTable = () => {
                     itemName: cb.dataset.itemName,
                     itemType: cb.dataset.itemType || 'month',
                     defaultAmount: Number(cb.dataset.defaultAmount || defaultFee || 200),
+                    academicYear: cb.dataset.academicYear || '',
                     type: cb.dataset.selType,
                     paymentId: cb.dataset.paymentId || ''
                 });
@@ -4232,6 +4310,7 @@ document.getElementById('fee-table-container')?.addEventListener('click', (e) =>
         const itemKey = payCell.dataset.itemKey;
         const itemName = payCell.dataset.itemName;
         const defaultAmount = Number(payCell.dataset.defaultAmount || defaultFee || 200);
+        const itemAcademicYear = payCell.dataset.academicYear || selectedFeeAcademicYear || currentWorkingAcademicYear || getAcademicYearFromDate();
         const s = getStudentById(studentId);
         if (s) {
             openFeeEntryEditModal({
@@ -4243,7 +4322,7 @@ document.getElementById('fee-table-container')?.addEventListener('click', (e) =>
                 itemName: itemName || `${itemKey} Tuition Fee`,
                 defaultAmount: defaultAmount,
                 targetCellElement: payCell,
-                academicYear: selectedFeeAcademicYear || currentWorkingAcademicYear || getAcademicYearFromDate()
+                academicYear: itemAcademicYear
             });
         }
         return;
