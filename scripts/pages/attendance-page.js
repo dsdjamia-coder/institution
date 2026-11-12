@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
@@ -566,23 +566,8 @@ const populateAcademicYearDropdowns = () => {
     dropdownIds.forEach(id => {
         const yearSelect = document.getElementById(id);
         if (!yearSelect) return;
-
         const currentVal = yearSelect.value;
-        const yearSet = new Set();
-        if (currentAcademicYear) yearSet.add(currentAcademicYear);
-        (availableAcademicYears || []).forEach(y => {
-            const yStr = (typeof y === 'object' && y !== null) ? (y.label || y.year || '') : String(y || '');
-            if (yStr) yearSet.add(yStr.trim());
-        });
-
-        const sortedYears = Array.from(yearSet).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
-        yearSelect.innerHTML = sortedYears.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join('');
-
-        if (currentVal && sortedYears.includes(currentVal)) {
-            yearSelect.value = currentVal;
-        } else if (currentAcademicYear) {
-            yearSelect.value = currentAcademicYear;
-        }
+        populateAcademicYearSelect(yearSelect, availableAcademicYears, currentAcademicYear, { selectedValue: currentVal });
     });
 };
 

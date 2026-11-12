@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // --- Global Variables ---
@@ -1525,6 +1525,7 @@ const renderPromotionCandidatesUI = () => {
         if (calculatedNextYear) yearSet.add(calculatedNextYear);
 
         (availableAcademicYears || []).forEach((year) => {
+            if (typeof year === 'object' && year !== null && String(year.status || '').toLowerCase() === 'archived') return;
             const y = normalizeYear(year);
             if (y && y !== currentAcademicYear) {
                 yearSet.add(y);
@@ -2001,8 +2002,7 @@ const renderPublishControls = () => {
     if (!yearSelect || !examSelect) return;
     const years = [...new Set([currentAcademicYear, ...resultSchemas.map((s) => s.academicYear).filter(Boolean)])].filter(Boolean).sort((a, b) => String(b).localeCompare(String(a)));
     const prevYear = yearSelect.value || resultCenterSettings.publishAcademicYear || currentAcademicYear;
-    yearSelect.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
-    yearSelect.value = years.includes(prevYear) ? prevYear : (years[0] || currentAcademicYear);
+    populateAcademicYearSelect(yearSelect, years, currentAcademicYear, { selectedValue: prevYear });
     const selectedYear = yearSelect.value;
     const examsMap = new Map();
     resultSchemas
@@ -2022,8 +2022,11 @@ const renderPublishControls = () => {
     const historyYearSelect = document.getElementById('publish-history-year-filter');
     if (historyYearSelect) {
         const prevFilter = historyYearSelect.value;
-        historyYearSelect.innerHTML = '<option value="">All Academic Years</option>' + years.map((y) => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join('');
-        if (prevFilter) historyYearSelect.value = prevFilter;
+        populateAcademicYearSelect(historyYearSelect, years, currentAcademicYear, {
+            placeholder: 'All Academic Years',
+            selectedValue: prevFilter,
+            defaultToCurrent: false
+        });
     }
 
     renderPublishedHistoryTable();
@@ -2173,21 +2176,10 @@ const populateReportYears = () => {
         if (c) yearSet.add(c);
     });
     const source = Array.from(yearSet).filter(Boolean).sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
-    el.innerHTML = `<option value="">-- Select Academic Year --</option>` + source.map((year) => {
-        const isCurrent = cleanCurYear && (year === cleanCurYear);
-        const displayLabel = isCurrent ? `${year} (Current)` : year;
-        return `<option value="${escapeHtml(year)}">${escapeHtml(displayLabel)}</option>`;
-    }).join('');
-
-    if (previous && source.includes(previous)) {
-        el.value = previous;
-    } else if (cleanCurYear && source.includes(cleanCurYear)) {
-        el.value = cleanCurYear;
-    } else if (currentAcademicYear && source.includes(currentAcademicYear)) {
-        el.value = currentAcademicYear;
-    } else {
-        el.value = source[0] || '';
-    }
+    populateAcademicYearSelect(el, source, currentAcademicYear, {
+        placeholder: '-- Select Academic Year --',
+        selectedValue: previous
+    });
     populateReportClasses(el.value);
 };
 

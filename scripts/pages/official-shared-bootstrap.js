@@ -5096,8 +5096,8 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
               <div class="flex flex-col">
                 <label class="text-[10px] font-bold text-slate-700 mb-0.5">2. Academic Year</label>
                 <select id="builder-academic-year" class="excel-input-ribbon w-32">
-                  ${academicYears.length > 0
-                    ? academicYears.map((y) => `<option value="${escapeHtml(y.id)}" ${builderConfig.academicYearId === y.id ? 'selected' : ''}>${escapeHtml(formatAcademicYearLabel(y, activeAcademicYearId))}</option>`).join('')
+                  ${academicYears.filter((y) => !y.status || String(y.status).toLowerCase() !== 'archived').length > 0
+                    ? academicYears.filter((y) => !y.status || String(y.status).toLowerCase() !== 'archived').map((y) => `<option value="${escapeHtml(y.id)}" ${builderConfig.academicYearId === y.id ? 'selected' : ''}>${escapeHtml(formatAcademicYearLabel(y, activeAcademicYearId))}</option>`).join('')
                     : '<option value="">Active Year</option>'}
                 </select>
               </div>

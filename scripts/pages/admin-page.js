@@ -3,7 +3,7 @@ import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.
 import { doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, where, writeBatch, getDocs, setDoc, getDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth, firebaseConfig } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
-import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, normalizePhone, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
+import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, getCleanAcademicYearOptions, hardenExternalLinks, normalizePhone, populateAcademicYearSelect, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -1365,14 +1365,13 @@ const renderStudentCountsTab = () => {
     if (!pageEl || pageEl.classList.contains('hidden')) return;
 
     const yearSelect = document.getElementById('stats-year-select');
-    if (yearSelect && yearSelect.options.length === 0) {
-        const activeLabel = getActiveAcademicYearLabel();
-        const yearOptions = (academicYears || []).map((y) => {
-            const lbl = typeof y === 'string' ? y : (y?.label || y?.name || '');
-            return `<option value="${escapeHtml(lbl)}" ${lbl === activeLabel ? 'selected' : ''}>${escapeHtml(lbl)}</option>`;
-        }).join('');
-        yearSelect.innerHTML = yearOptions || `<option value="${escapeHtml(activeLabel)}">${escapeHtml(activeLabel)}</option>`;
-        yearSelect.addEventListener('change', renderStudentCountsTab);
+    if (yearSelect) {
+        if (!yearSelect.dataset.populated) {
+            yearSelect.dataset.populated = 'true';
+            yearSelect.addEventListener('change', renderStudentCountsTab);
+        }
+        const currentVal = yearSelect.value;
+        populateAcademicYearSelect(yearSelect, academicYears, getActiveAcademicYearLabel(), { selectedValue: currentVal });
     }
 
     const selectedYear = yearSelect?.value || getActiveAcademicYearLabel();
@@ -2522,15 +2521,7 @@ const populateClassesAcademicYearDropdown = (forceActive = false) => {
     const select = document.getElementById('filter-classes-academic-year');
     if (!select) return;
     const currentVal = forceActive ? getActiveAcademicYearLabel() : (select.value || getActiveAcademicYearLabel());
-    const availableYears = academicYears.filter((y) => y.status !== 'archived');
-    const sorted = [...availableYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
-
-    select.innerHTML = sorted.map((y) => {
-        const isCurrent = y.label === currentAcademicYear;
-        const isActive = y.label === activeAcademicYear;
-        const tag = isCurrent ? ' (Current)' : (isActive ? ' (Active)' : '');
-        return `<option value="${escapeHtml(y.label)}" ${y.label === currentVal ? 'selected' : ''}>Session: ${escapeHtml(y.label)}${tag}</option>`;
-    }).join('');
+    populateAcademicYearSelect(select, academicYears, getActiveAcademicYearLabel(), { selectedValue: currentVal });
 };
 
 const getSelectedGroupsAcademicYear = () => {
@@ -2542,15 +2533,7 @@ const populateGroupsAcademicYearDropdown = (forceActive = false) => {
     const select = document.getElementById('filter-groups-academic-year');
     if (!select) return;
     const currentVal = forceActive ? getActiveAcademicYearLabel() : (select.value || getActiveAcademicYearLabel());
-    const availableYears = academicYears.filter((y) => y.status !== 'archived');
-    const sorted = [...availableYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
-
-    select.innerHTML = sorted.map((y) => {
-        const isCurrent = y.label === currentAcademicYear;
-        const isActive = y.label === activeAcademicYear;
-        const tag = isCurrent ? ' (Current)' : (isActive ? ' (Active)' : '');
-        return `<option value="${escapeHtml(y.label)}" ${y.label === currentVal ? 'selected' : ''}>Session: ${escapeHtml(y.label)}${tag}</option>`;
-    }).join('');
+    populateAcademicYearSelect(select, academicYears, getActiveAcademicYearLabel(), { selectedValue: currentVal });
 };
 
 const filterStudentGroupsForSelectedYear = () => {
@@ -5876,28 +5859,7 @@ const populateManageAcademicYearDropdown = (forceActive = false) => {
     const yearSelect = document.getElementById('filter-manage-academic-year');
     if (!yearSelect) return;
     const currentSelected = forceActive ? getActiveAcademicYearLabel() : (yearSelect.value || getActiveAcademicYearLabel());
-    
-    // Strictly exclude archived years from regular management dropdowns
-    const availableYears = academicYears.filter((y) => y.status !== 'archived');
-    const sortedYears = [...availableYears].sort((a, b) => (b.startYear || 0) - (a.startYear || 0));
-
-    if (sortedYears.length === 0) {
-        yearSelect.innerHTML = `<option value="${escapeHtml(getActiveAcademicYearLabel())}">${escapeHtml(getActiveAcademicYearLabel())} (Current)</option>`;
-        yearSelect.value = getActiveAcademicYearLabel();
-        return;
-    }
-
-    yearSelect.innerHTML = sortedYears.map((y) => {
-        const isCurrent = y.label === activeAcademicYear;
-        const tag = isCurrent ? ' (Current)' : ' (Active)';
-        return `<option value="${escapeHtml(y.label)}">${escapeHtml(y.label)}${tag}</option>`;
-    }).join('');
-
-    if (!forceActive && sortedYears.some((y) => y.label === currentSelected)) {
-        yearSelect.value = currentSelected;
-    } else {
-        yearSelect.value = getActiveAcademicYearLabel();
-    }
+    populateAcademicYearSelect(yearSelect, academicYears, getActiveAcademicYearLabel(), { selectedValue: currentSelected });
 };
 
 const openStudentHistoryModal = (studentId) => {
@@ -6202,8 +6164,8 @@ const renderStudentList = () => {
     const yearBadge = document.getElementById('manage-students-year-badge');
 
     if (yearBadge) {
-        yearBadge.textContent = `Academic Year: ${selectedYear} ${isActiveYear ? '(Current & Editable)' : '(Historical Archive - Read Only)'}`;
-        yearBadge.className = `text-xs font-bold uppercase tracking-widest mt-1 ${isActiveYear ? 'text-indigo-600' : 'text-amber-700'}`;
+        yearBadge.textContent = `Academic Year: ${selectedYear}${isActiveYear ? ' (Current)' : ''}`;
+        yearBadge.className = `text-xs font-bold uppercase tracking-widest mt-1 ${isActiveYear ? 'text-indigo-600' : 'text-slate-600'}`;
     }
 
     if (archiveBanner) {
@@ -8076,16 +8038,7 @@ const openReadmitModal = (studentId) => {
 
         const targetYearSelect = document.getElementById('readmit-target-year');
         if (!targetYearSelect) return;
-
-        const availableYears = (academicYears || []).map(y => y.label).filter(Boolean);
-        const activeYear = getActiveAcademicYearLabel();
-        if (!availableYears.includes(activeYear)) availableYears.unshift(activeYear);
-
-        targetYearSelect.innerHTML = availableYears.map(yr => {
-            const isCurrent = yr === activeYear ? ' (Active Year)' : '';
-            return `<option value="${escapeHtml(yr)}">${escapeHtml(yr)}${isCurrent}</option>`;
-        }).join('');
-        targetYearSelect.value = activeYear;
+        populateAcademicYearSelect(targetYearSelect, academicYears, getActiveAcademicYearLabel(), { selectedValue: getActiveAcademicYearLabel() });
 
         const updateTargetClassAndGap = () => {
             const selectedTargetYear = targetYearSelect.value;
@@ -10155,9 +10108,10 @@ const renderResultManagement = () => {
     document.getElementById('result-self-photo-upload-toggle').checked = resultCenterSettings.allowStudentSelfPhotoUpload === true;
     document.getElementById('grade-total-mark-select').value = String(resultCenterSettings.gradeScaleTotal || 100);
     const targetYearSelect = document.getElementById('promotion-target-year-select');
-    const targetCurrent = targetYearSelect.value;
-    targetYearSelect.innerHTML = academicYears.map((year) => `<option value="${year.label}">${year.label}</option>`).join('');
-    targetYearSelect.value = academicYears.some((year) => year.label === targetCurrent) ? targetCurrent : (academicYears.find((year) => year.label !== getActiveAcademicYearLabel())?.label || getActiveAcademicYearLabel());
+    if (targetYearSelect) {
+        const targetCurrent = targetYearSelect.value;
+        populateAcademicYearSelect(targetYearSelect, academicYears, getActiveAcademicYearLabel(), { selectedValue: targetCurrent });
+    }
     populateResultSelectors();
     populateMarksStudentSelect();
     renderGradeRulesEditor();
@@ -11270,7 +11224,7 @@ const renderBatchPromotionPage = () => {
     const sortedYears = [...availableYears].sort((a, b) => (b.label || '').localeCompare(a.label || '', undefined, { numeric: true }));
 
     const currentSrc = srcSelect.value || activeLabel;
-    srcSelect.innerHTML = sortedYears.map((y) => `<option value="${escapeHtml(y.label)}" ${y.label === currentSrc ? 'selected' : ''}>${escapeHtml(y.label)}</option>`).join('');
+    populateAcademicYearSelect(srcSelect, academicYears, activeLabel, { selectedValue: currentSrc });
 
     const populateTargetYears = (selectedSrc) => {
         const parts = (selectedSrc || '').match(/^(\d{4})-(\d{4})$/);

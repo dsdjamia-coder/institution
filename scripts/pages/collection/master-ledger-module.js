@@ -1,5 +1,5 @@
 import { db, auth } from '../../../config/firebase-config.js';
-import { BASE_PATH, formatCurrency, escapeHtml } from '../../shared/app-common.js';
+import { BASE_PATH, formatCurrency, escapeHtml, populateAcademicYearSelect } from '../../shared/app-common.js';
 import { appLog } from '../../shared/logger.js';
 import { showToast } from '../../shared/toaster.js';
 import { collection, doc, writeBatch, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -355,14 +355,9 @@ const renderFilterControls = () => {
     // Populate Academic Year Filter Dropdown
     const yearSelect = document.getElementById('ledger-academic-year-select');
     if (yearSelect) {
-        const years = Array.isArray(ledgerAcademicYearSettings) ? ledgerAcademicYearSettings.filter(y => y && y.label && y.status !== 'archived') : [];
-        let opts = `<option value="">Year: Current (${escapeHtml(ledgerAcademicYear || 'Active')})</option>`;
-        years.forEach(y => {
-            const isSelected = filters.academicYear === y.label;
-            opts += `<option value="${escapeHtml(y.label)}" ${isSelected ? 'selected' : ''}>Year: ${escapeHtml(y.label)}</option>`;
+        populateAcademicYearSelect(yearSelect, ledgerAcademicYearSettings, ledgerAcademicYear, {
+            selectedValue: filters.academicYear || ledgerAcademicYear
         });
-        yearSelect.innerHTML = opts;
-        if (filters.academicYear) yearSelect.value = filters.academicYear;
     }
 
     // Populate Class Filter Dropdown

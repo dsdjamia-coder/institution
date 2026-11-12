@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, registerServiceWorker, renderVersionInfo } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, populateAcademicYearSelect, registerServiceWorker, renderVersionInfo } from '../shared/app-common.js';
 import { appLog } from '../shared/logger.js';
 import { showToast } from '../shared/toaster.js';
 import { initCollectionEntryModule } from './collection/entry-module.js';
@@ -894,12 +894,7 @@ const populateFeeStatusAcademicYears = () => {
     const feeStatusYearSelect = document.getElementById('filter-academic-year');
     if (!feeStatusYearSelect) return;
     const currentVal = feeStatusYearSelect.value;
-    const years = (academicYearSettings || []).filter(y => y && y.label && y.status !== 'archived');
-    const optionsHtml = years.map(y => `<option value="${escapeHtml(y.label)}">${escapeHtml(y.label)}${y.label === currentWorkingAcademicYear ? ' (Active)' : ''}</option>`).join('');
-    feeStatusYearSelect.innerHTML = `<option value="">Current Year (${escapeHtml(currentWorkingAcademicYear || 'Active')})</option>` + optionsHtml;
-    if (currentVal && years.some(y => y.label === currentVal)) {
-        feeStatusYearSelect.value = currentVal;
-    }
+    populateAcademicYearSelect(feeStatusYearSelect, academicYearSettings, currentWorkingAcademicYear, { selectedValue: currentVal });
 };
 
 const sortFeeItemsForDisplay = (items = [], customYear = null) => {
@@ -3467,9 +3462,10 @@ document.getElementById('update-fee-btn').addEventListener('click', () => proces
 const setupBulkUploadUI = () => {
     const yearSelect = document.getElementById('bulk-academic-year');
     if (yearSelect) {
-        yearSelect.innerHTML = `<option value="">-- Select Academic Year --</option>` +
-            academicYearSettings.filter(y => y.status !== 'archived').map(y => `<option value="${y.label}">${y.label}</option>`).join('');
-        if (currentWorkingAcademicYear) yearSelect.value = currentWorkingAcademicYear;
+        populateAcademicYearSelect(yearSelect, academicYearSettings, currentWorkingAcademicYear, {
+            placeholder: '-- Select Academic Year --',
+            selectedValue: currentWorkingAcademicYear
+        });
     }
     document.getElementById('bulk-default-fee').value = defaultFee;
     document.getElementById('bulk-progress-container').classList.add('hidden');
@@ -5950,11 +5946,7 @@ const openReportMonthExportModal = (exportType = '') => {
     // Populate Academic Year selector
     const yearSelect = document.getElementById('report-modal-year-select');
     if (yearSelect) {
-        yearSelect.innerHTML = yearList.map(yLabel => `
-            <option value="${escapeHtml(yLabel)}" ${yLabel === defaultYear ? 'selected' : ''}>${escapeHtml(yLabel)}${yLabel === currentWorkingAcademicYear ? ' (Active)' : ''}</option>
-        `).join('');
-
-        yearSelect.value = defaultYear;
+        populateAcademicYearSelect(yearSelect, yearList, currentWorkingAcademicYear, { selectedValue: defaultYear });
 
         // Wire change event once
         if (!yearSelect.dataset.wired) {

@@ -211,10 +211,12 @@ export const applyCachedInstitutionLogo = (ids = FAST_LOGO_IDS) => {
 };
 
 const applyCachedLogoWhenReady = () => applyCachedInstitutionLogo();
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applyCachedLogoWhenReady, { once: true });
-} else {
-    applyCachedLogoWhenReady();
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyCachedLogoWhenReady, { once: true });
+    } else {
+        applyCachedLogoWhenReady();
+    }
 }
 
 export const normalizePhone = (value = '') => value.toString().replace(/\D/g, '');
@@ -669,8 +671,98 @@ export const getStudentNormalizedDetails = (student = {}, defaultAcademicYear = 
     };
 };
 
-initGlobalModalScrollLock();
+/**
+ * Normalizes and filters academic years list for standard dropdowns across all portals.
+ * - Strictly excludes archived years (status === 'archived' or isArchived === true).
+ * - Suffixes the current academic year with ' (Current)' (e.g. '2026-2027 (Current)').
+ * - Leaves all other active years as bare strings (e.g. '2025-2026').
+ * - Sorts descending (latest year first).
+ *
+ * @param {Array<object|string>} yearsList - List of academic year records or strings.
+ * @param {string} currentYear - The active/current academic year label.
+ * @returns {Array<{ value: string, label: string, isCurrent: boolean }>}
+ */
+export const getCleanAcademicYearOptions = (yearsList = [], currentYear = '') => {
+    const rawCur = typeof currentYear === 'object' && currentYear !== null
+        ? (currentYear.label || currentYear.year || currentYear.name || currentYear.id || '')
+        : String(currentYear || '');
+    const cleanCur = rawCur.replace(/^Session:\s*/i, '').replace(/\s*\((Active|Current)\)\s*$/i, '').trim();
+    const activeMap = new Map();
+
+    (yearsList || []).forEach((y) => {
+        if (!y) return;
+        const isObj = typeof y === 'object' && y !== null;
+        const rawLabel = (isObj ? (y.label || y.year || y.name || y.id) : String(y)).trim();
+        const cleanLabel = rawLabel.replace(/^Session:\s*/i, '').replace(/^Year:\s*/i, '').replace(/\s*\((Active|Current)\)\s*$/i, '').trim();
+        if (!cleanLabel) return;
+
+        const isArchived = isObj && (String(y.status || '').toLowerCase() === 'archived' || y.isArchived === true);
+        if (isArchived && cleanLabel !== cleanCur) return;
+
+        if (!activeMap.has(cleanLabel)) {
+            const isCur = Boolean(cleanCur && cleanLabel === cleanCur);
+            activeMap.set(cleanLabel, {
+                value: cleanLabel,
+                label: isCur ? `${cleanLabel} (Current)` : cleanLabel,
+                isCurrent: isCur
+            });
+        }
+    });
+
+    if (cleanCur && !activeMap.has(cleanCur)) {
+        activeMap.set(cleanCur, {
+            value: cleanCur,
+            label: `${cleanCur} (Current)`,
+            isCurrent: true
+        });
+    }
+
+    return Array.from(activeMap.values()).sort((a, b) =>
+        String(b.value).localeCompare(String(a.value), undefined, { numeric: true })
+    );
+};
+
+/**
+ * Populates a target <select> element with uniform academic year options.
+ *
+ * @param {HTMLSelectElement|string} selectElementOrId
+ * @param {Array<object|string>} yearsList
+ * @param {string} currentYear
+ * @param {object} [options]
+ * @param {string} [options.selectedValue] - Value to preserve or select.
+ * @param {string} [options.placeholder] - Optional empty placeholder option.
+ * @param {boolean} [options.defaultToCurrent=true] - Default to current year if selectedValue not in list.
+ */
+export const populateAcademicYearSelect = (selectElementOrId, yearsList, currentYear, options = {}) => {
+    const select = typeof selectElementOrId === 'string' ? document.getElementById(selectElementOrId) : selectElementOrId;
+    if (!select) return;
+
+    const { selectedValue = '', placeholder = '', defaultToCurrent = true } = options;
+    const rawCur = typeof currentYear === 'object' && currentYear !== null
+        ? (currentYear.label || currentYear.year || currentYear.name || currentYear.id || '')
+        : String(currentYear || '');
+    const cleanCur = rawCur.replace(/^Session:\s*/i, '').replace(/\s*\((Active|Current)\)\s*$/i, '').trim();
+    const items = getCleanAcademicYearOptions(yearsList, cleanCur);
+
+    let html = '';
+    if (placeholder) {
+        html += `<option value="">${escapeHtml(placeholder)}</option>`;
+    }
+    html += items.map((item) => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join('');
+    select.innerHTML = html;
+
+    const availableValues = items.map((i) => i.value);
+    if (selectedValue && availableValues.includes(selectedValue)) {
+        select.value = selectedValue;
+    } else if (defaultToCurrent && cleanCur && availableValues.includes(cleanCur)) {
+        select.value = cleanCur;
+    } else if (availableValues.length > 0) {
+        select.value = availableValues[0];
+    }
+};
+
 if (typeof document !== 'undefined') {
+    initGlobalModalScrollLock();
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initInfoMessageTags);
     } else {

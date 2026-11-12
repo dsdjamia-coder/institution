@@ -1,7 +1,7 @@
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, getDocFromCache, collection, query, where, getDocs, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, hardenExternalLinks, registerServiceWorker, renderVersionInfo, sanitizeUrl, getPeriodDateRange } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, getPeriodDateRange, hardenExternalLinks, populateAcademicYearSelect, registerServiceWorker, renderVersionInfo, sanitizeUrl } from '../shared/app-common.js';
 import { registerPortalForPwa } from '../shared/pwa-install.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -1805,8 +1805,7 @@ const studentPwa = registerPortalForPwa('student', {
         const renderAcademicYearSelect = (selectId, activeYear) => {
             const select = document.getElementById(selectId);
             if (!select) return;
-            select.innerHTML = availableAcademicYears.map((year) => `<option value="${escapeHtml(year)}">${escapeHtml(year)}</option>`).join('');
-            select.value = activeYear || availableAcademicYears[0] || '';
+            populateAcademicYearSelect(select, availableAcademicYears, currentAcademicYear, { selectedValue: activeYear });
         };
         const resolveAcademicClass = (year = '', profile = {}) => {
             if (year && classByYear[year]) return classByYear[year];
@@ -5233,10 +5232,7 @@ const studentPwa = registerPortalForPwa('student', {
             // Populate Year Dropdown
             const yearSelect = document.getElementById('stu-att-year-select');
             if (yearSelect && availableAcademicYears.length) {
-                const optsHtml = availableAcademicYears.map((yr) => `<option value="${escapeHtml(yr)}" ${yr === year ? 'selected' : ''}>${escapeHtml(yr)}</option>`).join('');
-                if (yearSelect.innerHTML !== optsHtml) {
-                    yearSelect.innerHTML = optsHtml;
-                }
+                populateAcademicYearSelect(yearSelect, availableAcademicYears, currentAcademicYear, { selectedValue: year });
             }
 
             try {

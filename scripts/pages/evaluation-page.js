@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay, populateAcademicYearSelect } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // --- State Variables ---
@@ -300,7 +300,7 @@ const loadAcademicYears = async () => {
 
         const yearSelect = document.getElementById('eval-year-select');
         if (yearSelect && availableAcademicYears.length) {
-            yearSelect.innerHTML = availableAcademicYears.map((yr) => `<option value="${escapeHtml(yr)}" ${yr === selectedYear ? 'selected' : ''}>${escapeHtml(yr)}</option>`).join('');
+            populateAcademicYearSelect(yearSelect, availableAcademicYears, currentAcademicYear, { selectedValue: selectedYear });
         }
 
         const yearBadge = document.getElementById('header-active-year');
