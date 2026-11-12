@@ -455,6 +455,10 @@
                         <i class="fas fa-list w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Fee Status</span>
                     </button>
+                    <button type="button" id="nav-fee-dues" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-dues-page" data-main-group="ledgers" title="Fee Dues & Defaulters">
+                        <i class="fas fa-file-invoice-dollar w-5 text-center shrink-0 text-amber-500"></i>
+                        <span class="text-sm nav-text truncate">Fee Dues &amp; Defaulters</span>
+                    </button>
                     <button type="button" id="nav-history" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="history-page" data-main-group="ledgers" title="Payment History">
                         <i class="fas fa-history w-5 text-center shrink-0"></i>
                         <span class="text-sm nav-text truncate">Payment History</span>
@@ -1036,6 +1040,144 @@
                     <div class="text-center py-16 text-slate-400">
                         <i class="fas fa-spinner fa-spin text-3xl mb-2 text-blue-500"></i>
                         <p class="font-bold text-xs">Loading Master Fee Ledger...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Fee Dues & Defaulters Register Page -->
+            <section id="fee-dues-page" class="page-content hidden space-y-4">
+                <!-- Top Header & Export Toolbar Card -->
+                <div class="card p-4 sm:p-5 shadow-sm border border-slate-200/80 bg-white rounded-2xl">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-xl shrink-0 border border-amber-200 shadow-2xs">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h2 class="text-lg sm:text-xl font-black text-slate-800 tracking-tight">Fee Dues &amp; Defaulters Register</h2>
+                                    <span id="dues-cutoff-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">Loading Period...</span>
+                                </div>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">Identify, filter and export students with pending fees, previous years backlog dues &amp; unpaid instalments.</p>
+                            </div>
+                        </div>
+
+                        <!-- Action / Export Buttons -->
+                        <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                            <button type="button" id="dues-export-pdf-btn" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>Export PDF</span>
+                            </button>
+                            <button type="button" id="dues-export-excel-btn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                                <i class="fas fa-file-excel"></i>
+                                <span>Export Excel</span>
+                            </button>
+                            <button type="button" id="dues-print-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                                <i class="fas fa-print"></i>
+                                <span>Print</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live KPI Cards Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-100">
+                        <div class="p-3 bg-slate-50/70 border border-slate-200/70 rounded-xl">
+                            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Defaulter Students</div>
+                            <div id="dues-total-students-count" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">0</div>
+                        </div>
+                        <div class="p-3 bg-blue-50/50 border border-blue-200/60 rounded-xl">
+                            <div class="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Current Year Dues</div>
+                            <div id="dues-current-year-amount" class="text-xl sm:text-2xl font-black text-blue-900 mt-1">₹0</div>
+                        </div>
+                        <div class="p-3 bg-amber-50/50 border border-amber-200/60 rounded-xl">
+                            <div class="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Past Years' Dues</div>
+                            <div id="dues-past-years-amount" class="text-xl sm:text-2xl font-black text-amber-950 mt-1">₹0</div>
+                        </div>
+                        <div class="p-3 bg-rose-50/60 border border-rose-200/70 rounded-xl">
+                            <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Total Outstanding</div>
+                            <div id="dues-grand-total-amount" class="text-xl sm:text-2xl font-black text-rose-950 mt-1">₹0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls & Filtering Bar Card -->
+                <div class="card p-3 sm:p-4 shadow-xs border border-slate-200 bg-white rounded-2xl space-y-3">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                        <!-- 1. Academic Year -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Academic Year</label>
+                            <select id="dues-academic-year-select" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"></select>
+                        </div>
+
+                        <!-- 2. Class Filter -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Class Filter</label>
+                            <select id="dues-class-filter" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                                <option value="all">All Classes</option>
+                            </select>
+                        </div>
+
+                        <!-- 3. Month Cutoff Scope -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Dues Month Scope</label>
+                            <select id="dues-month-cutoff" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                                <option value="current">Up to Current Month (Auto)</option>
+                                <option value="all">All Months (Full Session)</option>
+                            </select>
+                        </div>
+
+                        <!-- 4. Gender Filter -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Gender</label>
+                            <select id="dues-gender-filter" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                                <option value="all">All Genders</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+
+                        <!-- 5. Minimum Due Amount -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Minimum Due</label>
+                            <select id="dues-min-amount" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                                <option value="1">All Dues (> ₹0)</option>
+                                <option value="500">Above ₹500</option>
+                                <option value="1000">Above ₹1,000</option>
+                                <option value="2000">Above ₹2,000</option>
+                            </select>
+                        </div>
+
+                        <!-- 6. Rows Per Page -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Rows Limit</label>
+                            <select id="dues-row-limit" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                                <option value="25" selected>Rows: 25</option>
+                                <option value="50">Rows: 50</option>
+                                <option value="100">Rows: 100</option>
+                                <option value="all">Show All</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Search & Past Years Toggle Bar -->
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                        <div class="relative w-full sm:max-w-md">
+                            <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                            <input type="text" id="dues-search-input" placeholder="Search by name, admission no, guardian, phone..." class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium">
+                        </div>
+
+                        <label class="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700 shrink-0">
+                            <input type="checkbox" id="dues-include-past-years" class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300" checked>
+                            <span>Include Previous Years' Backlog Dues</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Table Container Canvas -->
+                <div id="dues-table-container" class="w-full">
+                    <div class="text-center py-16 text-slate-400">
+                        <i class="fas fa-spinner fa-spin text-3xl mb-2 text-amber-500"></i>
+                        <p class="font-bold text-xs">Calculating and compiling dues register...</p>
                     </div>
                 </div>
             </section>
@@ -2140,6 +2282,12 @@
                         <i class="fas fa-table-cells"></i>
                     </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Master Ledger</span>
+                </button>
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-dues-page">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-600 text-base sm:text-lg group-hover:scale-110 transition">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Dues</span>
                 </button>
                 <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="bulk-upload-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-500 text-base sm:text-lg group-hover:scale-110 transition">

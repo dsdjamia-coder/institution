@@ -13,6 +13,7 @@ import { initCollectionSettingsModule } from './collection/settings-module.js';
 import { initMasterLedgerModule, updateMasterLedgerData } from './collection/master-ledger-module.js';
 import { initSharedFeeModal, openFeeEntryEditModal } from './collection/shared-fee-modal.js';
 import { initFinanceManagementModule, renderFeeItemsManagement, renderStudentGroups, renderConcessionsList, syncFeeConfigUI } from './collection/finance-management.js';
+import { initFeeDuesModule, updateFeeDuesData, renderFeeDues } from './collection/dues-module.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
 if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -92,6 +93,20 @@ initFinanceManagementModule({
     getDefaultFee: () => defaultFee,
     getAcademicYear: () => currentWorkingAcademicYear || selectedFeeAcademicYear || '',
     getUserEmail: () => currentUserEmail || ''
+});
+initFeeDuesModule({
+    onSelectStudentForCollection: (studentId) => {
+        const student = getStudentById(studentId) || (allStudentsRaw || []).find(s => s.id === studentId);
+        if (!student) return;
+        activateTab('home-page');
+        selectedStudentId = student.id;
+        const input = document.getElementById('entry-student-input');
+        if (input) input.value = `${student.name} (Adm: ${student.adm || '-'})`;
+        const classEl = document.getElementById('entry-class');
+        if (classEl && student.class) classEl.value = student.class;
+        populateFeeItemSelection();
+        updateTotalAmount();
+    }
 });
 
 registerServiceWorker();
@@ -356,10 +371,36 @@ const syncMasterLedgerState = () => {
 };
 window.syncMasterLedgerState = syncMasterLedgerState;
 
+const syncFeeDuesState = () => {
+    try {
+        const effectiveStudents = isMasterSuperAdmin()
+            ? (Array.isArray(students) ? students : [])
+            : (Array.isArray(students) && selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : []);
+        const effectiveClasses = isMasterSuperAdmin()
+            ? (Array.isArray(classes) ? classes : [])
+            : getClassOptionsForCollector();
+        updateFeeDuesData({
+            students: effectiveStudents,
+            rawStudents: Array.isArray(allStudentsRaw) ? allStudentsRaw : [],
+            groups: Array.isArray(studentGroups) ? studentGroups : [],
+            payments: Array.isArray(allPayments) ? allPayments : [],
+            feeItems: Array.isArray(feeItems) ? feeItems : [],
+            classes: effectiveClasses,
+            defaultFee: typeof defaultFee === 'number' ? defaultFee : 200,
+            academicYear: currentWorkingAcademicYear || '',
+            academicYearSettings: Array.isArray(academicYearSettings) ? academicYearSettings : []
+        });
+    } catch (err) {
+        console.warn('Sync fee dues error:', err);
+    }
+};
+window.syncFeeDuesState = syncFeeDuesState;
+
 const OVERFLOW_COLLECTION_TABS = new Set([
     'monthly-collected-page',
     'fee-page',
     'master-ledger-page',
+    'fee-dues-page',
     'bulk-upload-page',
     'donation-page',
     'collector-wise-monthly-page',
@@ -438,6 +479,10 @@ const activateTab = (targetId) => {
     }
     if (safeTargetId === 'fee-concessions-page' && typeof renderConcessionsList === 'function') {
         renderConcessionsList();
+    }
+    if (safeTargetId === 'fee-dues-page' && typeof renderFeeDues === 'function') {
+        syncFeeDuesState();
+        renderFeeDues();
     }
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: safeTargetId } }));
 };
@@ -2574,6 +2619,21 @@ const populateClassDropdowns = () => {
         const prevEFeeVal = eFeeClassSelect.value;
         eFeeClassSelect.innerHTML = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         if (prevEFeeVal && classes.includes(prevEFeeVal)) eFeeClassSelect.value = prevEFeeVal;
+    }
+
+    // Synchronize Fee Dues Class Filter
+    const duesClassFilter = document.getElementById('dues-class-filter');
+    if (duesClassFilter) {
+        const prevDuesVal = duesClassFilter.value || 'all';
+        duesClassFilter.innerHTML = '<option value="all">All Classes (Whole School)</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        if (prevDuesVal === 'all' || classes.includes(prevDuesVal)) duesClassFilter.value = prevDuesVal;
+    }
+
+    // Synchronize Fee Dues Academic Year Select
+    const duesYearSelect = document.getElementById('dues-academic-year-select');
+    if (duesYearSelect) {
+        const curDuesYear = duesYearSelect.value;
+        populateAcademicYearSelect(duesYearSelect, academicYearSettings, currentWorkingAcademicYear, { selectedValue: curDuesYear });
     }
 
     if (userExplicitClass && classOptions.includes(userExplicitClass)) {
@@ -7164,6 +7224,7 @@ onAuthStateChanged(auth, async (user) => {
             feeItems = sortFeeItemsForDisplay(d.feeItems || []);
             defaultReceiptMandatory = d.defaultReceiptMandatory || false;
             syncFeeConfigUI(d);
+            syncFeeDuesState();
             if (document.getElementById('fee-settings-page')?.classList.contains('hidden') === false) {
                 renderFeeItemsManagement();
             }
@@ -7194,9 +7255,11 @@ onAuthStateChanged(auth, async (user) => {
         populateClassDropdowns();
         updateDashboardMetrics();
         syncMasterLedgerState();
+        syncFeeDuesState();
         hideLoader();
         if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('students-page').classList.contains('hidden') === false) renderStudentInfoList();
+        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
 
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
@@ -7213,16 +7276,20 @@ onAuthStateChanged(auth, async (user) => {
         setupBulkUploadUI();
         updateDashboardMetrics();
         syncMasterLedgerState();
+        syncFeeDuesState();
         hideLoader();
         if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('students-page').classList.contains('hidden') === false) renderStudentInfoList();
+        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/studentGroups`), (snap) => {
         studentGroups = snap.docs.map(d => ({id: d.id, ...d.data()}));
         syncMasterLedgerState();
+        syncFeeDuesState();
         hideLoader();
         if(document.getElementById('manage-groups-page')?.classList.contains('hidden') === false) renderStudentGroups();
+        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/payments`), (snap) => {
@@ -7232,6 +7299,7 @@ onAuthStateChanged(auth, async (user) => {
         updateDashboardMetrics();
         updateHistoryStaffFilter();
         syncMasterLedgerState();
+        syncFeeDuesState();
         hideLoader();
 
         if(!isEditMode && document.getElementById('home-page').classList.contains('hidden') === false) {
@@ -7244,6 +7312,7 @@ onAuthStateChanged(auth, async (user) => {
         if(document.getElementById('monthly-collected-page').classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input').value);
         if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
         if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
+        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/donations`), (snap) => {
