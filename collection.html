@@ -1669,7 +1669,7 @@
                     </div>
                     <div>
                         <h3 class="text-sm font-black text-slate-900 leading-tight">Student Profile</h3>
-                        <p class="text-[11px] text-slate-500 font-medium leading-tight">Complete 15-Field Official Record</p>
+                        <p class="text-[11px] text-slate-500 font-medium leading-tight">Complete 16-Field Official Record</p>
                     </div>
                 </div>
                 <button type="button" id="close-profile-btn" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition" title="Close">
@@ -1692,6 +1692,7 @@
                             <span id="prof-status" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>
                             <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-600 text-white">Class: <span id="prof-class">-</span></span>
                             <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white text-slate-700 border border-slate-200">Adm: <span id="prof-adm">-</span></span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">Year: <span id="prof-academic-year">-</span></span>
                         </div>
                         <h2 id="prof-name" class="text-base sm:text-lg font-black text-slate-900 leading-snug break-words">-</h2>
                         <div class="text-[11px] text-slate-500 font-semibold mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -1702,7 +1703,7 @@
                     </div>
                 </div>
 
-                <!-- 15-Field Structured Details Grid -->
+                <!-- 16-Field Structured Details Grid -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                     <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
                         <div class="text-[10px] font-bold uppercase text-slate-400">5. Father's Name</div>
@@ -1713,7 +1714,7 @@
                         <div id="prof-mother" class="font-bold text-slate-800 mt-0.5 break-words">-</div>
                     </div>
                     <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
-                        <div class="text-[10px] font-bold uppercase text-slate-400">9. Date of Birth (DOB)</div>
+                        <div class="text-[10px] font-bold uppercase text-slate-400">9. Date of Birth</div>
                         <div id="prof-dob" class="font-bold font-mono text-slate-800 mt-0.5">-</div>
                     </div>
                     <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
@@ -1724,12 +1725,12 @@
                         <div class="text-[10px] font-bold uppercase text-slate-400">12. Aadhaar Number</div>
                         <div id="prof-aadhaar" class="font-bold font-mono text-slate-800 mt-0.5">-</div>
                     </div>
-                    <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5">
-                        <div class="text-[10px] font-bold uppercase text-emerald-700">Fee Concession</div>
-                        <div id="prof-conc" class="font-extrabold text-emerald-800 mt-0.5">None</div>
+                    <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
+                        <div class="text-[10px] font-bold uppercase text-slate-400">16. Academic Year</div>
+                        <div id="prof-academic-year-val" class="font-bold text-indigo-700 mt-0.5 font-mono">-</div>
                     </div>
                     <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
-                        <div class="text-[10px] font-bold uppercase text-slate-400">13. Father's Phone</div>
+                        <div class="text-[10px] font-bold uppercase text-slate-400">13. Father's Phone Number</div>
                         <div class="flex items-center justify-between gap-2 mt-0.5">
                             <span id="prof-mobile" class="font-bold font-mono text-slate-800">-</span>
                             <a href="#" id="prof-call-btn" class="hidden px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold items-center gap-1 shadow-2xs transition">
@@ -1738,7 +1739,7 @@
                         </div>
                     </div>
                     <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
-                        <div class="text-[10px] font-bold uppercase text-slate-400">14. Mother's Phone</div>
+                        <div class="text-[10px] font-bold uppercase text-slate-400">14. Mother's Phone Number</div>
                         <div class="flex items-center justify-between gap-2 mt-0.5">
                             <span id="prof-mother-mobile" class="font-bold font-mono text-slate-800">-</span>
                             <a href="#" id="prof-mother-call-btn" class="hidden px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold items-center gap-1 shadow-2xs transition">
@@ -1749,6 +1750,16 @@
                     <div class="sm:col-span-2 bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
                         <div class="text-[10px] font-bold uppercase text-slate-400">15. Permanent Address</div>
                         <div id="prof-addr" class="font-bold text-slate-800 mt-0.5 break-words leading-relaxed">-</div>
+                    </div>
+                </div>
+
+                <!-- Fee Concession Status -->
+                <div id="prof-concession-wrap" class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                            <i class="fas fa-hand-holding-usd text-emerald-600"></i> Fee Concession Status
+                        </span>
+                        <span id="prof-conc" class="text-xs font-extrabold text-emerald-900 bg-white border border-emerald-200 px-2.5 py-0.5 rounded-full">None</span>
                     </div>
                 </div>
 

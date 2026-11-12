@@ -608,6 +608,67 @@ export const initInfoMessageTags = () => {
     });
 };
 
+// --- 16 Canonical Student Fields Definition & Safe Normalizer ---
+export const STUDENT_STANDARD_FIELDS = Object.freeze([
+    { num: 1, key: 'photo', label: 'Student Profile Photo', type: 'image' },
+    { num: 2, key: 'class', label: 'Class', type: 'text' },
+    { num: 3, key: 'uid', label: 'ID/UID', type: 'text' },
+    { num: 4, key: 'name', label: 'Student Name', type: 'text' },
+    { num: 5, key: 'father', label: "Father's Name", type: 'text' },
+    { num: 6, key: 'mother', label: "Mother's Name", type: 'text' },
+    { num: 7, key: 'gender', label: 'Gender', type: 'text' },
+    { num: 8, key: 'adm', label: 'Admission Number (Adm. No.)', type: 'text' },
+    { num: 9, key: 'dob', label: 'Date of Birth', type: 'date' },
+    { num: 10, key: 'admDate', label: 'Date of Admission', type: 'date' },
+    { num: 11, key: 'status', label: 'Student Status', type: 'badge' },
+    { num: 12, key: 'adhaar', label: 'Aadhaar Number', type: 'text' },
+    { num: 13, key: 'mobile', label: "Father's Phone Number", type: 'tel' },
+    { num: 14, key: 'motherMobile', label: "Mother's Phone Number", type: 'tel' },
+    { num: 15, key: 'address', label: 'Permanent Address', type: 'text' },
+    { num: 16, key: 'academicYear', label: 'Academic Year', type: 'text' }
+]);
+
+export const getStudentNormalizedDetails = (student = {}, defaultAcademicYear = '') => {
+    if (!student || typeof student !== 'object') return {};
+    const prof = (student.profile && typeof student.profile === 'object') ? student.profile : {};
+    const pick = (...vals) => {
+        for (const v of vals) {
+            if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+        }
+        return '';
+    };
+    const formatDate = (val) => {
+        if (!val) return '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+            const [y, m, d] = val.split('-');
+            return `${d}/${m}/${y}`;
+        }
+        return val;
+    };
+
+    return {
+        photo: pick(student.photo, prof.photo, student.profilePhoto, student.photoUrl),
+        class: pick(student.class, student.studentClass, prof.class),
+        uid: pick(student.uid, prof.uid),
+        name: pick(student.name, prof.name),
+        father: pick(student.father, prof.father, student.guardian),
+        mother: pick(student.mother, prof.mother),
+        gender: pick(student.gender, prof.gender) || 'Male',
+        adm: pick(student.adm, prof.admNo, prof.adm),
+        dob: formatDate(pick(student.dob, prof.dob)),
+        dobRaw: pick(student.dob, prof.dob),
+        admDate: formatDate(pick(student.admDate, prof.admDate, student.adm_date, prof.adm_date)),
+        admDateRaw: pick(student.admDate, prof.admDate, student.adm_date, prof.adm_date),
+        status: pick(student.status, prof.status) || 'Active',
+        passedOutYear: pick(student.passedOutYear, student.graduatedYear),
+        adhaar: pick(student.adhaar, prof.adhaar, student.aadhaar, prof.aadhaar),
+        mobile: pick(student.mobile, prof.mobile, student.phone, prof.fatherMobile, student.fatherMobile),
+        motherMobile: pick(student.motherMobile, prof.motherMobile),
+        address: pick(student.address, prof.address, student.permanentAddress),
+        academicYear: pick(student.academicYear, prof.academicYear, defaultAcademicYear)
+    };
+};
+
 initGlobalModalScrollLock();
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {

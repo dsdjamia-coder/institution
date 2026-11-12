@@ -1039,6 +1039,10 @@ window.openStudentProfile = (id) => {
     setText('prof-aadhaar', pick(prof.adhaar, s.adhaar, prof.aadhaar, s.aadhaar));
     setText('prof-addr', pick(s.address, prof.address));
 
+    const academicYr = pick(s.academicYear, prof.academicYear, activeAcademicYear, currentAcademicYear);
+    setText('prof-academic-year', academicYr);
+    setText('prof-academic-year-val', academicYr);
+
     const statusVal = pick(s.status, prof.status) || 'Active';
     const statusEl = document.getElementById('prof-status');
     if (statusEl) {

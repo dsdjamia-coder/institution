@@ -3500,6 +3500,8 @@
                             <span>Adm: <b id="view-stu-adm" class="text-white">--</b></span>
                             <span>•</span>
                             <span>ID/UID: <b id="view-stu-uid" class="text-white">--</b></span>
+                            <span>•</span>
+                            <span>Academic Year: <b id="view-stu-academic-year" class="text-white">--</b></span>
                         </p>
                     </div>
                 </div>
@@ -3533,36 +3535,40 @@
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 text-xs">
                             <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Admission Number</span>
-                                <span id="view-stu-adm-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
-                            </div>
-                            <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Class</span>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">2. Class</span>
                                 <span id="view-stu-class-val" class="font-bold text-blue-700 text-sm mt-0.5 block">--</span>
                             </div>
                             <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">ID / UID</span>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">3. ID/UID</span>
                                 <span id="view-stu-uid-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
                             </div>
                             <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Gender</span>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">7. Gender</span>
                                 <span id="view-stu-gender-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
                             </div>
                             <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Birth</span>
-                                <span id="view-stu-dob-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">8. Admission Number (Adm. No.)</span>
+                                <span id="view-stu-adm-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
                             </div>
                             <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Date of Admission</span>
-                                <span id="view-stu-adm-date-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">9. Date of Birth</span>
+                                <span id="view-stu-dob-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
                             </div>
                             <div>
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Student Status</span>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">10. Date of Admission</span>
+                                <span id="view-stu-adm-date-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">11. Student Status</span>
                                 <span id="view-stu-status-val" class="font-bold text-slate-800 text-sm mt-0.5 block">--</span>
                             </div>
-                            <div class="sm:col-span-2">
-                                <span class="block text-[11px] font-bold text-slate-500 uppercase">Aadhaar Number</span>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">12. Aadhaar Number</span>
                                 <span id="view-stu-adhaar-val" class="font-bold text-slate-800 text-sm mt-0.5 block font-mono">--</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] font-bold text-slate-500 uppercase">16. Academic Year</span>
+                                <span id="view-stu-academic-year-val" class="font-bold text-indigo-700 text-sm mt-0.5 block font-mono">--</span>
                             </div>
                         </div>
                     </div>
@@ -3579,8 +3585,8 @@
                                     <i class="fas fa-male text-sky-600"></i> Father's Details
                                 </span>
                                 <div class="space-y-1">
-                                    <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-father-name" class="text-slate-800 text-xs">--</b></div>
-                                    <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-father-phone" class="text-slate-800 text-xs font-mono">--</b></div>
+                                    <div class="text-slate-500 text-[11px]">5. Father's Name: <b id="view-stu-father-name" class="text-slate-800 text-xs">--</b></div>
+                                    <div class="text-slate-500 text-[11px]">13. Father's Phone Number: <b id="view-stu-father-phone" class="text-slate-800 text-xs font-mono">--</b></div>
                                 </div>
                             </div>
 
@@ -3590,15 +3596,15 @@
                                     <i class="fas fa-female text-purple-600"></i> Mother's Details
                                 </span>
                                 <div class="space-y-1">
-                                    <div class="text-slate-500 text-[11px]">Name: <b id="view-stu-mother-name" class="text-slate-800 text-xs">--</b></div>
-                                    <div class="text-slate-500 text-[11px]">Phone: <b id="view-stu-mother-phone" class="text-slate-800 text-xs font-mono">--</b></div>
+                                    <div class="text-slate-500 text-[11px]">6. Mother's Name: <b id="view-stu-mother-name" class="text-slate-800 text-xs">--</b></div>
+                                    <div class="text-slate-500 text-[11px]">14. Mother's Phone Number: <b id="view-stu-mother-phone" class="text-slate-800 text-xs font-mono">--</b></div>
                                 </div>
                             </div>
 
                             <!-- Permanent Address -->
                             <div class="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                                 <span class="block text-[11px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                                    <i class="fas fa-home text-slate-600"></i> Permanent Address
+                                    <i class="fas fa-home text-slate-600"></i> 15. Permanent Address
                                 </span>
                                 <p id="view-stu-address-val" class="font-medium text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">--</p>
                             </div>

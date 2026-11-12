@@ -6289,12 +6289,14 @@ const renderStudentList = () => {
 
         if (!isActiveYear) {
             actionButtons = `
+                <button type="button" class="view-student-details-btn bg-blue-50 text-blue-700 hover:bg-blue-100 px-2.5 py-1.5 rounded-md mr-1.5 text-xs font-bold transition cursor-pointer" data-student-id="${s.id}" title="View Full 16-Field Profile"><i class="fas fa-id-card"></i></button>
                 <button class="view-student-history-btn bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ml-auto cursor-pointer" data-id="${s.id}">
                     <i class="fas fa-history"></i> History
                 </button>
             `;
         } else {
             actionButtons = `
+                <button type="button" class="view-student-details-btn bg-blue-50 text-blue-700 hover:bg-blue-100 px-2.5 py-1.5 rounded-md mr-1.5 text-xs font-bold transition cursor-pointer" data-student-id="${s.id}" title="View Full 16-Field Profile"><i class="fas fa-id-card"></i></button>
                 <button class="view-student-history-btn bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2.5 py-1.5 rounded-md mr-1.5 text-xs font-bold transition cursor-pointer" data-id="${s.id}" title="Academic History"><i class="fas fa-history"></i></button>
                 <button class="edit-student-btn bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md mr-1.5 text-xs font-bold transition cursor-pointer" data-id="${s.id}"><i class="fas fa-edit"></i> Edit</button>
                 <button class="delete-student-btn bg-red-50 text-red-600 hover:bg-red-100 px-2.5 py-1.5 rounded-md text-xs font-bold transition cursor-pointer" data-id="${s.id}"><i class="fas fa-trash"></i></button>
@@ -6317,7 +6319,11 @@ const renderStudentList = () => {
                 </div>
             </td>
             <td class="p-3 font-mono text-gray-500 font-medium">${escapeHtml(s.adm || '-')}</td>
-            <td class="p-3 font-bold text-gray-900">${escapeHtml(s.name || '-')}</td>
+            <td class="p-3 font-bold text-gray-900">
+                <button type="button" class="view-student-details-btn hover:text-blue-600 hover:underline cursor-pointer text-left inline-flex items-center gap-1.5" data-student-id="${s.id}" title="Click to view 16-field profile">
+                    <span>${escapeHtml(s.name || '-')}</span>
+                </button>
+            </td>
             <td class="p-3 text-gray-600">
                 <div>${escapeHtml(s.class || '--')} (${escapeHtml(s.gender || '--')})</div>
                 <div class="mt-1 flex flex-wrap items-center gap-1">
@@ -12887,12 +12893,15 @@ const openStudentDetailsModal = (studentId) => {
     if (genderBadge) genderBadge.textContent = student.gender || 'Not Specified';
 
     // Academic & Personal
+    const academicYrVal = student.academicYear || activeAcademicYear || currentAcademicYear || '--';
+    setText('view-stu-academic-year', academicYrVal);
+    setText('view-stu-academic-year-val', academicYrVal);
     setText('view-stu-adm-val', student.adm || '--');
     setText('view-stu-class-val', student.class ? `Class ${student.class}` : '--');
     setText('view-stu-uid-val', student.uid || student.id || '--');
     setText('view-stu-gender-val', student.gender || '--');
-    setText('view-stu-dob-val', student.dob || '--');
-    setText('view-stu-adm-date-val', student.admDate || '--');
+    setText('view-stu-dob-val', student.dob ? (student.dob.includes('-') && student.dob.split('-').length === 3 ? `${student.dob.split('-')[2]}/${student.dob.split('-')[1]}/${student.dob.split('-')[0]}` : student.dob) : '--');
+    setText('view-stu-adm-date-val', student.admDate ? (student.admDate.includes('-') && student.admDate.split('-').length === 3 ? `${student.admDate.split('-')[2]}/${student.admDate.split('-')[1]}/${student.admDate.split('-')[0]}` : student.admDate) : '--');
     setText('view-stu-status-val', student.status || 'Active');
     setText('view-stu-adhaar-val', student.adhaar || '--');
 
