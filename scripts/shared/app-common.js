@@ -354,7 +354,7 @@ export const renderVersionInfo = (options = {}) => {
 
 export const applyInstitutionBranding = (conf = {}, options = {}) => {
     const {
-        defaultAppName = 'Institution',
+        defaultAppName = 'Institution Tracer',
         defaultSubtitle = 'Excellence in Education',
         headerTitleIds = ['header-title'],
         primaryTitleIds = [],

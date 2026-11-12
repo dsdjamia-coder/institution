@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Institutional Management System",
-  "short_name": "InstManage",
-  "description": "Official Institutional Management Application",
+  "name": "Institution Tracer",
+  "short_name": "InstTracer",
+  "description": "Official Institution Tracer Management Application",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

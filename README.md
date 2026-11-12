@@ -1,4 +1,4 @@
-# Institutional Management System (IMS) - Enterprise Educational & Financial Platform
+# Institution Tracer (IMS) - Enterprise Educational & Financial Platform
 
 A comprehensive, production-grade institutional web platform engineered for modern educational institutions (schools, colleges, academies, and institutes). The platform provides an all-in-one suite covering student information management, counter fee collection, academic curriculum planning, dynamic routine and exam timetabling, interactive syllabus tracking, daily session attendance, co-curricular activities, marksheet generation, dynamic classroom spreadsheets, emergency rollback runbooks, and granular administrative controls.
 

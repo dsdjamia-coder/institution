@@ -1,6 +1,6 @@
 # DEVELOPER GUIDELINES & APPLICATION WORKFLOW
 
-> **System:** Institutional Management System (IMS) - Enterprise Educational & Financial Management Platform (`feee050`)  
+> **System:** Institution Tracer (IMS) - Enterprise Educational & Financial Management Platform (`feee050`)  
 > **Target Audience:** Software Architects, Developers, and AI Coding Partners  
 > **Primary Rule:** Plan First, Wait for User Approval, Think Independently, Implement Safely.
 

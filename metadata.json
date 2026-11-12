@@ -1,6 +1,6 @@
 {
-  "name": "Institutional Management System",
-  "description": "Fee management and administrative system for academic institutions.",
+  "name": "Institution Tracer",
+  "description": "Institution Tracer - Management and administrative system for academic institutions.",
   "requestFramePermissions": ["camera"],
   "permissions": {},
   "capabilities": [
