@@ -768,7 +768,14 @@ const loadDashboardView = async () => {
         return;
     }
 
-    const classStudents = allStudents.filter(s => isClassInDutyScope(s.class, [selectedDashClass]) && s.status !== 'alumni');
+    const classStudents = allStudents.filter(s => {
+        const yearEntry = (s.academicYears && typeof s.academicYears === 'object') ? s.academicYears[currentAcademicYear] : null;
+        const stuClass = String(yearEntry?.class || s.class || '').trim();
+        const stuStatus = String(yearEntry?.status || s.status || '').trim().toLowerCase();
+        if (stuStatus === 'alumni' || stuStatus === 'graduated' || stuStatus === 'discontinued' || s.isAlumni) return false;
+        const matchesYear = yearEntry || (!s.academicYear || s.academicYear === currentAcademicYear);
+        return matchesYear && isClassInDutyScope(stuClass, [selectedDashClass]);
+    });
     const totalStudents = classStudents.length;
     if (studentsEl) studentsEl.textContent = totalStudents;
 

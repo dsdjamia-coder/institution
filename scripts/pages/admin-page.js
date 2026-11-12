@@ -1307,11 +1307,10 @@ const syncAllStudentsLookupIndex = async (studentsList = rawStudents, onProgress
 // Institutional Student Statistics Helpers
 const computeInstitutionalStats = (targetYear = null) => {
     const activeYear = targetYear || getActiveAcademicYearLabel();
-    const studentsInYear = rawStudents.filter((st) => {
+    const studentsInYear = getStudentsForYear(activeYear).filter((st) => {
         if (!st || st.status === 'Discontinued' || normalizeStudentStatus(st.status) === 'Alumni' || st.isAlumni === true) return false;
         if (String(st.class || '').trim().toUpperCase() === 'ALUMNI' || String(st.class || '').trim().toUpperCase() === 'GRADUATED') return false;
-        const sYear = st.academicYear || activeYear;
-        return sYear === activeYear;
+        return true;
     });
 
     let totalMale = 0;
@@ -1804,26 +1803,114 @@ const ensureActiveAdminPageAccess = () => {
         activateAdminPage('dashboard', { suppressDeniedAlert: true });
     }
 };
-const renderDashboard = () => {
-    const activeYear = getActiveAcademicYearLabel();
-    const activeStaffCount = allStaff.filter((staff) => staff.isActive).length;
-    const femaleCount = students.filter((student) => normalizeGenderLabel(student?.gender) === 'Female').length;
-    const maleCount = students.filter((student) => normalizeGenderLabel(student?.gender) === 'Male').length;
-    const setupChecks = [classes.length > 0, students.length > 0, feeItems.length > 0, adminAccounts.filter((account) => account.isActive).length > 0].filter(Boolean).length;
+let selectedDashboardAcademicYear = '';
 
-    document.getElementById('dashboard-active-year').textContent = activeYear;
-    document.getElementById('dashboard-active-year-status').textContent = `${academicYears.length || 1} academic year record(s) configured`;
-    document.getElementById('dashboard-student-count').textContent = students.filter((student) => normalizeStudentStatus(student.status) === 'Active').length;
-    document.getElementById('dashboard-class-count').textContent = classes.length;
-    document.getElementById('dashboard-staff-count').textContent = activeStaffCount;
-    document.getElementById('dashboard-fee-item-count').textContent = feeItems.length;
-    document.getElementById('dashboard-group-count').textContent = studentGroups.length;
-    document.getElementById('dashboard-female-count').textContent = femaleCount;
-    document.getElementById('dashboard-male-count').textContent = maleCount;
-    document.getElementById('dashboard-setup-status').textContent = setupChecks === 4 ? 'Stage 3 workflow ready' : 'Setup pending';
-    document.getElementById('academic-year-active-badge').textContent = activeYear;
-    document.getElementById('dashboard-admin-count').textContent = String(adminAccounts.filter((account) => account.isActive).length);
-    document.getElementById('dashboard-audit-count').textContent = String(Math.min(auditLogs.length, 99));
+const getStaffForAcademicYear = (targetYear) => {
+    const effYear = targetYear || getActiveAcademicYearLabel();
+    return (allStaff || []).filter((s) => {
+        if (!s || s.isActive === false) return false;
+        if (s.type === 'Teacher') {
+            if (s.dutyClassesByYear && typeof s.dutyClassesByYear === 'object') {
+                const classesInYear = s.dutyClassesByYear[effYear];
+                if (Array.isArray(classesInYear)) {
+                    return classesInYear.filter(Boolean).length > 0;
+                }
+            }
+            if (Array.isArray(s.dutyClasses) && s.dutyClasses.length > 0) {
+                return effYear === getActiveAcademicYearLabel();
+            }
+            return true;
+        }
+        return true;
+    });
+};
+
+const getFeeItemsForAcademicYear = (targetYear) => {
+    const effYear = targetYear || getActiveAcademicYearLabel();
+    return (feeItems || []).filter((item) => {
+        if (!item) return false;
+        const itemYear = item.academicYear || effYear;
+        return itemYear === effYear && item.isVisible !== false;
+    });
+};
+
+const renderDashboard = () => {
+    const activeLabel = getActiveAcademicYearLabel();
+    const yearSelect = document.getElementById('dashboard-academic-year-select');
+    if (yearSelect) {
+        if (!yearSelect.dataset.wired) {
+            yearSelect.dataset.wired = 'true';
+            yearSelect.addEventListener('change', (e) => {
+                selectedDashboardAcademicYear = e.target.value;
+                renderDashboard();
+            });
+        }
+        const curSelectVal = selectedDashboardAcademicYear || yearSelect.value || activeLabel;
+        populateAcademicYearSelect(yearSelect, academicYears, activeLabel, { selectedValue: curSelectVal });
+        selectedDashboardAcademicYear = yearSelect.value || activeLabel;
+    }
+
+    const targetYear = selectedDashboardAcademicYear || activeLabel;
+    const isCurrentSession = (targetYear === activeLabel);
+
+    // 1. Scoped Students
+    const targetStudents = getStudentsForYear(targetYear);
+    const activeStudentsList = targetStudents.filter((s) => normalizeStudentStatus(s.status) === 'Active');
+    const femaleCount = activeStudentsList.filter((s) => normalizeGenderLabel(s?.gender) === 'Female').length;
+    const maleCount = activeStudentsList.filter((s) => normalizeGenderLabel(s?.gender) === 'Male').length;
+
+    // 2. Scoped Classes
+    const targetClasses = getClassesForYear(targetYear);
+
+    // 3. Scoped Staff
+    const targetStaff = getStaffForAcademicYear(targetYear);
+
+    // 4. Scoped Fee Items
+    const targetFeeItems = getFeeItemsForAcademicYear(targetYear);
+
+    // 5. Scoped Groups
+    const targetGroups = (allStudentGroups || []).filter((g) => (g.academicYear || currentAcademicYear || activeLabel) === targetYear);
+
+    // Header and Pills
+    const pillEl = document.getElementById('dashboard-session-pill');
+    if (pillEl) {
+        pillEl.textContent = isCurrentSession ? 'Current' : 'Historical';
+        pillEl.className = `text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+            isCurrentSession ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+        }`;
+    }
+
+    const activeYearEl = document.getElementById('dashboard-active-year');
+    if (activeYearEl) activeYearEl.textContent = targetYear;
+
+    const statusEl = document.getElementById('dashboard-active-year-status');
+    if (statusEl) {
+        statusEl.textContent = isCurrentSession
+            ? `Active Session • ${academicYears.length || 1} session(s) configured`
+            : `Viewing historical session (${targetYear})`;
+    }
+
+    // Set KPI Counts
+    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+    setTxt('dashboard-student-count', activeStudentsList.length);
+    setTxt('dashboard-class-count', targetClasses.length);
+    setTxt('dashboard-staff-count', targetStaff.length);
+    setTxt('dashboard-fee-item-count', targetFeeItems.length);
+    setTxt('dashboard-group-count', targetGroups.length);
+    setTxt('dashboard-female-count', femaleCount);
+    setTxt('dashboard-male-count', maleCount);
+
+    // Set Subtitles
+    setTxt('dashboard-student-sub', `Active records in ${targetYear}`);
+    setTxt('dashboard-class-sub', `Active classes in ${targetYear}`);
+    setTxt('dashboard-staff-sub', `Active accounts in ${targetYear}`);
+    setTxt('dashboard-fee-sub', `Configured items in ${targetYear}`);
+
+    const setupChecks = [targetClasses.length > 0, activeStudentsList.length > 0, targetFeeItems.length > 0, adminAccounts.filter((account) => account.isActive).length > 0].filter(Boolean).length;
+    setTxt('dashboard-setup-status', setupChecks === 4 ? 'Stage 3 workflow ready' : 'Setup pending');
+    setTxt('academic-year-active-badge', activeLabel);
+    setTxt('dashboard-admin-count', adminAccounts.filter((account) => account.isActive).length);
+    setTxt('dashboard-audit-count', Math.min(auditLogs.length, 99));
     renderSessionMonitor();
 };
 

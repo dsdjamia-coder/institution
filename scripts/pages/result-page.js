@@ -2268,7 +2268,16 @@ function updateDashboard() {
         : classes;
     const yearStudents = isTeacherScope && teacherAssignedClasses.length === 0
         ? []
-        : students.filter((s) => (!isTeacherScope || isClassInDutyScope(s.class, teacherAssignedClasses)) && (s.academicYear === currentAcademicYear || !s.academicYear) && String(s.class || '').trim().toLowerCase() !== 'alumni' && s.status !== 'alumni' && s.status !== 'graduated');
+        : students.filter((s) => {
+            const yearEntry = (s.academicYears && typeof s.academicYears === 'object') ? s.academicYears[currentAcademicYear] : null;
+            const stuClass = String(yearEntry?.class || s.class || '').trim();
+            const stuStatus = String(yearEntry?.status || s.status || '').trim().toLowerCase();
+            const isAlum = stuStatus === 'alumni' || stuStatus === 'graduated' || stuStatus === 'discontinued' || s.isAlumni || stuClass.toLowerCase() === 'alumni';
+            if (isAlum) return false;
+            const matchesYear = yearEntry || (!s.academicYear || s.academicYear === currentAcademicYear);
+            if (!matchesYear) return false;
+            return !isTeacherScope || isClassInDutyScope(stuClass, teacherAssignedClasses);
+        });
     const yearRows = isTeacherScope && teacherAssignedClasses.length === 0
         ? []
         : examResultsCache.filter((row) => (!isTeacherScope || isClassInDutyScope(row.classLabel, teacherAssignedClasses)) && (row.academicYear === currentAcademicYear || !row.academicYear));
