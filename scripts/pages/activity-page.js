@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay, resolveAcademicYearClasses } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
@@ -514,7 +514,22 @@ const setupRealtimeListeners = () => {
         }
     });
 
-    // 2. Academic Years
+    // 2. Academic Years & Classes Helper
+    let configuredSettingsClasses = [];
+    const refreshActivityClasses = () => {
+        allClasses = resolveAcademicYearClasses({
+            academicYears: availableAcademicYears,
+            targetYear: currentAcademicYear,
+            configuredClasses: configuredSettingsClasses,
+            students: allStudents
+        });
+        if (!allClasses.length) {
+            allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+        }
+        populateClassDropdowns();
+        reloadActiveTabRoster();
+    };
+
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
@@ -537,27 +552,23 @@ const setupRealtimeListeners = () => {
         if (currentAcademicYear) {
             loadRewardsRubric();
         }
-        reloadActiveTabRoster();
+        refreshActivityClasses();
     });
 
     // 3. Classes
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
-            allClasses = (data.list || data.classes || []).map(c => String(c.id || c.name || c).trim()).filter(Boolean);
+            configuredSettingsClasses = (data.list || data.classes || []).map(c => String(c.id || c.name || c).trim()).filter(Boolean);
         }
-        if (!allClasses.length) {
-            allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-        }
-        populateClassDropdowns();
-        reloadActiveTabRoster();
+        refreshActivityClasses();
     });
 
     // 4. Students
     onSnapshot(collection(db, `${BASE_PATH}/students`), (snap) => {
         allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         populateStudentSelect();
-        reloadActiveTabRoster();
+        refreshActivityClasses();
     });
 
     // 5. Staff Roster & Duty Classes Sync

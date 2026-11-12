@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect, resolveAcademicYearClasses } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -611,7 +611,20 @@ const setupRealtimeListeners = () => {
         }
     });
 
-    // 2. Academic Years
+    // 2. Academic Years & Classes Helper
+    let configuredSettingsClasses = [];
+    const refreshAcademicPlanClasses = () => {
+        allClasses = resolveAcademicYearClasses({
+            academicYears: availableAcademicYears,
+            targetYear: currentAcademicYear,
+            configuredClasses: configuredSettingsClasses
+        });
+        if (!allClasses.length) {
+            allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+        }
+        populateClassDropdowns();
+    };
+
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
@@ -628,6 +641,7 @@ const setupRealtimeListeners = () => {
             activeYearEl.textContent = currentAcademicYear ? `Session ${currentAcademicYear}` : 'No Active Session';
         }
         populateAcademicYearDropdowns();
+        refreshAcademicPlanClasses();
         loadAllClassCardsData(currentAcademicYear);
         loadClassSubjects();
     });
@@ -636,12 +650,9 @@ const setupRealtimeListeners = () => {
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
         if (snap.exists()) {
             const data = snap.data();
-            allClasses = (data.list || data.classes || []).map(c => String(c.id || c.name || c).trim()).filter(Boolean);
+            configuredSettingsClasses = (data.list || data.classes || []).map(c => String(c.id || c.name || c).trim()).filter(Boolean);
         }
-        if (!allClasses.length) {
-            allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-        }
-        populateClassDropdowns();
+        refreshAcademicPlanClasses();
     });
 
     // 4. Attendance Calendar & Weekly Off Settings Sync

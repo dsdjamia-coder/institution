@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect, resolveAcademicYearClasses } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
@@ -432,27 +432,15 @@ const setupFirestoreListeners = () => {
     });
 
     const refreshAllClasses = () => {
-        const classSet = new Set();
-        (configuredClasses || []).forEach(c => {
-            const str = String(c?.id || c?.name || c || '').trim();
-            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
+        allClasses = resolveAcademicYearClasses({
+            academicYears: academicYearRecords,
+            targetYear: currentAcademicYear,
+            configuredClasses,
+            students: allStudents
         });
-        const activeYr = (academicYearRecords || []).find(y => (y.label || y.id) === currentAcademicYear) || academicYearRecords[0];
-        if (activeYr && Array.isArray(activeYr.classes)) {
-            activeYr.classes.forEach(c => {
-                const str = String(c || '').trim();
-                if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
-            });
+        if (!allClasses.length) {
+            allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
         }
-        if (classSet.size === 0) {
-            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach(c => classSet.add(c));
-        }
-        (allStudents || []).forEach(s => {
-            const str = String(s.class || '').trim();
-            if (str && str.toLowerCase() !== 'alumni') classSet.add(str);
-        });
-
-        allClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         populateClassDropdowns();
         populateHolidayClassesCheckboxes();
     };

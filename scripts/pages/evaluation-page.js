@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay, populateAcademicYearSelect } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay, populateAcademicYearSelect, resolveAcademicYearClasses } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // --- State Variables ---
@@ -15,6 +15,8 @@ let teacherAssignedClasses = [];
 let institutionConfig = {};
 let currentAcademicYear = '2025-2026';
 let availableAcademicYears = ['2025-2026', '2026-2027'];
+let academicYearRecords = [];
+let configuredClasses = [];
 let allStudents = [];
 let allClasses = [];
 
@@ -289,6 +291,7 @@ const loadAcademicYears = async () => {
                 return Boolean(y);
             });
             if (nonArchived.length > 0) {
+                academicYearRecords = nonArchived;
                 availableAcademicYears = nonArchived.map((y) => typeof y === 'string' ? y : y.label || y.year || y.name || y.id).filter(Boolean);
             }
             const rawActive = data.currentYear || data.activeYear || availableAcademicYears[0] || '2025-2026';
@@ -657,21 +660,23 @@ const fetchStudentsAndClasses = async () => {
             const classesSnap = await getDoc(doc(db, `${BASE_PATH}/settings`, 'classes'));
             if (classesSnap.exists()) {
                 const data = classesSnap.data();
-                (data.list || data.classes || []).forEach((c) => {
-                    const cName = String(c.id || c.name || c).trim();
-                    if (cName && cName.toLowerCase() !== 'alumni') classesSet.add(cName);
-                });
+                configuredClasses = (data.list || data.classes || []).map((c) => String(c.id || c.name || c).trim()).filter(Boolean);
             }
         } catch (e) {
             console.warn('Could not load settings/classes', e);
         }
 
-        if (classesSet.size === 0) {
-            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach((c) => classesSet.add(c));
-        }
-
         allStudents = list;
-        allClasses = Array.from(classesSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        allClasses = resolveAcademicYearClasses({
+            academicYears: academicYearRecords,
+            targetYear: selectedYear || currentAcademicYear,
+            configuredClasses,
+            students: list
+        });
+
+        if (allClasses.length === 0) {
+            allClasses = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+        }
 
         populateClassDropdown();
         if (selectedClass) {

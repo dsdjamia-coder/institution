@@ -362,10 +362,13 @@ const renderFilterControls = () => {
 
     // Populate Class Filter Dropdown
     const classFilterSelect = document.getElementById('ledger-class-filter');
-    if (classFilterSelect) {
-        const uniqueClasses = [...new Set(ledgerStudents.map(s => s.class || s.studentClass).filter(Boolean))]
-            .sort((a, b) => getClassRank(b) - getClassRank(a));
+    const studentClasses = ledgerStudents.map(s => s.class || s.studentClass).filter(Boolean);
+    const combinedClasses = Array.isArray(ledgerClasses) && ledgerClasses.length
+        ? [...new Set([...ledgerClasses, ...studentClasses])]
+        : [...new Set(studentClasses)];
+    const uniqueClasses = combinedClasses.sort((a, b) => (getClassRank(b) - getClassRank(a)) || a.localeCompare(b, undefined, { numeric: true }));
 
+    if (classFilterSelect) {
         let opts = `<option value="">Filter: All Classes</option>`;
         uniqueClasses.forEach(c => {
             opts += `<option value="${escapeHtml(c)}" ${filters.classFilter === c ? 'selected' : ''}>Class: ${escapeHtml(c)}</option>`;
@@ -376,8 +379,7 @@ const renderFilterControls = () => {
     // Populate Class Order Dropdown dynamically
     const classOrderSelect = document.getElementById('ledger-class-order');
     if (classOrderSelect) {
-        const detectedRanks = ledgerStudents.map(s => s.class || s.studentClass).filter(Boolean)
-            .sort((a, b) => getClassRank(b) - getClassRank(a));
+        const detectedRanks = uniqueClasses;
         const highestClass = detectedRanks[0] || '+2';
         const lowestClass = detectedRanks[detectedRanks.length - 1] || '1';
 

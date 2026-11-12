@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, populateAcademicYearSelect, registerServiceWorker, renderVersionInfo } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, populateAcademicYearSelect, registerServiceWorker, renderVersionInfo, resolveAcademicYearClasses } from '../shared/app-common.js';
 import { appLog } from '../shared/logger.js';
 import { showToast } from '../shared/toaster.js';
 import { initCollectionEntryModule } from './collection/entry-module.js';
@@ -2474,12 +2474,11 @@ const editMultiEntryItem = (index = -1) => {
 
 // --- FEE ENTRY & LOGIC ---
 const populateClassDropdowns = () => {
-    classes = [...new Set(students.map(s => s.class).filter(Boolean))]
-        .filter(c => {
-            const u = String(c).trim().toUpperCase();
-            return u && u !== 'ALUMNI' && u !== 'GRADUATED' && u !== 'ALUMNI_DUES';
-        })
-        .sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+    classes = resolveAcademicYearClasses({
+        academicYears: academicYearSettings,
+        targetYear: currentWorkingAcademicYear,
+        students: Array.isArray(students) ? students : []
+    });
     const isSuperAdmin = isMasterSuperAdmin();
     const classOptions = getClassOptionsForCollector().filter(c => {
         const u = String(c).trim().toUpperCase();
@@ -2494,15 +2493,40 @@ const populateClassDropdowns = () => {
     const alumniFilterOpt = allowAlumni ? `<optgroup label="Alumni"><option value="ALUMNI_DUES">🎓 Alumni</option></optgroup>` : '';
     const alumniEntryOpt = allowAlumni ? `<optgroup label="Alumni"><option value="ALUMNI_DUES">🎓 Alumni</option></optgroup>` : '';
 
+    // Fee Status Class Filter resolves for selected filter-academic-year if different from working year
+    const filterYear = document.getElementById('filter-academic-year')?.value || currentWorkingAcademicYear;
+    const filterClasses = (filterYear && filterYear !== currentWorkingAcademicYear)
+        ? resolveAcademicYearClasses({
+            academicYears: academicYearSettings,
+            targetYear: filterYear,
+            students: Array.isArray(allStudentsRaw) ? allStudentsRaw : students
+        })
+        : classes;
+    const filterClassOptions = isSuperAdmin ? filterClasses : filterClasses.filter(cls => isClassInDutyScope(cls, selectedDutyClasses));
+
     if (isSuperAdmin) {
-        const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + opts + alumniFilterOpt;
+        const opts = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const filterOpts = filterClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const curFilterVal = filterClassEl ? filterClassEl.value : 'all';
+        if (filterClassEl) {
+            filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + filterOpts + alumniFilterOpt;
+            if (curFilterVal && (curFilterVal === 'all' || curFilterVal === 'ALUMNI_DUES' || filterClasses.includes(curFilterVal))) {
+                filterClassEl.value = curFilterVal;
+            }
+        }
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
-    } else if (classOptions.length > 0) {
-        const opts = classOptions.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (filterClassEl) filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts + alumniFilterOpt;
+    } else if (classOptions.length > 0 || filterClassOptions.length > 0) {
+        const opts = classOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const filterOpts = filterClassOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const curFilterVal = filterClassEl ? filterClassEl.value : 'all';
+        if (filterClassEl) {
+            filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${filterClassOptions.length})</option>` + filterOpts + alumniFilterOpt;
+            if (curFilterVal && (curFilterVal === 'all' || curFilterVal === 'ALUMNI_DUES' || filterClassOptions.includes(curFilterVal))) {
+                filterClassEl.value = curFilterVal;
+            }
+        }
         if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
@@ -2518,14 +2542,38 @@ const populateClassDropdowns = () => {
     const filterConc = document.getElementById('filter-conc-class');
     if (filterConc) {
         const prevVal = filterConc.value;
-        filterConc.innerHTML = `<option value="">-- All Classes / Select --</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        filterConc.innerHTML = `<option value="">-- All Classes / Select --</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         if (classes.includes(prevVal)) filterConc.value = prevVal;
     }
     const activeConcClassFilter = document.getElementById('active-conc-class-filter');
     if (activeConcClassFilter) {
         const prevActVal = activeConcClassFilter.value;
-        activeConcClassFilter.innerHTML = `<option value="all">All Classes</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        activeConcClassFilter.innerHTML = `<option value="all">All Classes</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
         if (prevActVal === 'all' || classes.includes(prevActVal)) activeConcClassFilter.value = prevActVal;
+    }
+
+    // Synchronize Student Groups Class Filter
+    const grpClassFilter = document.getElementById('grp-class-filter');
+    if (grpClassFilter) {
+        const prevGrpVal = grpClassFilter.value || 'all';
+        grpClassFilter.innerHTML = '<option value="all">All Classes</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        if (prevGrpVal === 'all' || classes.includes(prevGrpVal)) grpClassFilter.value = prevGrpVal;
+    }
+
+    // Synchronize Advanced Fee Target Class Dropdown
+    const advFeeClassSelect = document.getElementById('adv-fee-specific-class');
+    if (advFeeClassSelect) {
+        const prevAdvVal = advFeeClassSelect.value;
+        advFeeClassSelect.innerHTML = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        if (prevAdvVal && classes.includes(prevAdvVal)) advFeeClassSelect.value = prevAdvVal;
+    }
+
+    // Synchronize Edit Fee Target Class Dropdown
+    const eFeeClassSelect = document.getElementById('e-fee-specific-class');
+    if (eFeeClassSelect) {
+        const prevEFeeVal = eFeeClassSelect.value;
+        eFeeClassSelect.innerHTML = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        if (prevEFeeVal && classes.includes(prevEFeeVal)) eFeeClassSelect.value = prevEFeeVal;
     }
 
     if (userExplicitClass && classOptions.includes(userExplicitClass)) {
@@ -2591,6 +2639,7 @@ let feeStatusPageOffset = 0;
 
 document.getElementById('filter-academic-year')?.addEventListener('change', () => {
     feeStatusPageOffset = 0;
+    populateClassDropdowns();
     renderFeeTable();
 });
 document.getElementById('filter-class').addEventListener('change', () => {

@@ -439,9 +439,17 @@ export const renderStudentGroups = () => {
 
 const populateExistingGroupClassFilter = () => {
     const classFilter = document.getElementById('grp-class-filter');
-    if (!classFilter || classFilter.options.length > 1) return;
-    const classes = ctx.getClasses();
-    classFilter.innerHTML = '<option value="all">All Classes</option>' + classes.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (!classFilter) return;
+    const curVal = classFilter.value || 'all';
+    const classes = ctx.getClasses ? ctx.getClasses() : [];
+    const validClasses = classes.filter(c => {
+        const u = String(c).trim().toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED' && u !== 'ALUMNI_DUES';
+    });
+    classFilter.innerHTML = '<option value="all">All Classes</option>' + validClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (curVal === 'all' || validClasses.includes(curVal)) {
+        classFilter.value = curVal;
+    }
 };
 
 const populateExistingGroupSizeFilter = (uniqueGroups = []) => {
@@ -1289,15 +1297,7 @@ export const initFinanceManagementModule = (stateContext) => {
     document.getElementById('active-conc-class-filter')?.addEventListener('change', renderActiveConcessionsList);
 
     // Populate concession class filter dropdowns
-    const concClassFilter = document.getElementById('filter-conc-class');
-    const activeConcClassFilter = document.getElementById('active-conc-class-filter');
-    const classes = ctx.getClasses();
-    if (concClassFilter && concClassFilter.options.length <= 1) {
-        concClassFilter.innerHTML = '<option value="">-- All Classes / Select --</option>' + classes.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    }
-    if (activeConcClassFilter && activeConcClassFilter.options.length <= 1) {
-        activeConcClassFilter.innerHTML = '<option value="all">All Classes</option>' + classes.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    }
+    populateConcessionClassFilters();
 
     document.getElementById('fee-concessions-page')?.addEventListener('click', async (e) => {
         const openBtn = e.target.closest('.concession-open-btn');

@@ -761,6 +761,89 @@ export const populateAcademicYearSelect = (selectElementOrId, yearsList, current
     }
 };
 
+/**
+ * Natural sort comparison for class names and divisions.
+ * Accurately sorts numeric class names ('1', '2', '10', '12'),
+ * alphanumeric designations ('1A', '1B', '10-A', '10-B'),
+ * and preserved custom text strings ('LKG', 'UKG', 'Plus One').
+ */
+export const compareClassLabelsNatural = (a = '', b = '') => {
+    return String(a || '').trim().localeCompare(String(b || '').trim(), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+    });
+};
+
+/**
+ * Resolves the complete list of classes for a given academic year:
+ * 1. Retrieves classes configured in settings/academicYears for the matching session.
+ * 2. Merges with secondary fallback configuredClasses (settings/classes).
+ * 3. Merges with any student class values (to guarantee existing students match).
+ * 4. Filters out invalid values (Alumni, Graduated, empty).
+ * 5. Preserves exact naming, punctuation, and casing defined by Admin.
+ * 6. Sorts naturally.
+ */
+export const resolveAcademicYearClasses = ({
+    academicYears = [],
+    targetYear = '',
+    students = [],
+    configuredClasses = []
+} = {}) => {
+    const classSet = new Set();
+    const cleanTargetYear = String(
+        typeof targetYear === 'object' && targetYear !== null
+            ? (targetYear.label || targetYear.year || targetYear.id || '')
+            : targetYear || ''
+    ).replace(/^Session:\s*/i, '').replace(/\s*\((Active|Current)\)\s*$/i, '').trim();
+
+    // 1. From academicYears settings
+    const yearList = Array.isArray(academicYears) ? academicYears : [];
+    let matchedYear = null;
+    if (cleanTargetYear) {
+        matchedYear = yearList.find(y => {
+            const yLabel = String(typeof y === 'object' && y !== null ? (y.label || y.year || y.id || '') : y || '').trim();
+            return yLabel && yLabel.toLowerCase() === cleanTargetYear.toLowerCase();
+        });
+    }
+    if (!matchedYear && yearList.length > 0) {
+        matchedYear = yearList.find(y => typeof y === 'object' && y !== null && (y.isCurrent === true || y.active === true || String(y.status || '').toLowerCase() === 'active'))
+            || (typeof yearList[0] === 'object' ? yearList[0] : null);
+    }
+
+    if (matchedYear && Array.isArray(matchedYear.classes)) {
+        matchedYear.classes.forEach(c => {
+            const str = String(c?.name || c?.id || c || '').trim();
+            if (str) classSet.add(str);
+        });
+    }
+
+    // 2. From configuredClasses fallback (e.g. settings/classes)
+    (Array.isArray(configuredClasses) ? configuredClasses : []).forEach(c => {
+        const str = String(c?.name || c?.id || c || '').trim();
+        if (str) classSet.add(str);
+    });
+
+    // 3. From students enrolled in this session / active students
+    (Array.isArray(students) ? students : []).forEach(s => {
+        const str = String(s.class || s.studentClass || s.className || '').trim();
+        if (str) classSet.add(str);
+        if (s.academicYears && typeof s.academicYears === 'object' && cleanTargetYear) {
+            const yrData = s.academicYears[cleanTargetYear];
+            const yrClass = String(yrData?.class || yrData?.studentClass || '').trim();
+            if (yrClass) classSet.add(yrClass);
+        }
+    });
+
+    // 4. Filter exclusions (Alumni, Graduated, Alumni Dues, empty)
+    const cleanClasses = Array.from(classSet).filter(c => {
+        const u = c.toUpperCase();
+        return u && u !== 'ALUMNI' && u !== 'GRADUATED' && u !== 'ALUMNI_DUES';
+    });
+
+    // 5. Natural sort
+    return cleanClasses.sort(compareClassLabelsNatural);
+};
+
 if (typeof document !== 'undefined') {
     initGlobalModalScrollLock();
     if (document.readyState === 'loading') {
