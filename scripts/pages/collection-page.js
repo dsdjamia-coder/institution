@@ -371,7 +371,7 @@ const syncMasterLedgerState = () => {
 };
 window.syncMasterLedgerState = syncMasterLedgerState;
 
-const syncFeeDuesState = () => {
+const syncFeeDuesState = (preferredClass) => {
     try {
         const effectiveStudents = isMasterSuperAdmin()
             ? (Array.isArray(students) ? students : [])
@@ -379,6 +379,9 @@ const syncFeeDuesState = () => {
         const effectiveClasses = isMasterSuperAdmin()
             ? (Array.isArray(classes) ? classes : [])
             : getClassOptionsForCollector();
+        const activeClass = preferredClass !== undefined
+            ? preferredClass
+            : (document.getElementById('dues-class-filter')?.value || document.getElementById('filter-class')?.value || 'all');
         updateFeeDuesData({
             students: effectiveStudents,
             rawStudents: Array.isArray(allStudentsRaw) ? allStudentsRaw : [],
@@ -388,7 +391,8 @@ const syncFeeDuesState = () => {
             classes: effectiveClasses,
             defaultFee: typeof defaultFee === 'number' ? defaultFee : 200,
             academicYear: currentWorkingAcademicYear || '',
-            academicYearSettings: Array.isArray(academicYearSettings) ? academicYearSettings : []
+            academicYearSettings: Array.isArray(academicYearSettings) ? academicYearSettings : [],
+            initialClass: activeClass
         });
     } catch (err) {
         console.warn('Sync fee dues error:', err);
@@ -481,7 +485,12 @@ const activateTab = (targetId) => {
         renderConcessionsList();
     }
     if (safeTargetId === 'fee-dues-page' && typeof renderFeeDues === 'function') {
-        syncFeeDuesState();
+        const activeFilterClass = document.getElementById('filter-class')?.value || 'all';
+        const duesClassEl = document.getElementById('dues-class-filter');
+        if (duesClassEl && activeFilterClass) {
+            duesClassEl.value = activeFilterClass;
+        }
+        syncFeeDuesState(activeFilterClass);
         renderFeeDues();
     }
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: safeTargetId } }));

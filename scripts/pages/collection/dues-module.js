@@ -255,7 +255,8 @@ export const calculateStudentDueDetails = (student, targetYear, activeCutoffMont
     activeCutoffMonths.forEach(monthShort => {
         // Find if this month is paid
         const isPaid = (duesPayments || []).some(p => {
-            if ((p.academicYear || '') !== targetYear) return false;
+            const pYear = String(p.academicYear || '').trim();
+            if (pYear && targetYear && pYear !== targetYear) return false;
             const matchesMonth = isMonthMatch(p.itemKey, monthShort);
             if (!matchesMonth) return false;
 
@@ -296,7 +297,9 @@ export const calculateStudentDueDetails = (student, targetYear, activeCutoffMont
 
         const isPaid = (duesPayments || []).some(p => {
             if (p.studentId !== student.id && (!student.adm || p.admissionNo !== student.adm)) return false;
-            return p.itemKey === item.key && (p.academicYear || '') === targetYear;
+            const pYear = String(p.academicYear || '').trim();
+            if (pYear && targetYear && pYear !== targetYear) return false;
+            return p.itemKey === item.key;
         });
 
         if (!isPaid) {
@@ -357,8 +360,10 @@ export const getFilteredDuesList = () => {
         if (isAlumni) return;
 
         // Class filter
-        const studentClass = student.academicYears?.[targetYear]?.class || student.class || '';
-        if (filters.classFilter && filters.classFilter !== 'all' && studentClass !== filters.classFilter) {
+        const rawClass = student.academicYears?.[targetYear]?.class || student.class || '';
+        const studentClass = String(rawClass).trim();
+        const activeClassFilter = String(filters.classFilter || 'all').trim();
+        if (activeClassFilter && activeClassFilter.toLowerCase() !== 'all' && studentClass.toLowerCase() !== activeClassFilter.toLowerCase()) {
             return;
         }
 
@@ -402,6 +407,12 @@ export const getFilteredDuesList = () => {
 export const renderFeeDues = () => {
     const pageEl = document.getElementById('fee-dues-page');
     if (!pageEl || pageEl.classList.contains('hidden')) return;
+
+    // Ensure DOM select value matches filters.classFilter
+    const classFilterEl = document.getElementById('dues-class-filter');
+    if (classFilterEl && classFilterEl.value) {
+        filters.classFilter = classFilterEl.value;
+    }
 
     const targetYear = filters.academicYear || duesAcademicYear;
     const allDues = getFilteredDuesList();
@@ -678,16 +689,18 @@ export const renderFeeDues = () => {
  * Opens PDF Export Configuration Modal
  */
 export const openFeeDuesPdfModal = () => {
-    const allDues = getFilteredDuesList();
-    if (allDues.length === 0) {
-        showToast('No defaulter records to export.', 'error');
-        return;
-    }
     const modal = document.getElementById('dues-pdf-export-modal');
     if (!modal) {
         exportFeeDuesPdfWithOptions({ includeClass: false, includeGuardianPhone: false });
         return;
     }
+
+    const allDues = getFilteredDuesList();
+    if (allDues.length === 0) {
+        showToast('No defaulter records to export.', 'error');
+        return;
+    }
+
     const scopeLabel = document.getElementById('dues-pdf-modal-scope-label');
     const countLabel = document.getElementById('dues-pdf-modal-count-label');
     const optClass = document.getElementById('dues-pdf-opt-class');
@@ -704,13 +717,20 @@ export const openFeeDuesPdfModal = () => {
     if (optGuardian) optGuardian.checked = false;
 
     modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modal.style.display = 'flex';
 };
 
 /**
  * Closes PDF Export Configuration Modal
  */
 export const closeFeeDuesPdfModal = () => {
-    document.getElementById('dues-pdf-export-modal')?.classList.add('hidden');
+    const modal = document.getElementById('dues-pdf-export-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
 };
 
 /**
@@ -1176,13 +1196,22 @@ export const populateDuesClassDropdown = () => {
         configuredClasses: duesClasses
     });
 
-    const curVal = classFilter.value || filters.classFilter;
-    let opts = `<option value="all">All Classes (Whole School)</option>`;
+    const curVal = filters.classFilter || classFilter.value || 'all';
+    let opts = `<option value="all" ${curVal === 'all' ? 'selected' : ''}>All Classes (Whole School)</option>`;
     resolvedClasses.forEach(cls => {
         opts += `<option value="${escapeHtml(cls)}" ${curVal === cls ? 'selected' : ''}>Class: ${escapeHtml(cls)}</option>`;
     });
 
     classFilter.innerHTML = opts;
+    if (classFilter.value !== curVal && curVal !== 'all') {
+        const optionExists = Array.from(classFilter.options).some(o => o.value === curVal);
+        if (!optionExists) {
+            classFilter.value = 'all';
+            filters.classFilter = 'all';
+        } else {
+            classFilter.value = curVal;
+        }
+    }
 };
 
 /**
@@ -1209,7 +1238,8 @@ export const updateFeeDuesData = ({
     classes,
     defaultFee,
     academicYear,
-    academicYearSettings
+    academicYearSettings,
+    initialClass
 } = {}) => {
     if (Array.isArray(students)) duesStudents = students;
     if (Array.isArray(rawStudents)) duesRawStudents = rawStudents;
@@ -1220,6 +1250,13 @@ export const updateFeeDuesData = ({
     if (typeof defaultFee === 'number') duesDefaultFee = defaultFee;
     if (academicYear) duesAcademicYear = academicYear;
     if (Array.isArray(academicYearSettings)) duesAcademicYearSettings = academicYearSettings;
+
+    if (initialClass !== undefined) {
+        filters.classFilter = initialClass;
+    } else if (!filters.classFilter) {
+        const domClass = document.getElementById('dues-class-filter')?.value;
+        if (domClass) filters.classFilter = domClass;
+    }
 
     populateDuesAcademicYearDropdown();
     populateDuesClassDropdown();
