@@ -40,6 +40,14 @@ const MONTH_SHORT = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Fe
 const CALENDAR_MONTH_INDEX = [5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4]; // 0=Jan .. 11=Dec mapped to June-May
 
 /**
+ * Cleanly formats amounts as standard numeric strings without any currency symbol
+ */
+const formatAmount = (num = 0) => {
+    const n = Number(num || 0);
+    return Number.isFinite(n) ? n.toLocaleString('en-IN') : '0';
+};
+
+/**
  * Normalizes item names to standard month keys
  */
 const normalizeFeeItemName = (name = '') => String(name || '').trim().toLowerCase();
@@ -409,10 +417,10 @@ export const renderFeeDues = () => {
     const pastYearsSum = allDues.reduce((sum, d) => sum + (d.pastYearsDue || 0), 0);
     const grandTotalSum = allDues.reduce((sum, d) => sum + (d.grandTotalDue || 0), 0);
 
-    if (totalStudentsEl) totalStudentsEl.textContent = totalStudents.toLocaleString('en-IN');
-    if (currentYearAmountEl) currentYearAmountEl.textContent = `₹${currentYearSum.toLocaleString('en-IN')}`;
-    if (pastYearsAmountEl) pastYearsAmountEl.textContent = `₹${pastYearsSum.toLocaleString('en-IN')}`;
-    if (grandTotalAmountEl) grandTotalAmountEl.textContent = `₹${grandTotalSum.toLocaleString('en-IN')}`;
+    if (totalStudentsEl) totalStudentsEl.textContent = formatAmount(totalStudents);
+    if (currentYearAmountEl) currentYearAmountEl.textContent = formatAmount(currentYearSum);
+    if (pastYearsAmountEl) pastYearsAmountEl.textContent = formatAmount(pastYearsSum);
+    if (grandTotalAmountEl) grandTotalAmountEl.textContent = formatAmount(grandTotalSum);
 
     // 2. Render Cutoff badge indicator
     const activeCutoffMonths = getActiveCutoffMonths(targetYear);
@@ -443,8 +451,9 @@ export const renderFeeDues = () => {
     const startIdx = filters.pageOffset || 0;
     const pageSlice = allDues.slice(startIdx, startIdx + limit);
 
-    let html = `
-        <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs custom-scroll">
+    // Desktop Table HTML (Hidden on mobile)
+    let desktopTableHtml = `
+        <div class="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs custom-scroll">
             <table class="w-full text-left border-collapse text-xs">
                 <thead>
                     <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
@@ -452,8 +461,8 @@ export const renderFeeDues = () => {
                         <th class="py-3 px-3 w-20 text-center">Adm No</th>
                         <th class="py-3 px-3 min-w-[180px]">Student Details</th>
                         <th class="py-3 px-3 w-20 text-center">Class</th>
-                        <th class="py-3 px-3 min-w-[160px]">Guardian & Phone</th>
-                        <th class="py-3 px-3 min-w-[160px]">Unpaid Months (${targetYear})</th>
+                        <th class="py-3 px-3 min-w-[160px]">Guardian &amp; Phone</th>
+                        <th class="py-3 px-3 min-w-[160px]">Unpaid Months (${escapeHtml(targetYear)})</th>
                         <th class="py-3 px-3 text-right min-w-[100px]">Current Due</th>
                         <th class="py-3 px-3 text-right min-w-[100px]">Past Dues</th>
                         <th class="py-3 px-3 text-right min-w-[110px]">Total Due</th>
@@ -461,6 +470,11 @@ export const renderFeeDues = () => {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
+    `;
+
+    // Mobile Cards HTML (Visible only on mobile)
+    let mobileCardsHtml = `
+        <div class="block md:hidden space-y-3">
     `;
 
     pageSlice.forEach((item, index) => {
@@ -474,7 +488,7 @@ export const renderFeeDues = () => {
             : '';
 
         const concessionBadge = item.hasConcession
-            ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 ml-1" title="Monthly Concession: ₹${item.concessionFee}"><i class="fas fa-tag text-[8px]"></i>Concession</span>`
+            ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 ml-1" title="Monthly Concession: ${item.concessionFee}"><i class="fas fa-tag text-[8px]"></i>Concession</span>`
             : '';
 
         // Unpaid months pills
@@ -484,16 +498,17 @@ export const renderFeeDues = () => {
 
         // Past dues breakdown
         const pastBreakdownHtml = item.pastYearsBreakdown.length
-            ? item.pastYearsBreakdown.map(b => `<span class="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px] font-bold m-0.5">${escapeHtml(b.year)}: ₹${b.amount.toLocaleString('en-IN')}</span>`).join('')
-            : '<span class="text-slate-400">₹0</span>';
+            ? item.pastYearsBreakdown.map(b => `<span class="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px] font-bold m-0.5">${escapeHtml(b.year)}: ${formatAmount(b.amount)}</span>`).join('')
+            : '<span class="text-slate-400">0</span>';
 
         // WhatsApp prefilled message
         const cleanPhone = String(item.phone || '').replace(/\D/g, '');
         const instName = document.getElementById('header-title')?.textContent?.trim() || 'Institution';
-        const waMsg = encodeURIComponent(`Dear Guardian, Fee due reminder from ${instName} for ${item.name} (Class: ${item.class}, Adm: ${item.adm}). Pending Dues: ₹${item.grandTotalDue.toLocaleString('en-IN')} (Unpaid Months: ${item.unpaidMonths.join(', ')}). Please clear at the earliest. Thank you.`);
+        const waMsg = encodeURIComponent(`Dear Guardian, Fee due reminder from ${instName} for ${item.name} (Class: ${item.class}, Adm: ${item.adm}). Pending Dues: ${formatAmount(item.grandTotalDue)} (Unpaid Months: ${item.unpaidMonths.join(', ')}). Please clear at the earliest. Thank you.`);
         const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.length === 10 ? cleanPhone : cleanPhone.slice(-10)}?text=${waMsg}` : '#';
 
-        html += `
+        // Desktop Row
+        desktopTableHtml += `
             <tr class="hover:bg-slate-50/70 transition">
                 <td class="py-2.5 px-3 text-center text-slate-500 font-bold">${rowNum}</td>
                 <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-700">${escapeHtml(item.adm)}</td>
@@ -508,27 +523,29 @@ export const renderFeeDues = () => {
                 <td class="py-2.5 px-3 text-center font-black text-indigo-700 bg-indigo-50/30">${escapeHtml(item.class || '-')}</td>
                 <td class="py-2.5 px-3">
                     <div class="text-slate-700 font-semibold truncate max-w-[150px]">${escapeHtml(item.guardian)}</div>
-                    <div class="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                        <span>${escapeHtml(item.phone || '--')}</span>
+                    <div class="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                        <span class="font-medium">${escapeHtml(item.phone || '--')}</span>
                         ${cleanPhone ? `
-                            <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:text-emerald-700 p-0.5" title="Send WhatsApp Reminder">
-                                <i class="fab fa-whatsapp"></i>
-                            </a>
-                            <a href="tel:${cleanPhone}" class="text-blue-600 hover:text-blue-700 p-0.5" title="Call Guardian">
-                                <i class="fas fa-phone"></i>
-                            </a>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 transition active:scale-95 shadow-2xs" title="Send WhatsApp Reminder">
+                                    <i class="fab fa-whatsapp text-sm"></i>
+                                </a>
+                                <a href="tel:${cleanPhone}" class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 transition active:scale-95 shadow-2xs" title="Call Guardian">
+                                    <i class="fas fa-phone text-xs"></i>
+                                </a>
+                            </div>
                         ` : ''}
                     </div>
                 </td>
                 <td class="py-2.5 px-3">
                     <div class="flex flex-wrap items-center">${unpaidPills}</div>
                 </td>
-                <td class="py-2.5 px-3 text-right font-bold text-slate-800">₹${item.currentYearTotalDue.toLocaleString('en-IN')}</td>
+                <td class="py-2.5 px-3 text-right font-bold text-slate-800">${formatAmount(item.currentYearTotalDue)}</td>
                 <td class="py-2.5 px-3 text-right font-bold text-amber-700">
-                    <div>₹${item.pastYearsDue.toLocaleString('en-IN')}</div>
+                    <div>${formatAmount(item.pastYearsDue)}</div>
                     ${item.pastYearsBreakdown.length ? `<div class="mt-0.5 flex flex-wrap justify-end">${pastBreakdownHtml}</div>` : ''}
                 </td>
-                <td class="py-2.5 px-3 text-right font-black text-rose-700 text-sm">₹${item.grandTotalDue.toLocaleString('en-IN')}</td>
+                <td class="py-2.5 px-3 text-right font-black text-rose-700 text-sm">${formatAmount(item.grandTotalDue)}</td>
                 <td class="py-2.5 px-3 text-center">
                     <button type="button" class="dues-quick-pay-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer inline-flex items-center gap-1" data-id="${escapeHtml(item.id)}">
                         <i class="fas fa-hand-holding-dollar text-[10px]"></i>
@@ -537,13 +554,81 @@ export const renderFeeDues = () => {
                 </td>
             </tr>
         `;
+
+        // Mobile Card with Touch-Friendly Action Buttons
+        mobileCardsHtml += `
+            <div class="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="w-5 h-5 rounded-md bg-slate-100 text-slate-500 font-bold text-[10px] flex items-center justify-center">${rowNum}</span>
+                            <span class="font-mono font-bold text-slate-700 text-xs bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">${escapeHtml(item.adm)}</span>
+                            <span class="font-extrabold text-slate-800 text-xs">${escapeHtml(item.name)}</span>
+                            ${genderIcon}
+                            ${groupBadge}
+                            ${concessionBadge}
+                        </div>
+                        <div class="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
+                            <span class="text-slate-700 font-semibold"><i class="fas fa-user-shield text-slate-400 mr-1 text-[10px]"></i>${escapeHtml(item.guardian)}</span>
+                            ${item.phone ? `<span>•</span><span><i class="fas fa-phone-alt text-slate-400 mr-1 text-[10px]"></i>${escapeHtml(item.phone)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="shrink-0 text-center">
+                        <span class="inline-block px-2 py-0.5 rounded-lg text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200">${escapeHtml(item.class || '-')}</span>
+                    </div>
+                </div>
+
+                <div class="pt-1.5 border-t border-slate-100">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Unpaid Months (${escapeHtml(targetYear)}):</div>
+                    <div class="flex flex-wrap items-center">${unpaidPills}</div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                    <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase">Current</div>
+                        <div class="text-xs font-bold text-slate-800 mt-0.5">${formatAmount(item.currentYearTotalDue)}</div>
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-bold text-amber-700 uppercase">Past Dues</div>
+                        <div class="text-xs font-bold text-amber-800 mt-0.5">${formatAmount(item.pastYearsDue)}</div>
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-black text-rose-700 uppercase">Total Due</div>
+                        <div class="text-xs font-black text-rose-700 mt-0.5">${formatAmount(item.grandTotalDue)}</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1">
+                    ${cleanPhone ? `
+                        <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition">
+                            <i class="fab fa-whatsapp text-sm"></i>
+                            <span>WhatsApp</span>
+                        </a>
+                        <a href="tel:${cleanPhone}" class="py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition">
+                            <i class="fas fa-phone text-xs"></i>
+                            <span>Call</span>
+                        </a>
+                    ` : ''}
+                    <button type="button" class="dues-quick-pay-btn py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${cleanPhone ? '' : 'w-full'}" data-id="${escapeHtml(item.id)}">
+                        <i class="fas fa-hand-holding-dollar text-xs"></i>
+                        <span>Collect</span>
+                    </button>
+                </div>
+            </div>
+        `;
     });
 
-    html += `
+    desktopTableHtml += `
                 </tbody>
             </table>
         </div>
     `;
+
+    mobileCardsHtml += `
+        </div>
+    `;
+
+    let html = desktopTableHtml + mobileCardsHtml;
 
     // Pagination info
     const totalPages = Math.ceil(totalStudents / limit);
@@ -590,9 +675,48 @@ export const renderFeeDues = () => {
 };
 
 /**
- * PDF Export Generator
+ * Opens PDF Export Configuration Modal
  */
-export const exportFeeDuesPdf = () => {
+export const openFeeDuesPdfModal = () => {
+    const allDues = getFilteredDuesList();
+    if (allDues.length === 0) {
+        showToast('No defaulter records to export.', 'error');
+        return;
+    }
+    const modal = document.getElementById('dues-pdf-export-modal');
+    if (!modal) {
+        exportFeeDuesPdfWithOptions({ includeClass: false, includeGuardianPhone: false });
+        return;
+    }
+    const scopeLabel = document.getElementById('dues-pdf-modal-scope-label');
+    const countLabel = document.getElementById('dues-pdf-modal-count-label');
+    const optClass = document.getElementById('dues-pdf-opt-class');
+    const optGuardian = document.getElementById('dues-pdf-opt-guardian');
+
+    if (scopeLabel) {
+        const classTxt = filters.classFilter && filters.classFilter !== 'all' ? `Class: ${filters.classFilter}` : 'All Classes (Whole School)';
+        scopeLabel.textContent = `Scope: ${classTxt}`;
+    }
+    if (countLabel) {
+        countLabel.textContent = `${allDues.length} Defaulters`;
+    }
+    if (optClass) optClass.checked = false;
+    if (optGuardian) optGuardian.checked = false;
+
+    modal.classList.remove('hidden');
+};
+
+/**
+ * Closes PDF Export Configuration Modal
+ */
+export const closeFeeDuesPdfModal = () => {
+    document.getElementById('dues-pdf-export-modal')?.classList.add('hidden');
+};
+
+/**
+ * PDF Export Generator with Column Options and Class/Gender Grouping
+ */
+export const exportFeeDuesPdfWithOptions = ({ includeClass = false, includeGuardianPhone = false } = {}) => {
     if (!window.jspdf?.jsPDF) {
         showToast('PDF generator is loading, please try again.', 'info');
         return;
@@ -613,6 +737,7 @@ export const exportFeeDuesPdf = () => {
     const activeCutoffMonths = getActiveCutoffMonths(targetYear);
 
     const pageWidth = docPdf.internal.pageSize.getWidth();
+    const pageHeight = docPdf.internal.pageSize.getHeight();
 
     // 1. Header
     docPdf.setFont('helvetica', 'bold');
@@ -629,105 +754,257 @@ export const exportFeeDuesPdf = () => {
     docPdf.setFont('helvetica', 'bold');
     docPdf.setFontSize(11);
     docPdf.setTextColor(185, 28, 28); // red-700
-    docPdf.text('STUDENTS FEE DUES & DEFAULTERS REGISTER', 20, 60);
+    docPdf.text('STUDENTS FEE DUES & DEFAULTERS REGISTER', 20, 58);
 
     docPdf.setFont('helvetica', 'normal');
     docPdf.setFontSize(8);
     docPdf.setTextColor(71, 85, 105);
-    const classScopeText = filters.classFilter && filters.classFilter !== 'all' ? `Class: ${filters.classFilter}` : 'Whole School';
+    const classScopeText = filters.classFilter && filters.classFilter !== 'all' ? `Class: ${filters.classFilter}` : 'Whole School (Class-wise)';
     const periodText = `Period: ${activeCutoffMonths[0]} - ${activeCutoffMonths[activeCutoffMonths.length - 1]}`;
     const metaStr = `${classScopeText} | ${periodText} | Generated: ${new Date().toLocaleString('en-GB')} | Total Defaulters: ${allDues.length}`;
-    docPdf.text(metaStr, pageWidth - 20, 60, { align: 'right' });
+    docPdf.text(metaStr, pageWidth - 20, 58, { align: 'right' });
 
-    // 2. Table Data
-    const head = [
-        ['NO', 'ADM', 'STUDENT NAME', 'CLASS', 'GUARDIAN & PHONE', 'UNPAID MONTHS', 'CURRENT DUE (₹)', 'PAST DUES (₹)', 'TOTAL DUE (₹)']
-    ];
+    // Grouping by Class and sorting classes naturally (Class 1, Class 2, etc.)
+    const groupedClasses = Object.values(allDues.reduce((acc, student) => {
+        const classKey = String(student.class || '--');
+        if (!acc[classKey]) acc[classKey] = { classLabel: classKey, male: [], female: [] };
+        const g = String(student.gender || '').toLowerCase();
+        if (g === 'male' || g === 'boy') acc[classKey].male.push(student);
+        else acc[classKey].female.push(student);
+        return acc;
+    }, {})).sort((a, b) => compareClassLabelsNatural(a.classLabel, b.classLabel));
 
+    // Natural sort helper for students inside gender tables
+    const sortStudents = (students = []) => students.slice().sort((a, b) =>
+        String(a.adm || '').localeCompare(String(b.adm || ''), undefined, { numeric: true }) ||
+        String(a.name || '').localeCompare(String(b.name || ''))
+    );
+
+    // Build table columns dynamically based on user options
+    const buildHead = (genderTitle) => {
+        const cols = ['NO', 'ADM', genderTitle];
+        if (includeClass) cols.push('CLASS');
+        if (includeGuardianPhone) cols.push('GUARDIAN & PHONE');
+        cols.push('UNPAID MONTHS', 'CURRENT DUE', 'PAST DUES', 'TOTAL DUE');
+        return [cols];
+    };
+
+    const buildRows = (students = []) => {
+        return sortStudents(students).map((item, idx) => {
+            const unpaidMonthsStr = item.unpaidMonths.join(', ') || 'None';
+            const pastStr = item.pastYearsBreakdown.length
+                ? item.pastYearsBreakdown.map(b => `${b.year}: ${formatAmount(b.amount)}`).join('\n')
+                : '0';
+
+            const row = [
+                idx + 1,
+                item.adm,
+                item.name
+            ];
+            if (includeClass) row.push(item.class || '-');
+            if (includeGuardianPhone) {
+                const guardianStr = `${item.guardian || '--'}\n${item.phone || '--'}`;
+                row.push(guardianStr);
+            }
+            row.push(
+                unpaidMonthsStr,
+                formatAmount(item.currentYearTotalDue),
+                pastStr,
+                formatAmount(item.grandTotalDue)
+            );
+            return row;
+        });
+    };
+
+    // Dynamic column widths
+    const getColumnStyles = () => {
+        let colIdx = 0;
+        const styles = {};
+        styles[colIdx++] = { cellWidth: 26, halign: 'center' }; // NO
+        styles[colIdx++] = { cellWidth: 46, halign: 'center', fontStyle: 'bold' }; // ADM
+        styles[colIdx++] = { cellWidth: includeGuardianPhone ? 140 : 180, fontStyle: 'bold' }; // NAME
+        if (includeClass) {
+            styles[colIdx++] = { cellWidth: 44, halign: 'center', fontStyle: 'bold' }; // CLASS
+        }
+        if (includeGuardianPhone) {
+            styles[colIdx++] = { cellWidth: 125 }; // GUARDIAN & PHONE
+        }
+        styles[colIdx++] = { cellWidth: includeGuardianPhone ? 150 : 210 }; // UNPAID MONTHS
+        styles[colIdx++] = { cellWidth: 70, halign: 'right' }; // CURRENT DUE
+        styles[colIdx++] = { cellWidth: 70, halign: 'right' }; // PAST DUES
+        styles[colIdx++] = { cellWidth: 80, halign: 'right', fontStyle: 'bold' }; // TOTAL DUE
+        return styles;
+    };
+
+    let currentY = 66;
     let grandCurrent = 0;
     let grandPast = 0;
     let grandTotal = 0;
 
-    const body = allDues.map((item, idx) => {
-        grandCurrent += (item.currentYearTotalDue || 0);
-        grandPast += (item.pastYearsDue || 0);
-        grandTotal += (item.grandTotalDue || 0);
-
-        const guardianStr = `${item.guardian}\n${item.phone || '--'}`;
-        const unpaidMonthsStr = item.unpaidMonths.join(', ') || 'None';
-        const pastStr = item.pastYearsBreakdown.length
-            ? item.pastYearsBreakdown.map(b => `${b.year}: ₹${b.amount}`).join('\n')
-            : '₹0';
-
-        return [
-            idx + 1,
-            item.adm,
-            item.name,
-            item.class,
-            guardianStr,
-            unpaidMonthsStr,
-            item.currentYearTotalDue.toLocaleString('en-IN'),
-            pastStr,
-            item.grandTotalDue.toLocaleString('en-IN')
-        ];
+    allDues.forEach(d => {
+        grandCurrent += (d.currentYearTotalDue || 0);
+        grandPast += (d.pastYearsDue || 0);
+        grandTotal += (d.grandTotalDue || 0);
     });
 
-    // Add totals summary row
-    body.push([
-        '',
-        '',
-        'TOTAL SUMMARY',
-        '',
-        `Total Defaulters: ${allDues.length}`,
-        '',
-        grandCurrent.toLocaleString('en-IN'),
-        grandPast.toLocaleString('en-IN'),
-        grandTotal.toLocaleString('en-IN')
-    ]);
+    groupedClasses.forEach((classGroup, classIdx) => {
+        if (classIdx > 0) {
+            currentY = docPdf.lastAutoTable ? docPdf.lastAutoTable.finalY + 14 : currentY + 14;
+        }
+
+        // Check page overflow for class header
+        if (currentY > pageHeight - 110) {
+            docPdf.addPage();
+            currentY = 32;
+        }
+
+        // Draw Class Section Header Banner
+        docPdf.setFillColor(241, 245, 249); // slate-100
+        docPdf.rect(20, currentY, pageWidth - 40, 18, 'F');
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(10);
+        docPdf.setTextColor(15, 23, 42); // slate-900
+        docPdf.text(`CLASS: ${classGroup.classLabel.toUpperCase()}`, 26, currentY + 12.5);
+
+        const classDefaulterCount = classGroup.male.length + classGroup.female.length;
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(100, 116, 139);
+        docPdf.text(`Defaulters in Class: ${classDefaulterCount} (Boys: ${classGroup.male.length}, Girls: ${classGroup.female.length})`, pageWidth - 26, currentY + 12.5, { align: 'right' });
+
+        currentY += 22;
+
+        // 1. Male / Boys Table
+        const maleRows = buildRows(classGroup.male);
+        if (maleRows.length) {
+            docPdf.autoTable({
+                startY: currentY,
+                head: buildHead('STUDENT NAME (BOYS)'),
+                body: maleRows,
+                theme: 'grid',
+                styles: {
+                    fontSize: 7.5,
+                    cellPadding: 3,
+                    lineColor: [226, 232, 240],
+                    lineWidth: 0.5,
+                    valign: 'middle'
+                },
+                headStyles: {
+                    fillColor: [37, 99, 235], // Blue-600
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252]
+                },
+                columnStyles: getColumnStyles()
+            });
+            currentY = docPdf.lastAutoTable.finalY + 8;
+        }
+
+        // 2. Female / Girls Table
+        const femaleRows = buildRows(classGroup.female);
+        if (femaleRows.length) {
+            if (currentY > pageHeight - 70) {
+                docPdf.addPage();
+                currentY = 32;
+            }
+
+            docPdf.autoTable({
+                startY: currentY,
+                head: buildHead('STUDENT NAME (GIRLS)'),
+                body: femaleRows,
+                theme: 'grid',
+                styles: {
+                    fontSize: 7.5,
+                    cellPadding: 3,
+                    lineColor: [226, 232, 240],
+                    lineWidth: 0.5,
+                    valign: 'middle'
+                },
+                headStyles: {
+                    fillColor: [16, 185, 129], // Emerald-600
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252]
+                },
+                columnStyles: getColumnStyles()
+            });
+            currentY = docPdf.lastAutoTable.finalY + 8;
+        }
+    });
+
+    // Final Consolidated Summary Table
+    if (currentY > pageHeight - 80) {
+        docPdf.addPage();
+        currentY = 32;
+    }
+
+    const summaryHead = [['CONSOLIDATED REGISTER TOTALS', 'TOTAL DEFAULTERS', 'TOTAL CURRENT DUE', 'TOTAL PAST DUES', 'GRAND TOTAL OUTSTANDING']];
+    const summaryBody = [[
+        'ALL REGISTERED DEFAULTERS SUMMARY',
+        String(allDues.length),
+        formatAmount(grandCurrent),
+        formatAmount(grandPast),
+        formatAmount(grandTotal)
+    ]];
 
     docPdf.autoTable({
-        startY: 70,
-        head,
-        body,
+        startY: currentY + 6,
+        head: summaryHead,
+        body: summaryBody,
         theme: 'grid',
         styles: {
-            fontSize: 7.5,
-            cellPadding: 3.5,
-            lineColor: [226, 232, 240],
-            lineWidth: 0.5,
-            valign: 'middle'
+            fontSize: 8.5,
+            cellPadding: 4,
+            lineColor: [203, 213, 225],
+            lineWidth: 0.75,
+            valign: 'middle',
+            halign: 'center'
         },
         headStyles: {
             fillColor: [15, 23, 42],
             textColor: [255, 255, 255],
+            fontStyle: 'bold'
+        },
+        bodyStyles: {
             fontStyle: 'bold',
-            halign: 'center'
+            textColor: [15, 23, 42],
+            fillColor: [241, 245, 249]
         },
         columnStyles: {
-            0: { cellWidth: 26, halign: 'center' },
-            1: { cellWidth: 44, halign: 'center', fontStyle: 'bold' },
-            2: { cellWidth: 140, fontStyle: 'bold' },
-            3: { cellWidth: 46, halign: 'center', fontStyle: 'bold' },
-            4: { cellWidth: 120 },
-            5: { cellWidth: 150 },
-            6: { cellWidth: 80, halign: 'right' },
-            7: { cellWidth: 80, halign: 'right' },
-            8: { cellWidth: 85, halign: 'right', fontStyle: 'bold' }
-        },
-        didParseCell: (data) => {
-            // Style the summary totals row
-            if (data.row.index === body.length - 1) {
-                data.cell.styles.fillColor = [241, 245, 249];
-                data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.textColor = [15, 23, 42];
-            }
+            0: { halign: 'left', cellWidth: 200 },
+            1: { cellWidth: 90 },
+            2: { halign: 'right', cellWidth: 100 },
+            3: { halign: 'right', cellWidth: 100 },
+            4: { halign: 'right', cellWidth: 110, textColor: [185, 28, 28] }
         }
     });
+
+    // Page Numbers in footer
+    const totalPages = docPdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i += 1) {
+        docPdf.setPage(i);
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(148, 163, 184);
+        docPdf.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 14, { align: 'right' });
+        docPdf.text(`Generated by Fee Dues Register • Confidential`, 20, pageHeight - 14);
+    }
 
     const fileName = `fee-dues-register-${filters.classFilter || 'all'}-${targetYear}-${new Date().toISOString().split('T')[0]}.pdf`;
     docPdf.save(fileName);
     showToast('Fee Dues PDF downloaded successfully!', 'success');
 };
+
+/**
+ * Public export alias for backward compatibility
+ */
+export const exportFeeDuesPdf = openFeeDuesPdfModal;
 
 /**
  * Excel Export Generator
@@ -839,9 +1116,23 @@ export const initFeeDuesModule = ({ onSelectStudentForCollection } = {}) => {
     });
 
     // Export buttons
-    document.getElementById('dues-export-pdf-btn')?.addEventListener('click', exportFeeDuesPdf);
+    document.getElementById('dues-export-pdf-btn')?.addEventListener('click', openFeeDuesPdfModal);
     document.getElementById('dues-export-excel-btn')?.addEventListener('click', exportFeeDuesExcel);
-    document.getElementById('dues-print-btn')?.addEventListener('click', () => window.print());
+
+    // PDF Confirmation Modal Listeners
+    document.getElementById('dues-pdf-modal-close-x')?.addEventListener('click', closeFeeDuesPdfModal);
+    document.getElementById('dues-pdf-modal-cancel-btn')?.addEventListener('click', closeFeeDuesPdfModal);
+    document.getElementById('dues-pdf-export-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'dues-pdf-export-modal') {
+            closeFeeDuesPdfModal();
+        }
+    });
+    document.getElementById('dues-pdf-modal-confirm-btn')?.addEventListener('click', () => {
+        const includeClass = Boolean(document.getElementById('dues-pdf-opt-class')?.checked);
+        const includeGuardianPhone = Boolean(document.getElementById('dues-pdf-opt-guardian')?.checked);
+        closeFeeDuesPdfModal();
+        exportFeeDuesPdfWithOptions({ includeClass, includeGuardianPhone });
+    });
 
     appLog('info', 'collection.dues', 'Fee Dues Module Initialized');
 };
