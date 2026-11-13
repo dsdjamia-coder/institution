@@ -23,13 +23,24 @@ if (typeof window !== 'undefined' && window.location && window.location.hash) {
 }
 
 // --- GLOBAL STATE (Initialized early to prevent Temporal Dead Zone ReferenceErrors) ---
+const getAcademicYearFromDate = (dateObj = new Date()) => {
+    const month = dateObj.getMonth();
+    const year = dateObj.getFullYear();
+    return month < 5 ? `${year - 1}-${year}` : `${year}-${year + 1}`;
+};
 let isCurrentAdmin = false;
 let currentUserEmail = '';
 let currentCollectorKey = '';
 let students = [], allStudentsRaw = [], allPayments = [], allDonations = [], classes = [], institutionalConfiguredClasses = [], studentGroups = [], feeItems = [], allStaff = [];
 let directoryEntries = [], directoryCategories = [], pageAccessConfig = { categories: {}, overrides: {} };
 let defaultFee = 200, feeStatusTitle = '', defaultReceiptMandatory = false;
-let currentWorkingAcademicYear = '';
+let currentWorkingAcademicYear = getAcademicYearFromDate(new Date());
+if (typeof document !== 'undefined') {
+    const earlyHeaderYearEl = document.getElementById('header-active-year');
+    if (earlyHeaderYearEl && (!earlyHeaderYearEl.textContent || earlyHeaderYearEl.textContent.includes('Loading'))) {
+        earlyHeaderYearEl.textContent = currentWorkingAcademicYear;
+    }
+}
 let isEditMode = false, editingPaymentGroup = {}, selectedStudentId = null;
 let userExplicitClass = '', userExplicitGender = '';
 let selectedGroupMemberIds = new Set();
@@ -287,10 +298,10 @@ initCollectionSidebarState();
 // TABS LOGIC (Main Tab & Sub-Tab Hierarchy - Hash-Free Session Architecture)
 const MAIN_TAB_GROUPS = {
     dashboard: ['dashboard-page'],
-    collection: ['home-page', 'bulk-upload-page', 'donation-page'],
-    ledgers: ['master-ledger-page', 'fee-page', 'history-page'],
-    reports: ['monthly-collected-page', 'collector-wise-monthly-page', 'students-page'],
-    finance: ['fee-settings-page', 'manage-groups-page', 'fee-concessions-page']
+    collection: ['home-page'],
+    ledgers: ['master-ledger-page', 'fee-dues-page', 'history-page'],
+    reports: ['monthly-collected-page', 'students-page'],
+    finance: ['fee-settings-page']
 };
 
 const links = Array.from(document.querySelectorAll('.tab-link'));
@@ -401,19 +412,182 @@ const syncFeeDuesState = (preferredClass) => {
 window.syncFeeDuesState = syncFeeDuesState;
 
 const OVERFLOW_COLLECTION_TABS = new Set([
+    'history-page',
     'monthly-collected-page',
-    'fee-page',
-    'master-ledger-page',
-    'fee-dues-page',
-    'bulk-upload-page',
-    'donation-page',
-    'collector-wise-monthly-page',
-    'fee-settings-page',
-    'manage-groups-page',
-    'fee-concessions-page'
+    'students-page',
+    'fee-settings-page'
 ]);
 
-const activateTab = (targetId) => {
+// --- UNIFIED SUB-TAB NAVIGATION HANDLERS ---
+const switchCollectionSubTab = (subtab = 'entry') => {
+    const panels = {
+        entry: document.getElementById('subview-fee-entry'),
+        bulk: document.getElementById('bulk-upload-page'),
+        donation: document.getElementById('donation-page')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.fee-collection-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.collectionSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'entry' && typeof setupFeeEntryUI === 'function') {
+        setupFeeEntryUI();
+    } else if (subtab === 'bulk' && typeof setupBulkUploadUI === 'function') {
+        setupBulkUploadUI();
+    } else if (subtab === 'donation' && typeof setupDonationEntryUI === 'function') {
+        setupDonationEntryUI();
+    }
+};
+window.switchCollectionSubTab = switchCollectionSubTab;
+
+const switchLedgerSubTab = (subtab = 'ledger') => {
+    const panels = {
+        ledger: document.getElementById('subview-master-ledger'),
+        status: document.getElementById('subview-fee-status')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.ledger-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.ledgerSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'status' && typeof renderFeeTable === 'function') {
+        renderFeeTable();
+    } else if (subtab === 'ledger' && typeof syncMasterLedgerState === 'function') {
+        syncMasterLedgerState();
+    }
+};
+window.switchLedgerSubTab = switchLedgerSubTab;
+
+const switchReportsSubTab = (subtab = 'monthly') => {
+    const panels = {
+        monthly: document.getElementById('subview-monthly-overview'),
+        collector: document.getElementById('collector-wise-monthly-page')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.reports-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.reportsSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'collector' && typeof renderCollectorWiseMonthlyPage === 'function') {
+        renderCollectorWiseMonthlyPage();
+    } else if (subtab === 'monthly' && typeof renderMonthlyCollectedPage === 'function') {
+        renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
+    }
+};
+window.switchReportsSubTab = switchReportsSubTab;
+
+const switchSettingsSubTab = (subtab = 'structure') => {
+    const panels = {
+        structure: document.getElementById('subview-fee-structure'),
+        groups: document.getElementById('manage-groups-page'),
+        concessions: document.getElementById('fee-concessions-page')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.settings-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.settingsSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'structure' && typeof renderFeeItemsManagement === 'function') {
+        renderFeeItemsManagement();
+    } else if (subtab === 'groups' && typeof renderStudentGroups === 'function') {
+        renderStudentGroups();
+    } else if (subtab === 'concessions' && typeof renderConcessionsList === 'function') {
+        renderConcessionsList();
+    }
+};
+window.switchSettingsSubTab = switchSettingsSubTab;
+
+// Subtab event delegation
+document.addEventListener('click', (e) => {
+    const colBtn = e.target.closest('.fee-collection-subtab-btn');
+    if (colBtn && colBtn.dataset.collectionSubtab) {
+        e.preventDefault();
+        switchCollectionSubTab(colBtn.dataset.collectionSubtab);
+        return;
+    }
+    const ledBtn = e.target.closest('.ledger-subtab-btn');
+    if (ledBtn && ledBtn.dataset.ledgerSubtab) {
+        e.preventDefault();
+        switchLedgerSubTab(ledBtn.dataset.ledgerSubtab);
+        return;
+    }
+    const repBtn = e.target.closest('.reports-subtab-btn');
+    if (repBtn && repBtn.dataset.reportsSubtab) {
+        e.preventDefault();
+        switchReportsSubTab(repBtn.dataset.reportsSubtab);
+        return;
+    }
+    const setBtn = e.target.closest('.settings-subtab-btn');
+    if (setBtn && setBtn.dataset.settingsSubtab) {
+        e.preventDefault();
+        switchSettingsSubTab(setBtn.dataset.settingsSubtab);
+        return;
+    }
+});
+
+const activateTab = (targetId, subTabId = null) => {
+    // Legacy / Merged Target Mapping
+    if (targetId === 'fee-page') {
+        activateTab('master-ledger-page', 'status');
+        return;
+    }
+    if (targetId === 'bulk-upload-page') {
+        activateTab('home-page', 'bulk');
+        return;
+    }
+    if (targetId === 'donation-page') {
+        activateTab('home-page', 'donation');
+        return;
+    }
+    if (targetId === 'collector-wise-monthly-page') {
+        activateTab('monthly-collected-page', 'collector');
+        return;
+    }
+    if (targetId === 'manage-groups-page') {
+        activateTab('fee-settings-page', 'groups');
+        return;
+    }
+    if (targetId === 'fee-concessions-page') {
+        activateTab('fee-settings-page', 'concessions');
+        return;
+    }
+
     const safeTargetId = document.getElementById(targetId) ? targetId : defaultTabId;
     const activeLink = getLinkForTarget(safeTargetId);
 
@@ -441,22 +615,27 @@ const activateTab = (targetId) => {
         page.classList.toggle('hidden', page.id !== safeTargetId);
     });
 
+    if (subTabId) {
+        if (safeTargetId === 'home-page') switchCollectionSubTab(subTabId);
+        else if (safeTargetId === 'master-ledger-page') switchLedgerSubTab(subTabId);
+        else if (safeTargetId === 'monthly-collected-page') switchReportsSubTab(subTabId);
+        else if (safeTargetId === 'fee-settings-page') switchSettingsSubTab(subTabId);
+    }
+
     const mainApp = document.getElementById('app');
     if (mainApp) {
-        if (safeTargetId === 'master-ledger-page' || safeTargetId === 'fee-page') {
+        if (safeTargetId === 'master-ledger-page') {
             mainApp.style.maxWidth = '100%';
             mainApp.style.width = '100%';
             mainApp.style.boxSizing = 'border-box';
             mainApp.style.padding = '';
             document.body.classList.remove('ledger-fullwidth');
-            if (safeTargetId === 'master-ledger-page' && typeof syncMasterLedgerState === 'function') {
+            const isStatusSubtabActive = document.querySelector('.ledger-subtab-btn.active')?.dataset.ledgerSubtab === 'status';
+            if (isStatusSubtabActive && typeof renderFeeTable === 'function') {
+                renderFeeTable();
+            } else if (typeof syncMasterLedgerState === 'function') {
                 syncMasterLedgerState();
             }
-            try {
-                if (safeTargetId === 'fee-page' && typeof renderFeeTable === 'function') {
-                    renderFeeTable();
-                }
-            } catch (_) {}
         } else {
             mainApp.style.maxWidth = '';
             mainApp.style.width = '';
@@ -475,14 +654,22 @@ const activateTab = (targetId) => {
 
     setMobileMenuState(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    if (safeTargetId === 'fee-settings-page' && typeof renderFeeItemsManagement === 'function') {
-        renderFeeItemsManagement();
+    if (safeTargetId === 'home-page') {
+        const activeSubtab = document.querySelector('.fee-collection-subtab-btn.active')?.dataset.collectionSubtab || 'entry';
+        if (activeSubtab === 'bulk' && typeof setupBulkUploadUI === 'function') setupBulkUploadUI();
+        else if (activeSubtab === 'donation' && typeof setupDonationEntryUI === 'function') setupDonationEntryUI();
+        else if (typeof setupFeeEntryUI === 'function') setupFeeEntryUI();
     }
-    if (safeTargetId === 'manage-groups-page' && typeof renderStudentGroups === 'function') {
-        renderStudentGroups();
+    if (safeTargetId === 'fee-settings-page') {
+        const activeSubtab = document.querySelector('.settings-subtab-btn.active')?.dataset.settingsSubtab || 'structure';
+        if (activeSubtab === 'structure' && typeof renderFeeItemsManagement === 'function') renderFeeItemsManagement();
+        else if (activeSubtab === 'groups' && typeof renderStudentGroups === 'function') renderStudentGroups();
+        else if (activeSubtab === 'concessions' && typeof renderConcessionsList === 'function') renderConcessionsList();
     }
-    if (safeTargetId === 'fee-concessions-page' && typeof renderConcessionsList === 'function') {
-        renderConcessionsList();
+    if (safeTargetId === 'monthly-collected-page') {
+        const activeSubtab = document.querySelector('.reports-subtab-btn.active')?.dataset.reportsSubtab || 'monthly';
+        if (activeSubtab === 'collector' && typeof renderCollectorWiseMonthlyPage === 'function') renderCollectorWiseMonthlyPage();
+        else if (typeof renderMonthlyCollectedPage === 'function') renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
     }
     if (safeTargetId === 'fee-dues-page' && typeof renderFeeDues === 'function') {
         syncFeeDuesState();
@@ -491,26 +678,11 @@ const activateTab = (targetId) => {
     if (safeTargetId === 'students-page' && typeof renderStudentInfoList === 'function') {
         renderStudentInfoList();
     }
-    if (safeTargetId === 'bulk-upload-page' && typeof setupBulkUploadUI === 'function') {
-        setupBulkUploadUI();
-    }
-    if (safeTargetId === 'donation-page' && typeof setupDonationEntryUI === 'function') {
-        setupDonationEntryUI();
-    }
-    if (safeTargetId === 'collector-wise-monthly-page' && typeof renderCollectorWiseMonthlyPage === 'function') {
-        renderCollectorWiseMonthlyPage();
-    }
-    if (safeTargetId === 'monthly-collected-page' && typeof renderMonthlyCollectedPage === 'function') {
-        renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
-    }
     if (safeTargetId === 'history-page' && typeof prepareHistoryData === 'function') {
         prepareHistoryData();
     }
     if (safeTargetId === 'dashboard-page' && typeof updateDashboardMetrics === 'function') {
         updateDashboardMetrics();
-    }
-    if (safeTargetId === 'fee-page' && typeof renderFeeTable === 'function') {
-        renderFeeTable();
     }
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: safeTargetId } }));
 };
@@ -1408,11 +1580,7 @@ const getVisiblePayments = () => {
 const getVisibleDonations = () => isMasterSuperAdmin()
     ? [...allDonations]
     : allDonations.filter((donation) => isSameCollectorRecord(donation.collectedBy));
-const getAcademicYearFromDate = (dateObj = new Date()) => {
-    const month = dateObj.getMonth();
-    const year = dateObj.getFullYear();
-    return month < 5 ? `${year - 1}-${year}` : `${year}-${year + 1}`;
-};
+// (getAcademicYearFromDate is initialized globally at top of file)
 const toAcademicYearDocId = (academicYear = '') => String(academicYear || '').trim().replace(/[^\w-]/g, '_');
 const getYearPaymentsCollectionPath = (academicYear = '') => `${BASE_PATH}/academicYears/${toAcademicYearDocId(academicYear || getAcademicYearFromDate())}/payments`;
 const queuePaymentWrite = (batch, payload) => {
@@ -2741,7 +2909,7 @@ const resetStudentSelection = () => {
     updateStudentInputClearButton();
     populateFeeItemSelection();
 };
-document.getElementById('entry-class').addEventListener('change', (e) => {
+document.getElementById('entry-class')?.addEventListener('change', (e) => {
     userExplicitClass = e.target.value;
     const currentInputVal = document.getElementById('entry-student-input')?.value || '';
     if (selectedStudentId) {
@@ -2754,7 +2922,7 @@ document.getElementById('entry-class').addEventListener('change', (e) => {
         populateStudentSuggestions(currentInputVal);
     }
 });
-document.getElementById('entry-gender').addEventListener('change', (e) => {
+document.getElementById('entry-gender')?.addEventListener('change', (e) => {
     userExplicitGender = e.target.value;
     const currentInputVal = document.getElementById('entry-student-input')?.value || '';
     if (selectedStudentId) {
@@ -2775,11 +2943,11 @@ document.getElementById('filter-academic-year')?.addEventListener('change', () =
     populateClassDropdowns();
     renderFeeTable();
 });
-document.getElementById('filter-class').addEventListener('change', () => {
+document.getElementById('filter-class')?.addEventListener('change', () => {
     feeStatusPageOffset = 0;
     renderFeeTable();
 });
-document.getElementById('filter-gender').addEventListener('change', () => {
+document.getElementById('filter-gender')?.addEventListener('change', () => {
     feeStatusPageOffset = 0;
     renderFeeTable();
 });
@@ -2897,8 +3065,8 @@ const populateStudentSuggestions = (searchTerm = '') => {
         }
     }
 };
-document.getElementById('entry-student-input').addEventListener('focus', () => populateStudentSuggestions(''));
-document.getElementById('entry-student-input').addEventListener('input', e => {
+document.getElementById('entry-student-input')?.addEventListener('focus', () => populateStudentSuggestions(''));
+document.getElementById('entry-student-input')?.addEventListener('input', e => {
     if (!e.target.value.trim() && selectedStudentId) {
         resetStudentSelection();
     }
@@ -2909,7 +3077,11 @@ document.getElementById('entry-student-clear-btn')?.addEventListener('click', ()
     resetStudentSelection();
     document.getElementById('entry-student-input')?.focus();
 });
-document.addEventListener('click', e => { if(!document.getElementById('student-combobox-container').contains(e.target)) document.getElementById('student-suggestions').classList.add('hidden'); });
+document.addEventListener('click', e => {
+    if (!document.getElementById('student-combobox-container')?.contains(e.target)) {
+        document.getElementById('student-suggestions')?.classList.add('hidden');
+    }
+});
 
 document.getElementById('multi-entry-toggle')?.addEventListener('change', () => { if (!isMultiEntryMode()) multiEntryQueue = []; renderMultiEntryQueue(); });
 document.getElementById('add-multi-student-btn')?.addEventListener('click', addCurrentStudentToMultiQueue);
@@ -3176,12 +3348,12 @@ const populateFeeItemSelection = () => {
     updateTotalAmount();
 };
 
-document.getElementById('fee-item-selection-container').addEventListener('input', e => {
+document.getElementById('fee-item-selection-container')?.addEventListener('input', e => {
     if(e.target.classList.contains('custom-fee-amount-input') || e.target.classList.contains('month-fee-amount-input')) {
         updateTotalAmount();
     }
 });
-document.getElementById('fee-item-selection-container').addEventListener('change', e => {
+document.getElementById('fee-item-selection-container')?.addEventListener('change', e => {
     if (e.target.classList.contains('fee-item-checkbox')) {
         const cb = e.target;
         const card = cb.closest('.fee-month-item-card');
@@ -3301,7 +3473,7 @@ const setupFeeEntryUI = () => {
 };
 
 const exitEditMode = () => { isEditMode = false; editingPaymentGroup = {}; editTouchedItemKeys = new Set(); resetStudentSelection(); setupFeeEntryUI(); };
-document.getElementById('cancel-edit-btn').addEventListener('click', exitEditMode);
+document.getElementById('cancel-edit-btn')?.addEventListener('click', exitEditMode);
 
 const startEditingPayment = (studentId, txnId) => {
     const student = getStudentById(studentId); if(!student) return;
@@ -3636,8 +3808,8 @@ const processPaymentSubmit = async (isUpdate) => {
     };
 };
 
-document.getElementById('save-fee-btn').addEventListener('click', () => processPaymentSubmit(false));
-document.getElementById('update-fee-btn').addEventListener('click', () => processPaymentSubmit(true));
+document.getElementById('save-fee-btn')?.addEventListener('click', () => processPaymentSubmit(false));
+document.getElementById('update-fee-btn')?.addEventListener('click', () => processPaymentSubmit(true));
 
 
 // --- BULK UPLOAD LOGIC ---
@@ -5676,7 +5848,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Event Delegation for dynamically generated history buttons
-document.getElementById('history-content-container').addEventListener('click', e => {
+document.getElementById('history-content-container')?.addEventListener('click', e => {
     const breakdownBtn = e.target.closest('.view-history-breakdown-btn');
     if (breakdownBtn) {
         showPaymentHistoryBreakdown(breakdownBtn.dataset.tid, breakdownBtn.dataset.sid);
@@ -5904,8 +6076,8 @@ const renderMonthlyCollectedPage = (searchTerm = '') => {
         cont.innerHTML += html + `</div></div>`;
     });
 };
-document.getElementById('monthly-collected-search-input').addEventListener('input', e => renderMonthlyCollectedPage(e.target.value));
-document.getElementById('monthly-collected-container').addEventListener('click', e => {
+document.getElementById('monthly-collected-search-input')?.addEventListener('input', e => renderMonthlyCollectedPage(e.target.value));
+document.getElementById('monthly-collected-container')?.addEventListener('click', e => {
     const h = e.target.closest('.month-header'), sel = e.target.closest('.monthly-student-select'), back = e.target.closest('#back-to-monthly-view-btn'), share = e.target.closest('#share-whatsapp-btn-monthly');
     if(h) { h.nextElementSibling.classList.toggle('hidden'); h.querySelector('.month-toggle-icon').classList.toggle('rotate-180'); }
     else if(sel) { document.getElementById('monthly-collected-search-input').value = sel.dataset.studentName; renderMonthlyCollectedPage(sel.dataset.studentName); }
@@ -7188,6 +7360,57 @@ onAuthStateChanged(auth, async (user) => {
     applyTabVisibilityPreferences();
     if (isMasterSuperAdmin() && displayEl) { displayEl.textContent = "ADMINISTRATOR"; }
 
+    const refreshVisibleViewOnDataUpdate = () => {
+        // 1. Fee Collection Module
+        if (!document.getElementById('home-page')?.classList.contains('hidden')) {
+            if (!isEditMode && !document.getElementById('subview-fee-entry')?.classList.contains('hidden')) {
+                if (!document.getElementById('entry-receipt')?.value) {
+                    const receiptEl = document.getElementById('entry-receipt');
+                    if (receiptEl) receiptEl.value = getNextReceiptNoForStaff();
+                }
+            }
+        }
+        // 2. Master Ledger & Status Module
+        if (!document.getElementById('master-ledger-page')?.classList.contains('hidden')) {
+            if (!document.getElementById('subview-fee-status')?.classList.contains('hidden')) {
+                renderFeeTable();
+            } else {
+                syncMasterLedgerState();
+            }
+        }
+        // 3. Fee Dues & Defaulters Module
+        if (!document.getElementById('fee-dues-page')?.classList.contains('hidden')) {
+            renderFeeDues();
+        }
+        // 4. Payment History Module
+        if (!document.getElementById('history-page')?.classList.contains('hidden')) {
+            prepareHistoryData();
+        }
+        // 5. Reports & Analytics Module
+        if (!document.getElementById('monthly-collected-page')?.classList.contains('hidden')) {
+            if (!document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden')) {
+                renderCollectorWiseMonthlyPage();
+            } else {
+                renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
+            }
+        }
+        // 6. Student Directory Module
+        if (!document.getElementById('students-page')?.classList.contains('hidden')) {
+            renderStudentInfoList();
+        }
+        // 7. Fee Settings & Setup Module
+        if (!document.getElementById('fee-settings-page')?.classList.contains('hidden')) {
+            if (!document.getElementById('manage-groups-page')?.classList.contains('hidden')) {
+                renderStudentGroups();
+            } else if (!document.getElementById('fee-concessions-page')?.classList.contains('hidden')) {
+                renderConcessionsList();
+            } else {
+                renderFeeItemsManagement();
+            }
+        }
+    };
+    window.refreshVisibleViewOnDataUpdate = refreshVisibleViewOnDataUpdate;
+
     onSnapshot(collection(db, `${BASE_PATH}/staff`), (snap) => {
         allStaff = snap.docs.map(d => ({id: d.id, ...d.data()}));
         if (!isMasterSuperAdmin()) {
@@ -7240,10 +7463,7 @@ onAuthStateChanged(auth, async (user) => {
         renderStaffDirectory();
         updateHistoryStaffFilter();
         updateDashboardMetrics();
-        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
-        if(document.getElementById('master-ledger-page')?.classList.contains('hidden') === false) syncMasterLedgerState();
-        if(document.getElementById('history-page')?.classList.contains('hidden') === false) prepareHistoryData();
-        if(document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
+        refreshVisibleViewOnDataUpdate();
     });
     onSnapshot(collection(db, `${BASE_PATH}/publicDirectory`), (snap) => {
         directoryEntries = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
@@ -7316,9 +7536,7 @@ onAuthStateChanged(auth, async (user) => {
             defaultReceiptMandatory = d.defaultReceiptMandatory || false;
             syncFeeConfigUI(d);
             syncFeeDuesState();
-            if (document.getElementById('fee-settings-page')?.classList.contains('hidden') === false) {
-                renderFeeItemsManagement();
-            }
+            syncMasterLedgerState();
 
             window.defaultFee = defaultFee;
             window.feeItems = feeItems;
@@ -7331,15 +7549,7 @@ onAuthStateChanged(auth, async (user) => {
             const fsh = document.getElementById('fee-status-title-header');
             if(fsh && feeStatusTitle) fsh.textContent = feeStatusTitle;
 
-            if(!isEditMode && document.getElementById('home-page').classList.contains('hidden') === false) {
-                setupFeeEntryUI();
-            }
-            if(document.getElementById('fee-page')?.classList.contains('hidden') === false) {
-                renderFeeTable();
-            }
-            if(document.getElementById('master-ledger-page')?.classList.contains('hidden') === false) {
-                syncMasterLedgerState();
-            }
+            refreshVisibleViewOnDataUpdate();
         }
     });
 
@@ -7351,9 +7561,7 @@ onAuthStateChanged(auth, async (user) => {
         syncMasterLedgerState();
         syncFeeDuesState();
         hideLoader();
-        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
-        if(document.getElementById('students-page')?.classList.contains('hidden') === false) renderStudentInfoList();
-        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
+        refreshVisibleViewOnDataUpdate();
     });
 
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
@@ -7386,9 +7594,7 @@ onAuthStateChanged(auth, async (user) => {
         syncMasterLedgerState();
         syncFeeDuesState();
         hideLoader();
-        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
-        if(document.getElementById('students-page')?.classList.contains('hidden') === false) renderStudentInfoList();
-        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
+        refreshVisibleViewOnDataUpdate();
     });
 
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
@@ -7399,6 +7605,7 @@ onAuthStateChanged(auth, async (user) => {
         populateClassDropdowns();
         syncMasterLedgerState();
         syncFeeDuesState();
+        refreshVisibleViewOnDataUpdate();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/studentGroups`), (snap) => {
@@ -7406,8 +7613,7 @@ onAuthStateChanged(auth, async (user) => {
         syncMasterLedgerState();
         syncFeeDuesState();
         hideLoader();
-        if(document.getElementById('manage-groups-page')?.classList.contains('hidden') === false) renderStudentGroups();
-        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
+        refreshVisibleViewOnDataUpdate();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/payments`), (snap) => {
@@ -7419,25 +7625,12 @@ onAuthStateChanged(auth, async (user) => {
         syncMasterLedgerState();
         syncFeeDuesState();
         hideLoader();
-
-        if(!isEditMode && document.getElementById('home-page')?.classList.contains('hidden') === false) {
-            if(!document.getElementById('entry-receipt')?.value) {
-                 document.getElementById('entry-receipt').value = getNextReceiptNoForStaff();
-            }
-        }
-
-        if(document.getElementById('history-page')?.classList.contains('hidden') === false) prepareHistoryData();
-        if(document.getElementById('monthly-collected-page')?.classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
-        if(document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
-        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
-        if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
+        refreshVisibleViewOnDataUpdate();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/donations`), (snap) => {
         allDonations = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         updateDashboardMetrics();
-        if(document.getElementById('history-page')?.classList.contains('hidden') === false) prepareHistoryData();
-        if(document.getElementById('monthly-collected-page')?.classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
-        if(document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
+        refreshVisibleViewOnDataUpdate();
     });
 });

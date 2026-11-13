@@ -430,30 +430,18 @@
                 <!-- 2. Fee Collection Group -->
                 <div class="nav-group-static" data-menu-group="collection">
                     <div class="drawer-heading">Fee Collection</div>
-                    <button type="button" id="nav-fee-entry" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="home-page" data-main-group="collection" title="Fee Entry">
-                        <i class="fas fa-edit w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Fee Entry</span>
-                    </button>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="bulk-upload-page" data-main-group="collection" title="Bulk Upload">
-                        <i class="fas fa-file-excel w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Bulk Upload</span>
-                    </button>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="donation-page" data-main-group="collection" title="Donation Entry">
-                        <i class="fas fa-hand-holding-heart w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Donation Entry</span>
+                    <button type="button" id="nav-fee-entry" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="home-page" data-main-group="collection" title="Fee Collection">
+                        <i class="fas fa-hand-holding-dollar w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Fee Collection</span>
                     </button>
                 </div>
 
                 <!-- 3. Ledgers & Records Group -->
                 <div class="nav-group-static" data-menu-group="ledgers">
                     <div class="drawer-heading">Ledgers &amp; Records</div>
-                    <button type="button" id="nav-master-ledger" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="master-ledger-page" data-main-group="ledgers" title="Master Fee Ledger">
+                    <button type="button" id="nav-master-ledger" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="master-ledger-page" data-main-group="ledgers" title="Master Ledger & Status">
                         <i class="fas fa-table-cells w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Master Fee Ledger</span>
-                    </button>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-page" data-main-group="ledgers" title="Fee Status">
-                        <i class="fas fa-list w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Fee Status</span>
+                        <span class="text-sm nav-text truncate">Master Ledger &amp; Status</span>
                     </button>
                     <button type="button" id="nav-fee-dues" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-dues-page" data-main-group="ledgers" title="Fee Dues & Defaulters">
                         <i class="fas fa-file-invoice-dollar w-5 text-center shrink-0 text-amber-500"></i>
@@ -465,37 +453,25 @@
                     </button>
                 </div>
 
-                <!-- 4. Analytics & Directory Group -->
+                <!-- 4. Reports & Directory Group -->
                 <div class="nav-group-static" data-menu-group="reports">
-                    <div class="drawer-heading">Analytics &amp; Directory</div>
-                    <button type="button" id="nav-monthly" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="monthly-collected-page" data-main-group="reports" title="Monthly Report">
+                    <div class="drawer-heading">Reports &amp; Directory</div>
+                    <button type="button" id="nav-monthly" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="monthly-collected-page" data-main-group="reports" title="Reports & Analytics">
                         <i class="fas fa-chart-bar w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Monthly Report</span>
+                        <span class="text-sm nav-text truncate">Reports &amp; Analytics</span>
                     </button>
-                    <button type="button" id="collector-wise-monthly-tab" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition hidden" data-target="collector-wise-monthly-page" data-main-group="reports" title="Collector-wise Monthly Total">
-                        <i class="fas fa-users w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Collector-wise Monthly Total</span>
-                    </button>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="students-page" data-main-group="reports" title="Students">
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="students-page" data-main-group="reports" title="Student Directory">
                         <i class="fas fa-user-graduate w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Students</span>
+                        <span class="text-sm nav-text truncate">Student Directory</span>
                     </button>
                 </div>
 
                 <!-- 5. Fee Rules & Settings Group -->
                 <div class="nav-group-static" data-menu-group="finance">
                     <div class="drawer-heading">Fee Rules &amp; Settings</div>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-settings-page" data-main-group="finance" title="Fee Settings">
-                        <i class="fas fa-receipt w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Fee Settings</span>
-                    </button>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="manage-groups-page" data-main-group="finance" title="Student Groups">
-                        <i class="fas fa-layer-group w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Student Groups</span>
-                    </button>
-                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-concessions-page" data-main-group="finance" title="Fee Concessions">
-                        <i class="fas fa-hand-holding-usd w-5 text-center shrink-0"></i>
-                        <span class="text-sm nav-text truncate">Fee Concessions</span>
+                    <button type="button" class="w-full text-left nav-link drawer-link tab-link flex items-center gap-3 p-3 transition" data-target="fee-settings-page" data-main-group="finance" title="Fee Settings & Setup">
+                        <i class="fas fa-sliders w-5 text-center shrink-0"></i>
+                        <span class="text-sm nav-text truncate">Fee Settings &amp; Setup</span>
                     </button>
                 </div>
             </nav>
@@ -620,259 +596,343 @@
 
             
 
-            <!-- 2. Fee Entry Page -->
+            <!-- 2. Fee Collection (Manual / Bulk / Donation) -->
             <section id="home-page" class="page-content hidden">
-                <div id="fee-entry-card" class="card p-5 mb-6 shadow-sm transition-all duration-300 max-w-4xl mx-auto">
-                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 border-b pb-2 gap-3">
-                        <div class="flex items-center gap-2">
-                            <h2 id="fee-entry-title" class="text-xl font-bold text-gray-800">Fee Entry</h2>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Record regular monthly tuition, arrears, and optional fee collections for enrolled students." title="Record regular monthly tuition, arrears, and optional fee collections for enrolled students.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                        </div>
-                        <div class="flex items-center gap-2 ml-auto whitespace-nowrap">
-                            <label for="multi-entry-toggle" class="text-sm font-semibold text-gray-700 flex items-center gap-1.5 cursor-pointer">
-                                <span>Multiple Entry</span>
-                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Enable to select and record fee payments for multiple students or siblings simultaneously." title="Enable to select and record fee payments for multiple students or siblings simultaneously.">
+                <!-- Segmented Sub-Tab Switcher -->
+                <div class="max-w-4xl mx-auto mb-4 bg-slate-100 p-1.5 rounded-2xl flex flex-wrap items-center gap-1.5 border border-slate-200">
+                    <button type="button" class="fee-collection-subtab-btn active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-blue-700 shadow-xs cursor-pointer" data-collection-subtab="entry">
+                        <i class="fas fa-edit"></i> Fee Entry
+                    </button>
+                    <button type="button" class="fee-collection-subtab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer" data-collection-subtab="bulk">
+                        <i class="fas fa-file-excel"></i> Bulk Upload
+                    </button>
+                    <button type="button" class="fee-collection-subtab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer" data-collection-subtab="donation">
+                        <i class="fas fa-hand-holding-heart"></i> Donation Entry
+                    </button>
+                </div>
+
+                <!-- Sub-View 1: Standard Fee Entry Form -->
+                <div id="subview-fee-entry">
+                    <div id="fee-entry-card" class="card p-5 mb-6 shadow-sm transition-all duration-300 max-w-4xl mx-auto">
+                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 border-b pb-2 gap-3">
+                            <div class="flex items-center gap-2">
+                                <h2 id="fee-entry-title" class="text-xl font-bold text-gray-800">Fee Entry</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Record regular monthly tuition, arrears, and optional fee collections for enrolled students." title="Record regular monthly tuition, arrears, and optional fee collections for enrolled students.">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
-                            </label>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input id="multi-entry-toggle" type="checkbox" class="sr-only peer">
-                                <span class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:bg-green-500 transition"></span>
-                                <span class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></span>
-                            </label>
-                        </div>
-                    </div>
-                    <div id="multi-entry-panel" class="hidden mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50">
-                        <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-                            <div id="multi-entry-count" class="text-sm font-bold text-blue-800">0 students queued for same receipt</div>
-                            <div class="flex gap-2">
-                                <button id="add-multi-student-btn" type="button" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold">+ Add Student</button>
-                                <button id="clear-multi-students-btn" type="button" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-sm font-bold">Clear</button>
                             </div>
-                        </div>
-                        <div id="multi-entry-list" class="mt-3 space-y-2"></div>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label class="block text-sm font-semibold mb-1 text-gray-700">Class</label><select id="entry-class" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white"><option value="all">All Classes</option></select></div>
-                            <div><label class="block text-sm font-semibold mb-1 text-gray-700">Gender</label><select id="entry-gender" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700 flex items-center gap-1.5">
-                                <span>Student</span>
-                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Search by Student Name, Admission Number, or Registered Mobile Number." title="Search by Student Name, Admission Number, or Registered Mobile Number.">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </label>
-                            <div class="relative" id="student-combobox-container">
-                                <input type="text" id="entry-student-input" class="w-full p-2.5 pr-10 rounded-lg" placeholder="Type name or Adm No..." autocomplete="off">
-                                <button id="entry-student-clear-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 hidden" title="Clear student input"><i class="fas fa-times text-xs"></i></button>
-                                <div id="student-suggestions" class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden max-h-60 overflow-y-auto"></div>
-                            </div>
-                            <div id="grouped-students-panel" class="hidden mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold mb-1 text-gray-700 flex justify-between">
-                                    <span>Receipt No. <span id="receipt-req-star" class="text-red-500 font-bold hidden">*</span></span>
-                                    <span class="text-[10px] text-gray-400 font-normal">(Auto)</span>
-                                </label>
-                                <input type="number" id="entry-receipt" class="w-full p-2.5 font-mono text-lg font-bold text-blue-700 rounded-lg" placeholder="Number">
-                            </div>
-                            <div><label class="block text-sm font-semibold mb-1 text-gray-700">Date</label><input type="date" id="entry-date" class="w-full p-2.5 rounded-lg"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-5">
-                        <label class="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-1.5">
-                            <span>Fee Items</span>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select monthly fee installments or additional institutional fee items (Admission, Books, Uniform) to collect." title="Select monthly fee installments or additional institutional fee items (Admission, Books, Uniform) to collect.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                        </label>
-                        <div id="fee-year-switcher" class="hidden mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <button id="fee-year-prev-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button" title="Previous Session Dues">&lt;</button>
-                                    <span id="fee-year-prev-label" class="text-[11px] font-semibold text-blue-700 whitespace-nowrap">--</span>
-                                </div>
-                                <div class="flex items-center gap-1.5">
-                                    <div id="fee-year-label" class="text-base sm:text-lg font-extrabold text-emerald-700">--</div>
-                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Navigate between academic years to view or settle historical arrears and future session dues." title="Navigate between academic years to view or settle historical arrears and future session dues.">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
-                                </div>
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <span id="fee-year-next-label" class="text-[11px] font-semibold text-blue-700 whitespace-nowrap">--</span>
-                                    <button id="fee-year-next-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button" title="Next Session Fees">&gt;</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="fee-due-notice" class="hidden mb-3 text-xs font-semibold rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2"></div>
-                        <div id="fee-past-dues-banner" class="hidden mb-3"></div>
-                        <div id="fee-item-selection-container" class="grid grid-cols-3 gap-2 mt-2">
-                            <div class="col-span-3 text-center text-xs font-semibold text-gray-400 py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">Search and select a student first</div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-5"><label class="block text-sm font-semibold mb-1 text-gray-700">Description (Optional)</label><textarea id="entry-description" rows="2" class="w-full p-2.5 rounded-lg"></textarea></div>
-                    <div class="mt-6 pt-5 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div class="w-full sm:w-auto flex flex-wrap items-center gap-4">
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">Total Amount (₹)</label>
-                                <input type="number" id="total-amount" class="p-2.5 w-full sm:w-32 font-mono text-xl font-bold text-green-700 bg-green-50 border border-green-300 rounded-lg text-center focus:ring-2 focus:ring-green-400 focus:outline-none" value="0">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1.5">
-                                    <span>Payment Mode</span>
-                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select the payment method (Cash, UPI / GPay, Bank Transfer, Cheque) and record transaction notes." title="Select the payment method (Cash, UPI / GPay, Bank Transfer, Cheque) and record transaction notes.">
+                            <div class="flex items-center gap-2 ml-auto whitespace-nowrap">
+                                <label for="multi-entry-toggle" class="text-sm font-semibold text-gray-700 flex items-center gap-1.5 cursor-pointer">
+                                    <span>Multiple Entry</span>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Enable to select and record fee payments for multiple students or siblings simultaneously." title="Enable to select and record fee payments for multiple students or siblings simultaneously.">
                                         <i class="fas fa-info-circle"></i>
                                     </button>
                                 </label>
-                                <select id="entry-payment-mode" class="p-2.5 w-full sm:w-48 font-semibold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none text-sm">
-                                    <option value="Cash" selected>Cash</option>
-                                    <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe</option>
-                                    <option value="Bank Transfer">Bank Transfer</option>
-                                    <option value="Cheque">Cheque</option>
-                                </select>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input id="multi-entry-toggle" type="checkbox" class="sr-only peer">
+                                    <span class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:bg-green-500 transition"></span>
+                                    <span class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></span>
+                                </label>
                             </div>
                         </div>
-                        <div id="action-buttons-container" class="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                            <button id="cancel-edit-btn" class="bg-gray-200 text-gray-800 font-bold py-2.5 px-6 rounded-lg shadow-sm hover:bg-gray-300 transition hidden flex-grow sm:flex-grow-0">Cancel</button>
-                            <button id="update-fee-btn" class="bg-amber-500 text-white font-bold py-2.5 px-6 rounded-lg shadow-md hover:bg-amber-600 transition hidden flex-grow sm:flex-grow-0">Update</button>
-                            <button id="save-fee-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md text-lg w-full sm:w-auto">Save</button>
+                        <div id="multi-entry-panel" class="hidden mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50">
+                            <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                                <div id="multi-entry-count" class="text-sm font-bold text-blue-800">0 students queued for same receipt</div>
+                                <div class="flex gap-2">
+                                    <button id="add-multi-student-btn" type="button" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold">+ Add Student</button>
+                                    <button id="clear-multi-students-btn" type="button" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-sm font-bold">Clear</button>
+                                </div>
+                            </div>
+                            <div id="multi-entry-list" class="mt-3 space-y-2"></div>
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 2.1 Bulk Upload Page -->
-            <section id="bulk-upload-page" class="page-content hidden">
-                <div class="card p-5 mb-6 shadow-sm border-blue-200 bg-blue-50/30 max-w-4xl mx-auto">
-                    <div class="flex justify-between items-center mb-4 border-b border-blue-200 pb-2">
-                        <div class="flex items-center gap-2">
-                            <h2 class="text-xl font-bold text-blue-900"><i class="fas fa-download text-blue-600 mr-2"></i>1. Download Template</h2>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Generate an Excel template pre-filled with student names and admission numbers for offline fee entry." title="Generate an Excel template pre-filled with student names and admission numbers for offline fee entry.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-4">Select an academic year and class to download a pre-filled Excel (.xlsx) template for those students. The first row will be a sample entry.</p>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Academic Year <span class="mandatory-star">*</span></label>
-                            <select id="bulk-academic-year" class="w-full p-2.5 border rounded-lg bg-white"></select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Target Class <span class="mandatory-star">*</span></label>
-                            <select id="bulk-class" class="w-full p-2.5 border rounded-lg bg-white"></select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Default Fee Amount (₹) <span class="mandatory-star">*</span></label>
-                            <input type="number" id="bulk-default-fee" class="w-full p-2.5 border rounded-lg bg-white" placeholder="e.g. 200">
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <button id="bulk-download-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition inline-flex items-center gap-2">
-                            <i class="fas fa-file-excel"></i> Download Excel Template
-                        </button>
-                    </div>
-                </div>
-
-                <div class="card p-5 shadow-sm border-green-200 bg-green-50/20 max-w-4xl mx-auto">
-                    <div class="flex justify-between items-center mb-4 border-b border-green-200 pb-2">
-                        <div class="flex items-center gap-2">
-                            <h2 class="text-xl font-bold text-green-900"><i class="fas fa-upload text-green-600 mr-2"></i>2. Upload Data</h2>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-green-700 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Upload the completed fee spreadsheet (.xlsx or .csv) to automatically record batch payments." title="Upload the completed fee spreadsheet (.xlsx or .csv) to automatically record batch payments.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-4">Fill the downloaded template and upload it here. Supported formats: <b>.xlsx, .xls, .csv</b>.</p>
-                    
-                    <div class="upload-area" id="bulk-drop-zone">
-                        <input type="file" id="bulk-file-input" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden">
-                        <i class="fas fa-cloud-upload-alt text-4xl text-green-500 mb-3"></i>
-                        <p class="font-semibold text-gray-700">Click to select or drag and drop your Excel/CSV here</p>
-                    </div>
-
-                    <div id="bulk-preview-area" class="mt-4 hidden p-4 bg-white border rounded-lg shadow-sm">
-                        <div class="flex justify-between items-center mb-3 border-b pb-2">
-                            <span class="font-bold text-gray-800" id="bulk-file-name">filename.xlsx</span>
-                            <span class="text-sm font-bold bg-green-100 text-green-800 px-3 py-1 rounded-full" id="bulk-record-count">Found 0 records</span>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-semibold mb-1 text-gray-700">Class</label><select id="entry-class" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white"><option value="all">All Classes</option></select></div>
+                                <div><label class="block text-sm font-semibold mb-1 text-gray-700">Gender</label><select id="entry-gender" class="w-full p-2.5 rounded-lg border border-gray-300 bg-white"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-1 text-gray-700 flex items-center gap-1.5">
+                                    <span>Student</span>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Search by Student Name, Admission Number, or Registered Mobile Number." title="Search by Student Name, Admission Number, or Registered Mobile Number.">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </label>
+                                <div class="relative" id="student-combobox-container">
+                                    <input type="text" id="entry-student-input" class="w-full p-2.5 pr-10 rounded-lg" placeholder="Type name or Adm No..." autocomplete="off">
+                                    <button id="entry-student-clear-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 hidden" title="Clear student input"><i class="fas fa-times text-xs"></i></button>
+                                    <div id="student-suggestions" class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden max-h-60 overflow-y-auto"></div>
+                                </div>
+                                <div id="grouped-students-panel" class="hidden mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1 text-gray-700 flex justify-between">
+                                        <span>Receipt No. <span id="receipt-req-star" class="text-red-500 font-bold hidden">*</span></span>
+                                        <span class="text-[10px] text-gray-400 font-normal">(Auto)</span>
+                                    </label>
+                                    <input type="number" id="entry-receipt" class="w-full p-2.5 font-mono text-lg font-bold text-blue-700 rounded-lg" placeholder="Number">
+                                </div>
+                                <div><label class="block text-sm font-semibold mb-1 text-gray-700">Date</label><input type="date" id="entry-date" class="w-full p-2.5 rounded-lg"></div>
+                            </div>
                         </div>
                         
-                        <!-- Progress Area -->
-                        <div id="bulk-progress-container" class="hidden">
-                            <div class="flex justify-between text-xs font-bold text-gray-600 mb-1">
-                                <span id="bulk-progress-text">Processing...</span>
-                                <span id="bulk-progress-pct">0%</span>
+                        <div class="mt-5">
+                            <label class="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-1.5">
+                                <span>Fee Items</span>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select monthly fee installments or additional institutional fee items (Admission, Books, Uniform) to collect." title="Select monthly fee installments or additional institutional fee items (Admission, Books, Uniform) to collect.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </label>
+                            <div id="fee-year-switcher" class="hidden mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <button id="fee-year-prev-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button" title="Previous Session Dues">&lt;</button>
+                                        <span id="fee-year-prev-label" class="text-[11px] font-semibold text-blue-700 whitespace-nowrap">--</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <div id="fee-year-label" class="text-base sm:text-lg font-extrabold text-emerald-700">--</div>
+                                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Navigate between academic years to view or settle historical arrears and future session dues." title="Navigate between academic years to view or settle historical arrears and future session dues.">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span id="fee-year-next-label" class="text-[11px] font-semibold text-blue-700 whitespace-nowrap">--</span>
+                                        <button id="fee-year-next-btn" class="w-8 h-8 rounded-md bg-white border border-blue-200 text-blue-700 font-bold hover:bg-blue-100" type="button" title="Next Session Fees">&gt;</button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden">
-                                <div id="bulk-progress-bar" class="bg-green-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            <div id="fee-due-notice" class="hidden mb-3 text-xs font-semibold rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2"></div>
+                            <div id="fee-past-dues-banner" class="hidden mb-3"></div>
+                            <div id="fee-item-selection-container" class="grid grid-cols-3 gap-2 mt-2">
+                                <div class="col-span-3 text-center text-xs font-semibold text-gray-400 py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">Search and select a student first</div>
                             </div>
                         </div>
+                        
+                        <div class="mt-5"><label class="block text-sm font-semibold mb-1 text-gray-700">Description (Optional)</label><textarea id="entry-description" rows="2" class="w-full p-2.5 rounded-lg"></textarea></div>
+                        <div class="mt-6 pt-5 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div class="w-full sm:w-auto flex flex-wrap items-center gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">Total Amount (₹)</label>
+                                    <input type="number" id="total-amount" class="p-2.5 w-full sm:w-32 font-mono text-xl font-bold text-green-700 bg-green-50 border border-green-300 rounded-lg text-center focus:ring-2 focus:ring-green-400 focus:outline-none" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <span>Payment Mode</span>
+                                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select the payment method (Cash, UPI / GPay, Bank Transfer, Cheque) and record transaction notes." title="Select the payment method (Cash, UPI / GPay, Bank Transfer, Cheque) and record transaction notes.">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </label>
+                                    <select id="entry-payment-mode" class="p-2.5 w-full sm:w-48 font-semibold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none text-sm">
+                                        <option value="Cash" selected>Cash</option>
+                                        <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Cheque">Cheque</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="action-buttons-container" class="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                <button id="cancel-edit-btn" class="bg-gray-200 text-gray-800 font-bold py-2.5 px-6 rounded-lg shadow-sm hover:bg-gray-300 transition hidden flex-grow sm:flex-grow-0">Cancel</button>
+                                <button id="update-fee-btn" class="bg-amber-500 text-white font-bold py-2.5 px-6 rounded-lg shadow-md hover:bg-amber-600 transition hidden flex-grow sm:flex-grow-0">Update</button>
+                                <button id="save-fee-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md text-lg w-full sm:w-auto">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        <div class="mt-4 text-right">
-                            <button id="bulk-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 font-bold rounded-lg mr-2 hover:bg-gray-300 transition">Cancel</button>
-                            <button id="bulk-start-upload-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition inline-flex items-center gap-2">
-                                <i class="fas fa-cogs"></i> Start Processing
+                <!-- Sub-View 2: Bulk Upload Page -->
+                <div id="bulk-upload-page" class="hidden">
+                    <div class="card p-5 mb-6 shadow-sm border-blue-200 bg-blue-50/30 max-w-4xl mx-auto">
+                        <div class="flex justify-between items-center mb-4 border-b border-blue-200 pb-2">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-xl font-bold text-blue-900"><i class="fas fa-download text-blue-600 mr-2"></i>1. Download Template</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Generate an Excel template pre-filled with student names and admission numbers for offline fee entry." title="Generate an Excel template pre-filled with student names and admission numbers for offline fee entry.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-4">Select an academic year and class to download a pre-filled Excel (.xlsx) template for those students. The first row will be a sample entry.</p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-1 text-gray-700">Academic Year <span class="mandatory-star">*</span></label>
+                                <select id="bulk-academic-year" class="w-full p-2.5 border rounded-lg bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-1 text-gray-700">Target Class <span class="mandatory-star">*</span></label>
+                                <select id="bulk-class" class="w-full p-2.5 border rounded-lg bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-1 text-gray-700">Default Fee Amount (₹) <span class="mandatory-star">*</span></label>
+                                <input type="number" id="bulk-default-fee" class="w-full p-2.5 border rounded-lg bg-white" placeholder="e.g. 200">
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <button id="bulk-download-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition inline-flex items-center gap-2">
+                                <i class="fas fa-file-excel"></i> Download Excel Template
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="card p-5 shadow-sm border-green-200 bg-green-50/20 max-w-4xl mx-auto">
+                        <div class="flex justify-between items-center mb-4 border-b border-green-200 pb-2">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-xl font-bold text-green-900"><i class="fas fa-upload text-green-600 mr-2"></i>2. Upload Data</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-green-700 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Upload the completed fee spreadsheet (.xlsx or .csv) to automatically record batch payments." title="Upload the completed fee spreadsheet (.xlsx or .csv) to automatically record batch payments.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-4">Fill the downloaded template and upload it here. Supported formats: <b>.xlsx, .xls, .csv</b>.</p>
+                        
+                        <div class="upload-area" id="bulk-drop-zone">
+                            <input type="file" id="bulk-file-input" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-green-500 mb-3"></i>
+                            <p class="font-semibold text-gray-700">Click to select or drag and drop your Excel/CSV here</p>
+                        </div>
+
+                        <div id="bulk-preview-area" class="mt-4 hidden p-4 bg-white border rounded-lg shadow-sm">
+                            <div class="flex justify-between items-center mb-3 border-b pb-2">
+                                <span class="font-bold text-gray-800" id="bulk-file-name">filename.xlsx</span>
+                                <span class="text-sm font-bold bg-green-100 text-green-800 px-3 py-1 rounded-full" id="bulk-record-count">Found 0 records</span>
+                            </div>
+                            
+                            <!-- Progress Area -->
+                            <div id="bulk-progress-container" class="hidden">
+                                <div class="flex justify-between text-xs font-bold text-gray-600 mb-1">
+                                    <span id="bulk-progress-text">Processing...</span>
+                                    <span id="bulk-progress-pct">0%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden">
+                                    <div id="bulk-progress-bar" class="bg-green-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 text-right">
+                                <button id="bulk-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 font-bold rounded-lg mr-2 hover:bg-gray-300 transition">Cancel</button>
+                                <button id="bulk-start-upload-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition inline-flex items-center gap-2">
+                                    <i class="fas fa-cogs"></i> Start Processing
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-View 3: Donation Entry -->
+                <div id="donation-page" class="hidden">
+                    <div class="card p-5 shadow-sm max-w-3xl mx-auto">
+                        <div class="flex items-center gap-2 mb-4 border-b pb-2">
+                            <h2 class="text-xl font-bold text-gray-800">Donation Entry</h2>
+                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Record general contributions, institutional endowments, and special donor receipts." title="Record general contributions, institutional endowments, and special donor receipts.">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-1 text-gray-700">Donor Name</label>
+                                <div class="relative" id="donation-donor-container">
+                                    <input type="text" id="donation-name" class="w-full p-2.5 pr-10 rounded-lg" placeholder="Type donor name or Adm No..." autocomplete="off">
+                                    <button id="donation-donor-clear-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 hidden" title="Clear donor name"><i class="fas fa-times text-xs"></i></button>
+                                    <div id="donation-donor-suggestions" class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden max-h-60 overflow-y-auto"></div>
+                                </div>
+                            </div>
+                            <div><label class="block text-sm font-semibold mb-1 text-gray-700">Receipt No (Optional)</label><input type="number" id="donation-receipt" class="w-full p-2.5 rounded-lg" placeholder="Receipt number"></div>
+                            <div><label class="block text-sm font-semibold mb-1 text-gray-700">Amount (₹)</label><input type="number" id="donation-amount" class="w-full p-2.5 rounded-lg" placeholder="Amount"></div>
+                            <div><label class="block text-sm font-semibold mb-1 text-gray-700">Date</label><input type="date" id="donation-date" class="w-full p-2.5 rounded-lg"></div>
+                            <div class="md:col-span-2"><label class="block text-sm font-semibold mb-1 text-gray-700">Description</label><textarea id="donation-description" rows="3" class="w-full p-2.5 rounded-lg" placeholder="Donation details"></textarea></div>
+                        </div>
+                        <div class="mt-4 flex items-center gap-3">
+                            <button id="save-donation-btn" class="btn-primary font-bold py-2.5 px-5 rounded-lg shadow-md">Save Donation</button>
+                            <span id="donation-save-msg" class="text-xs font-semibold text-emerald-700"></span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- 3. Fee Status Page (Full Width Desktop Spreadsheet) -->
-            <section id="fee-page" class="page-content hidden w-full max-w-full min-w-0">
-                <!-- Mobile Rotate & Fullscreen Suggestion Banner -->
-                <div class="mobile-rotate-suggestion lg:hidden flex items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-semibold mb-2.5 shadow-2xs">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <i class="fas fa-mobile-screen-button text-indigo-600 text-sm animate-pulse shrink-0 transform rotate-90"></i>
-                        <span class="truncate text-[11px]">Rotate device or use Fullscreen for wide view</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                        <button type="button" class="quick-fullscreen-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer" data-target="fee-page">
-                            <i class="fas fa-expand mr-0.5"></i> Fullscreen
-                        </button>
-                        <button type="button" class="dismiss-rotate-tip-btn text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer" title="Dismiss">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
+            <!-- 3. Master Ledger & Status (Full Width Spreadsheet) -->
+            <section id="master-ledger-page" class="page-content hidden w-full max-w-full min-w-0">
+                <!-- Segmented Sub-Tab Switcher -->
+                <div class="mb-3.5 bg-slate-100 p-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200 max-w-md">
+                    <button type="button" class="ledger-subtab-btn active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-blue-700 shadow-xs cursor-pointer" data-ledger-subtab="ledger">
+                        <i class="fas fa-table-cells"></i> Master Fee Ledger
+                    </button>
+                    <button type="button" class="ledger-subtab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer" data-ledger-subtab="status">
+                        <i class="fas fa-list-check"></i> Fee Status Matrix
+                    </button>
                 </div>
 
-                <div id="fee-status-toolbar-card" class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200 w-full max-w-full min-w-0 box-border overflow-hidden">
-                    <div class="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 min-w-0">
-                        <!-- 4 Filter Dropdowns in Compact Responsive Grid (2x2 on Mobile, 4 in row on Desktop) -->
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 flex-1 min-w-0">
-                            <div>
-                                <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
-                                    <span>Academic Year</span>
-                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select current academic year or past sessions to view historical fee settlement status." title="Select current academic year or past sessions to view historical fee settlement status.">
-                                        <i class="fas fa-info-circle"></i>
+                <!-- Sub-View 1: Master Fee Ledger (Edge-to-Edge Family & Student Register) -->
+                <div id="subview-master-ledger">
+                    <!-- Mobile Rotate & Fullscreen Suggestion Banner -->
+                    <div class="mobile-rotate-suggestion lg:hidden flex items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-semibold mb-2.5 shadow-2xs">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <i class="fas fa-mobile-screen-button text-indigo-600 text-sm animate-pulse shrink-0 transform rotate-90"></i>
+                            <span class="truncate text-[11px]">Rotate device or use Fullscreen for wide ledger</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" class="quick-fullscreen-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer" data-target="master-ledger-page">
+                                <i class="fas fa-expand mr-0.5"></i> Fullscreen
+                            </button>
+                            <button type="button" class="dismiss-rotate-tip-btn text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer" title="Dismiss">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar and Filter Bar: Organized Row 1 (Search + Actions) & Row 2 (Compact Filter Grid) -->
+                    <div id="master-ledger-toolbar-card" class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200 w-full max-w-full min-w-0 box-border overflow-hidden">
+                        <!-- Row 1: Search Bar & Primary Actions -->
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100 min-w-0">
+                            <!-- Search Bar -->
+                            <div class="relative flex-1 min-w-0">
+                                <input type="text" id="ledger-search-input" placeholder="Search students by name, admission no, or phone..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition">
+                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            </div>
+
+                            <!-- Action Buttons Strip -->
+                            <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
+                                <!-- Clear Button -->
+                                <button type="button" id="ledger-clear-filters-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs">
+                                    Clear
+                                </button>
+
+                                <!-- Dynamic Bulk Selection Action Buttons next to Clear -->
+                                <div id="ledger-bulk-actions" class="hidden items-center gap-1.5">
+                                    <button type="button" id="ledger-bulk-collect-btn" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
+                                        <i class="fas fa-check-double"></i> <span id="ledger-bulk-collect-label">Collect (0)</span>
                                     </button>
-                                </label>
-                                <select id="filter-academic-year" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="">-- Academic Year --</option></select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
-                                    <span>Class Filter</span>
-                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Filter by regular classes or select graduated alumni batches to inspect archive records." title="Filter by regular classes or select graduated alumni batches to inspect archive records.">
-                                        <i class="fas fa-info-circle"></i>
+                                    <button type="button" id="ledger-bulk-edit-btn" class="hidden px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
+                                        <i class="fas fa-pen-to-square"></i> <span id="ledger-bulk-edit-label">Edit (0)</span>
                                     </button>
-                                </label>
-                                <select id="filter-class" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="" selected>-- Select Class --</option><option value="all">All Classes</option></select>
+                                </div>
+
+                                <!-- Preview PDF Action -->
+                                <button type="button" id="master-ledger-pdf-btn" class="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 shrink-0">
+                                    <i class="fas fa-file-pdf"></i> Preview PDF
+                                </button>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-red-600 cursor-pointer text-xs p-1 focus:outline-none transition inline-flex items-center shrink-0" data-info="Generate an edge-to-edge printable tabular ledger report formatted for institutional archiving." title="Generate an edge-to-edge printable tabular ledger report formatted for institutional archiving.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <button type="button" class="exit-fullscreen-btn hidden px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow transition items-center gap-1.5 text-xs shrink-0 cursor-pointer" title="Exit Fullscreen">
+                                    <i class="fas fa-compress"></i> Exit Fullscreen
+                                </button>
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold mb-1 text-slate-700">Gender Filter</label>
-                                <select id="filter-gender" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                        </div>
+
+                        <!-- Row 2: 8 Filters in Clean Responsive Grid (2 cols on mobile, 3 on sm/md, 4 on lg/xl, 8 on 2xl) -->
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 2xl:grid-cols-8 gap-2 pt-2.5 min-w-0">
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-view-mode" class="w-full max-w-full py-1.5 px-2 border border-blue-200 rounded-xl text-xs font-black text-blue-700 bg-blue-50/50 hover:bg-blue-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="GROUPED" selected>View: Family Units</option>
+                                    <option value="INDIVIDUAL">View: Individual Students</option>
+                                </select>
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold mb-1 text-slate-700">Rows Limit</label>
-                                <select id="fee-status-row-limit" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-academic-year-select" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="">-- Academic Year --</option>
+                                </select>
+                            </div>
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-row-limit" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
                                     <option value="25" selected>Rows: 25</option>
                                     <option value="50">Rows: 50</option>
                                     <option value="75">Rows: 75</option>
@@ -880,174 +940,151 @@
                                     <option value="all">Rows: All</option>
                                 </select>
                             </div>
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-class-filter" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="" selected>-- Select Class --</option>
+                                    <option value="all">All Classes</option>
+                                </select>
+                            </div>
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-class-order" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="DESC">Class Order: +2 to 1</option>
+                                    <option value="ASC">Class Order: 1 to +2</option>
+                                </select>
+                            </div>
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-student-sort" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="DEFAULT">Student Sort: Default</option>
+                                    <option value="ADM">Admission No</option>
+                                    <option value="A-Z">Name (A - Z)</option>
+                                    <option value="Z-A">Name (Z - A)</option>
+                                </select>
+                            </div>
+                            <div class="min-w-0 overflow-hidden">
+                                <select id="ledger-gender-mode" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="MIXED">Gender: Mixed</option>
+                                    <option value="CLASS_BOYS_FIRST">Class-wise (Boys then Girls)</option>
+                                    <option value="GLOBAL_BOYS_FIRST">Global (All Boys then All Girls)</option>
+                                </select>
+                            </div>
+                            <div class="col-span-2 sm:col-span-1 2xl:col-span-1 min-w-0 overflow-hidden">
+                                <select id="ledger-status-filter" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
+                                    <option value="ALL">Status: All</option>
+                                    <option value="PENDING">With Outstanding Dues</option>
+                                    <option value="PAID">Fully Paid (Zero Dues)</option>
+                                    <option value="CONCESSION">Concession Only</option>
+                                    <option value="GROUP">Family Group Only</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 border-slate-100">
-                            <span class="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
-                                <i class="fas fa-hand-pointer text-xs"></i> Tick boxes for multi-entry or click cell
-                            </span>
-                            <!-- Dynamic Bulk Selection Action Buttons for Fee Status -->
-                            <div id="fee-status-bulk-actions" class="hidden items-center gap-1.5">
-                                <button type="button" id="fee-status-clear-sel-btn" class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs">
-                                    Clear
+                    </div>
+
+                    <!-- Master Fee Ledger Table Canvas (Edge-to-Edge) -->
+                    <div id="master-ledger-table-container" class="w-full overflow-x-auto rounded-2xl shadow-sm border border-slate-200 bg-white custom-scroll max-h-[78vh]">
+                        <div class="text-center py-16 text-slate-400">
+                            <i class="fas fa-spinner fa-spin text-3xl mb-2 text-blue-500"></i>
+                            <p class="font-bold text-xs">Loading Master Fee Ledger...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-View 2: Fee Status Matrix (12-Month Checkbox Grid) -->
+                <div id="subview-fee-status" class="hidden">
+                    <div id="fee-page" class="w-full max-w-full min-w-0">
+                        <!-- Mobile Rotate & Fullscreen Suggestion Banner -->
+                        <div class="mobile-rotate-suggestion lg:hidden flex items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-semibold mb-2.5 shadow-2xs">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <i class="fas fa-mobile-screen-button text-indigo-600 text-sm animate-pulse shrink-0 transform rotate-90"></i>
+                                <span class="truncate text-[11px]">Rotate device or use Fullscreen for wide view</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button" class="quick-fullscreen-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer" data-target="fee-page">
+                                    <i class="fas fa-expand mr-0.5"></i> Fullscreen
                                 </button>
-                                <button type="button" id="fee-status-bulk-collect-btn" class="hidden px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
-                                    <i class="fas fa-check-double"></i> <span id="fee-status-bulk-collect-label">Collect (0)</span>
-                                </button>
-                                <button type="button" id="fee-status-bulk-edit-btn" class="hidden px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
-                                    <i class="fas fa-pen-to-square"></i> <span id="fee-status-bulk-edit-label">Edit (0)</span>
+                                <button type="button" class="dismiss-rotate-tip-btn text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer" title="Dismiss">
+                                    <i class="fas fa-times"></i>
                                 </button>
                             </div>
-                            <button id="fee-download-pdf-btn" class="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm flex items-center gap-2 text-xs transition shrink-0"><i class="fas fa-file-pdf"></i> Download PDF</button>
-                            <button type="button" class="exit-fullscreen-btn hidden py-2 px-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-sm items-center gap-1.5 text-xs transition shrink-0 cursor-pointer" title="Exit Fullscreen">
-                                <i class="fas fa-compress"></i> Exit Fullscreen
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div id="fee-table-card" class="card p-0 shadow-sm overflow-hidden bg-white rounded-2xl border border-slate-200">
-                    <div class="flex justify-between items-center p-3 sm:p-4 border-b border-slate-200 bg-slate-50">
-                         <div class="flex items-center gap-2">
-                             <h2 id="fee-status-title-header" class="text-sm font-extrabold text-slate-800">Fee Status</h2>
-                             <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Spreadsheet view tracking monthly fee clearance for all enrolled students and alumni." title="Spreadsheet view tracking monthly fee clearance for all enrolled students and alumni.">
-                                 <i class="fas fa-info-circle"></i>
-                             </button>
-                         </div>
-                         <div class="text-[11px] text-slate-500 font-semibold hidden sm:flex items-center gap-2">
-                             <span class="inline-flex items-center gap-1 text-emerald-700 font-bold mr-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Paid</span>
-                             <span class="inline-flex items-center gap-1 text-rose-600 font-bold mr-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span> Unpaid</span>
-                             <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Green indicates paid fees (click to view receipt). Red indicates unpaid dues (click to record payment)." title="Green indicates paid fees (click to view receipt). Red indicates unpaid dues (click to record payment).">
-                                 <i class="fas fa-info-circle"></i>
-                             </button>
-                         </div>
-                    </div>
-                    <div id="fee-table-container" class="overflow-x-auto p-2 sm:p-4 custom-scroll max-h-[75vh]"></div>
-                </div>
-            </section>
-
-            <!-- Master Fee Ledger Page (Full Width Spreadsheet) -->
-            <section id="master-ledger-page" class="page-content hidden w-full max-w-full min-w-0">
-                <!-- Mobile Rotate & Fullscreen Suggestion Banner -->
-                <div class="mobile-rotate-suggestion lg:hidden flex items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-semibold mb-2.5 shadow-2xs">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <i class="fas fa-mobile-screen-button text-indigo-600 text-sm animate-pulse shrink-0 transform rotate-90"></i>
-                        <span class="truncate text-[11px]">Rotate device or use Fullscreen for wide ledger</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                        <button type="button" class="quick-fullscreen-btn px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer" data-target="master-ledger-page">
-                            <i class="fas fa-expand mr-0.5"></i> Fullscreen
-                        </button>
-                        <button type="button" class="dismiss-rotate-tip-btn text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer" title="Dismiss">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Toolbar and Filter Bar: Organized Row 1 (Search + Actions) & Row 2 (Compact Filter Grid) -->
-                <div id="master-ledger-toolbar-card" class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200 w-full max-w-full min-w-0 box-border overflow-hidden">
-                    <!-- Row 1: Search Bar & Primary Actions -->
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100 min-w-0">
-                        <!-- Search Bar -->
-                        <div class="relative flex-1 min-w-0">
-                            <input type="text" id="ledger-search-input" placeholder="Search students by name, admission no, or phone..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition">
-                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         </div>
 
-                        <!-- Action Buttons Strip -->
-                        <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
-                            <!-- Clear Button -->
-                            <button type="button" id="ledger-clear-filters-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs">
-                                Clear
-                            </button>
-
-                            <!-- Dynamic Bulk Selection Action Buttons next to Clear -->
-                            <div id="ledger-bulk-actions" class="hidden items-center gap-1.5">
-                                <button type="button" id="ledger-bulk-collect-btn" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
-                                    <i class="fas fa-check-double"></i> <span id="ledger-bulk-collect-label">Collect (0)</span>
-                                </button>
-                                <button type="button" id="ledger-bulk-edit-btn" class="hidden px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
-                                    <i class="fas fa-pen-to-square"></i> <span id="ledger-bulk-edit-label">Edit (0)</span>
-                                </button>
+                        <div id="fee-status-toolbar-card" class="card p-3 sm:p-4 mb-3 sm:mb-4 shadow-sm bg-white rounded-2xl border border-slate-200 w-full max-w-full min-w-0 box-border overflow-hidden">
+                            <div class="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 min-w-0">
+                                <!-- 4 Filter Dropdowns in Compact Responsive Grid (2x2 on Mobile, 4 in row on Desktop) -->
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 flex-1 min-w-0">
+                                    <div>
+                                        <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
+                                            <span>Academic Year</span>
+                                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Select current academic year or past sessions to view historical fee settlement status." title="Select current academic year or past sessions to view historical fee settlement status.">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </label>
+                                        <select id="filter-academic-year" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="">-- Academic Year --</option></select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold mb-1 text-slate-700 flex items-center gap-1">
+                                            <span>Class Filter</span>
+                                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Filter by regular classes or select graduated alumni batches to inspect archive records." title="Filter by regular classes or select graduated alumni batches to inspect archive records.">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </label>
+                                        <select id="filter-class" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="" selected>-- Select Class --</option><option value="all">All Classes</option></select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold mb-1 text-slate-700">Gender Filter</label>
+                                        <select id="filter-gender" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs"><option value="all">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold mb-1 text-slate-700">Rows Limit</label>
+                                        <select id="fee-status-row-limit" class="w-full p-2 rounded-xl text-xs font-bold border border-slate-200 bg-white cursor-pointer truncate shadow-2xs">
+                                            <option value="25" selected>Rows: 25</option>
+                                            <option value="50">Rows: 50</option>
+                                            <option value="75">Rows: 75</option>
+                                            <option value="100">Rows: 100</option>
+                                            <option value="all">Rows: All</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 border-slate-100">
+                                    <span class="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+                                        <i class="fas fa-hand-pointer text-xs"></i> Tick boxes for multi-entry or click cell
+                                    </span>
+                                    <!-- Dynamic Bulk Selection Action Buttons for Fee Status -->
+                                    <div id="fee-status-bulk-actions" class="hidden items-center gap-1.5">
+                                        <button type="button" id="fee-status-clear-sel-btn" class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs">
+                                            Clear
+                                        </button>
+                                        <button type="button" id="fee-status-bulk-collect-btn" class="hidden px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
+                                            <i class="fas fa-check-double"></i> <span id="fee-status-bulk-collect-label">Collect (0)</span>
+                                        </button>
+                                        <button type="button" id="fee-status-bulk-edit-btn" class="hidden px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition items-center gap-1.5">
+                                            <i class="fas fa-pen-to-square"></i> <span id="fee-status-bulk-edit-label">Edit (0)</span>
+                                        </button>
+                                    </div>
+                                    <button id="fee-download-pdf-btn" class="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm flex items-center gap-2 text-xs transition shrink-0"><i class="fas fa-file-pdf"></i> Download PDF</button>
+                                    <button type="button" class="exit-fullscreen-btn hidden py-2 px-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-sm items-center gap-1.5 text-xs transition shrink-0 cursor-pointer" title="Exit Fullscreen">
+                                        <i class="fas fa-compress"></i> Exit Fullscreen
+                                    </button>
+                                </div>
                             </div>
-
-                            <!-- Preview PDF Action -->
-                            <button type="button" id="master-ledger-pdf-btn" class="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 shrink-0">
-                                <i class="fas fa-file-pdf"></i> Preview PDF
-                            </button>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-red-600 cursor-pointer text-xs p-1 focus:outline-none transition inline-flex items-center shrink-0" data-info="Generate an edge-to-edge printable tabular ledger report formatted for institutional archiving." title="Generate an edge-to-edge printable tabular ledger report formatted for institutional archiving.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                            <button type="button" class="exit-fullscreen-btn hidden px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow transition items-center gap-1.5 text-xs shrink-0 cursor-pointer" title="Exit Fullscreen">
-                                <i class="fas fa-compress"></i> Exit Fullscreen
-                            </button>
                         </div>
-                    </div>
-
-                    <!-- Row 2: 8 Filters in Clean Responsive Grid (2 cols on mobile, 3 on sm/md, 4 on lg/xl, 8 on 2xl) -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 2xl:grid-cols-8 gap-2 pt-2.5 min-w-0">
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-view-mode" class="w-full max-w-full py-1.5 px-2 border border-blue-200 rounded-xl text-xs font-black text-blue-700 bg-blue-50/50 hover:bg-blue-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="GROUPED" selected>View: Family Units</option>
-                                <option value="INDIVIDUAL">View: Individual Students</option>
-                            </select>
+                        <div id="fee-table-card" class="card p-0 shadow-sm overflow-hidden bg-white rounded-2xl border border-slate-200">
+                            <div class="flex justify-between items-center p-3 sm:p-4 border-b border-slate-200 bg-slate-50">
+                                 <div class="flex items-center gap-2">
+                                     <h2 id="fee-status-title-header" class="text-sm font-extrabold text-slate-800">Fee Status</h2>
+                                     <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Spreadsheet view tracking monthly fee clearance for all enrolled students and alumni." title="Spreadsheet view tracking monthly fee clearance for all enrolled students and alumni.">
+                                         <i class="fas fa-info-circle"></i>
+                                     </button>
+                                 </div>
+                                 <div class="text-[11px] text-slate-500 font-semibold hidden sm:flex items-center gap-2">
+                                     <span class="inline-flex items-center gap-1 text-emerald-700 font-bold mr-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Paid</span>
+                                     <span class="inline-flex items-center gap-1 text-rose-600 font-bold mr-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span> Unpaid</span>
+                                     <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Green indicates paid fees (click to view receipt). Red indicates unpaid dues (click to record payment)." title="Green indicates paid fees (click to view receipt). Red indicates unpaid dues (click to record payment).">
+                                         <i class="fas fa-info-circle"></i>
+                                     </button>
+                                 </div>
+                            </div>
+                            <div id="fee-table-container" class="overflow-x-auto p-2 sm:p-4 custom-scroll max-h-[75vh]"></div>
                         </div>
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-academic-year-select" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="">-- Academic Year --</option>
-                            </select>
-                        </div>
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-row-limit" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="25" selected>Rows: 25</option>
-                                <option value="50">Rows: 50</option>
-                                <option value="75">Rows: 75</option>
-                                <option value="100">Rows: 100</option>
-                                <option value="all">Rows: All</option>
-                            </select>
-                        </div>
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-class-filter" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="" selected>-- Select Class --</option>
-                                <option value="all">All Classes</option>
-                            </select>
-                        </div>
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-class-order" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="DESC">Class Order: +2 to 1</option>
-                                <option value="ASC">Class Order: 1 to +2</option>
-                            </select>
-                        </div>
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-student-sort" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="DEFAULT">Student Sort: Default</option>
-                                <option value="ADM">Admission No</option>
-                                <option value="A-Z">Name (A - Z)</option>
-                                <option value="Z-A">Name (Z - A)</option>
-                            </select>
-                        </div>
-                        <div class="min-w-0 overflow-hidden">
-                            <select id="ledger-gender-mode" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="MIXED">Gender: Mixed</option>
-                                <option value="CLASS_BOYS_FIRST">Class-wise (Boys then Girls)</option>
-                                <option value="GLOBAL_BOYS_FIRST">Global (All Boys then All Girls)</option>
-                            </select>
-                        </div>
-                        <div class="col-span-2 sm:col-span-1 2xl:col-span-1 min-w-0 overflow-hidden">
-                            <select id="ledger-status-filter" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
-                                <option value="ALL">Status: All</option>
-                                <option value="PENDING">With Outstanding Dues</option>
-                                <option value="PAID">Fully Paid (Zero Dues)</option>
-                                <option value="CONCESSION">Concession Only</option>
-                                <option value="GROUP">Family Group Only</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Master Fee Ledger Table Canvas (Edge-to-Edge) -->
-                <div id="master-ledger-table-container" class="w-full overflow-x-auto rounded-2xl shadow-sm border border-slate-200 bg-white custom-scroll max-h-[78vh]">
-                    <div class="text-center py-16 text-slate-400">
-                        <i class="fas fa-spinner fa-spin text-3xl mb-2 text-blue-500"></i>
-                        <p class="font-bold text-xs">Loading Master Fee Ledger...</p>
                     </div>
                 </div>
             </section>
@@ -1261,73 +1298,58 @@
                 </div>
             </section>
 
-            <!-- 5. Monthly Collected Page -->
+            <!-- 6. Reports & Analytics Page -->
             <section id="monthly-collected-page" class="page-content hidden">
-                 <div class="card p-5 shadow-sm">
-                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3">
-                         <div class="flex items-center gap-2">
-                             <h2 class="text-xl font-bold text-gray-800">Monthly Report</h2>
-                             <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel." title="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel.">
-                                 <i class="fas fa-info-circle"></i>
-                             </button>
-                         </div>
-                         <button type="button" id="monthly-report-download-btn" data-export-type="monthly" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto">
-                             <i class="fas fa-file-pdf"></i> Download PDF Report
-                         </button>
-                     </div>
-                     <div id="monthly-report-summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5"></div>
-                     <div class="relative mb-5">
-                        <input type="text" id="monthly-collected-search-input" placeholder="Search by name, adm no or receipt..." class="w-full p-3 pl-10 border rounded-lg shadow-sm bg-gray-50">
-                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    </div>
-                     <div id="monthly-collected-container" class="space-y-4"></div>
-                 </div>
-            </section>
-
-            <section id="donation-page" class="page-content hidden">
-                <div class="card p-5 shadow-sm max-w-3xl mx-auto">
-                    <div class="flex items-center gap-2 mb-4 border-b pb-2">
-                        <h2 class="text-xl font-bold text-gray-800">Donation Entry</h2>
-                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Record general contributions, institutional endowments, and special donor receipts." title="Record general contributions, institutional endowments, and special donor receipts.">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Donor Name</label>
-                            <div class="relative" id="donation-donor-container">
-                                <input type="text" id="donation-name" class="w-full p-2.5 pr-10 rounded-lg" placeholder="Type donor name or Adm No..." autocomplete="off">
-                                <button id="donation-donor-clear-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 hidden" title="Clear donor name"><i class="fas fa-times text-xs"></i></button>
-                                <div id="donation-donor-suggestions" class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden max-h-60 overflow-y-auto"></div>
-                            </div>
-                        </div>
-                        <div><label class="block text-sm font-semibold mb-1 text-gray-700">Receipt No (Optional)</label><input type="number" id="donation-receipt" class="w-full p-2.5 rounded-lg" placeholder="Receipt number"></div>
-                        <div><label class="block text-sm font-semibold mb-1 text-gray-700">Amount (₹)</label><input type="number" id="donation-amount" class="w-full p-2.5 rounded-lg" placeholder="Amount"></div>
-                        <div><label class="block text-sm font-semibold mb-1 text-gray-700">Date</label><input type="date" id="donation-date" class="w-full p-2.5 rounded-lg"></div>
-                        <div class="md:col-span-2"><label class="block text-sm font-semibold mb-1 text-gray-700">Description</label><textarea id="donation-description" rows="3" class="w-full p-2.5 rounded-lg" placeholder="Donation details"></textarea></div>
-                    </div>
-                    <div class="mt-4 flex items-center gap-3">
-                        <button id="save-donation-btn" class="btn-primary font-bold py-2.5 px-5 rounded-lg shadow-md">Save Donation</button>
-                        <span id="donation-save-msg" class="text-xs font-semibold text-emerald-700"></span>
-                    </div>
+                <!-- Segmented Sub-Tab Switcher -->
+                <div class="mb-4 bg-slate-100 p-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200 max-w-md">
+                    <button type="button" class="reports-subtab-btn active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-blue-700 shadow-xs cursor-pointer" data-reports-subtab="monthly">
+                        <i class="fas fa-chart-bar"></i> Monthly Overview
+                    </button>
+                    <button type="button" id="subtab-btn-collector-wise" class="reports-subtab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer hidden" data-reports-subtab="collector">
+                        <i class="fas fa-users"></i> Collector-wise Total
+                    </button>
                 </div>
-            </section>
 
-            <section id="collector-wise-monthly-page" class="page-content hidden">
-                <div class="card p-5 shadow-sm">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3">
-                        <div class="flex items-center gap-2">
-                            <h2 class="text-xl font-bold text-gray-800">Collector-wise Monthly Total</h2>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Administrative breakdown of fee collections partitioned by collector staff members." title="Administrative breakdown of fee collections partitioned by collector staff members.">
-                                <i class="fas fa-info-circle"></i>
+                <!-- Sub-View 1: Monthly Overview -->
+                <div id="subview-monthly-overview">
+                    <div class="card p-5 shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-xl font-bold text-gray-800">Monthly Report</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel." title="Comprehensive monthly revenue analytics broken down by class, fee category, and payment channel.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
+                            <button type="button" id="monthly-report-download-btn" data-export-type="monthly" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto">
+                                <i class="fas fa-file-pdf"></i> Download PDF Report
                             </button>
                         </div>
-                        <button type="button" id="collector-wise-download-btn" data-export-type="collector" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto">
-                            <i class="fas fa-file-pdf"></i> Download PDF Report
-                        </button>
+                        <div id="monthly-report-summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5"></div>
+                        <div class="relative mb-5">
+                            <input type="text" id="monthly-collected-search-input" placeholder="Search by name, adm no or receipt..." class="w-full p-3 pl-10 border rounded-lg shadow-sm bg-gray-50">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        <div id="monthly-collected-container" class="space-y-4"></div>
                     </div>
-                    <p class="text-xs text-gray-500 font-medium mb-4">Admin view: monthly split by collector with default fee and other fee totals.</p>
-                    <div id="collector-wise-monthly-container" class="space-y-4"></div>
+                </div>
+
+                <!-- Sub-View 2: Collector-wise Monthly Total -->
+                <div id="collector-wise-monthly-page" class="hidden">
+                    <div class="card p-5 shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-xl font-bold text-gray-800">Collector-wise Monthly Total</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Administrative breakdown of fee collections partitioned by collector staff members." title="Administrative breakdown of fee collections partitioned by collector staff members.">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
+                            <button type="button" id="collector-wise-download-btn" data-export-type="collector" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm inline-flex items-center justify-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto">
+                                <i class="fas fa-file-pdf"></i> Download PDF Report
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 font-medium mb-4">Admin view: monthly split by collector with default fee and other fee totals.</p>
+                        <div id="collector-wise-monthly-container" class="space-y-4"></div>
+                    </div>
                 </div>
             </section>
 
@@ -1424,224 +1446,300 @@
             </section>
 
         
-            <!-- 7. Student Groups Management -->
-            <section id="manage-groups-page" class="page-content hidden">
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                    <div class="card p-5 rounded-xl shadow-sm lg:col-span-5">
-                        <div class="flex items-center gap-2 mb-3 border-b pb-2">
-                            <h2 class="text-xl font-bold text-gray-800">Create Student Group</h2>
-                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Combine siblings or related students to apply shared monthly fees and consolidated billing." title="Combine siblings or related students to apply shared monthly fees and consolidated billing.">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                        </div>
-                        <div class="space-y-4">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><label class="block text-sm font-semibold mb-1">Number of Students to Group</label><input type="number" id="num-of-students-group" min="2" class="w-full p-2.5 border rounded-lg shadow-sm" placeholder="e.g. 2"></div>
-                                <div><label class="block text-sm font-semibold mb-1 text-blue-700">Group Monthly Fee (₹) <span class="text-rose-600 font-bold">*</span></label><input type="number" id="group-monthly-fee" min="1" class="w-full p-2.5 border border-blue-300 rounded-lg shadow-sm bg-blue-50 font-bold" placeholder="e.g. 800" required></div>
-                            </div>
-                            <div id="group-creation-container" class="space-y-4"></div>
-                            <div id="create-group-btn-container" class="text-right hidden border-t pt-4"><button id="create-group-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md">Create Group</button></div>
-                        </div>
-                    </div>
-                    <div class="card p-5 rounded-xl shadow-sm lg:col-span-7 space-y-3">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2">
-                            <div>
-                                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                    <i class="fas fa-users-cog text-blue-600 text-lg"></i> Existing Groups
-                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Manage linked student groups, search family members, and view consolidated monthly rates." title="Manage linked student groups, search family members, and view consolidated monthly rates.">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
-                                </h2>
-                                <p class="text-xs text-gray-500 mt-0.5">Manage linked student groups and group monthly fee rates.</p>
-                            </div>
-                            <span id="grp-count-badge" class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full self-start sm:self-auto">0 Groups</span>
-                        </div>
+            <!-- 8. Fee Settings & Setup -->
+            <section id="fee-settings-page" class="page-content hidden">
+                <!-- Segmented Sub-Tab Switcher -->
+                <div class="mb-4 bg-slate-100 p-1.5 rounded-2xl flex flex-wrap items-center gap-1.5 border border-slate-200">
+                    <button type="button" class="settings-subtab-btn active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-blue-700 shadow-xs cursor-pointer" data-settings-subtab="structure">
+                        <i class="fas fa-receipt"></i> Fee Structure & Items
+                    </button>
+                    <button type="button" class="settings-subtab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer" data-settings-subtab="groups">
+                        <i class="fas fa-layer-group"></i> Student Groups
+                    </button>
+                    <button type="button" class="settings-subtab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer" data-settings-subtab="concessions">
+                        <i class="fas fa-hand-holding-usd"></i> Fee Concessions
+                    </button>
+                </div>
 
-                        <!-- Historical Groups Banner -->
-                        <div id="grp-historical-banner" class="hidden p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-2xs">
-                            <i class="fas fa-history text-amber-600"></i>
-                            <span>Viewing historical sibling groups for session <strong id="grp-historical-year-label">--</strong> (Read-Only). Switch to active session to create or modify groups.</span>
-                        </div>
+                <!-- Sub-View 1: Fee Structure & Default Configuration -->
+                <div id="subview-fee-structure">
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                        <div class="card p-5 rounded-xl shadow-sm bg-blue-50/30 border-blue-100">
+                            <h2 class="text-xl font-bold mb-3 text-blue-900 border-b border-blue-200 pb-2"><i class="fas fa-cog mr-2"></i> Default Configuration</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4">
+                                <div><label class="block text-sm font-semibold mb-1">School Default Monthly Fee (₹)</label><input type="number" id="default-fee-input" class="w-full p-2.5 border rounded-lg shadow-sm font-bold text-blue-700 bg-white"></div>
+                                <div><label class="block text-sm font-semibold mb-1">Fee Status Title (For PDF Report)</label><input type="text" id="fee-status-title-input" class="w-full p-2.5 border rounded-lg shadow-sm bg-white"></div>
+                            </div>
 
-                        <!-- Existing Groups Search, Academic Year & Class Filter Bar -->
-                        <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                            <div class="sm:col-span-4">
-                                <select id="filter-groups-size" class="w-full py-1.5 px-2.5 text-xs border border-indigo-200 rounded-md bg-white text-indigo-900 font-bold focus:ring-1 focus:ring-indigo-500">
-                                    <option value="all">All Group Sizes</option>
-                                </select>
-                            </div>
-                            <div class="sm:col-span-5 relative">
-                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                                <input type="text" id="grp-search-input" placeholder="Search student or father name..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div class="sm:col-span-3">
-                                <select id="grp-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="all">All Classes</option>
-                                </select>
-                            </div>
-                        </div>
+                            <!-- Monthly Collection Window & Student Notification Schedule -->
+                            <div class="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mb-4 space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-2.5">
+                                    <div>
+                                        <h3 class="text-sm font-extrabold text-blue-900 flex items-center gap-1.5">
+                                            <i class="fas fa-calendar-check text-blue-600"></i> Monthly Fee Collection Window & Alert Schedule
+                                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none" data-info="Define the monthly fee collection dates and when student fee alert notifications should start." title="Define the monthly fee collection dates and when student fee alert notifications should start."><i class="fas fa-info-circle"></i></button>
+                                        </h3>
+                                    </div>
+                                    <span id="fee-collection-window-badge" class="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full self-start sm:self-auto">Every Month: Date 1 to Date 10</span>
+                                </div>
 
-                        <!-- Existing Groups List Container -->
-                        <div id="student-groups-list" class="space-y-4"></div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
+                                            <span class="flex items-center justify-between">
+                                                <span>Collection Start Day</span>
+                                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none" data-info="Starting date of each month for regular fee collection." title="Starting date of each month for regular fee collection."><i class="fas fa-info-circle"></i></button>
+                                            </span>
+                                            <span class="block text-[10px] text-gray-400 font-semibold lowercase tracking-normal -mt-0.5">(every month)</span>
+                                        </label>
+                                        <input type="number" id="fee-collect-start-day" min="1" max="31" value="1" placeholder="1 - 31" class="w-full p-2.5 border rounded-lg bg-white font-bold text-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
+                                            <span class="flex items-center justify-between">
+                                                <span>Collection End / Due Day</span>
+                                                <button type="button" id="fee-collect-end-day-hint" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none" data-info="Last date of the monthly collection window (after this date, fee is treated as overdue)." title="Last date of the monthly collection window (after this date, fee is treated as overdue)."><i class="fas fa-info-circle"></i></button>
+                                            </span>
+                                            <span class="block text-[10px] text-gray-400 font-semibold lowercase tracking-normal -mt-0.5">(every month)</span>
+                                        </label>
+                                        <input type="number" id="fee-collect-end-day" min="1" max="31" value="10" placeholder="1 - 31" class="w-full p-2.5 border rounded-lg bg-white font-bold text-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-start gap-2.5 text-xs text-slate-600">
+                                    <i class="fas fa-bell text-blue-600 mt-0.5 text-sm shrink-0"></i>
+                                    <div>
+                                        <span class="font-bold text-slate-800">Student Portal Notification Trigger:</span>
+                                        <span class="block text-[11px] text-slate-500 mt-0.5">Students with outstanding fees will see payment reminder banners from the 1st day until dues are settled. Past due badges appear after the collection end date.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 mb-4">
+                                <div>
+                                    <span class="font-semibold text-sm block">Receipt Number Mandatory for Manual Collection</span>
+                                    <span class="text-xs text-gray-500">If enabled, staff cannot save a fee payment without entering a valid receipt number.</span>
+                                </div>
+                                <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                    <input type="checkbox" name="defaultReceiptMandatory" id="default-receipt-req" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer">
+                                    <label for="default-receipt-req" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                                </div>
+                            </div>
+                            <button id="save-fee-config-btn" class="btn-primary font-bold py-2.5 px-6 rounded-lg shadow-md w-full">Save Configuration</button>
+                        </div>
+                        
+                        <div class="card p-5 rounded-xl shadow-sm bg-white">
+                            <h2 class="text-xl font-bold mb-3 text-gray-800 border-b pb-2"><i class="fas fa-layer-group mr-2 text-blue-600"></i> Fee Items Management</h2>
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4">
+                                <h3 class="font-bold text-gray-800 text-sm mb-3">Add Custom Fee Item</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                                    <div><label class="block text-xs font-semibold mb-1 text-gray-600">Item Name</label><input type="text" id="adv-fee-name" placeholder="e.g. Admission Fee" class="w-full p-2 border rounded-lg text-sm bg-white"></div>
+                                    <div><label class="block text-xs font-semibold mb-1 text-gray-600">Default Amount (₹)</label><input type="number" id="adv-fee-amount" placeholder="e.g. 500" class="w-full p-2 border rounded-lg text-sm bg-white"></div>
+                                    <div>
+                                        <label class="block text-xs font-semibold mb-1 text-gray-600">Category Type</label>
+                                        <select id="adv-fee-type" class="w-full p-2 border rounded-lg text-sm bg-white">
+                                            <option value="monthly">Monthly Fee Item</option>
+                                            <option value="custom" selected>One-time / Other Fee Item</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-gray-200 mb-3">
+                                    <div>
+                                        <span class="font-semibold text-xs block text-gray-700">Receipt Number Mandatory for this Item</span>
+                                        <span class="text-[11px] text-gray-400">Require receipt number specifically when collecting this custom fee item.</span>
+                                    </div>
+                                    <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                        <input type="checkbox" id="adv-fee-receipt-req" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer">
+                                        <label for="adv-fee-receipt-req" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                                    </div>
+                                </div>
+
+                                <div class="text-right border-t pt-3"><button id="add-adv-fee-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-8 rounded-lg shadow-md"><i class="fas fa-save mr-2"></i> Create Fee Item</button></div>
+                            </div>
+
+                            <h3 class="font-bold text-gray-800 mb-3 border-b pb-2"><i class="fas fa-list-ul mr-2 text-gray-500"></i> Active Fee Items (Custom items can be reordered)</h3>
+                            <div id="fee-items-management-container" class="space-y-3"></div>
+                        </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- 8. Fee Concessions Management -->
-            <section id="fee-concessions-page" class="page-content hidden space-y-4">
-                <!-- Top Header & Summary Bar -->
-                <div class="card p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200/80 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0 border border-emerald-200">
-                            <i class="fas fa-hand-holding-usd"></i>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <h2 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Fee Concessions Management</h2>
-                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Manage approved fee waivers, fixed-amount discounts, and percentage concessions." title="Manage approved fee waivers, fixed-amount discounts, and percentage concessions.">
+                <!-- Sub-View 2: Student Groups Management -->
+                <div id="manage-groups-page" class="hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        <div class="card p-5 rounded-xl shadow-sm lg:col-span-5">
+                            <div class="flex items-center gap-2 mb-3 border-b pb-2">
+                                <h2 class="text-xl font-bold text-gray-800">Create Student Group</h2>
+                                <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Combine siblings or related students to apply shared monthly fees and consolidated billing." title="Combine siblings or related students to apply shared monthly fees and consolidated billing.">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
                             </div>
-                            <p class="text-xs text-slate-500 mt-0.5">Assign special custom monthly fees or manage active concessions across all classes.</p>
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div><label class="block text-sm font-semibold mb-1">Number of Students to Group</label><input type="number" id="num-of-students-group" min="2" class="w-full p-2.5 border rounded-lg shadow-sm" placeholder="e.g. 2"></div>
+                                    <div><label class="block text-sm font-semibold mb-1 text-blue-700">Group Monthly Fee (₹) <span class="text-rose-600 font-bold">*</span></label><input type="number" id="group-monthly-fee" min="1" class="w-full p-2.5 border border-blue-300 rounded-lg shadow-sm bg-blue-50 font-bold" placeholder="e.g. 800" required></div>
+                                </div>
+                                <div id="group-creation-container" class="space-y-4"></div>
+                                <div id="create-group-btn-container" class="text-right hidden border-t pt-4"><button id="create-group-btn" class="btn-primary font-bold py-2.5 px-8 rounded-lg shadow-md">Create Group</button></div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex items-center gap-2 self-start sm:self-auto">
-                        <div class="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-2xs">
-                            <span class="text-xs text-emerald-700 font-medium">Active Concessions:</span>
-                            <span id="active-conc-count-badge" class="text-xs font-extrabold bg-emerald-600 text-white px-2 py-0.5 rounded-md">0</span>
+                        <div class="card p-5 rounded-xl shadow-sm lg:col-span-7 space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2">
+                                <div>
+                                    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                        <i class="fas fa-users-cog text-blue-600 text-lg"></i> Existing Groups
+                                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Manage linked student groups, search family members, and view consolidated monthly rates." title="Manage linked student groups, search family members, and view consolidated monthly rates.">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </h2>
+                                    <p class="text-xs text-gray-500 mt-0.5">Manage linked student groups and group monthly fee rates.</p>
+                                </div>
+                                <span id="grp-count-badge" class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full self-start sm:self-auto">0 Groups</span>
+                            </div>
+
+                            <!-- Historical Groups Banner -->
+                            <div id="grp-historical-banner" class="hidden p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-2xs">
+                                <i class="fas fa-history text-amber-600"></i>
+                                <span>Viewing historical sibling groups for session <strong id="grp-historical-year-label">--</strong> (Read-Only). Switch to active session to create or modify groups.</span>
+                            </div>
+
+                            <!-- Existing Groups Search, Academic Year & Class Filter Bar -->
+                            <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                <div class="sm:col-span-4">
+                                    <select id="filter-groups-size" class="w-full py-1.5 px-2.5 text-xs border border-indigo-200 rounded-md bg-white text-indigo-900 font-bold focus:ring-1 focus:ring-indigo-500">
+                                        <option value="all">All Group Sizes</option>
+                                    </select>
+                                </div>
+                                <div class="sm:col-span-5 relative">
+                                    <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                    <input type="text" id="grp-search-input" placeholder="Search student or father name..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div class="sm:col-span-3">
+                                    <select id="grp-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-gray-300 rounded-md bg-white text-gray-800 font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="all">All Classes</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Existing Groups List Container -->
+                            <div id="student-groups-list" class="space-y-4"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Desktop 2-Column Responsive Layout -->
-                <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-                    <!-- Left Column: Search & Assign Concession (xl:col-span-4) -->
-                    <div class="xl:col-span-4 card p-4 rounded-xl shadow-xs border border-slate-200/80 bg-white flex flex-col space-y-3">
-                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                            <h3 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <i class="fas fa-user-plus text-blue-600 text-xs"></i>
-                                Find & Assign Concession
-                            </h3>
-                            <span class="text-[11px] text-slate-400 font-medium">Student Search</span>
-                        </div>
-
-                        <!-- Filters -->
-                        <div class="space-y-2.5 bg-slate-50/70 p-3 rounded-lg border border-slate-200">
-                            <div>
-                                <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Filter Class</label>
-                                <select id="filter-conc-class" class="w-full py-1.5 px-2.5 text-xs border border-slate-300 rounded-md bg-white text-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium">
-                                    <option value="">-- All Classes / Select --</option>
-                                </select>
+                <!-- Sub-View 3: Fee Concessions Management -->
+                <div id="fee-concessions-page" class="hidden space-y-4">
+                    <!-- Top Header & Summary Bar -->
+                    <div class="card p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200/80 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0 border border-emerald-200">
+                                <i class="fas fa-hand-holding-usd"></i>
                             </div>
                             <div>
-                                <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Search Student</label>
-                                <div class="relative">
-                                    <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                                    <input type="text" id="search-conc-input" placeholder="Name or Adm No..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-slate-300 rounded-md bg-white text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Results List -->
-                        <div id="conc-list-empty" class="text-center py-6 px-3 bg-slate-50/50 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500">
-                            Select a class or search to find students.
-                        </div>
-                        <div id="conc-list-container" class="space-y-2 max-h-[460px] overflow-y-auto pr-1 hidden"></div>
-                    </div>
-
-                    <!-- Right Column: Active Concessions Directory (xl:col-span-8) -->
-                    <div class="xl:col-span-8 card p-4 rounded-xl shadow-xs border border-emerald-200/90 bg-emerald-50/20 flex flex-col space-y-3">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-emerald-200/70 pb-2">
-                            <div>
-                                <h3 class="text-xs sm:text-sm font-bold text-emerald-900 flex items-center gap-2">
-                                    <i class="fas fa-tags text-emerald-600 text-xs"></i>
-                                    <span>Active Concessions Directory</span>
-                                    <button type="button" class="info-tooltip-btn text-emerald-600/60 hover:text-emerald-700 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Directory of approved student fee reductions and custom monthly discount rates." title="Directory of approved student fee reductions and custom monthly discount rates.">
+                                <div class="flex items-center gap-2">
+                                    <h2 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">Fee Concessions Management</h2>
+                                    <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Manage approved fee waivers, fixed-amount discounts, and percentage concessions." title="Manage approved fee waivers, fixed-amount discounts, and percentage concessions.">
                                         <i class="fas fa-info-circle"></i>
                                     </button>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-0.5">Assign special custom monthly fees or manage active concessions across all classes.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 self-start sm:self-auto">
+                            <div class="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-2xs">
+                                <span class="text-xs text-emerald-700 font-medium">Active Concessions:</span>
+                                <span id="active-conc-count-badge" class="text-xs font-extrabold bg-emerald-600 text-white px-2 py-0.5 rounded-md">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Desktop 2-Column Responsive Layout -->
+                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+                        <!-- Left Column: Search & Assign Concession (xl:col-span-4) -->
+                        <div class="xl:col-span-4 card p-4 rounded-xl shadow-xs border border-slate-200/80 bg-white flex flex-col space-y-3">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <h3 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fas fa-user-plus text-blue-600 text-xs"></i>
+                                    Find & Assign Concession
                                 </h3>
-                                <p class="text-[11px] text-slate-500 mt-0.5">Students with special monthly fee rates applied.</p>
+                                <span class="text-[11px] text-slate-400 font-medium">Student Search</span>
                             </div>
-                            <div class="flex items-center gap-2 self-start sm:self-auto">
-                                <span id="active-conc-filter-status" class="text-xs text-emerald-800 font-semibold bg-emerald-100/70 border border-emerald-200 px-2.5 py-0.5 rounded-md">Showing All</span>
+
+                            <!-- Filters -->
+                            <div class="space-y-2.5 bg-slate-50/70 p-3 rounded-lg border border-slate-200">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Filter Class</label>
+                                    <select id="filter-conc-class" class="w-full py-1.5 px-2.5 text-xs border border-slate-300 rounded-md bg-white text-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium">
+                                        <option value="">-- All Classes / Select --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Search Student</label>
+                                    <div class="relative">
+                                        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                        <input type="text" id="search-conc-input" placeholder="Name or Adm No..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-slate-300 rounded-md bg-white text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                </div>
                             </div>
+
+                            <!-- Results List -->
+                            <div id="conc-list-empty" class="text-center py-6 px-3 bg-slate-50/50 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500">
+                                Select a class or search to find students.
+                            </div>
+                            <div id="conc-list-container" class="space-y-2 max-h-[460px] overflow-y-auto pr-1 hidden"></div>
                         </div>
 
-                        <!-- Active Concessions Search & Filter Bar -->
-                        <div class="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                            <div class="sm:col-span-7 relative">
-                                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                                <input type="text" id="active-conc-search" placeholder="Filter active by name, adm no..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-slate-200 rounded-md bg-slate-50/60 focus:bg-white text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                        <!-- Right Column: Active Concessions Directory (xl:col-span-8) -->
+                        <div class="xl:col-span-8 card p-4 rounded-xl shadow-xs border border-emerald-200/90 bg-emerald-50/20 flex flex-col space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-emerald-200/70 pb-2">
+                                <div>
+                                    <h3 class="text-xs sm:text-sm font-bold text-emerald-900 flex items-center gap-2">
+                                        <i class="fas fa-tags text-emerald-600 text-xs"></i>
+                                        <span>Active Concessions Directory</span>
+                                        <button type="button" class="info-tooltip-btn text-emerald-600/60 hover:text-emerald-700 cursor-pointer text-xs p-0.5 focus:outline-none transition inline-flex items-center" data-info="Directory of approved student fee reductions and custom monthly discount rates." title="Directory of approved student fee reductions and custom monthly discount rates.">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </h3>
+                                    <p class="text-[11px] text-slate-500 mt-0.5">Students with special monthly fee rates applied.</p>
+                                </div>
+                                <div class="flex items-center gap-2 self-start sm:self-auto">
+                                    <span id="active-conc-filter-status" class="text-xs text-emerald-800 font-semibold bg-emerald-100/70 border border-emerald-200 px-2.5 py-0.5 rounded-md">Showing All</span>
+                                </div>
                             </div>
-                            <div class="sm:col-span-5">
-                                <select id="active-conc-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-slate-200 rounded-md bg-slate-50/60 focus:bg-white text-slate-800 font-medium focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
-                                    <option value="all">All Classes</option>
-                                </select>
-                            </div>
-                        </div>
 
-                        <!-- Active Concessions Table -->
-                        <div class="overflow-x-auto rounded-xl border border-emerald-200/80 bg-white shadow-2xs">
-                            <table class="w-full text-left border-collapse text-xs">
-                                <thead class="bg-emerald-50 text-emerald-950 uppercase font-extrabold text-[11px] tracking-wider border-b border-emerald-200">
-                                    <tr>
-                                        <th class="py-2.5 px-3 w-10 text-center">#</th>
-                                        <th class="py-2.5 px-3">Student Details</th>
-                                        <th class="py-2.5 px-3 text-center">Class</th>
-                                        <th class="py-2.5 px-3 text-center">Adm No</th>
-                                        <th class="py-2.5 px-3 text-right">Special Monthly Fee</th>
-                                        <th class="py-2.5 px-3 text-center w-28">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="active-concessions-list" class="divide-y divide-slate-100"></tbody>
-                            </table>
+                            <!-- Active Concessions Search & Filter Bar -->
+                            <div class="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                <div class="sm:col-span-7 relative">
+                                    <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                    <input type="text" id="active-conc-search" placeholder="Filter active by name, adm no..." class="w-full py-1.5 pl-8 pr-2.5 text-xs border border-slate-200 rounded-md bg-slate-50/60 focus:bg-white text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                                </div>
+                                <div class="sm:col-span-5">
+                                    <select id="active-conc-class-filter" class="w-full py-1.5 px-2.5 text-xs border border-slate-200 rounded-md bg-slate-50/60 focus:bg-white text-slate-800 font-medium focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                                        <option value="all">All Classes</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Active Concessions Table -->
+                            <div class="overflow-x-auto rounded-xl border border-emerald-200/80 bg-white shadow-2xs">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead class="bg-emerald-50 text-emerald-950 uppercase font-extrabold text-[11px] tracking-wider border-b border-emerald-200">
+                                        <tr>
+                                            <th class="py-2.5 px-3 w-10 text-center">#</th>
+                                            <th class="py-2.5 px-3">Student Details</th>
+                                            <th class="py-2.5 px-3 text-center">Class</th>
+                                            <th class="py-2.5 px-3 text-center">Adm No</th>
+                                            <th class="py-2.5 px-3 text-right">Special Monthly Fee</th>
+                                            <th class="py-2.5 px-3 text-center w-28">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="active-concessions-list" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
-
-            <!-- 9. Fee Settings -->
-            <section id="fee-settings-page" class="page-content hidden">
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-                    <div class="card p-5 rounded-xl shadow-sm bg-blue-50/30 border-blue-100">
-                        <h2 class="text-xl font-bold mb-3 text-blue-900 border-b border-blue-200 pb-2"><i class="fas fa-cog mr-2"></i> Default Configuration</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4">
-                            <div><label class="block text-sm font-semibold mb-1">School Default Monthly Fee (₹)</label><input type="number" id="default-fee-input" class="w-full p-2.5 border rounded-lg shadow-sm font-bold text-blue-700 bg-white"></div>
-                            <div><label class="block text-sm font-semibold mb-1">Fee Status Title (For PDF Report)</label><input type="text" id="fee-status-title-input" class="w-full p-2.5 border rounded-lg shadow-sm bg-white"></div>
-                        </div>
-
-                        <!-- Monthly Collection Window & Student Notification Schedule -->
-                        <div class="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mb-4 space-y-4">
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-2.5">
-                                <div>
-                                    <h3 class="text-sm font-extrabold text-blue-900 flex items-center gap-1.5">
-                                        <i class="fas fa-calendar-check text-blue-600"></i> Monthly Fee Collection Window & Alert Schedule
-                                        <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none" data-info="Define the monthly fee collection dates and when student fee alert notifications should start." title="Define the monthly fee collection dates and when student fee alert notifications should start."><i class="fas fa-info-circle"></i></button>
-                                    </h3>
-                                </div>
-                                <span id="fee-collection-window-badge" class="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full self-start sm:self-auto">Every Month: Date 1 to Date 10</span>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
-                                        <span class="flex items-center justify-between">
-                                            <span>Collection Start Day</span>
-                                            <button type="button" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none" data-info="Starting date of each month for regular fee collection." title="Starting date of each month for regular fee collection."><i class="fas fa-info-circle"></i></button>
-                                        </span>
-                                        <span class="block text-[10px] text-gray-400 font-semibold lowercase tracking-normal -mt-0.5">(every month)</span>
-                                    </label>
-                                    <input type="number" id="fee-collect-start-day" min="1" max="31" value="1" placeholder="1 - 31" class="w-full p-2.5 border rounded-lg bg-white font-bold text-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">
-                                        <span class="flex items-center justify-between">
-                                            <span>Collection End / Due Day</span>
-                                            <button type="button" id="fee-collect-end-day-hint" class="info-tooltip-btn text-slate-400 hover:text-blue-600 cursor-pointer text-xs p-0.5 focus:outline-none" data-info="Last date of the monthly collection window (after this date, fee is treated as overdue)." title="Last date of the monthly collection window (after this date, fee is treated as overdue)."><i class="fas fa-info-circle"></i></button>
-                                        </span>
-                                        <span class="block text-[10px] text-gray-400 font-semibold lowercase tracking-normal -mt-0.5">(every month)</span>
-                                    </label>
-                                    <input type="number" id="fee-collect-end-day" min="1" max="31" value="10" placeholder="1 - 31" class="w-full p-2.5 border rounded-lg bg-white font-bold text-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
                                 </div>
                             </div>
 
@@ -2312,17 +2410,17 @@
             <i class="fas fa-chart-pie"></i>
             <span>Dashboard</span>
         </button>
-        <button type="button" class="bottom-nav-link tab-link" data-target="home-page" data-bottom-nav="true" aria-label="Fee Entry">
-            <i class="fas fa-edit"></i>
-            <span>Fee Entry</span>
+        <button type="button" class="bottom-nav-link tab-link" data-target="home-page" data-bottom-nav="true" aria-label="Fee Collection">
+            <i class="fas fa-hand-holding-dollar"></i>
+            <span>Collection</span>
         </button>
-        <button type="button" class="bottom-nav-link tab-link" data-target="history-page" data-bottom-nav="true" aria-label="History">
-            <i class="fas fa-history"></i>
-            <span>History</span>
+        <button type="button" class="bottom-nav-link tab-link" data-target="master-ledger-page" data-bottom-nav="true" aria-label="Master Ledger">
+            <i class="fas fa-table-cells"></i>
+            <span>Ledger</span>
         </button>
-        <button type="button" class="bottom-nav-link tab-link" data-target="students-page" data-bottom-nav="true" aria-label="Students">
-            <i class="fas fa-user-graduate"></i>
-            <span>Students</span>
+        <button type="button" class="bottom-nav-link tab-link" data-target="fee-dues-page" data-bottom-nav="true" aria-label="Fee Dues">
+            <i class="fas fa-file-invoice-dollar text-amber-500"></i>
+            <span>Dues</span>
         </button>
         <button type="button" id="btn-collection-more" class="bottom-nav-link" aria-label="More Options">
             <i class="fas fa-ellipsis"></i>
@@ -2344,64 +2442,45 @@
                 </button>
             </div>
             <div id="collection-more-sheet-items" class="grid grid-cols-2 gap-2.5">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="history-page">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-indigo-600 text-base sm:text-lg group-hover:scale-110 transition">
+                        <i class="fas fa-history"></i>
+                    </div>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Payment History</span>
+                </button>
                 <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="monthly-collected-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-chart-bar"></i>
+                        <i class="fas fa-chart-line"></i>
                     </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Monthly Report</span>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Reports &amp; Analytics</span>
                 </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-page">
+                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="students-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-emerald-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-list"></i>
+                        <i class="fas fa-user-graduate"></i>
                     </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Status</span>
-                </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="master-ledger-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-indigo-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-table-cells"></i>
-                    </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Master Ledger</span>
-                </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-dues-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-file-invoice-dollar"></i>
-                    </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Dues</span>
-                </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="bulk-upload-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-amber-500 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-file-excel"></i>
-                    </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Bulk Upload</span>
-                </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="donation-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-rose-500 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-hand-holding-heart"></i>
-                    </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Donation Entry</span>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Student Directory</span>
                 </button>
                 <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-settings-page">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-sky-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-receipt"></i>
+                        <i class="fas fa-sliders"></i>
                     </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Settings</span>
-                </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="manage-groups-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-purple-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-layer-group"></i>
-                    </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Student Groups</span>
-                </button>
-                <button type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer collection-more-tile tab-link" data-target="fee-concessions-page">
-                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-emerald-600 text-base sm:text-lg group-hover:scale-110 transition">
-                        <i class="fas fa-hand-holding-usd"></i>
-                    </div>
-                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Concessions</span>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Fee Settings &amp; Setup</span>
                 </button>
                 <a href="official.html" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer text-decoration-none">
                     <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-blue-600 text-base sm:text-lg group-hover:scale-110 transition">
                         <i class="fas fa-th-large"></i>
                     </div>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Official Hub</span>
+                </a>
+                <button id="btn-collection-more-logout" type="button" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center text-rose-500 text-base sm:text-lg group-hover:scale-110 transition">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </div>
+                    <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Sign Out</span>
+                </button>
+            </div>
+        </div>
+    </div>
                     <span class="font-extrabold text-[11px] sm:text-xs text-slate-800">Official Hub</span>
                 </a>
                 <button type="button" id="mobile-more-logout-btn" class="p-3 sm:p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 transition flex flex-col items-center justify-center text-center gap-1.5 sm:gap-2 group cursor-pointer">
