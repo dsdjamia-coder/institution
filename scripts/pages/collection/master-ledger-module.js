@@ -22,13 +22,14 @@ let isInitialized = false;
 
 // Filter state
 const filters = {
+    viewMode: 'GROUPED', // 'GROUPED' or 'INDIVIDUAL'
     search: '',
     classFilter: '',
     academicYear: '',
     classOrder: 'DESC', // 'DESC' (+2 to 1) or 'ASC' (1 to +2)
     studentSort: 'DEFAULT', // 'DEFAULT', 'ADM', 'A-Z', 'Z-A'
     genderMode: 'MIXED', // 'MIXED', 'CLASS_BOYS_FIRST', 'GLOBAL_BOYS_FIRST'
-    statusFilter: 'ALL' // 'ALL', 'CONCESSION', 'GROUP', 'PENDING'
+    statusFilter: 'ALL' // 'ALL', 'CONCESSION', 'GROUP', 'PENDING', 'PAID'
 };
 
 let ledgerRowLimit = 25;
@@ -153,84 +154,34 @@ const buildLedgerUnits = () => {
     const studentMap = new Map();
     ledgerStudents.forEach(s => studentMap.set(s.id, s));
 
-    const processedStudentIds = new Set();
     const units = [];
 
-    // 1. Process defined student groups (family / siblings)
+    // Map each student ID to their group if assigned
+    const studentGroupMap = new Map();
     ledgerGroups.forEach(group => {
         const memberIds = Array.isArray(group.memberIds) ? group.memberIds : [];
-        const members = memberIds.map(id => studentMap.get(id)).filter(Boolean);
-
-        if (members.length > 0) {
-            members.forEach(m => processedStudentIds.add(m.id));
-
-            // Sort siblings by class high to low, then name
-            members.sort((a, b) => getClassRank(b.class || b.studentClass) - getClassRank(a.class || a.studentClass) || (a.name || '').localeCompare(b.name || ''));
-
-            const primary = members[0];
-            const groupFee = Number(group.fee || group.amount || (ledgerDefaultFee * members.length));
-            const guardianName = group.guardianName || primary.guardian || primary.father || 'Guardian';
-            const contactPhone = group.phone || primary.phone || primary.mobile || '';
-
-            // Calculate month payments for group
-            const monthStatus = {};
-            ledgerAcademicMonths.forEach(month => {
-                // Check if any payment was made for this group or its members for this month
-                const matchedPayment = ledgerPayments.find(p => {
-                    if (ledgerAcademicYear && p.academicYear && p.academicYear !== ledgerAcademicYear) return false;
-                    const isGroupPay = p.billingGroupId === group.id && isMonthMatch(p.itemKey, month);
-                    const isMemberPay = memberIds.includes(p.studentId) && isMonthMatch(p.itemKey, month);
-                    return isGroupPay || isMemberPay;
-                });
-
-                if (matchedPayment) {
-                    monthStatus[month] = {
-                        isPaid: true,
-                        amount: Number(matchedPayment.amount || groupFee),
-                        receipt: matchedPayment.receiptNo || 'Paid',
-                        date: matchedPayment.paymentDate || (matchedPayment.timestamp ? new Date(matchedPayment.timestamp).toLocaleDateString('en-GB') : '-'),
-                        paymentId: matchedPayment.id || null
-                    };
-                } else {
-                    monthStatus[month] = {
-                        isPaid: false,
-                        due: groupFee,
-                        receipt: '',
-                        date: ''
-                    };
-                }
-            });
-
-            units.push({
-                id: `group_${group.id}`,
-                isGroup: true,
-                groupId: group.id,
-                groupName: group.name || 'Family Group',
-                students: members,
-                classes: members.map(m => m.class || m.studentClass || '-'),
-                guardian: guardianName,
-                phone: contactPhone,
-                fee: groupFee,
-                isConcession: false,
-                extraFees: { total: 0, balance: 0 },
-                arrears: 0,
-                monthStatus
-            });
-        }
+        memberIds.forEach(id => studentGroupMap.set(id, group));
     });
 
-    // 2. Process ungrouped individual students
-    ledgerStudents.forEach(s => {
-        if (!processedStudentIds.has(s.id)) {
+    if (filters.viewMode === 'INDIVIDUAL') {
+        // Individual student view: every student has an individual row (Fee Status style)
+        ledgerStudents.forEach(s => {
+            const grp = studentGroupMap.get(s.id);
+            const isGroupMember = !!grp;
+            const groupName = grp?.name || 'Family Group';
+            const groupFee = grp ? Number(grp.fee || grp.amount || (ledgerDefaultFee * (grp.memberIds?.length || 1))) : 0;
             const hasConcession = s.concessionFee !== undefined && s.concessionFee !== null && s.concessionFee !== '';
-            const indFee = hasConcession ? Number(s.concessionFee) : ledgerDefaultFee;
+            const indFee = hasConcession ? Number(s.concessionFee) : (isGroupMember ? groupFee : ledgerDefaultFee);
             const sClass = s.class || s.studentClass || '-';
 
             const monthStatus = {};
             ledgerAcademicMonths.forEach(month => {
                 const matchedPayment = ledgerPayments.find(p => {
                     if (ledgerAcademicYear && p.academicYear && p.academicYear !== ledgerAcademicYear) return false;
-                    return p.studentId === s.id && isMonthMatch(p.itemKey, month);
+                    const isSelfPay = (p.studentId === s.id || (s.adm && p.admissionNo === s.adm)) && isMonthMatch(p.itemKey, month);
+                    const isGroupPay = isGroupMember && p.billingGroupId === grp.id && isMonthMatch(p.itemKey, month);
+                    const isSiblingPay = isGroupMember && Array.isArray(grp.memberIds) && grp.memberIds.includes(p.studentId) && isMonthMatch(p.itemKey, month);
+                    return isSelfPay || isGroupPay || isSiblingPay;
                 });
 
                 if (matchedPayment) {
@@ -251,23 +202,160 @@ const buildLedgerUnits = () => {
                 }
             });
 
+            const unpaidMonths = ledgerAcademicMonths.filter(m => !monthStatus[m]?.isPaid);
+            const unpaidMonthsCount = unpaidMonths.length;
+            const totalDue = unpaidMonthsCount * indFee;
+
             units.push({
                 id: s.id,
                 isGroup: false,
-                groupId: null,
-                groupName: '',
+                isGroupMember,
+                groupId: grp?.id || null,
+                groupName,
+                groupFee,
                 students: [s],
                 classes: [sClass],
-                guardian: s.guardian || s.father || 'Guardian',
-                phone: s.phone || s.mobile || '',
+                guardian: s.guardian || s.father || grp?.guardianName || 'Guardian',
+                phone: s.phone || s.mobile || grp?.phone || '',
                 fee: indFee,
                 isConcession: hasConcession,
                 extraFees: { total: 0, balance: 0 },
                 arrears: 0,
+                unpaidMonthsCount,
+                totalDue,
                 monthStatus
             });
-        }
-    });
+        });
+    } else {
+        // Grouped family units view: siblings grouped into single row
+        const processedStudentIds = new Set();
+
+        // 1. Process defined student groups (family / siblings)
+        ledgerGroups.forEach(group => {
+            const memberIds = Array.isArray(group.memberIds) ? group.memberIds : [];
+            const members = memberIds.map(id => studentMap.get(id)).filter(Boolean);
+
+            if (members.length > 0) {
+                members.forEach(m => processedStudentIds.add(m.id));
+
+                // Sort siblings by class high to low, then name
+                members.sort((a, b) => getClassRank(b.class || b.studentClass) - getClassRank(a.class || a.studentClass) || (a.name || '').localeCompare(b.name || ''));
+
+                const primary = members[0];
+                const groupFee = Number(group.fee || group.amount || (ledgerDefaultFee * members.length));
+                const guardianName = group.guardianName || primary.guardian || primary.father || 'Guardian';
+                const contactPhone = group.phone || primary.phone || primary.mobile || '';
+
+                // Calculate month payments for group
+                const monthStatus = {};
+                ledgerAcademicMonths.forEach(month => {
+                    const matchedPayment = ledgerPayments.find(p => {
+                        if (ledgerAcademicYear && p.academicYear && p.academicYear !== ledgerAcademicYear) return false;
+                        const isGroupPay = p.billingGroupId === group.id && isMonthMatch(p.itemKey, month);
+                        const isMemberPay = memberIds.includes(p.studentId) && isMonthMatch(p.itemKey, month);
+                        return isGroupPay || isMemberPay;
+                    });
+
+                    if (matchedPayment) {
+                        monthStatus[month] = {
+                            isPaid: true,
+                            amount: Number(matchedPayment.amount || groupFee),
+                            receipt: matchedPayment.receiptNo || 'Paid',
+                            date: matchedPayment.paymentDate || (matchedPayment.timestamp ? new Date(matchedPayment.timestamp).toLocaleDateString('en-GB') : '-'),
+                            paymentId: matchedPayment.id || null
+                        };
+                    } else {
+                        monthStatus[month] = {
+                            isPaid: false,
+                            due: groupFee,
+                            receipt: '',
+                            date: ''
+                        };
+                    }
+                });
+
+                const unpaidMonths = ledgerAcademicMonths.filter(m => !monthStatus[m]?.isPaid);
+                const unpaidMonthsCount = unpaidMonths.length;
+                const totalDue = unpaidMonthsCount * groupFee;
+
+                units.push({
+                    id: `group_${group.id}`,
+                    isGroup: true,
+                    isGroupMember: false,
+                    groupId: group.id,
+                    groupName: group.name || 'Family Group',
+                    students: members,
+                    classes: members.map(m => m.class || m.studentClass || '-'),
+                    guardian: guardianName,
+                    phone: contactPhone,
+                    fee: groupFee,
+                    isConcession: false,
+                    extraFees: { total: 0, balance: 0 },
+                    arrears: 0,
+                    unpaidMonthsCount,
+                    totalDue,
+                    monthStatus
+                });
+            }
+        });
+
+        // 2. Process ungrouped individual students
+        ledgerStudents.forEach(s => {
+            if (!processedStudentIds.has(s.id)) {
+                const hasConcession = s.concessionFee !== undefined && s.concessionFee !== null && s.concessionFee !== '';
+                const indFee = hasConcession ? Number(s.concessionFee) : ledgerDefaultFee;
+                const sClass = s.class || s.studentClass || '-';
+
+                const monthStatus = {};
+                ledgerAcademicMonths.forEach(month => {
+                    const matchedPayment = ledgerPayments.find(p => {
+                        if (ledgerAcademicYear && p.academicYear && p.academicYear !== ledgerAcademicYear) return false;
+                        return (p.studentId === s.id || (s.adm && p.admissionNo === s.adm)) && isMonthMatch(p.itemKey, month);
+                    });
+
+                    if (matchedPayment) {
+                        monthStatus[month] = {
+                            isPaid: true,
+                            amount: Number(matchedPayment.amount || indFee),
+                            receipt: matchedPayment.receiptNo || 'Paid',
+                            date: matchedPayment.paymentDate || (matchedPayment.timestamp ? new Date(matchedPayment.timestamp).toLocaleDateString('en-GB') : '-'),
+                            paymentId: matchedPayment.id || null
+                        };
+                    } else {
+                        monthStatus[month] = {
+                            isPaid: false,
+                            due: indFee,
+                            receipt: '',
+                            date: ''
+                        };
+                    }
+                });
+
+                const unpaidMonths = ledgerAcademicMonths.filter(m => !monthStatus[m]?.isPaid);
+                const unpaidMonthsCount = unpaidMonths.length;
+                const totalDue = unpaidMonthsCount * indFee;
+
+                units.push({
+                    id: s.id,
+                    isGroup: false,
+                    isGroupMember: false,
+                    groupId: null,
+                    groupName: '',
+                    students: [s],
+                    classes: [sClass],
+                    guardian: s.guardian || s.father || 'Guardian',
+                    phone: s.phone || s.mobile || '',
+                    fee: indFee,
+                    isConcession: hasConcession,
+                    extraFees: { total: 0, balance: 0 },
+                    arrears: 0,
+                    unpaidMonthsCount,
+                    totalDue,
+                    monthStatus
+                });
+            }
+        });
+    }
 
     return units;
 };
@@ -299,11 +387,13 @@ const getFilteredUnits = () => {
 
     // 3. Status Filter
     if (filters.statusFilter === 'GROUP') {
-        list = list.filter(u => u.isGroup);
+        list = list.filter(u => u.isGroup || u.isGroupMember);
     } else if (filters.statusFilter === 'CONCESSION') {
         list = list.filter(u => u.isConcession);
     } else if (filters.statusFilter === 'PENDING') {
-        list = list.filter(u => Object.values(u.monthStatus).some(m => !m.isPaid));
+        list = list.filter(u => (u.totalDue || 0) > 0);
+    } else if (filters.statusFilter === 'PAID') {
+        list = list.filter(u => (u.totalDue || 0) === 0);
     }
 
     // Helper for max class rank of a unit
@@ -453,9 +543,8 @@ const renderLedgerTable = () => {
                     <th class="px-2.5 py-3.5 text-center border-r border-slate-200 w-16 sticky left-12 bg-slate-50 z-35">CLASS</th>
                     <th class="px-3.5 py-3.5 border-r border-slate-200 min-w-[220px] sticky left-28 bg-slate-50 z-35">STUDENT NAME</th>
                     <th class="px-3.5 py-3.5 border-r border-slate-200 min-w-[190px]">GUARDIAN & CONTACT</th>
-                    <th class="px-3 py-3.5 text-center border-r border-slate-200 min-w-[130px] text-amber-900 bg-amber-50/50">GROUP SETUP</th>
-                    <th class="px-2.5 py-3.5 text-center border-r border-slate-200 min-w-[110px] text-emerald-900 bg-emerald-50/50">EXTRA FEES</th>
-                    <th class="px-2 py-3.5 text-center border-r border-slate-200 w-16 text-rose-900 bg-rose-50/40">ARREARS</th>
+                    <th class="px-3 py-3.5 text-center border-r border-slate-200 min-w-[130px] text-slate-800 bg-slate-100/70">FEE SETUP</th>
+                    <th class="px-3 py-3.5 text-center border-r border-slate-200 min-w-[125px] text-rose-900 bg-rose-50/70">TOTAL DUE / കുടിശ്ശിക</th>
                     ${ledgerAcademicMonths.map(m => `
                         <th class="px-2 py-2.5 text-center border-r border-slate-200 min-w-[98px]">
                             <div class="flex flex-col items-center gap-1">
@@ -479,15 +568,29 @@ const renderLedgerTable = () => {
             const genderVal = (s.gender || '').toUpperCase();
             const isFem = genderVal === 'F' || genderVal === 'FEMALE';
             const genderBadge = isFem
-                ? `<span class="text-[10px] font-extrabold text-pink-600 bg-pink-50 px-1 py-0.5 rounded border border-pink-100 ml-1.5">(F)</span>`
-                : `<span class="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100 ml-1.5">(M)</span>`;
+                ? `<span class="text-[10px] font-extrabold text-pink-600 bg-pink-50 px-1 py-0.5 rounded border border-pink-100 ml-1.5 shrink-0">(F)</span>`
+                : `<span class="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100 ml-1.5 shrink-0">(M)</span>`;
             const prefix = unit.isGroup ? `<span class="text-blue-600 font-bold">${sIdx + 1}. </span>` : '';
 
+            const subBadges = [];
+            if (s.adm) {
+                subBadges.push(`<span class="font-mono text-slate-500 font-semibold text-[10px]">Adm: ${escapeHtml(s.adm)}</span>`);
+            }
+            if (unit.isGroupMember) {
+                subBadges.push(`<span class="text-purple-700 font-bold text-[10px] inline-flex items-center gap-0.5"><i class="fas fa-users text-[8px]"></i> ${escapeHtml(unit.groupName)}</span>`);
+            }
+            if (unit.isConcession) {
+                subBadges.push(`<span class="text-emerald-700 font-bold text-[10px] inline-flex items-center gap-0.5"><i class="fas fa-tag text-[8px]"></i> Concession</span>`);
+            }
+
             return `
-                <div class="flex items-center gap-1 leading-snug py-0.5">
-                    ${prefix}
-                    <span class="font-bold text-slate-800 uppercase hover:text-blue-600 cursor-pointer" title="Adm: ${escapeHtml(s.adm || '--')}">${escapeHtml(s.name || 'Student')}</span>
-                    ${genderBadge}
+                <div class="leading-snug py-0.5">
+                    <div class="flex items-center gap-1 min-w-0">
+                        ${prefix}
+                        <span class="font-bold text-slate-800 uppercase hover:text-blue-600 cursor-pointer ledger-student-name truncate" data-student-id="${escapeHtml(s.id)}" title="Adm: ${escapeHtml(s.adm || '--')}">${escapeHtml(s.name || 'Student')}</span>
+                        ${genderBadge}
+                    </div>
+                    ${subBadges.length > 0 ? `<div class="flex flex-wrap items-center gap-1.5 mt-0.5">${subBadges.join('<span class="text-slate-300">•</span>')}</div>` : ''}
                 </div>
             `;
         }).join('');
@@ -497,13 +600,34 @@ const renderLedgerTable = () => {
             <div class="font-bold text-slate-800 text-[11px] leading-snug py-0.5">${escapeHtml(c)}</div>
         `).join('');
 
-        // Group Setup badge
-        const groupSetupHtml = unit.isGroup
-            ? `<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-300 bg-white text-slate-800 font-bold text-xs shadow-sm" title="Family group with ${unit.students.length} siblings">
-                 <i class="fas fa-link text-slate-400 text-[10px]"></i> ₹${unit.fee} (${unit.students.length})
-               </div>`
-            : `<div class="inline-flex items-center justify-center px-3 py-1 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs">
+        // Fee Setup badge
+        let feeSetupHtml = '';
+        if (unit.isGroup) {
+            feeSetupHtml = `<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-purple-200 bg-purple-50 text-purple-900 font-bold text-xs shadow-2xs" title="Family group with ${unit.students.length} siblings">
+                 <i class="fas fa-users text-purple-600 text-[10px]"></i> ₹${unit.fee} (${unit.students.length})
+               </div>`;
+        } else if (unit.isGroupMember) {
+            feeSetupHtml = `<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-purple-200 bg-purple-50 text-purple-900 font-bold text-xs shadow-2xs" title="Member of ${escapeHtml(unit.groupName)}">
+                 <i class="fas fa-users text-purple-600 text-[10px]"></i> ₹${unit.fee}
+               </div>`;
+        } else if (unit.isConcession) {
+            feeSetupHtml = `<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 font-bold text-xs shadow-2xs" title="Concession Fee: ₹${unit.fee}">
+                 <i class="fas fa-hand-holding-heart text-emerald-600 text-[10px]"></i> ₹${unit.fee}
+               </div>`;
+        } else {
+            feeSetupHtml = `<div class="inline-flex items-center justify-center px-3 py-1 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs">
                  ₹${unit.fee}
+               </div>`;
+        }
+
+        // Live Total Due / കുടിശ്ശിക badge
+        const dueHtml = (unit.totalDue || 0) > 0
+            ? `<div class="inline-flex flex-col items-center justify-center px-2 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 shadow-2xs leading-tight" title="${unit.unpaidMonthsCount} unpaid month${unit.unpaidMonthsCount > 1 ? 's' : ''}">
+                 <span class="text-xs font-black">₹${formatCurrency(unit.totalDue)}</span>
+                 <span class="text-[9px] font-bold text-rose-500">${unit.unpaidMonthsCount} mo${unit.unpaidMonthsCount > 1 ? 's' : ''} due</span>
+               </div>`
+            : `<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs shadow-2xs">
+                 <i class="fas fa-check text-[9px]"></i> Nil Due
                </div>`;
 
         html += `
@@ -541,22 +665,14 @@ const renderLedgerTable = () => {
                     </div>
                 </td>
 
-                <!-- GROUP SETUP -->
-                <td class="px-3 py-3 text-center border-r border-slate-200 bg-amber-50/20">
-                    ${groupSetupHtml}
+                <!-- FEE SETUP -->
+                <td class="px-3 py-3 text-center border-r border-slate-200 bg-slate-50/20">
+                    ${feeSetupHtml}
                 </td>
 
-                <!-- EXTRA FEES -->
-                <td class="px-2.5 py-3 text-center border-r border-slate-200 bg-emerald-50/20">
-                    <div class="border border-emerald-200/80 bg-emerald-50/60 rounded-xl px-2 py-1 inline-block text-center leading-tight">
-                        <div class="text-[10px] font-bold text-emerald-800">Total: ₹0</div>
-                        <div class="text-[10px] font-semibold text-emerald-700">Balance: ₹0</div>
-                    </div>
-                </td>
-
-                <!-- ARREARS -->
-                <td class="px-2 py-3 text-center font-bold text-slate-500 border-r border-slate-200 bg-rose-50/20">
-                    0
+                <!-- TOTAL DUE / കുടിശ്ശിക -->
+                <td class="px-2.5 py-3 text-center border-r border-slate-200 bg-rose-50/20">
+                    ${dueHtml}
                 </td>
 
                 <!-- 12 ACADEMIC MONTHS -->
@@ -624,13 +740,24 @@ const renderLedgerTable = () => {
 
     const hasPrevPage = !isAll && ledgerPageOffset > 0;
     const hasNextPage = !isAll && (endNumber < totalUnitsCount);
+    const totalDuesSum = list.reduce((sum, u) => sum + (u.totalDue || 0), 0);
+    const totalPaidUnits = list.filter(u => (u.totalDue || 0) === 0).length;
 
     if (totalUnitsCount > 0) {
         html += `
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 bg-slate-50 border-t border-slate-200">
-                <span class="text-xs font-bold text-slate-600">
-                    Showing <span class="text-slate-900 font-extrabold">${startNumber} - ${endNumber}</span> of <span class="text-slate-900 font-extrabold">${totalUnitsCount}</span> records
-                </span>
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+                    <span class="font-bold text-slate-600">
+                        Showing <span class="text-slate-900 font-extrabold">${startNumber} - ${endNumber}</span> of <span class="text-slate-900 font-extrabold">${totalUnitsCount}</span> records
+                    </span>
+                    <span class="text-slate-300">|</span>
+                    <span class="font-bold text-rose-700 bg-rose-100/70 border border-rose-200 px-2.5 py-0.5 rounded-lg shadow-2xs">
+                        Total Due: ₹${formatCurrency(totalDuesSum)}
+                    </span>
+                    <span class="font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-2.5 py-0.5 rounded-lg shadow-2xs">
+                        Fully Paid: ${totalPaidUnits}
+                    </span>
+                </div>
                 <div class="flex items-center gap-2">
                     <button type="button" id="ledger-prev-btn" ${!hasPrevPage ? 'disabled' : ''} class="px-4 py-2 ${hasPrevPage ? 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 cursor-pointer' : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'} rounded-xl text-xs font-extrabold shadow-2xs transition inline-flex items-center gap-1.5">
                         <i class="fas fa-arrow-left text-[10px]"></i>
@@ -813,6 +940,15 @@ const attachTableEventHandlers = (currentUnits) => {
                 const unit = currentUnits.find(u => u.id === unitId);
                 if (unit) {
                     openQuickPayModal(unit, month, payCell);
+                }
+                return;
+            }
+
+            const studentNameEl = e.target.closest('.ledger-student-name');
+            if (studentNameEl) {
+                const sId = studentNameEl.dataset.studentId;
+                if (sId && typeof window.openStudentProfile === 'function') {
+                    window.openStudentProfile(sId);
                 }
                 return;
             }
@@ -1000,14 +1136,19 @@ const exportLedgerPdf = () => {
 
     // Table Columns
     const head = [
-        ['NO', 'CLASS', 'STUDENT NAME', 'GUARDIAN & PHONE', 'GROUP', ...ledgerAcademicMonths.map(m => m.toUpperCase()), 'STATUS']
+        ['NO', 'CLASS', 'STUDENT NAME', 'GUARDIAN & PHONE', 'FEE SETUP', 'TOTAL DUE', ...ledgerAcademicMonths.map(m => m.toUpperCase()), 'STATUS']
     ];
 
     const body = list.map((unit, idx) => {
-        const studentNamesStr = unit.students.map((s, i) => `${unit.isGroup ? `${i + 1}. ` : ''}${s.name} (${s.gender === 'F' ? 'F' : 'M'})`).join('\n');
+        const studentNamesStr = unit.students.map((s, i) => `${unit.isGroup ? `${i + 1}. ` : ''}${s.name} (${s.gender === 'F' ? 'F' : 'M'})${s.adm ? ` [${s.adm}]` : ''}`).join('\n');
         const classesStr = unit.classes.join('\n');
         const guardianStr = `${unit.guardian}\n${unit.phone || '--'}`;
-        const groupStr = unit.isGroup ? `Group (${unit.students.length})\n₹${unit.fee}` : `₹${unit.fee}`;
+        let feeStr = `₹${unit.fee}`;
+        if (unit.isGroup) feeStr = `Group (${unit.students.length})\n₹${unit.fee}`;
+        else if (unit.isGroupMember) feeStr = `Group: ${unit.groupName}\n₹${unit.fee}`;
+        else if (unit.isConcession) feeStr = `Concession\n₹${unit.fee}`;
+
+        const dueStr = (unit.totalDue || 0) > 0 ? `₹${formatCurrency(unit.totalDue)}\n(${unit.unpaidMonthsCount} mos)` : 'Nil Due';
 
         const monthValues = ledgerAcademicMonths.map(m => {
             const st = unit.monthStatus[m];
@@ -1020,15 +1161,15 @@ const exportLedgerPdf = () => {
             return '';
         });
 
-        const allPaid = Object.values(unit.monthStatus).every(m => m.isPaid);
-        const overallStatus = allPaid ? 'Completed' : '';
+        const overallStatus = (unit.totalDue || 0) === 0 ? 'Completed' : `${unit.unpaidMonthsCount} mos due`;
 
         return [
             idx + 1,
             classesStr,
             studentNamesStr,
             guardianStr,
-            groupStr,
+            feeStr,
+            dueStr,
             ...monthValues,
             overallStatus
         ];
@@ -1054,13 +1195,14 @@ const exportLedgerPdf = () => {
         },
         columnStyles: {
             0: { cellWidth: 24, halign: 'center' },
-            1: { cellWidth: 38, halign: 'center', fontStyle: 'bold' },
-            2: { cellWidth: 120 },
-            3: { cellWidth: 100 },
-            4: { cellWidth: 46, halign: 'center' }
+            1: { cellWidth: 36, halign: 'center', fontStyle: 'bold' },
+            2: { cellWidth: 110 },
+            3: { cellWidth: 90 },
+            4: { cellWidth: 48, halign: 'center' },
+            5: { cellWidth: 46, halign: 'center', fontStyle: 'bold' }
         },
         didParseCell: (data) => {
-            if (data.section === 'body' && data.column.index >= 5 && data.column.index <= 16) {
+            if (data.section === 'body' && data.column.index >= 6 && data.column.index <= 17) {
                 const cellText = String(data.cell.raw || '').trim();
                 data.cell.styles.halign = 'center';
                 if (cellText) {
@@ -1077,6 +1219,7 @@ const exportLedgerPdf = () => {
 
 // Reset all filter controls
 const resetFilters = () => {
+    filters.viewMode = 'GROUPED';
     filters.search = '';
     filters.classFilter = '';
     filters.academicYear = '';
@@ -1085,6 +1228,9 @@ const resetFilters = () => {
     filters.genderMode = 'MIXED';
     filters.statusFilter = 'ALL';
     ledgerPageOffset = 0;
+
+    const viewModeSelect = document.getElementById('ledger-view-mode');
+    if (viewModeSelect) viewModeSelect.value = 'GROUPED';
 
     const searchInput = document.getElementById('ledger-search-input');
     if (searchInput) searchInput.value = '';
@@ -1134,6 +1280,16 @@ export const initMasterLedgerModule = () => {
     isInitialized = true;
 
     appLog('info', 'collection.masterLedger', 'Master Fee Ledger module initialized');
+
+    // View Mode (Grouped vs Individual) Listener
+    const viewModeSelect = document.getElementById('ledger-view-mode');
+    if (viewModeSelect) {
+        viewModeSelect.addEventListener('change', (e) => {
+            filters.viewMode = e.target.value;
+            ledgerPageOffset = 0;
+            renderLedgerTable();
+        });
+    }
 
     // Academic Year Select Listener
     const yearSelect = document.getElementById('ledger-academic-year-select');

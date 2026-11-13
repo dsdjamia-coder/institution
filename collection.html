@@ -911,8 +911,14 @@
                         </div>
                     </div>
 
-                    <!-- Row 2: 7 Filters in Clean Responsive Grid (2 cols on mobile, 3 on sm/md, 4 on lg/xl, 7 on 2xl) -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-2 pt-2.5 min-w-0">
+                    <!-- Row 2: 8 Filters in Clean Responsive Grid (2 cols on mobile, 3 on sm, 4 on md/lg, 8 on 2xl) -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 2xl:grid-cols-8 gap-2 pt-2.5 min-w-0">
+                        <div class="min-w-0 overflow-hidden">
+                            <select id="ledger-view-mode" class="w-full max-w-full py-1.5 px-2 border border-blue-200 bg-blue-50/60 hover:bg-blue-50 text-blue-900 rounded-xl text-xs font-bold outline-none cursor-pointer truncate shadow-2xs" title="Toggle view between Family Units and Individual Students">
+                                <option value="GROUPED" selected>View: Family Units</option>
+                                <option value="INDIVIDUAL">View: Individual Students</option>
+                            </select>
+                        </div>
                         <div class="min-w-0 overflow-hidden">
                             <select id="ledger-academic-year-select" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
                                 <option value="">-- Academic Year --</option>
@@ -957,9 +963,10 @@
                         <div class="col-span-2 sm:col-span-1 2xl:col-span-1 min-w-0 overflow-hidden">
                             <select id="ledger-status-filter" class="w-full max-w-full py-1.5 px-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 outline-none cursor-pointer truncate shadow-2xs">
                                 <option value="ALL">Status: All</option>
+                                <option value="PENDING">With Dues (കുടിശ്ശികയുള്ളവർ)</option>
+                                <option value="PAID">Fully Paid (കുടിശ്ശികയില്ലാത്തവർ)</option>
                                 <option value="CONCESSION">Concession Only</option>
-                                <option value="GROUP">Group Only</option>
-                                <option value="PENDING">Pending Fees</option>
+                                <option value="GROUP">Family Group Only</option>
                             </select>
                         </div>
                     </div>
@@ -973,6 +980,9 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Backward compatibility stub for legacy fee-page references -->
+            <div id="fee-page" class="hidden" style="display:none;" aria-hidden="true"></div>
 
             <!-- Fee Dues & Defaulters Register Page -->
             <section id="fee-dues-page" class="page-content hidden space-y-4">

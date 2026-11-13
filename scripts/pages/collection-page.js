@@ -7336,7 +7336,8 @@ onAuthStateChanged(auth, async (user) => {
         renderStaffDirectory();
         updateHistoryStaffFilter();
         updateDashboardMetrics();
-        if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
+        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
+        if(document.getElementById('master-ledger-page')?.classList.contains('hidden') === false) syncMasterLedgerState();
         if(document.getElementById('history-page').classList.contains('hidden') === false) prepareHistoryData();
         if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
     });
@@ -7429,8 +7430,11 @@ onAuthStateChanged(auth, async (user) => {
             if(!isEditMode && document.getElementById('home-page').classList.contains('hidden') === false) {
                 setupFeeEntryUI();
             }
-            if(document.getElementById('fee-page').classList.contains('hidden') === false) {
+            if(document.getElementById('fee-page')?.classList.contains('hidden') === false) {
                 renderFeeTable();
+            }
+            if(document.getElementById('master-ledger-page')?.classList.contains('hidden') === false) {
+                syncMasterLedgerState();
             }
         }
     });
@@ -7443,7 +7447,7 @@ onAuthStateChanged(auth, async (user) => {
         syncMasterLedgerState();
         syncFeeDuesState();
         hideLoader();
-        if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
+        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('students-page').classList.contains('hidden') === false) renderStudentInfoList();
         if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
@@ -7464,7 +7468,7 @@ onAuthStateChanged(auth, async (user) => {
         syncMasterLedgerState();
         syncFeeDuesState();
         hideLoader();
-        if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
+        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('students-page').classList.contains('hidden') === false) renderStudentInfoList();
         if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
@@ -7497,7 +7501,7 @@ onAuthStateChanged(auth, async (user) => {
         if(document.getElementById('history-page').classList.contains('hidden') === false) prepareHistoryData();
         if(document.getElementById('monthly-collected-page').classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input').value);
         if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
-        if(document.getElementById('fee-page').classList.contains('hidden') === false) renderFeeTable();
+        if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
 
