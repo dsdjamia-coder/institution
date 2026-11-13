@@ -575,7 +575,11 @@ import { BASE_PATH, applyInstitutionBranding, escapeHtml, hardenExternalLinks, n
             const configClasses = Array.isArray(conf?.classes) && conf.classes.length > 0
                 ? conf.classes
                 : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-            let classOptions = configClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            let classOptions = configClasses.map(c => {
+                const raw = String(c).trim();
+                const label = raw.toLowerCase().startsWith('class') ? raw : `Class: ${raw}`;
+                return `<option value="${escapeHtml(raw)}">${escapeHtml(label)}</option>`;
+            }).join('');
             classOptions += `<option value="Alumni">🎓 Alumni</option>`;
             const loginClassEl = document.getElementById('login-class');
             if (loginClassEl) {

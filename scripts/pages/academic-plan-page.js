@@ -797,11 +797,15 @@ const getAllowedClassesForTeacher = () => {
 const buildSelectOptionsWithAll = (allowedList, isSuperAdmin, featureLabel = 'All Classes') => {
     let opts = '';
     if (isSuperAdmin) {
-        opts += `<option value="all">${escapeHtml(featureLabel)} (Full Institution)</option>`;
+        opts += `<option value="all">${escapeHtml(featureLabel)}</option>`;
     } else if (allowedList.length > 0) {
-        opts += `<option value="all">All My Classes (${allowedList.length} Class${allowedList.length > 1 ? 'es' : ''})</option>`;
+        opts += `<option value="all">All My Classes (${allowedList.length})</option>`;
     }
-    opts += allowedList.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    const formatClassOptionLabel = (cls) => {
+        const clean = String(cls || '').trim();
+        return clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+    };
+    opts += allowedList.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
     return opts || `<option value="">No Classes Assigned</option>`;
 };
 

@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay, populateAcademicYearSelect, resolveAcademicYearClasses } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, formatDateDisplay, populateAcademicYearSelect, resolveAcademicYearClasses, populateClassSelect, formatStudentOptionLabel, compareClassLabelsNatural } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // --- State Variables ---
@@ -706,8 +706,13 @@ const populateClassDropdown = () => {
 
     const allowed = getAllowedClassesForTeacher();
 
+    const formatClassOptionLabel = (cls) => {
+        const clean = String(cls || '').trim();
+        return clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+    };
+
     if (allowed.length > 0) {
-        classSelect.innerHTML = allowed.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        classSelect.innerHTML = allowed.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         if (!selectedClass || !allowed.includes(selectedClass)) {
             selectedClass = allowed[0];
         }
@@ -734,11 +739,11 @@ const populateImpositionStudentSelect = (preselectedStudentId = '') => {
 
     impSelect.innerHTML = classStudents.map((s) => {
         const adm = getStudentAdm(s);
+        const optLabel = formatStudentOptionLabel(s, { includeClass: false });
         return `
             <option value="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name)}" data-adm="${escapeHtml(adm)}" ${s.id === preselectedStudentId ? 'selected' : ''}>
-                ${escapeHtml(s.name)} (Adm: ${escapeHtml(adm)})
-            </option>
-        `;
+                ${escapeHtml(optLabel)}
+            </option>`;
     }).join('');
 };
 

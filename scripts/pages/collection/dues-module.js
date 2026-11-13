@@ -1,4 +1,4 @@
-import { escapeHtml, formatCurrency, populateAcademicYearSelect, resolveAcademicYearClasses, compareClassLabelsNatural } from '../../shared/app-common.js';
+import { escapeHtml, formatCurrency, populateAcademicYearSelect, resolveAcademicYearClasses, compareClassLabelsNatural, populateClassSelect, populateGenderSelect, populateRowLimitSelect } from '../../shared/app-common.js';
 import { showToast } from '../../shared/toaster.js';
 import { appLog } from '../../shared/logger.js';
 
@@ -707,7 +707,9 @@ export const openFeeDuesPdfModal = () => {
     const optGuardian = document.getElementById('dues-pdf-opt-guardian');
 
     if (scopeLabel) {
-        const classTxt = filters.classFilter && filters.classFilter !== 'all' ? `Class: ${filters.classFilter}` : 'All Classes (Whole School)';
+        const classTxt = filters.classFilter && filters.classFilter !== 'all'
+            ? (filters.classFilter.toLowerCase().startsWith('class') ? filters.classFilter : `Class: ${filters.classFilter}`)
+            : 'All Classes';
         scopeLabel.textContent = `Scope: ${classTxt}`;
     }
     if (countLabel) {
@@ -1197,21 +1199,14 @@ export const populateDuesClassDropdown = () => {
     });
 
     const curVal = filters.classFilter || classFilter.value || 'all';
-    let opts = `<option value="all" ${curVal === 'all' ? 'selected' : ''}>All Classes (Whole School)</option>`;
-    resolvedClasses.forEach(cls => {
-        opts += `<option value="${escapeHtml(cls)}" ${curVal === cls ? 'selected' : ''}>Class: ${escapeHtml(cls)}</option>`;
+    populateClassSelect(classFilter, resolvedClasses, {
+        selectedValue: curVal,
+        includeAllOption: true,
+        allOptionLabel: 'All Classes',
+        allOptionValue: 'all'
     });
 
-    classFilter.innerHTML = opts;
-    if (classFilter.value !== curVal && curVal !== 'all') {
-        const optionExists = Array.from(classFilter.options).some(o => o.value === curVal);
-        if (!optionExists) {
-            classFilter.value = 'all';
-            filters.classFilter = 'all';
-        } else {
-            classFilter.value = curVal;
-        }
-    }
+    filters.classFilter = classFilter.value || 'all';
 };
 
 /**

@@ -1,5 +1,5 @@
 import { db, auth } from '../../../config/firebase-config.js';
-import { BASE_PATH, formatCurrency, escapeHtml, populateAcademicYearSelect } from '../../shared/app-common.js';
+import { BASE_PATH, formatCurrency, escapeHtml, populateAcademicYearSelect, populateClassSelect, compareClassLabelsNatural } from '../../shared/app-common.js';
 import { appLog } from '../../shared/logger.js';
 import { showToast } from '../../shared/toaster.js';
 import { collection, doc, writeBatch, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -289,8 +289,9 @@ const getFilteredUnits = () => {
     }
 
     // 2. Class Filter
-    if (filters.classFilter) {
-        list = list.filter(u => u.classes.includes(filters.classFilter));
+    if (filters.classFilter && filters.classFilter !== 'all') {
+        const targetCls = filters.classFilter.toLowerCase();
+        list = list.filter(u => u.classes.some(c => String(c).toLowerCase() === targetCls));
     }
 
     // 3. Status Filter
@@ -369,11 +370,12 @@ const renderFilterControls = () => {
     const uniqueClasses = combinedClasses.sort((a, b) => (getClassRank(b) - getClassRank(a)) || a.localeCompare(b, undefined, { numeric: true }));
 
     if (classFilterSelect) {
-        let opts = `<option value="">Filter: All Classes</option>`;
-        uniqueClasses.forEach(c => {
-            opts += `<option value="${escapeHtml(c)}" ${filters.classFilter === c ? 'selected' : ''}>Class: ${escapeHtml(c)}</option>`;
+        populateClassSelect(classFilterSelect, uniqueClasses, {
+            selectedValue: filters.classFilter || 'all',
+            includeAllOption: true,
+            allOptionLabel: 'All Classes',
+            allOptionValue: 'all'
         });
-        classFilterSelect.innerHTML = opts;
     }
 
     // Populate Class Order Dropdown dynamically

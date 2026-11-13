@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect, populateClassSelect } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // --- Global Variables ---
@@ -2133,6 +2133,11 @@ const populateReportClasses = (selectedYear) => {
         : rawYearClasses;
     const previous = reportClassSelect.value;
 
+    const formatClassOptionLabel = (cls) => {
+        const clean = String(cls || '').trim();
+        return clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+    };
+
     let opts = '';
     if (isTeacherScope && yearClasses.length === 0) {
         opts = `<option value="">No classes assigned</option>`;
@@ -2143,12 +2148,12 @@ const populateReportClasses = (selectedYear) => {
         } else if (yearClasses.length > 1) {
             opts += `<option value="ALL">All My Classes (${yearClasses.length})</option>`;
         }
-        opts += yearClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        opts += yearClasses.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
     }
     reportClassSelect.innerHTML = opts;
 
-    if (previous && (previous === 'ALL' || yearClasses.some((c) => isClassInDutyScope(previous, [c])))) {
-        reportClassSelect.value = previous;
+    if (previous && (previous === 'ALL' || previous === 'all' || yearClasses.some((c) => isClassInDutyScope(previous, [c])))) {
+        reportClassSelect.value = (previous === 'all') ? 'ALL' : previous;
     } else if (isTeacherScope && yearClasses.length === 1) {
         reportClassSelect.value = yearClasses[0];
     } else {
@@ -2476,9 +2481,13 @@ const isAllAbsent = (row = {}) => {
 const populateClassFilterSelect = (selectEl, allowedClasses) => {
     if (!selectEl) return;
     const prev = selectEl.value;
-    selectEl.innerHTML = `<option value="">Select Class</option><option value="ALL">All Classes</option>${allowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`).join('')}`;
-    if (prev && (prev === 'ALL' || allowedClasses.some((c) => isClassInDutyScope(prev, [c])))) {
-        selectEl.value = prev;
+    const formatClassOptionLabel = (cls) => {
+        const clean = String(cls || '').trim();
+        return clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+    };
+    selectEl.innerHTML = `<option value="">Select Class</option><option value="ALL">All Classes</option>${allowedClasses.map((cls) => `<option value="${escapeHtml(cls)}">${escapeHtml(formatClassOptionLabel(cls))}</option>`).join('')}`;
+    if (prev && (prev === 'ALL' || prev === 'all' || allowedClasses.some((c) => isClassInDutyScope(prev, [c])))) {
+        selectEl.value = (prev === 'all') ? 'ALL' : prev;
     } else {
         selectEl.value = 'ALL';
     }

@@ -2456,7 +2456,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gsta
                 ${isRestricted && classOptions.length === 0 ? '<option value="">No classes assigned</option>' : `
                 <option value="" ${!officialFilters.studentClass ? 'selected' : ''}>Select Class</option>
                 <option value="ALL" ${officialFilters.studentClass === 'ALL' ? 'selected' : ''}>${isRestricted ? `All Assigned Classes (${classOptions.length})` : 'All Classes'}</option>
-                ${classOptions.map((className) => `<option value="${escapeHtml(className)}" ${officialFilters.studentClass === className ? 'selected' : ''}>${escapeHtml(className)}</option>`).join('')}
+                ${classOptions.map((className) => {
+                  const clean = String(className || '').trim();
+                  const lbl = clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+                  return `<option value="${escapeHtml(className)}" ${officialFilters.studentClass === className ? 'selected' : ''}>${escapeHtml(lbl)}</option>`;
+                }).join('')}
                 `}
               </select>
             </div>

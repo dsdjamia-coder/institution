@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay, resolveAcademicYearClasses } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, getPeriodDateRange, formatDateDisplay, resolveAcademicYearClasses, formatStudentOptionLabel } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
@@ -714,7 +714,11 @@ const populateClassDropdowns = () => {
         if (!select) return;
 
         const prev = select.value;
-        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const opts = allowed.map(c => {
+            const raw = String(c).trim();
+            const label = raw.toLowerCase().startsWith('class') ? raw : `Class: ${raw}`;
+            return `<option value="${escapeHtml(raw)}">${escapeHtml(label)}</option>`;
+        }).join('');
         select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
 
         if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
@@ -738,7 +742,7 @@ const populateStudentSelect = () => {
     const allowed = getAllowedClassesForTeacher();
     const students = (!isSuperAdmin && !allowed.length) ? [] : allStudents.filter(s => isClassInDutyScope(s.class, allowed) && s.status !== 'alumni');
     sel.innerHTML = students.length > 0
-        ? students.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (Class ${s.class}, Adm: ${s.adm || s.admNo || '--'})</option>`).join('')
+        ? students.map(s => `<option value="${s.id}">${escapeHtml(formatStudentOptionLabel(s))}</option>`).join('')
         : '<option value="">No students available</option>';
 };
 

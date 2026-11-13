@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, writeBatch, setDoc, query, where, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, populateAcademicYearSelect, registerServiceWorker, renderVersionInfo, resolveAcademicYearClasses } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, buildEmptyState, enableSmartSelectWindowing, escapeHtml, fitTextToContainer, formatCurrency, formatMonthLabel, hardenExternalLinks, populateAcademicYearSelect, registerServiceWorker, renderVersionInfo, resolveAcademicYearClasses, populateClassSelect, formatStudentOptionLabel, populateGenderSelect, populateRowLimitSelect, compareClassLabelsNatural } from '../shared/app-common.js';
 import { appLog } from '../shared/logger.js';
 import { showToast } from '../shared/toaster.js';
 import { initCollectionEntryModule } from './collection/entry-module.js';
@@ -2558,22 +2558,27 @@ const populateClassDropdowns = () => {
         : classes;
     const filterClassOptions = isSuperAdmin ? filterClasses : filterClasses.filter(cls => isClassInDutyScope(cls, selectedDutyClasses));
 
+    const formatClassOptionLabel = (cls) => {
+        const clean = String(cls || '').trim();
+        return clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+    };
+
     if (isSuperAdmin) {
-        const opts = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-        const filterOpts = filterClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const opts = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
+        const filterOpts = filterClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         const curFilterVal = filterClassEl ? filterClassEl.value : 'all';
         if (filterClassEl) {
-            filterClassEl.innerHTML = `<option value="all">All Classes (Whole School)</option>` + filterOpts + alumniFilterOpt;
+            filterClassEl.innerHTML = `<option value="all">All Classes</option>` + filterOpts + alumniFilterOpt;
             if (curFilterVal && (curFilterVal === 'all' || curFilterVal === 'ALUMNI_DUES' || filterClasses.includes(curFilterVal))) {
                 filterClassEl.value = curFilterVal;
             }
         }
-        if (entryClassEl) entryClassEl.innerHTML = `<option value="">All Classes (Whole School)</option>` + opts + alumniEntryOpt;
+        if (entryClassEl) entryClassEl.innerHTML = `<option value="all">All Classes</option>` + opts + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Class --</option>` + opts;
     } else if (classOptions.length > 0 || filterClassOptions.length > 0) {
-        const opts = classOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-        const filterOpts = filterClassOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const opts = classOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
+        const filterOpts = filterClassOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         const curFilterVal = filterClassEl ? filterClassEl.value : 'all';
         if (filterClassEl) {
             filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${filterClassOptions.length})</option>` + filterOpts + alumniFilterOpt;
@@ -2581,7 +2586,7 @@ const populateClassDropdowns = () => {
                 filterClassEl.value = curFilterVal;
             }
         }
-        if (entryClassEl) entryClassEl.innerHTML = `<option value="">-- All Assigned Classes (${classOptions.length}) --</option>` + opts + alumniEntryOpt;
+        if (entryClassEl) entryClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts + alumniEntryOpt;
         if (stuInfoClassEl) stuInfoClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
         if (bulkClassEl) bulkClassEl.innerHTML = `<option value="">-- Select Assigned Class --</option>` + opts;
     } else {
@@ -2596,13 +2601,13 @@ const populateClassDropdowns = () => {
     const filterConc = document.getElementById('filter-conc-class');
     if (filterConc) {
         const prevVal = filterConc.value;
-        filterConc.innerHTML = `<option value="">-- All Classes / Select --</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-        if (classes.includes(prevVal)) filterConc.value = prevVal;
+        filterConc.innerHTML = `<option value="all">All Classes</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
+        if (prevVal === 'all' || classes.includes(prevVal)) filterConc.value = prevVal;
     }
     const activeConcClassFilter = document.getElementById('active-conc-class-filter');
     if (activeConcClassFilter) {
         const prevActVal = activeConcClassFilter.value;
-        activeConcClassFilter.innerHTML = `<option value="all">All Classes</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        activeConcClassFilter.innerHTML = `<option value="all">All Classes</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         if (prevActVal === 'all' || classes.includes(prevActVal)) activeConcClassFilter.value = prevActVal;
     }
 
@@ -2610,7 +2615,7 @@ const populateClassDropdowns = () => {
     const grpClassFilter = document.getElementById('grp-class-filter');
     if (grpClassFilter) {
         const prevGrpVal = grpClassFilter.value || 'all';
-        grpClassFilter.innerHTML = '<option value="all">All Classes</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        grpClassFilter.innerHTML = '<option value="all">All Classes</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         if (prevGrpVal === 'all' || classes.includes(prevGrpVal)) grpClassFilter.value = prevGrpVal;
     }
 

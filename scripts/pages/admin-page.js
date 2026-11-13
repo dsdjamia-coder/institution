@@ -3,7 +3,7 @@ import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.
 import { doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, where, writeBatch, getDocs, setDoc, getDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth, firebaseConfig } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID, SINGLE_ADMIN_MODE, STAFF_ACCESS_COLLECTION } from '../../config/app-config.js';
-import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, getCleanAcademicYearOptions, hardenExternalLinks, normalizePhone, populateAcademicYearSelect, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
+import { BASE_PATH, applyCachedInstitutionLogo, enableSmartSelectWindowing, escapeHtml, formatCurrency, formatDateDisplay, formatStudentOptionLabel, getCleanAcademicYearOptions, hardenExternalLinks, normalizePhone, populateAcademicYearSelect, registerServiceWorker, rememberInstitutionLogo, renderVersionInfo, resolveSafePhotoUrl, sanitizeUrl } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 import { InteractiveCropper } from '../shared/image-cropper.js';
 
@@ -5861,7 +5861,9 @@ const populateManageClassDropdown = (selectedYear = getActiveAcademicYearLabel()
     let optionsHtml = `<option value="all">All Classes</option>`;
     if (yearClasses.length > 0) {
         yearClasses.forEach(cls => {
-            optionsHtml += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`;
+            const raw = String(cls).trim();
+            const label = raw.toLowerCase().startsWith('class') ? raw : `Class: ${raw}`;
+            optionsHtml += `<option value="${escapeHtml(raw)}">${escapeHtml(label)}</option>`;
         });
     }
 
@@ -5876,7 +5878,11 @@ const populateManageClassDropdown = (selectedYear = getActiveAcademicYearLabel()
 // --- 3. MANAGE STUDENTS ---
 const populateClassDropdowns = () => {
     classes = getClassesForActiveYear();
-    const opts = classes.map(c => `<option value="${c}">${c}</option>`).join('');
+    const opts = classes.map(c => {
+        const raw = String(c).trim();
+        const label = raw.toLowerCase().startsWith('class') ? raw : `Class: ${raw}`;
+        return `<option value="${escapeHtml(raw)}">${escapeHtml(label)}</option>`;
+    }).join('');
     const classOptsWithAlumni = opts + `<option value="ALUMNI">Alumni</option>`;
     const dataList = document.getElementById('class-suggestions');
     if (dataList) dataList.innerHTML = opts;
@@ -5922,7 +5928,7 @@ const populateClassDropdowns = () => {
     populateManageClassDropdown(currentYearVal);
 
     const filterConc = document.getElementById('filter-conc-class'); const prevConcVal = filterConc.value;
-    filterConc.innerHTML = `<option value="">-- All Classes / Select --</option>` + opts; if(classes.includes(prevConcVal)) filterConc.value = prevConcVal;
+    filterConc.innerHTML = `<option value="all">All Classes</option>` + opts; if(classes.includes(prevConcVal) || prevConcVal === 'all') filterConc.value = prevConcVal;
 
     const activeConcClassFilter = document.getElementById('active-conc-class-filter');
     if (activeConcClassFilter) {
@@ -9458,7 +9464,11 @@ const renderEditGroupMembers = () => {
 };
 const populateEditGroupClassFilter = () => {
     const classFilter = document.getElementById('e-grp-class-filter');
-    classFilter.innerHTML = '<option value="">Select Class</option>' + classes.map((c) => `<option value="${c}">${c}</option>`).join('');
+    classFilter.innerHTML = '<option value="">Select Class</option>' + classes.map((c) => {
+        const raw = String(c).trim();
+        const label = raw.toLowerCase().startsWith('class') ? raw : `Class: ${raw}`;
+        return `<option value="${escapeHtml(raw)}">${escapeHtml(label)}</option>`;
+    }).join('');
 };
 const populateEditGroupStudentOptions = () => {
     const cls = document.getElementById('e-grp-class-filter').value;
@@ -10105,7 +10115,7 @@ const populateMarksStudentSelect = () => {
     const selectedClass = document.getElementById('marks-class-select').value;
     const studentSelect = document.getElementById('marks-student-select');
     const eligible = students.filter((student) => student.class === selectedClass);
-    const options = ['<option value="">-- Select Student --</option>', ...eligible.map((student) => `<option value="${student.id}">${escapeHtml(student.name)} (${escapeHtml(student.adm || '-')})</option>`)];
+    const options = ['<option value="">-- Select Student --</option>', ...eligible.map((student) => `<option value="${student.id}">${escapeHtml(formatStudentOptionLabel(student, { includeClass: false }))}</option>`)];
     studentSelect.innerHTML = options.join('');
 };
 
@@ -12536,7 +12546,7 @@ const renderConcessionsList = () => {
 
     const fil = students.filter(s => {
         let match = true;
-        if (fCls) match = match && s.class === fCls;
+        if (fCls && fCls !== 'all') match = match && s.class === fCls;
         if (sTerm) match = match && ((s.name || '').toLowerCase().includes(sTerm) || (s.adm && String(s.adm).toLowerCase().includes(sTerm)));
         return match;
     });

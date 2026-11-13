@@ -154,3 +154,107 @@ npm run lint
 npm run build
 ```
 Both commands must exit with code 0 without errors before committing and pushing to GitHub.
+
+---
+
+## 3. Universal Data Representation & UI Patterns Standard
+
+All developers and AI coding partners MUST strictly follow this universal standard across every page, tab, and modal in the `feee050` application.
+
+### 3.1 First Priority: Firestore Database Storage Conventions
+Data stored in Firebase Firestore takes first priority. Always adhere to these canonical storage conventions:
+1. **Academic Years**:
+   - Stored strictly as clean bare year spans: `YYYY-YYYY` (e.g. `'2024-2025'`, `'2025-2026'`).
+   - **Never store** UI decorators in the database (never store `'Session: 2024-2025'`, `'2024-2025 (Current)'`, or `'2024-25'`).
+2. **Classes**:
+   - Stored strictly as clean raw class names (e.g. `'1'`, `'2'`, `'10'`, `'LKG'`, `'Plus One'`, or divisions `'1-A'`).
+   - Never store redundant prefixes like `'Class Class 1'` or `'Class: 1'`.
+3. **Student Profile Fields**:
+   - Stored using canonical keys: `adm`, `name`, `gender`, `class`, `status`, `father`, `mobile`.
+   - `gender` must strictly be stored in title case: `'Male'` or `'Female'` (never lowercase `'male'` or `'boy'`).
+   - `status` must strictly be `'Active'`, `'Alumni'`, or `'Discontinued'`.
+
+---
+
+### 3.2 Academic Year Standards
+- **Dropdown Option Values**: Always clean bare string matching database (`value="2025-2026"`).
+- **Dropdown Option Display Labels**:
+  - Current active session: `${year} (Current)` (e.g. `2025-2026 (Current)`).
+  - Past or other sessions: `${year}` (e.g. `2024-2025`).
+  - Read/archive filter "All Years": `<option value="all">All Academic Years</option>`.
+- **Chronological Sorting**: Always sorted in descending order (latest year at the top).
+- **Session Header Display**: Standardized header title: `Session: 2025-2026` or badge: `2025-2026 (Active)`.
+- **Shared Implementation**: Always populate using `populateAcademicYearSelect()` from `scripts/shared/app-common.js`.
+
+---
+
+### 3.3 Class Standards
+- **Dropdown Option Values**: Exact raw class string matching database (`value="1"`, `value="10"`).
+- **Dropdown Option Display Labels**:
+  - Standard format: `Class: ${className}` (e.g. `Class: 1`, `Class: 2`, `Class: 10`, `Class: LKG`).
+  - If class name already contains "Class" (e.g. "Class 1"), do not duplicate.
+- **"All Classes" Filter Option**:
+  - Value: Strictly `value="all"`.
+  - Label: Strictly `All Classes`.
+  - Query matching logic: `if (activeFilter && activeFilter !== 'all' && studentClass.toLowerCase() !== activeFilter.toLowerCase())`.
+- **Natural Class Sorting**:
+  - Always sorted using `compareClassLabelsNatural()` from `scripts/shared/app-common.js`:
+    Numeric classes sort `1, 2, 3... 9, 10, 11, 12` (never alphabetical `1, 10, 11, 2`).
+    Divisions sort `1-A, 1-B, 2-A, 2-B`.
+    Kindergarten sorts `LKG, UKG` before `1`.
+- **Shared Implementation**: Always populate using `populateClassSelect()` from `scripts/shared/app-common.js`.
+
+---
+
+### 3.4 Student Details & Table Display Standards
+- **Dropdown Student Selectors** (Payment Entry, Student Modals, Concessions, Marks Entry):
+  - Standard Option Format: `${s.adm ? s.adm + ' - ' : ''}${s.name} (Class: ${s.class})`
+  - Example: `1042 - Muhammed Bilal (Class: 5)`
+  - Compact, readable, and instantly searchable by typing admission number or name.
+  - Implement using `formatStudentOptionLabel()` from `scripts/shared/app-common.js`.
+- **Table / Grid Display**:
+  - **Admission Number**: Centered/left monospace badge: `font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded text-xs`.
+  - **Student Name**: `font-bold text-slate-800 text-xs sm:text-sm` with standard gender icon:
+    - Male: `<i class="fas fa-mars text-blue-500 ml-1" title="Male"></i>`
+    - Female: `<i class="fas fa-venus text-rose-500 ml-1" title="Female"></i>`
+- **Table Sorting Hierarchy**:
+  - Multi-class / School View: Class (Natural) $\rightarrow$ Gender (Boys first) $\rightarrow$ Admission No (Numeric) $\rightarrow$ Name (A-Z).
+  - Single-class View: Admission No (Numeric) or Name (A-Z).
+
+---
+
+### 3.5 Secondary Filter Controls
+- **Gender Filter**:
+  ```html
+  <option value="all">All Genders</option>
+  <option value="Male">Male</option>
+  <option value="Female">Female</option>
+  ```
+  Implement using `populateGenderSelect()` from `scripts/shared/app-common.js`.
+- **Row Limits / Pagination**:
+  ```html
+  <option value="25" selected>Rows: 25</option>
+  <option value="50">Rows: 50</option>
+  <option value="100">Rows: 100</option>
+  <option value="all">Show All</option>
+  ```
+  Implement using `populateRowLimitSelect()` from `scripts/shared/app-common.js`.
+- **Academic Months**:
+  - Standard values: 3-letter lowercase key (`jun`, `jul`...) or month index.
+  - Standard labels: `All Months`, `June`, `July` or `Up to Current Month (Auto)`.
+- **Search Inputs**:
+  - Uniform placeholder: `Search by name, adm no, mobile...`
+  - Rounded-xl with left magnifying icon (`fas fa-search text-slate-400`).
+
+---
+
+### 3.6 Centralized Utility Reference (`scripts/shared/app-common.js`)
+All pages must import and utilize these shared helpers rather than implementing bespoke logic:
+- `populateAcademicYearSelect(select, yearsList, currentYear, options)`
+- `populateClassSelect(select, classesList, options)`
+- `formatStudentOptionLabel(student, options)`
+- `populateGenderSelect(select, options)`
+- `populateRowLimitSelect(select, options)`
+- `compareClassLabelsNatural(a, b)`
+- `resolveAcademicYearClasses({ academicYears, targetYear, students, configuredClasses })`
+

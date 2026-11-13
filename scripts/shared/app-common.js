@@ -844,6 +844,145 @@ export const resolveAcademicYearClasses = ({
     return cleanClasses.sort(compareClassLabelsNatural);
 };
 
+/**
+ * Populates a target <select> element with standardized Class options.
+ * Accurately sorts classes naturally and supports duty-class scoping.
+ *
+ * @param {HTMLSelectElement|string} selectElementOrId
+ * @param {Array<string|object>} classesList
+ * @param {object} [options]
+ * @param {string} [options.selectedValue] - Class value to select or preserve
+ * @param {boolean} [options.includeAllOption=true] - Whether to include "All Classes"
+ * @param {string} [options.allOptionLabel='All Classes'] - Label for the "All Classes" option
+ * @param {string} [options.allOptionValue='all'] - Value for the "All Classes" option
+ * @param {string} [options.placeholder=''] - Optional empty placeholder option (e.g. '-- Select Class --')
+ * @param {Array<string>} [options.dutyClasses=null] - Optional duty class scope for restricted staff
+ * @param {boolean} [options.autoSelectSingle=false] - Auto-select if only 1 class is available
+ */
+export const populateClassSelect = (selectElementOrId, classesList = [], options = {}) => {
+    const select = typeof selectElementOrId === 'string' ? document.getElementById(selectElementOrId) : selectElementOrId;
+    if (!select) return;
+
+    const {
+        selectedValue = '',
+        includeAllOption = true,
+        allOptionLabel = 'All Classes',
+        allOptionValue = 'all',
+        placeholder = '',
+        dutyClasses = null,
+        autoSelectSingle = false
+    } = options;
+
+    let availableClasses = (Array.isArray(classesList) ? classesList : []).map(c => {
+        return typeof c === 'object' && c !== null ? (c.name || c.id || c.label || '') : String(c || '');
+    }).map(s => String(s).trim()).filter(Boolean);
+
+    // Apply dutyClasses scoping if restricted staff
+    if (Array.isArray(dutyClasses) && dutyClasses.length > 0) {
+        const dutyNormalized = dutyClasses.map(d => String(d).trim().toLowerCase());
+        availableClasses = availableClasses.filter(c => dutyNormalized.includes(c.toLowerCase()));
+    }
+
+    // Deduplicate and natural sort
+    availableClasses = Array.from(new Set(availableClasses)).sort(compareClassLabelsNatural);
+
+    let html = '';
+    if (placeholder) {
+        html += `<option value="">${escapeHtml(placeholder)}</option>`;
+    }
+
+    const showAllOption = includeAllOption && (!dutyClasses || dutyClasses.length > 1);
+    if (showAllOption) {
+        const isAllSelected = selectedValue === allOptionValue || selectedValue === '' || !selectedValue;
+        html += `<option value="${escapeHtml(allOptionValue)}" ${isAllSelected ? 'selected' : ''}>${escapeHtml(allOptionLabel)}</option>`;
+    }
+
+    availableClasses.forEach(cls => {
+        const cleanCls = String(cls).trim();
+        const displayLabel = cleanCls.toLowerCase().startsWith('class') ? cleanCls : `Class: ${cleanCls}`;
+        const isSelected = selectedValue === cleanCls || (availableClasses.length === 1 && autoSelectSingle && !showAllOption);
+        html += `<option value="${escapeHtml(cleanCls)}" ${isSelected ? 'selected' : ''}>${escapeHtml(displayLabel)}</option>`;
+    });
+
+    select.innerHTML = html;
+
+    // Preserve or apply selection
+    if (selectedValue && (selectedValue === allOptionValue || availableClasses.includes(selectedValue))) {
+        select.value = selectedValue;
+    } else if (availableClasses.length === 1 && autoSelectSingle && !showAllOption) {
+        select.value = availableClasses[0];
+    } else if (showAllOption) {
+        select.value = allOptionValue;
+    }
+};
+
+/**
+ * Standardizes Student option label across all select dropdowns.
+ * Format: "[adm] - [name] (Class: [class])"
+ *
+ * @param {object} student
+ * @param {object} [options]
+ * @param {boolean} [options.includeAdm=true]
+ * @param {boolean} [options.includeClass=true]
+ * @returns {string}
+ */
+export const formatStudentOptionLabel = (student = {}, { includeAdm = true, includeClass = true } = {}) => {
+    const adm = String(student.adm || student.admissionNo || '').trim();
+    const name = String(student.name || 'Unnamed Student').trim();
+    const cls = String(student.class || student.studentClass || '').trim();
+
+    const parts = [];
+    if (includeAdm && adm) parts.push(adm);
+    parts.push(name);
+    let str = parts.join(' - ');
+    if (includeClass && cls) str += ` (Class: ${cls})`;
+    return str;
+};
+
+/**
+ * Populates target <select> with standard Gender filter options.
+ *
+ * @param {HTMLSelectElement|string} selectElementOrId
+ * @param {object} [options]
+ * @param {string} [options.selectedValue='all']
+ * @param {boolean} [options.includeAll=true]
+ * @param {string} [options.allLabel='All Genders']
+ */
+export const populateGenderSelect = (selectElementOrId, { selectedValue = 'all', includeAll = true, allLabel = 'All Genders' } = {}) => {
+    const select = typeof selectElementOrId === 'string' ? document.getElementById(selectElementOrId) : selectElementOrId;
+    if (!select) return;
+
+    let html = includeAll ? `<option value="all" ${selectedValue === 'all' ? 'selected' : ''}>${escapeHtml(allLabel)}</option>` : '';
+    html += `
+        <option value="Male" ${selectedValue === 'Male' ? 'selected' : ''}>Male</option>
+        <option value="Female" ${selectedValue === 'Female' ? 'selected' : ''}>Female</option>
+    `;
+    select.innerHTML = html;
+    select.value = selectedValue || 'all';
+};
+
+/**
+ * Populates target <select> with standard Row Limit options.
+ *
+ * @param {HTMLSelectElement|string} selectElementOrId
+ * @param {object} [options]
+ * @param {string} [options.selectedValue='25']
+ * @param {Array<{ val: string, label: string }>} [options.customLimits]
+ */
+export const populateRowLimitSelect = (selectElementOrId, { selectedValue = '25', customLimits = null } = {}) => {
+    const select = typeof selectElementOrId === 'string' ? document.getElementById(selectElementOrId) : selectElementOrId;
+    if (!select) return;
+
+    const limits = Array.isArray(customLimits) && customLimits.length > 0 ? customLimits : [
+        { val: '25', label: 'Rows: 25' },
+        { val: '50', label: 'Rows: 50' },
+        { val: '100', label: 'Rows: 100' },
+        { val: 'all', label: 'Show All' }
+    ];
+    select.innerHTML = limits.map(l => `<option value="${l.val}" ${String(selectedValue) === l.val ? 'selected' : ''}>${l.label}</option>`).join('');
+    select.value = String(selectedValue);
+};
+
 if (typeof document !== 'undefined') {
     initGlobalModalScrollLock();
     if (document.readyState === 'loading') {

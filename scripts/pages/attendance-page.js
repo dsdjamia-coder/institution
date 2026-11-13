@@ -2,7 +2,7 @@ import { signOut, onAuthStateChanged} from "https://www.gstatic.com/firebasejs/1
 import { doc, onSnapshot, collection, getDocs, setDoc, query, where, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db, auth } from '../../config/firebase-config.js';
 import { ADMIN_AUTH_DOC_ID } from '../../config/app-config.js';
-import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect, resolveAcademicYearClasses } from '../shared/app-common.js';
+import { BASE_PATH, applyInstitutionBranding, escapeHtml, populateAcademicYearSelect, resolveAcademicYearClasses, populateClassSelect, compareClassLabelsNatural } from '../shared/app-common.js';
 import { showToast } from '../shared/toaster.js';
 
 // Clean URL Guard: Strip any lingering hash fragment to ensure clean base .html on every refresh
@@ -573,7 +573,12 @@ const populateClassDropdowns = () => {
     const allowed = getAllowedClassesForTeacher();
     const isTeacherScope = !isSuperAdmin;
 
-    // Standard class selects
+    const formatClassOptionLabel = (cls) => {
+        const clean = String(cls || '').trim();
+        return clean.toLowerCase().startsWith('class') ? clean : `Class: ${clean}`;
+    };
+
+    // Standard class selects (single class required)
     const standardIds = [
         'daily-class-select',
         'monthly-class-select'
@@ -584,7 +589,7 @@ const populateClassDropdowns = () => {
         if (!select) return;
 
         const prev = select.value;
-        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const opts = allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         select.innerHTML = opts || `<option value="">No Classes Assigned</option>`;
 
         if (prev && allowed.some(c => isClassInDutyScope(prev, [c]))) {
@@ -610,11 +615,11 @@ const populateClassDropdowns = () => {
         } else if (allowed.length === 0) {
             allOpts.push(`<option value="">No Classes Assigned</option>`);
         }
-        allOpts = allOpts.concat(allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)).join('');
+        allOpts = allOpts.concat(allowed.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`)).join('');
         select.innerHTML = allOpts;
 
-        if (prev && (prev === 'ALL' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
-            select.value = prev;
+        if (prev && (prev === 'ALL' || prev === 'all' || allowed.some(c => isClassInDutyScope(prev, [c])))) {
+            select.value = (prev === 'all') ? 'ALL' : prev;
         } else if (allowed.length > 0) {
             select.value = (isTeacherScope && allowed.length === 1) ? allowed[0] : (prev === 'ALL' ? 'ALL' : allowed[0]);
         } else {
@@ -627,7 +632,7 @@ const populateClassDropdowns = () => {
     selectedAnalyticsClass = document.getElementById('analytics-class-select')?.value || 'ALL';
 
     const rosterClassPill = document.getElementById('roster-class-pill');
-    if (rosterClassPill) rosterClassPill.textContent = selectedDailyClass ? `Class ${selectedDailyClass}` : '--';
+    if (rosterClassPill) rosterClassPill.textContent = selectedDailyClass ? (selectedDailyClass.toLowerCase().startsWith('class') ? selectedDailyClass : `Class: ${selectedDailyClass}`) : '--';
 };
 
 
