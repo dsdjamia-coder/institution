@@ -230,6 +230,18 @@ Data stored in Firebase Firestore takes first priority. Always adhere to these c
   - Suggestion datalists must only display `${s.name} (Adm: ${s.adm || '--'})` and resolve student IDs programmatically in background event listeners.
   - If a student record is deleted or unmapped, fall back to clean user-facing labels like `'Unknown Student'` or `'Missing student record'` instead of exposing raw alphanumeric database IDs.
 
+- **Student 360 Profile Modal Standards**:
+  - When viewing a student profile modal across pages, ensure all 16 core fields from Admin/Firestore are displayed with robust fallback mappings:
+    `Photo`, `Name`, `Class`, `Gender`, `Adm No`, `UID`, `Father`, `Father Phone`, `Mother`, `Mother Phone`, `DOB`, `Adm Date`, `Status`, `Academic Year`, `Aadhaar`, `Address`.
+  - Date of Birth and Admission Date must be formatted consistently as `DD/MM/YYYY`.
+  - Direct communication actions: Include both `Call` (`tel:`) and `WhatsApp` (`https://wa.me/91...`) quick-action buttons for both Father's and Mother's mobile numbers when available.
+  - Safe identifier scoping: Never rely on undeclared or unimported global variables (e.g. use `currentWorkingAcademicYear` or `selectedFeeAcademicYear` rather than undeclared references).
+
+- **Student Groups Creation & Family Unification Standards**:
+  - In Collection Page $\rightarrow$ Student Groups, when grouping two or more sibling students, the family details dialog must **strictly default to "Keep individual details as they are (Do not unify)"** (`value="keep"`).
+  - Unifying parent names, phones, and addresses across siblings is strictly an optional choice where the administrator explicitly selects a specific sibling's record.
+  - Under the hood, `studentGroups` documents in Firestore only require `memberIds` and `fee`. Selecting "Do Not Unify" preserves each sibling's original contact details intact and causes no issues in Fee Status, Master Fee Ledger, or Fee Dues calculations.
+
 ---
 
 ### 3.5 Secondary Filter Controls

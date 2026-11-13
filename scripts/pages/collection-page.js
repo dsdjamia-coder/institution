@@ -514,6 +514,7 @@ const closeStudentProfileModal = () => {
     if (popup) {
         popup.classList.add('hidden');
         popup.classList.remove('flex');
+        popup.style.display = 'none';
     }
 };
 document.getElementById('confirm-cancel')?.addEventListener('click', () => { document.getElementById('confirm-popup').classList.add('hidden'); });
@@ -1049,7 +1050,7 @@ window.openStudentProfile = (id) => {
     };
 
     // 1. Photo
-    const photoUrl = pick(s.photo, prof.photo);
+    const photoUrl = pick(s.photo, s.profilePhoto, s.photoUrl, prof.photo);
     const photoImg = document.getElementById('prof-photo-img');
     const photoAvatar = document.getElementById('prof-photo-avatar');
     if (photoImg && photoAvatar) {
@@ -1074,19 +1075,19 @@ window.openStudentProfile = (id) => {
         if (el) el.textContent = val || '-';
     };
 
-    setText('prof-name', pick(s.name, prof.name));
+    setText('prof-name', pick(s.name, prof.name, 'Unnamed Student'));
     setText('prof-class', pick(s.class, s.studentClass, prof.class));
     setText('prof-gender', pick(s.gender, prof.gender));
     setText('prof-adm', pick(s.adm, prof.admNo, prof.adm));
-    setText('prof-uid', pick(s.uid, prof.uid));
-    setText('prof-father', pick(s.father, prof.father, s.guardian));
-    setText('prof-mother', pick(s.mother, prof.mother));
-    setText('prof-dob', formatDateIfIso(pick(prof.dob, s.dob)));
-    setText('prof-adm-date', formatDateIfIso(pick(prof.admDate, s.admDate)));
-    setText('prof-aadhaar', pick(prof.adhaar, s.adhaar, prof.aadhaar, s.aadhaar));
-    setText('prof-addr', pick(s.address, prof.address));
+    setText('prof-uid', pick(s.uid, prof.uid) || '-');
+    setText('prof-father', pick(s.father, s.fatherName, prof.father, s.guardian));
+    setText('prof-mother', pick(s.mother, s.motherName, prof.mother));
+    setText('prof-dob', formatDateIfIso(pick(s.dob, prof.dob)));
+    setText('prof-adm-date', formatDateIfIso(pick(s.admDate, prof.admDate)));
+    setText('prof-aadhaar', pick(s.adhaar, s.aadhaar, prof.adhaar, prof.aadhaar));
+    setText('prof-addr', pick(s.address, s.permanentAddress, prof.address));
 
-    const academicYr = pick(s.academicYear, prof.academicYear, activeAcademicYear, currentAcademicYear);
+    const academicYr = pick(s.academicYear, prof.academicYear, currentWorkingAcademicYear, selectedFeeAcademicYear) || '--';
     setText('prof-academic-year', academicYr);
     setText('prof-academic-year-val', academicYr);
 
@@ -1135,37 +1136,61 @@ window.openStudentProfile = (id) => {
         if (groupAmountEl) groupAmountEl.textContent = '';
     }
 
-    // 13. Father's Phone & Call Button
-    const fatherPhone = pick(s.mobile, prof.mobile, s.phone);
+    // 13. Father's Phone, Call & WhatsApp Buttons
+    const fatherPhone = pick(s.mobile, s.fatherMobile, s.parentPhone, s.phone, prof.mobile, prof.fatherMobile);
     const mobCont = document.getElementById('prof-mobile');
     const callBtn = document.getElementById('prof-call-btn');
-    if (mobCont && callBtn) {
+    const waBtn = document.getElementById('prof-wa-btn');
+    if (mobCont) mobCont.textContent = fatherPhone || 'Not Available';
+    if (callBtn) {
         if (fatherPhone) {
-            mobCont.textContent = fatherPhone;
             callBtn.href = `tel:${fatherPhone}`;
             callBtn.classList.remove('hidden');
             callBtn.classList.add('inline-flex');
         } else {
-            mobCont.textContent = 'Not Available';
             callBtn.classList.add('hidden');
             callBtn.classList.remove('inline-flex');
         }
     }
+    if (waBtn) {
+        const cleanWa = String(fatherPhone || '').replace(/\D/g, '');
+        if (cleanWa) {
+            const waNum = cleanWa.length === 10 ? `91${cleanWa}` : cleanWa;
+            waBtn.href = `https://wa.me/${waNum}`;
+            waBtn.classList.remove('hidden');
+            waBtn.classList.add('inline-flex');
+        } else {
+            waBtn.classList.add('hidden');
+            waBtn.classList.remove('inline-flex');
+        }
+    }
 
-    // 14. Mother's Phone & Call Button
+    // 14. Mother's Phone, Call & WhatsApp Buttons
     const motherPhone = pick(s.motherMobile, prof.motherMobile);
     const motherMobCont = document.getElementById('prof-mother-mobile');
     const motherCallBtn = document.getElementById('prof-mother-call-btn');
-    if (motherMobCont && motherCallBtn) {
+    const motherWaBtn = document.getElementById('prof-mother-wa-btn');
+    if (motherMobCont) motherMobCont.textContent = motherPhone || 'Not Available';
+    if (motherCallBtn) {
         if (motherPhone) {
-            motherMobCont.textContent = motherPhone;
             motherCallBtn.href = `tel:${motherPhone}`;
             motherCallBtn.classList.remove('hidden');
             motherCallBtn.classList.add('inline-flex');
         } else {
-            motherMobCont.textContent = 'Not Available';
             motherCallBtn.classList.add('hidden');
             motherCallBtn.classList.remove('inline-flex');
+        }
+    }
+    if (motherWaBtn) {
+        const cleanWa = String(motherPhone || '').replace(/\D/g, '');
+        if (cleanWa) {
+            const waNum = cleanWa.length === 10 ? `91${cleanWa}` : cleanWa;
+            motherWaBtn.href = `https://wa.me/${waNum}`;
+            motherWaBtn.classList.remove('hidden');
+            motherWaBtn.classList.add('inline-flex');
+        } else {
+            motherWaBtn.classList.add('hidden');
+            motherWaBtn.classList.remove('inline-flex');
         }
     }
 
@@ -1173,6 +1198,7 @@ window.openStudentProfile = (id) => {
     if (popup) {
         popup.classList.remove('hidden');
         popup.classList.add('flex');
+        popup.style.display = 'flex';
     }
 };
 

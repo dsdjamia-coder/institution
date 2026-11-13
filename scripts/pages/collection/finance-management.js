@@ -530,7 +530,6 @@ const renderGroupStudentDatalist = (idx) => {
 const openUnifyFamilyModal = (creationData) => {
     const modal = document.getElementById('group-unify-family-modal');
     const listContainer = document.getElementById('unify-family-members-list');
-    const skipCheckbox = document.getElementById('unify-family-skip-checkbox');
     const confirmBtn = document.getElementById('unify-family-confirm-btn');
     if (!modal || !listContainer) return;
 
@@ -546,14 +545,42 @@ const openUnifyFamilyModal = (creationData) => {
         return;
     }
 
-    if (skipCheckbox) skipCheckbox.checked = false;
     if (confirmBtn) {
         confirmBtn.innerHTML = isEdit
             ? '<i class="fas fa-check-circle mr-1"></i> <span>Confirm &amp; Update Group</span>'
             : '<i class="fas fa-check-circle mr-1"></i> <span>Confirm &amp; Save Group</span>';
     }
 
-    listContainer.innerHTML = groupStudents.map((st, idx) => {
+    // Default option: "Keep individual details as they are (Do not unify)"
+    const defaultKeepOption = `
+        <label class="unify-option-card block p-3.5 rounded-xl border border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-400 hover:border-emerald-600 transition cursor-pointer relative select-none">
+            <div class="flex items-start gap-3">
+                <input type="radio" name="unify-option-choice" value="keep" class="unify-option-radio mt-1 w-4 h-4 text-emerald-600 border-slate-300 focus:ring-emerald-500 shrink-0" checked>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-1 pb-1 border-b border-emerald-200">
+                        <div class="font-extrabold text-sm text-emerald-950 flex items-center gap-1.5">
+                            <i class="fas fa-shield-halved text-emerald-600"></i>
+                            <span>Keep individual details as they are (Do not unify)</span>
+                        </div>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white uppercase tracking-wider">Default</span>
+                    </div>
+                    <p class="mt-1.5 text-xs text-emerald-900 leading-normal">
+                        Recommended. Each student retains their own existing parent names, phone numbers, and addresses. Student Group discount will still apply to all members without altering individual profiles.
+                    </p>
+                </div>
+            </div>
+        </label>
+    `;
+
+    const divider = `
+        <div class="pt-2 pb-1 flex items-center gap-2">
+            <span class="h-px bg-slate-200 flex-1"></span>
+            <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Or unify family details using one sibling's information</span>
+            <span class="h-px bg-slate-200 flex-1"></span>
+        </div>
+    `;
+
+    const memberCards = groupStudents.map((st) => {
         const fatherName = st.father || st.profile?.father || '--';
         const fatherMobile = st.mobile || st.phone || st.profile?.mobile || '--';
         const motherName = st.mother || st.profile?.mother || '--';
@@ -561,12 +588,11 @@ const openUnifyFamilyModal = (creationData) => {
         const address = st.address || st.profile?.address || '--';
         const className = st.class || st.studentClass || '--';
         const adm = st.adm || '--';
-        const isChecked = (idx === 0);
 
         return `
-            <label class="unify-student-card block p-3.5 rounded-xl border ${isChecked ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-400' : 'border-slate-200 bg-white'} hover:border-blue-300 transition cursor-pointer relative select-none">
+            <label class="unify-option-card block p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition cursor-pointer relative select-none">
                 <div class="flex items-start gap-3">
-                    <input type="radio" name="unify-primary-student" value="${st.id}" class="unify-primary-radio mt-1 w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 shrink-0" ${isChecked ? 'checked' : ''}>
+                    <input type="radio" name="unify-option-choice" value="unify_${st.id}" class="unify-option-radio mt-1 w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 shrink-0">
                     <div class="flex-1 min-w-0">
                         <div class="flex flex-wrap items-center justify-between gap-1 pb-1.5 border-b border-slate-100">
                             <div class="font-extrabold text-sm text-slate-900">${escapeHtml(st.name)}</div>
@@ -603,8 +629,29 @@ const openUnifyFamilyModal = (creationData) => {
         `;
     }).join('');
 
+    listContainer.innerHTML = defaultKeepOption + divider + memberCards;
+
+    // Attach card active-state styling listeners
+    listContainer.querySelectorAll('input[name="unify-option-choice"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+            listContainer.querySelectorAll('.unify-option-card').forEach((card) => {
+                const r = card.querySelector('input[name="unify-option-choice"]');
+                if (r && r.checked) {
+                    if (r.value === 'keep') {
+                        card.className = 'unify-option-card block p-3.5 rounded-xl border border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-400 hover:border-emerald-600 transition cursor-pointer relative select-none';
+                    } else {
+                        card.className = 'unify-option-card block p-3.5 rounded-xl border border-blue-500 bg-blue-50/70 ring-2 ring-blue-400 hover:border-blue-600 transition cursor-pointer relative select-none';
+                    }
+                } else {
+                    card.className = 'unify-option-card block p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition cursor-pointer relative select-none';
+                }
+            });
+        });
+    });
+
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    modal.style.display = 'flex';
 };
 
 const closeUnifyFamilyModal = () => {
@@ -612,6 +659,7 @@ const closeUnifyFamilyModal = () => {
     if (modal) {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+        modal.style.display = 'none';
     }
     pendingGroupCreationData = null;
 };
@@ -622,18 +670,17 @@ const handleConfirmGroupCreation = async () => {
     const { studentIds, groupFee, isEdit, groupId } = pendingGroupCreationData;
     const modal = document.getElementById('group-unify-family-modal');
     const confirmBtn = document.getElementById('unify-family-confirm-btn');
-    const skipCheckbox = document.getElementById('unify-family-skip-checkbox');
 
     const students = ctx.getStudents();
     const rawStudents = ctx.getRawStudents();
     const groupStudents = studentIds.map((id) => (rawStudents || []).find((s) => s.id === id) || (students || []).find((s) => s.id === id)).filter(Boolean);
 
-    const isSkipped = !!skipCheckbox?.checked;
+    const selectedChoice = modal?.querySelector('input[name="unify-option-choice"]:checked')?.value || 'keep';
     let chosenStudent = null;
 
-    if (!isSkipped) {
-        const chosenId = modal?.querySelector('input[name="unify-primary-student"]:checked')?.value;
-        chosenStudent = groupStudents.find((s) => s.id === chosenId) || groupStudents[0];
+    if (selectedChoice.startsWith('unify_')) {
+        const targetId = selectedChoice.replace('unify_', '');
+        chosenStudent = groupStudents.find((s) => s.id === targetId) || null;
     }
 
     try {
@@ -645,7 +692,7 @@ const handleConfirmGroupCreation = async () => {
         const batch = writeBatch(db);
         const nowTs = Date.now();
 
-        // 1. Unify parent details if requested
+        // 1. Unify parent details ONLY if a specific sibling was chosen (not 'keep')
         if (chosenStudent) {
             const father = (chosenStudent.father || chosenStudent.profile?.father || '').toUpperCase().trim();
             const mobile = (chosenStudent.mobile || chosenStudent.phone || chosenStudent.profile?.mobile || '').trim();
@@ -679,7 +726,10 @@ const handleConfirmGroupCreation = async () => {
                 updatedAt: nowTs
             });
             await batch.commit();
-            await logAudit('group', 'group.update', 'studentGroup', groupId, `Student group updated: ${studentIds.length} members. Fee: ₹${groupFee}.`);
+            const auditMsg = chosenStudent
+                ? `Student group updated: ${studentIds.length} members. Fee: ₹${groupFee}. Family details unified from ${chosenStudent.name}.`
+                : `Student group updated: ${studentIds.length} members. Fee: ₹${groupFee}. Individual details preserved (no unification).`;
+            await logAudit('group', 'group.update', 'studentGroup', groupId, auditMsg);
             closeUnifyFamilyModal();
             showToast('Student group updated successfully!', 'success');
             alert('Student Group updated successfully!');
@@ -693,7 +743,10 @@ const handleConfirmGroupCreation = async () => {
                 updatedAt: nowTs
             });
             await batch.commit();
-            await logAudit('group', 'group.create', 'studentGroup', groupRef.id, `Student group created: ${studentIds.length} members. Fee: ₹${groupFee}.`);
+            const auditMsg = chosenStudent
+                ? `Student group created: ${studentIds.length} members. Fee: ₹${groupFee}. Family details unified from ${chosenStudent.name}.`
+                : `Student group created: ${studentIds.length} members. Fee: ₹${groupFee}. Individual details preserved (no unification).`;
+            await logAudit('group', 'group.create', 'studentGroup', groupRef.id, auditMsg);
             closeUnifyFamilyModal();
 
             // Clear inputs

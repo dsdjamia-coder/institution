@@ -1,4 +1,4 @@
-const CACHE_NAME = 'institution-tracer-v3-03-03-13';
+const CACHE_NAME = 'institution-tracer-v3-03-03-14';
 const IMAGE_CACHE_NAME = 'institution-tracer-images-v1';
 const ASSETS_TO_CACHE = [
   './',
