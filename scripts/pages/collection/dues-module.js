@@ -346,6 +346,10 @@ export const calculateStudentDueDetails = (student, targetYear, activeCutoffMont
  * Filter and resolve all students with dues
  */
 export const getFilteredDuesList = () => {
+    if (!filters.classFilter) {
+        return [];
+    }
+
     const targetYear = filters.academicYear || duesAcademicYear;
     const activeCutoffMonths = getActiveCutoffMonths(targetYear);
     const studentsPool = Array.isArray(duesStudents) && duesStudents.length ? duesStudents : duesRawStudents;
@@ -362,8 +366,11 @@ export const getFilteredDuesList = () => {
         // Class filter
         const rawClass = student.academicYears?.[targetYear]?.class || student.class || '';
         const studentClass = String(rawClass).trim();
-        const activeClassFilter = String(filters.classFilter || 'all').trim();
-        if (activeClassFilter && activeClassFilter.toLowerCase() !== 'all' && studentClass.toLowerCase() !== activeClassFilter.toLowerCase()) {
+        const cleanStudentClass = studentClass.replace(/^Class\s*:?\s*/i, '').trim().toLowerCase();
+        const activeClassFilter = String(filters.classFilter || '').trim();
+        const cleanActiveFilter = activeClassFilter.replace(/^Class\s*:?\s*/i, '').trim().toLowerCase();
+
+        if (cleanActiveFilter && cleanActiveFilter !== 'all' && cleanStudentClass !== cleanActiveFilter && studentClass.toLowerCase() !== activeClassFilter.toLowerCase()) {
             return;
         }
 
@@ -410,19 +417,41 @@ export const renderFeeDues = () => {
 
     // Ensure DOM select value matches filters.classFilter
     const classFilterEl = document.getElementById('dues-class-filter');
-    if (classFilterEl && classFilterEl.value) {
+    if (classFilterEl) {
         filters.classFilter = classFilterEl.value;
     }
 
-    const targetYear = filters.academicYear || duesAcademicYear;
-    const allDues = getFilteredDuesList();
-
-    // 1. Update KPI Summary Cards
+    const tableContainer = document.getElementById('dues-table-container');
     const totalStudentsEl = document.getElementById('dues-total-students-count');
     const currentYearAmountEl = document.getElementById('dues-current-year-amount');
     const pastYearsAmountEl = document.getElementById('dues-past-years-amount');
     const grandTotalAmountEl = document.getElementById('dues-grand-total-amount');
 
+    // 1. If no class is selected (i.e. "-- Select Class --" is active), prompt the user to choose
+    if (!filters.classFilter) {
+        if (totalStudentsEl) totalStudentsEl.textContent = '0';
+        if (currentYearAmountEl) currentYearAmountEl.textContent = '0';
+        if (pastYearsAmountEl) pastYearsAmountEl.textContent = '0';
+        if (grandTotalAmountEl) grandTotalAmountEl.textContent = '0';
+
+        if (tableContainer) {
+            tableContainer.innerHTML = `
+                <div class="text-center py-16 px-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                    <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl shadow-2xs">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <h3 class="text-base font-extrabold text-slate-800 mb-1">Select a Class to View Dues</h3>
+                    <p class="text-xs text-slate-500 max-w-sm mx-auto">Please select a class or choose <strong>All Classes</strong> from the class filter dropdown above to display defaulter records.</p>
+                </div>
+            `;
+        }
+        return;
+    }
+
+    const targetYear = filters.academicYear || duesAcademicYear;
+    const allDues = getFilteredDuesList();
+
+    // 2. Update KPI Summary Cards
     const totalStudents = allDues.length;
     const currentYearSum = allDues.reduce((sum, d) => sum + (d.currentYearTotalDue || 0), 0);
     const pastYearsSum = allDues.reduce((sum, d) => sum + (d.pastYearsDue || 0), 0);
@@ -433,15 +462,14 @@ export const renderFeeDues = () => {
     if (pastYearsAmountEl) pastYearsAmountEl.textContent = formatAmount(pastYearsSum);
     if (grandTotalAmountEl) grandTotalAmountEl.textContent = formatAmount(grandTotalSum);
 
-    // 2. Render Cutoff badge indicator
+    // 3. Render Cutoff badge indicator
     const activeCutoffMonths = getActiveCutoffMonths(targetYear);
     const cutoffBadge = document.getElementById('dues-cutoff-badge');
     if (cutoffBadge) {
         cutoffBadge.textContent = `${activeCutoffMonths.length} Months (${activeCutoffMonths[0]} - ${activeCutoffMonths[activeCutoffMonths.length - 1]})`;
     }
 
-    // 3. Render Table
-    const tableContainer = document.getElementById('dues-table-container');
+    // 4. Render Table
     if (!tableContainer) return;
 
     if (totalStudents === 0) {
@@ -462,17 +490,17 @@ export const renderFeeDues = () => {
     const startIdx = filters.pageOffset || 0;
     const pageSlice = allDues.slice(startIdx, startIdx + limit);
 
-    // Desktop Table HTML (Hidden on mobile)
-    let desktopTableHtml = `
-        <div class="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs custom-scroll">
-            <table class="w-full text-left border-collapse text-xs">
+    // Unified responsive table HTML for all screen sizes (mobile & desktop)
+    let tableHtml = `
+        <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs custom-scroll">
+            <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                     <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
                         <th class="py-3 px-3 w-12 text-center">#</th>
                         <th class="py-3 px-3 w-20 text-center">Adm No</th>
                         <th class="py-3 px-3 min-w-[180px]">Student Details</th>
                         <th class="py-3 px-3 w-20 text-center">Class</th>
-                        <th class="py-3 px-3 min-w-[160px]">Guardian &amp; Phone</th>
+                        <th class="py-3 px-3 min-w-[180px]">Guardian &amp; Phone</th>
                         <th class="py-3 px-3 min-w-[160px]">Unpaid Months (${escapeHtml(targetYear)})</th>
                         <th class="py-3 px-3 text-right min-w-[100px]">Current Due</th>
                         <th class="py-3 px-3 text-right min-w-[100px]">Past Dues</th>
@@ -481,11 +509,6 @@ export const renderFeeDues = () => {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-    `;
-
-    // Mobile Cards HTML (Visible only on mobile)
-    let mobileCardsHtml = `
-        <div class="block md:hidden space-y-3">
     `;
 
     pageSlice.forEach((item, index) => {
@@ -518,8 +541,7 @@ export const renderFeeDues = () => {
         const waMsg = encodeURIComponent(`Dear Guardian, Fee due reminder from ${instName} for ${item.name} (Class: ${item.class}, Adm: ${item.adm}). Pending Dues: ${formatAmount(item.grandTotalDue)} (Unpaid Months: ${item.unpaidMonths.join(', ')}). Please clear at the earliest. Thank you.`);
         const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.length === 10 ? cleanPhone : cleanPhone.slice(-10)}?text=${waMsg}` : '#';
 
-        // Desktop Row
-        desktopTableHtml += `
+        tableHtml += `
             <tr class="hover:bg-slate-50/70 transition">
                 <td class="py-2.5 px-3 text-center text-slate-500 font-bold">${rowNum}</td>
                 <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-700">${escapeHtml(item.adm)}</td>
@@ -537,11 +559,11 @@ export const renderFeeDues = () => {
                     <div class="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
                         <span class="font-medium">${escapeHtml(item.phone || '--')}</span>
                         ${cleanPhone ? `
-                            <div class="flex items-center gap-1 shrink-0">
-                                <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 transition active:scale-95 shadow-2xs" title="Send WhatsApp Reminder">
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 transition active:scale-95 shadow-2xs" title="Send WhatsApp Reminder">
                                     <i class="fab fa-whatsapp text-sm"></i>
                                 </a>
-                                <a href="tel:${cleanPhone}" class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 transition active:scale-95 shadow-2xs" title="Call Guardian">
+                                <a href="tel:${cleanPhone}" class="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 transition active:scale-95 shadow-2xs" title="Call Guardian">
                                     <i class="fas fa-phone text-xs"></i>
                                 </a>
                             </div>
@@ -565,87 +587,19 @@ export const renderFeeDues = () => {
                 </td>
             </tr>
         `;
-
-        // Mobile Card with Touch-Friendly Action Buttons
-        mobileCardsHtml += `
-            <div class="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
-                <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="w-5 h-5 rounded-md bg-slate-100 text-slate-500 font-bold text-[10px] flex items-center justify-center">${rowNum}</span>
-                            <span class="font-mono font-bold text-slate-700 text-xs bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">${escapeHtml(item.adm)}</span>
-                            <span class="font-extrabold text-slate-800 text-xs">${escapeHtml(item.name)}</span>
-                            ${genderIcon}
-                            ${groupBadge}
-                            ${concessionBadge}
-                        </div>
-                        <div class="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
-                            <span class="text-slate-700 font-semibold"><i class="fas fa-user-shield text-slate-400 mr-1 text-[10px]"></i>${escapeHtml(item.guardian)}</span>
-                            ${item.phone ? `<span>•</span><span><i class="fas fa-phone-alt text-slate-400 mr-1 text-[10px]"></i>${escapeHtml(item.phone)}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="shrink-0 text-center">
-                        <span class="inline-block px-2 py-0.5 rounded-lg text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200">${escapeHtml(item.class || '-')}</span>
-                    </div>
-                </div>
-
-                <div class="pt-1.5 border-t border-slate-100">
-                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Unpaid Months (${escapeHtml(targetYear)}):</div>
-                    <div class="flex flex-wrap items-center">${unpaidPills}</div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100 text-center">
-                    <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase">Current</div>
-                        <div class="text-xs font-bold text-slate-800 mt-0.5">${formatAmount(item.currentYearTotalDue)}</div>
-                    </div>
-                    <div>
-                        <div class="text-[9px] font-bold text-amber-700 uppercase">Past Dues</div>
-                        <div class="text-xs font-bold text-amber-800 mt-0.5">${formatAmount(item.pastYearsDue)}</div>
-                    </div>
-                    <div>
-                        <div class="text-[9px] font-black text-rose-700 uppercase">Total Due</div>
-                        <div class="text-xs font-black text-rose-700 mt-0.5">${formatAmount(item.grandTotalDue)}</div>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-2 pt-1">
-                    ${cleanPhone ? `
-                        <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition">
-                            <i class="fab fa-whatsapp text-sm"></i>
-                            <span>WhatsApp</span>
-                        </a>
-                        <a href="tel:${cleanPhone}" class="py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition">
-                            <i class="fas fa-phone text-xs"></i>
-                            <span>Call</span>
-                        </a>
-                    ` : ''}
-                    <button type="button" class="dues-quick-pay-btn py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${cleanPhone ? '' : 'w-full'}" data-id="${escapeHtml(item.id)}">
-                        <i class="fas fa-hand-holding-dollar text-xs"></i>
-                        <span>Collect</span>
-                    </button>
-                </div>
-            </div>
-        `;
     });
 
-    desktopTableHtml += `
+    tableHtml += `
                 </tbody>
             </table>
         </div>
     `;
 
-    mobileCardsHtml += `
-        </div>
-    `;
-
-    let html = desktopTableHtml + mobileCardsHtml;
-
     // Pagination info
     const totalPages = Math.ceil(totalStudents / limit);
     const curPage = Math.floor(startIdx / limit) + 1;
 
-    html += `
+    tableHtml += `
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-xs font-medium text-slate-500">
             <div>
                 Showing <strong>${startIdx + 1}</strong> to <strong>${Math.min(startIdx + limit, totalStudents)}</strong> of <strong>${totalStudents}</strong> defaulters
@@ -662,7 +616,7 @@ export const renderFeeDues = () => {
         </div>
     `;
 
-    tableContainer.innerHTML = html;
+    tableContainer.innerHTML = tableHtml;
 
     // Attach row listeners
     document.querySelectorAll('.dues-quick-pay-btn').forEach(btn => {
@@ -689,6 +643,10 @@ export const renderFeeDues = () => {
  * Opens PDF Export Configuration Modal
  */
 export const openFeeDuesPdfModal = () => {
+    if (!filters.classFilter) {
+        showToast('Please select a class or choose "All Classes" before exporting.', 'warning');
+        return;
+    }
     const modal = document.getElementById('dues-pdf-export-modal');
     if (!modal) {
         exportFeeDuesPdfWithOptions({ includeClass: false, includeGuardianPhone: false });
@@ -1032,6 +990,10 @@ export const exportFeeDuesPdf = openFeeDuesPdfModal;
  * Excel Export Generator
  */
 export const exportFeeDuesExcel = () => {
+    if (!filters.classFilter) {
+        showToast('Please select a class or choose "All Classes" before exporting.', 'warning');
+        return;
+    }
     if (!window.XLSX) {
         showToast('Excel exporter is loading, please try again.', 'info');
         return;
@@ -1198,15 +1160,16 @@ export const populateDuesClassDropdown = () => {
         configuredClasses: duesClasses
     });
 
-    const curVal = filters.classFilter || classFilter.value || 'all';
+    const curVal = filters.classFilter !== undefined ? filters.classFilter : (classFilter.value || '');
     populateClassSelect(classFilter, resolvedClasses, {
         selectedValue: curVal,
+        placeholder: '-- Select Class --',
         includeAllOption: true,
         allOptionLabel: 'All Classes',
         allOptionValue: 'all'
     });
 
-    filters.classFilter = classFilter.value || 'all';
+    filters.classFilter = classFilter.value;
 };
 
 /**
@@ -1248,9 +1211,9 @@ export const updateFeeDuesData = ({
 
     if (initialClass !== undefined) {
         filters.classFilter = initialClass;
-    } else if (!filters.classFilter) {
+    } else if (filters.classFilter === undefined) {
         const domClass = document.getElementById('dues-class-filter')?.value;
-        if (domClass) filters.classFilter = domClass;
+        filters.classFilter = domClass ?? '';
     }
 
     populateDuesAcademicYearDropdown();

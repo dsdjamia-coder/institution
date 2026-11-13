@@ -893,7 +893,7 @@ export const populateClassSelect = (selectElementOrId, classesList = [], options
 
     const showAllOption = includeAllOption && (!dutyClasses || dutyClasses.length > 1);
     if (showAllOption) {
-        const isAllSelected = selectedValue === allOptionValue || selectedValue === '' || !selectedValue;
+        const isAllSelected = selectedValue === allOptionValue;
         html += `<option value="${escapeHtml(allOptionValue)}" ${isAllSelected ? 'selected' : ''}>${escapeHtml(allOptionLabel)}</option>`;
     }
 
@@ -909,6 +909,8 @@ export const populateClassSelect = (selectElementOrId, classesList = [], options
     // Preserve or apply selection
     if (selectedValue && (selectedValue === allOptionValue || availableClasses.includes(selectedValue))) {
         select.value = selectedValue;
+    } else if (placeholder && (selectedValue === '' || selectedValue === null || selectedValue === undefined)) {
+        select.value = '';
     } else if (availableClasses.length === 1 && autoSelectSingle && !showAllOption) {
         select.value = availableClasses[0];
     } else if (showAllOption) {

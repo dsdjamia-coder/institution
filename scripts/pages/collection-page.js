@@ -381,7 +381,7 @@ const syncFeeDuesState = (preferredClass) => {
             : getClassOptionsForCollector();
         const activeClass = preferredClass !== undefined
             ? preferredClass
-            : (document.getElementById('dues-class-filter')?.value || document.getElementById('filter-class')?.value || 'all');
+            : (document.getElementById('dues-class-filter')?.value ?? '');
         updateFeeDuesData({
             students: effectiveStudents,
             rawStudents: Array.isArray(allStudentsRaw) ? allStudentsRaw : [],
@@ -485,12 +485,7 @@ const activateTab = (targetId) => {
         renderConcessionsList();
     }
     if (safeTargetId === 'fee-dues-page' && typeof renderFeeDues === 'function') {
-        const activeFilterClass = document.getElementById('filter-class')?.value || 'all';
-        const duesClassEl = document.getElementById('dues-class-filter');
-        if (duesClassEl && activeFilterClass) {
-            duesClassEl.value = activeFilterClass;
-        }
-        syncFeeDuesState(activeFilterClass);
+        syncFeeDuesState();
         renderFeeDues();
     }
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: safeTargetId } }));
