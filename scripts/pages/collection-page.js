@@ -287,10 +287,10 @@ initCollectionSidebarState();
 // TABS LOGIC (Main Tab & Sub-Tab Hierarchy - Hash-Free Session Architecture)
 const MAIN_TAB_GROUPS = {
     dashboard: ['dashboard-page'],
-    collection: ['home-page', 'bulk-upload-page', 'donation-page'],
-    ledgers: ['master-ledger-page', 'fee-page', 'history-page'],
-    reports: ['monthly-collected-page', 'collector-wise-monthly-page', 'students-page'],
-    finance: ['fee-settings-page', 'manage-groups-page', 'fee-concessions-page']
+    collection: ['home-page'],
+    ledgers: ['master-ledger-page', 'fee-dues-page', 'history-page'],
+    reports: ['monthly-collected-page', 'students-page'],
+    finance: ['fee-settings-page']
 };
 
 const links = Array.from(document.querySelectorAll('.tab-link'));
@@ -401,19 +401,150 @@ const syncFeeDuesState = (preferredClass) => {
 window.syncFeeDuesState = syncFeeDuesState;
 
 const OVERFLOW_COLLECTION_TABS = new Set([
+    'history-page',
     'monthly-collected-page',
-    'fee-page',
-    'master-ledger-page',
-    'fee-dues-page',
-    'bulk-upload-page',
-    'donation-page',
-    'collector-wise-monthly-page',
-    'fee-settings-page',
-    'manage-groups-page',
-    'fee-concessions-page'
+    'students-page',
+    'fee-settings-page'
 ]);
 
-const activateTab = (targetId) => {
+// --- UNIFIED SUB-TAB NAVIGATION HANDLERS ---
+const switchCollectionSubTab = (subtab = 'entry') => {
+    const panels = {
+        entry: document.getElementById('subview-fee-entry'),
+        bulk: document.getElementById('bulk-upload-page'),
+        donation: document.getElementById('donation-page')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.fee-collection-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.collectionSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'bulk' && typeof setupBulkUploadUI === 'function') {
+        setupBulkUploadUI();
+    } else if (subtab === 'donation' && typeof setupDonationEntryUI === 'function') {
+        setupDonationEntryUI();
+    }
+};
+window.switchCollectionSubTab = switchCollectionSubTab;
+
+const switchReportsSubTab = (subtab = 'monthly') => {
+    const panels = {
+        monthly: document.getElementById('subview-monthly-overview'),
+        collector: document.getElementById('collector-wise-monthly-page')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.reports-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.reportsSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'collector' && typeof renderCollectorWiseMonthlyPage === 'function') {
+        renderCollectorWiseMonthlyPage();
+    }
+};
+window.switchReportsSubTab = switchReportsSubTab;
+
+const switchSettingsSubTab = (subtab = 'structure') => {
+    const panels = {
+        structure: document.getElementById('subview-fee-structure'),
+        concessions: document.getElementById('fee-concessions-page'),
+        groups: document.getElementById('manage-groups-page')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        panel.classList.toggle('hidden', key !== subtab);
+    });
+
+    document.querySelectorAll('.settings-subtab-btn').forEach(btn => {
+        const isActive = btn.dataset.settingsSubtab === subtab;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('bg-white', isActive);
+        btn.classList.toggle('text-blue-700', isActive);
+        btn.classList.toggle('shadow-xs', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+
+    if (subtab === 'structure' && typeof renderFeeItemsManagement === 'function') {
+        renderFeeItemsManagement();
+    } else if (subtab === 'concessions' && typeof renderConcessionsList === 'function') {
+        renderConcessionsList();
+    } else if (subtab === 'groups' && typeof renderStudentGroups === 'function') {
+        renderStudentGroups();
+    }
+};
+window.switchSettingsSubTab = switchSettingsSubTab;
+
+// Subtab event delegation
+document.addEventListener('click', (e) => {
+    const colBtn = e.target.closest('.fee-collection-subtab-btn');
+    if (colBtn && colBtn.dataset.collectionSubtab) {
+        e.preventDefault();
+        switchCollectionSubTab(colBtn.dataset.collectionSubtab);
+        return;
+    }
+    const repBtn = e.target.closest('.reports-subtab-btn');
+    if (repBtn && repBtn.dataset.reportsSubtab) {
+        e.preventDefault();
+        switchReportsSubTab(repBtn.dataset.reportsSubtab);
+        return;
+    }
+    const setBtn = e.target.closest('.settings-subtab-btn');
+    if (setBtn && setBtn.dataset.settingsSubtab) {
+        e.preventDefault();
+        switchSettingsSubTab(setBtn.dataset.settingsSubtab);
+        return;
+    }
+});
+
+const activateTab = (targetId, subTabId = null) => {
+    // Legacy / Merged Target Mapping
+    if (targetId === 'fee-page') {
+        activateTab('master-ledger-page');
+        return;
+    }
+    if (targetId === 'bulk-upload-page') {
+        activateTab('home-page');
+        switchCollectionSubTab('bulk');
+        return;
+    }
+    if (targetId === 'donation-page') {
+        activateTab('home-page');
+        switchCollectionSubTab('donation');
+        return;
+    }
+    if (targetId === 'collector-wise-monthly-page') {
+        activateTab('monthly-collected-page');
+        switchReportsSubTab('collector');
+        return;
+    }
+    if (targetId === 'manage-groups-page') {
+        activateTab('fee-settings-page');
+        switchSettingsSubTab('groups');
+        return;
+    }
+    if (targetId === 'fee-concessions-page') {
+        activateTab('fee-settings-page');
+        switchSettingsSubTab('concessions');
+        return;
+    }
+
     const safeTargetId = document.getElementById(targetId) ? targetId : defaultTabId;
     const activeLink = getLinkForTarget(safeTargetId);
 
@@ -441,22 +572,23 @@ const activateTab = (targetId) => {
         page.classList.toggle('hidden', page.id !== safeTargetId);
     });
 
+    if (subTabId) {
+        if (safeTargetId === 'home-page') switchCollectionSubTab(subTabId);
+        else if (safeTargetId === 'monthly-collected-page') switchReportsSubTab(subTabId);
+        else if (safeTargetId === 'fee-settings-page') switchSettingsSubTab(subTabId);
+    }
+
     const mainApp = document.getElementById('app');
     if (mainApp) {
-        if (safeTargetId === 'master-ledger-page' || safeTargetId === 'fee-page') {
+        if (safeTargetId === 'master-ledger-page') {
             mainApp.style.maxWidth = '100%';
             mainApp.style.width = '100%';
             mainApp.style.boxSizing = 'border-box';
             mainApp.style.padding = '';
             document.body.classList.remove('ledger-fullwidth');
-            if (safeTargetId === 'master-ledger-page' && typeof syncMasterLedgerState === 'function') {
+            if (typeof syncMasterLedgerState === 'function') {
                 syncMasterLedgerState();
             }
-            try {
-                if (safeTargetId === 'fee-page' && typeof renderFeeTable === 'function') {
-                    renderFeeTable();
-                }
-            } catch (_) {}
         } else {
             mainApp.style.maxWidth = '';
             mainApp.style.width = '';
@@ -475,14 +607,8 @@ const activateTab = (targetId) => {
 
     setMobileMenuState(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    if (safeTargetId === 'fee-settings-page' && typeof renderFeeItemsManagement === 'function') {
-        renderFeeItemsManagement();
-    }
-    if (safeTargetId === 'manage-groups-page' && typeof renderStudentGroups === 'function') {
-        renderStudentGroups();
-    }
-    if (safeTargetId === 'fee-concessions-page' && typeof renderConcessionsList === 'function') {
-        renderConcessionsList();
+    if (safeTargetId === 'fee-settings-page') {
+        if (typeof renderFeeItemsManagement === 'function') renderFeeItemsManagement();
     }
     if (safeTargetId === 'fee-dues-page' && typeof renderFeeDues === 'function') {
         syncFeeDuesState();
@@ -7153,6 +7279,7 @@ onAuthStateChanged(auth, async (user) => {
     const displayEl = document.getElementById('staff-name-display');
     setResultPageNavVisibility(isMasterSuperAdmin() || staffAccess?.result === true);
     document.getElementById('collector-wise-monthly-tab')?.classList.toggle('hidden', !isMasterSuperAdmin());
+    document.getElementById('subtab-btn-collector-wise')?.classList.toggle('hidden', !isMasterSuperAdmin());
     applyTabVisibilityPreferences();
     if (isMasterSuperAdmin() && displayEl) { displayEl.textContent = "ADMINISTRATOR"; }
 
