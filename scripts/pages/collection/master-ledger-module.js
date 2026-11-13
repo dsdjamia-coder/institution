@@ -24,7 +24,7 @@ let isInitialized = false;
 const filters = {
     viewMode: 'GROUPED', // 'GROUPED' or 'INDIVIDUAL'
     search: '',
-    classFilter: '',
+    classFilter: 'all',
     academicYear: '',
     classOrder: 'DESC', // 'DESC' (+2 to 1) or 'ASC' (1 to +2)
     studentSort: 'DEFAULT', // 'DEFAULT', 'ADM', 'A-Z', 'Z-A'
@@ -544,7 +544,7 @@ const renderLedgerTable = () => {
                     <th class="px-3.5 py-3.5 border-r border-slate-200 min-w-[220px] sticky left-28 bg-slate-50 z-35">STUDENT NAME</th>
                     <th class="px-3.5 py-3.5 border-r border-slate-200 min-w-[190px]">GUARDIAN & CONTACT</th>
                     <th class="px-3 py-3.5 text-center border-r border-slate-200 min-w-[130px] text-slate-800 bg-slate-100/70">FEE SETUP</th>
-                    <th class="px-3 py-3.5 text-center border-r border-slate-200 min-w-[125px] text-rose-900 bg-rose-50/70">TOTAL DUE / കുടിശ്ശിക</th>
+                    <th class="px-3 py-3.5 text-center border-r border-slate-200 min-w-[125px] text-rose-900 bg-rose-50/70">TOTAL DUE</th>
                     ${ledgerAcademicMonths.map(m => `
                         <th class="px-2 py-2.5 text-center border-r border-slate-200 min-w-[98px]">
                             <div class="flex flex-col items-center gap-1">
@@ -620,7 +620,7 @@ const renderLedgerTable = () => {
                </div>`;
         }
 
-        // Live Total Due / കുടിശ്ശിക badge
+        // Live Total Due badge
         const dueHtml = (unit.totalDue || 0) > 0
             ? `<div class="inline-flex flex-col items-center justify-center px-2 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 shadow-2xs leading-tight" title="${unit.unpaidMonthsCount} unpaid month${unit.unpaidMonthsCount > 1 ? 's' : ''}">
                  <span class="text-xs font-black">₹${formatCurrency(unit.totalDue)}</span>
@@ -670,7 +670,7 @@ const renderLedgerTable = () => {
                     ${feeSetupHtml}
                 </td>
 
-                <!-- TOTAL DUE / കുടിശ്ശിക -->
+                <!-- TOTAL DUE -->
                 <td class="px-2.5 py-3 text-center border-r border-slate-200 bg-rose-50/20">
                     ${dueHtml}
                 </td>
@@ -1221,7 +1221,7 @@ const exportLedgerPdf = () => {
 const resetFilters = () => {
     filters.viewMode = 'GROUPED';
     filters.search = '';
-    filters.classFilter = '';
+    filters.classFilter = 'all';
     filters.academicYear = '';
     filters.classOrder = 'DESC';
     filters.studentSort = 'DEFAULT';
@@ -1236,7 +1236,7 @@ const resetFilters = () => {
     if (searchInput) searchInput.value = '';
 
     const classFilter = document.getElementById('ledger-class-filter');
-    if (classFilter) classFilter.value = '';
+    if (classFilter) classFilter.value = 'all';
 
     const yearSelect = document.getElementById('ledger-academic-year-select');
     if (yearSelect) yearSelect.value = '';

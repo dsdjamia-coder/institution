@@ -26,7 +26,7 @@ if (typeof window !== 'undefined' && window.location && window.location.hash) {
 let isCurrentAdmin = false;
 let currentUserEmail = '';
 let currentCollectorKey = '';
-let students = [], allStudentsRaw = [], allPayments = [], allDonations = [], classes = [], studentGroups = [], feeItems = [], allStaff = [];
+let students = [], allStudentsRaw = [], allPayments = [], allDonations = [], classes = [], institutionalConfiguredClasses = [], studentGroups = [], feeItems = [], allStaff = [];
 let directoryEntries = [], directoryCategories = [], pageAccessConfig = { categories: {}, overrides: {} };
 let defaultFee = 200, feeStatusTitle = '', defaultReceiptMandatory = false;
 let currentWorkingAcademicYear = '';
@@ -352,7 +352,7 @@ const syncMasterLedgerState = () => {
     try {
         const effectiveStudents = isMasterSuperAdmin()
             ? (Array.isArray(students) ? students : [])
-            : (Array.isArray(students) && selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : []);
+            : (Array.isArray(students) && selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : (Array.isArray(students) ? students : []));
         const effectiveClasses = isMasterSuperAdmin()
             ? (Array.isArray(classes) ? classes : [])
             : getClassOptionsForCollector();
@@ -375,7 +375,7 @@ const syncFeeDuesState = (preferredClass) => {
     try {
         const effectiveStudents = isMasterSuperAdmin()
             ? (Array.isArray(students) ? students : [])
-            : (Array.isArray(students) && selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : []);
+            : (Array.isArray(students) && selectedDutyClasses.length ? students.filter(s => isClassInDutyScope(s.class, selectedDutyClasses)) : (Array.isArray(students) ? students : []));
         const effectiveClasses = isMasterSuperAdmin()
             ? (Array.isArray(classes) ? classes : [])
             : getClassOptionsForCollector();
@@ -2025,7 +2025,7 @@ const renderFeeYearSwitcher = () => {
 
 const getClassOptionsForCollector = () => {
     if (isMasterSuperAdmin()) return classes;
-    if (!selectedDutyClasses || !selectedDutyClasses.length) return [];
+    if (!selectedDutyClasses || !selectedDutyClasses.length) return classes;
     return classes.filter((cls) => isClassInDutyScope(cls, selectedDutyClasses));
 };
 
@@ -2681,8 +2681,12 @@ const populateClassDropdowns = () => {
     classes = resolveAcademicYearClasses({
         academicYears: academicYearSettings,
         targetYear: currentWorkingAcademicYear,
-        students: Array.isArray(students) ? students : []
+        students: Array.isArray(students) ? students : [],
+        configuredClasses: institutionalConfiguredClasses
     });
+    if (!classes.length) {
+        classes = institutionalConfiguredClasses.length ? [...institutionalConfiguredClasses] : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '+1', '+2'];
+    }
     const isSuperAdmin = isMasterSuperAdmin();
     const classOptions = getClassOptionsForCollector().filter(c => {
         const u = String(c).trim().toUpperCase();
@@ -2703,10 +2707,13 @@ const populateClassDropdowns = () => {
         ? resolveAcademicYearClasses({
             academicYears: academicYearSettings,
             targetYear: filterYear,
-            students: Array.isArray(allStudentsRaw) ? allStudentsRaw : students
+            students: Array.isArray(allStudentsRaw) ? allStudentsRaw : students,
+            configuredClasses: institutionalConfiguredClasses
         })
         : classes;
-    const filterClassOptions = isSuperAdmin ? filterClasses : filterClasses.filter(cls => isClassInDutyScope(cls, selectedDutyClasses));
+    const filterClassOptions = (isSuperAdmin || !selectedDutyClasses.length)
+        ? filterClasses
+        : filterClasses.filter(cls => isClassInDutyScope(cls, selectedDutyClasses));
 
     const formatClassOptionLabel = (cls) => {
         const clean = String(cls || '').trim();
@@ -7317,11 +7324,10 @@ onAuthStateChanged(auth, async (user) => {
                 if (isDirectoryCollector) {
                     if (displayEl) displayEl.textContent = window.AppSession?.getStaffName?.() || 'COLLECTOR';
                     setDutyPaymentDetailsInputs(collectorPaymentDetails);
-                    renderStaffDirectory();
-                    return;
+                } else {
+                    selectedDutyClasses = resolveStaffDutyClasses(null);
+                    if (displayEl) displayEl.textContent = window.AppSession?.getStaffName?.() || 'STAFF';
                 }
-                selectedDutyClasses = resolveStaffDutyClasses(null);
-                if (displayEl) displayEl.textContent = window.AppSession?.getStaffName?.() || 'STAFF';
             }
         } else {
             selectedDutyClasses = [];
@@ -7338,8 +7344,8 @@ onAuthStateChanged(auth, async (user) => {
         updateDashboardMetrics();
         if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('master-ledger-page')?.classList.contains('hidden') === false) syncMasterLedgerState();
-        if(document.getElementById('history-page').classList.contains('hidden') === false) prepareHistoryData();
-        if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
+        if(document.getElementById('history-page')?.classList.contains('hidden') === false) prepareHistoryData();
+        if(document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
     });
     onSnapshot(collection(db, `${BASE_PATH}/publicDirectory`), (snap) => {
         directoryEntries = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
@@ -7448,14 +7454,28 @@ onAuthStateChanged(auth, async (user) => {
         syncFeeDuesState();
         hideLoader();
         if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
-        if(document.getElementById('students-page').classList.contains('hidden') === false) renderStudentInfoList();
+        if(document.getElementById('students-page')?.classList.contains('hidden') === false) renderStudentInfoList();
         if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
 
     onSnapshot(doc(db, `${BASE_PATH}/settings`, 'academicYears'), (snap) => {
         const payload = snap.exists() ? snap.data() : {};
         academicYearSettings = Array.isArray(payload.years) ? payload.years : [];
-        currentWorkingAcademicYear = payload.currentYear || payload.activeYear || currentWorkingAcademicYear || '';
+        const resolvedActiveYearRecord = academicYearSettings.find(y => 
+            typeof y === 'object' && y !== null && (
+                y.isCurrent === true || 
+                y.active === true || 
+                String(y.status || '').toLowerCase() === 'active' || 
+                String(y.status || '').toLowerCase() === 'current'
+            )
+        );
+        currentWorkingAcademicYear = payload.currentYear 
+            || payload.activeYear 
+            || (resolvedActiveYearRecord?.label || resolvedActiveYearRecord?.year) 
+            || (academicYearSettings[0]?.label || academicYearSettings[0]?.year) 
+            || currentWorkingAcademicYear 
+            || getAcademicYearFromDate(new Date());
+
         const yearHeaderEl = document.getElementById('header-active-year');
         if (yearHeaderEl) {
             yearHeaderEl.textContent = currentWorkingAcademicYear || 'Loading Session...';
@@ -7469,8 +7489,18 @@ onAuthStateChanged(auth, async (user) => {
         syncFeeDuesState();
         hideLoader();
         if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
-        if(document.getElementById('students-page').classList.contains('hidden') === false) renderStudentInfoList();
+        if(document.getElementById('students-page')?.classList.contains('hidden') === false) renderStudentInfoList();
         if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
+    });
+
+    onSnapshot(doc(db, `${BASE_PATH}/settings`, 'classes'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            institutionalConfiguredClasses = (Array.isArray(data.list) ? data.list : (Array.isArray(data.classes) ? data.classes : [])).map(c => String(c?.id || c?.name || c).trim()).filter(Boolean);
+        }
+        populateClassDropdowns();
+        syncMasterLedgerState();
+        syncFeeDuesState();
     });
 
     onSnapshot(collection(db, `${BASE_PATH}/studentGroups`), (snap) => {
@@ -7492,15 +7522,15 @@ onAuthStateChanged(auth, async (user) => {
         syncFeeDuesState();
         hideLoader();
 
-        if(!isEditMode && document.getElementById('home-page').classList.contains('hidden') === false) {
-            if(!document.getElementById('entry-receipt').value) {
+        if(!isEditMode && document.getElementById('home-page')?.classList.contains('hidden') === false) {
+            if(!document.getElementById('entry-receipt')?.value) {
                  document.getElementById('entry-receipt').value = getNextReceiptNoForStaff();
             }
         }
 
-        if(document.getElementById('history-page').classList.contains('hidden') === false) prepareHistoryData();
-        if(document.getElementById('monthly-collected-page').classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input').value);
-        if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
+        if(document.getElementById('history-page')?.classList.contains('hidden') === false) prepareHistoryData();
+        if(document.getElementById('monthly-collected-page')?.classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
+        if(document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
         if(document.getElementById('fee-page')?.classList.contains('hidden') === false) renderFeeTable();
         if(document.getElementById('fee-dues-page')?.classList.contains('hidden') === false) renderFeeDues();
     });
@@ -7508,8 +7538,8 @@ onAuthStateChanged(auth, async (user) => {
     onSnapshot(collection(db, `${BASE_PATH}/donations`), (snap) => {
         allDonations = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         updateDashboardMetrics();
-        if(document.getElementById('history-page').classList.contains('hidden') === false) prepareHistoryData();
-        if(document.getElementById('monthly-collected-page').classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input').value);
-        if(document.getElementById('collector-wise-monthly-page').classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
+        if(document.getElementById('history-page')?.classList.contains('hidden') === false) prepareHistoryData();
+        if(document.getElementById('monthly-collected-page')?.classList.contains('hidden') === false) renderMonthlyCollectedPage(document.getElementById('monthly-collected-search-input')?.value || '');
+        if(document.getElementById('collector-wise-monthly-page')?.classList.contains('hidden') === false) renderCollectorWiseMonthlyPage();
     });
 });
