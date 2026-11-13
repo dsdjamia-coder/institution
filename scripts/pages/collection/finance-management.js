@@ -334,7 +334,7 @@ export const renderStudentGroups = () => {
                     <tr class="hover:bg-amber-50/50">
                         <td class="py-2.5 px-3 text-center text-gray-400 font-semibold">${mIdx + 1}</td>
                         <td colspan="4" class="py-2.5 px-3 text-amber-600 font-semibold italic text-xs">
-                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing student record (ID: ${escapeHtml(memberId)})
+                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing student record
                         </td>
                     </tr>
                 `;
@@ -524,7 +524,7 @@ const renderGroupStudentDatalist = (idx) => {
         .filter(Boolean);
 
     const matches = students.filter((s) => s.class === cls && (!gen || s.gender === gen) && !alreadySelected.includes(s.id));
-    optionsList.innerHTML = matches.map((s) => `<option value="${escapeHtml(s.name)} (Adm: ${escapeHtml(s.adm || '--')}) [ID: ${escapeHtml(s.id)}]"></option>`).join('');
+    optionsList.innerHTML = matches.map((s) => `<option value="${escapeHtml(s.name)} (Adm: ${escapeHtml(s.adm || '--')})"></option>`).join('');
 };
 
 const openUnifyFamilyModal = (creationData) => {
@@ -1112,24 +1112,49 @@ export const initFinanceManagementModule = (stateContext) => {
         }
     });
 
+    const resolveStudentInputId = (target) => {
+        const val = (target.value || '').trim().toLowerCase();
+        if (!val) {
+            delete target.dataset.selectedId;
+            return;
+        }
+        const idx = target.dataset.idx;
+        const cls = document.getElementById(`grp-cls-${idx}`)?.value;
+        const gen = document.getElementById(`grp-gen-${idx}`)?.value;
+        const students = ctx.getStudents();
+        const matched = students.find((s) => {
+            if (cls && s.class !== cls) return false;
+            if (gen && s.gender !== gen) return false;
+            const optVal = `${s.name} (Adm: ${s.adm || '--'})`.toLowerCase();
+            if (optVal === val) return true;
+            if (s.name && s.name.trim().toLowerCase() === val) return true;
+            if (s.adm && String(s.adm).trim().toLowerCase() === val) return true;
+            return false;
+        });
+        if (matched) {
+            target.dataset.selectedId = matched.id;
+        } else {
+            delete target.dataset.selectedId;
+        }
+    };
+
     document.getElementById('group-creation-container')?.addEventListener('change', (e) => {
         if (e.target.classList.contains('grp-cls') || e.target.classList.contains('grp-gen')) {
             const idx = e.target.dataset.idx;
             const input = document.getElementById(`grp-stu-${idx}`);
-            if (input) input.value = '';
+            if (input) {
+                input.value = '';
+                delete input.dataset.selectedId;
+            }
             renderGroupStudentDatalist(idx);
+        } else if (e.target.classList.contains('grp-stu')) {
+            resolveStudentInputId(e.target);
         }
     });
 
     document.getElementById('group-creation-container')?.addEventListener('input', (e) => {
         if (e.target.classList.contains('grp-stu')) {
-            const val = e.target.value;
-            const idMatch = val.match(/\[ID:\s*([^\]]+)\]/);
-            if (idMatch) {
-                e.target.dataset.selectedId = idMatch[1].trim();
-            } else {
-                delete e.target.dataset.selectedId;
-            }
+            resolveStudentInputId(e.target);
         }
     });
 
@@ -1239,26 +1264,42 @@ export const initFinanceManagementModule = (stateContext) => {
         }
     });
 
-    document.getElementById('e-grp-class-filter')?.addEventListener('change', () => {
+    const populateEditGroupStudentDatalist = () => {
         const cls = document.getElementById('e-grp-class-filter')?.value;
         const gen = document.getElementById('e-grp-gender-filter')?.value;
         const opts = document.getElementById('e-grp-student-options');
         if (!opts) return;
         const students = ctx.getStudents();
         const matches = students.filter((s) => s.class === cls && (!gen || s.gender === gen) && !editGroupWorkingMembers.includes(s.id));
-        opts.innerHTML = matches.map((s) => `<option value="${escapeHtml(s.name)} (Adm: ${escapeHtml(s.adm || '--')}) [ID: ${escapeHtml(s.id)}]"></option>`).join('');
-    });
+        opts.innerHTML = matches.map((s) => `<option value="${escapeHtml(s.name)} (Adm: ${escapeHtml(s.adm || '--')})"></option>`).join('');
+    };
+
+    document.getElementById('e-grp-class-filter')?.addEventListener('change', populateEditGroupStudentDatalist);
+    document.getElementById('e-grp-gender-filter')?.addEventListener('change', populateEditGroupStudentDatalist);
 
     document.getElementById('e-grp-add-member')?.addEventListener('click', () => {
         const inp = document.getElementById('e-grp-student-select');
-        const val = inp?.value || '';
-        const idMatch = val.match(/\[ID:\s*([^\]]+)\]/);
-        if (!idMatch) return alert('Please pick a student from the suggestions.');
-        const studentId = idMatch[1].trim();
+        const val = (inp?.value || '').trim().toLowerCase();
+        if (!val) return alert('Please pick a student from the suggestions.');
+        const cls = document.getElementById('e-grp-class-filter')?.value;
+        const gen = document.getElementById('e-grp-gender-filter')?.value;
+        const students = ctx.getStudents();
+        const matched = students.find((s) => {
+            if (cls && s.class !== cls) return false;
+            if (gen && s.gender !== gen) return false;
+            const optVal = `${s.name} (Adm: ${s.adm || '--'})`.toLowerCase();
+            if (optVal === val) return true;
+            if (s.name && s.name.trim().toLowerCase() === val) return true;
+            if (s.adm && String(s.adm).trim().toLowerCase() === val) return true;
+            return false;
+        });
+        if (!matched) return alert('Please pick a valid student from the suggestions.');
+        const studentId = matched.id;
         if (editGroupWorkingMembers.includes(studentId)) return alert('Student already in group.');
         editGroupWorkingMembers.push(studentId);
         inp.value = '';
         renderEditGroupMembers();
+        populateEditGroupStudentDatalist();
     });
 
     document.getElementById('edit-group-cancel')?.addEventListener('click', () => {

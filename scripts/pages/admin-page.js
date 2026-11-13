@@ -9333,7 +9333,7 @@ const renderStudentGroups = () => {
                     <tr class="hover:bg-amber-50/50">
                         <td class="py-2.5 px-3 text-center text-gray-400 font-semibold">${mIdx + 1}</td>
                         <td colspan="4" class="py-2.5 px-3 text-amber-600 font-semibold italic text-xs">
-                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing student record (ID: ${escapeHtml(memberId)})
+                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing student record
                         </td>
                     </tr>
                 `;
@@ -11626,7 +11626,7 @@ const renderPromoReviewTable = () => {
                     <button type="button" class="view-student-details-btn text-indigo-700 hover:text-indigo-950 font-bold hover:underline text-left cursor-pointer" data-student-id="${escapeHtml(student.id)}" title="View Student 360 Profile">
                         ${escapeHtml(student.name || 'Unnamed')}
                     </button>
-                    <div class="text-[10px] text-slate-400 font-mono">UID: ${escapeHtml(student.uid || student.id)}</div>
+                    ${student.uid ? `<div class="text-[10px] text-slate-400 font-mono">UID: ${escapeHtml(student.uid)}</div>` : ''}
                 </td>
                 <td class="p-3">
                     <span class="px-2 py-0.5 rounded text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">${escapeHtml(item.sourceClass)}</span>

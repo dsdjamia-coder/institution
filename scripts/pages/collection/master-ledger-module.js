@@ -274,6 +274,9 @@ const buildLedgerUnits = () => {
 
 // Filter & Sort Pipeline
 const getFilteredUnits = () => {
+    if (!filters.classFilter) {
+        return [];
+    }
     let list = buildLedgerUnits();
 
     // 1. Search Query (Name, Adm, Guardian, Phone)
@@ -371,7 +374,8 @@ const renderFilterControls = () => {
 
     if (classFilterSelect) {
         populateClassSelect(classFilterSelect, uniqueClasses, {
-            selectedValue: filters.classFilter || 'all',
+            selectedValue: filters.classFilter,
+            placeholder: '-- Select Class --',
             includeAllOption: true,
             allOptionLabel: 'All Classes',
             allOptionValue: 'all'
@@ -396,6 +400,21 @@ const renderFilterControls = () => {
 const renderLedgerTable = () => {
     const tableContainer = document.getElementById('master-ledger-table-container');
     if (!tableContainer) return;
+
+    if (!filters.classFilter) {
+        selectedLedgerCells.clear();
+        updateLedgerBulkActionButtons();
+        tableContainer.innerHTML = `
+            <div class="py-16 px-4 text-center max-w-md mx-auto">
+                <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shadow-xs">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 mb-1">Select a Class to View Master Ledger</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Please select a class or choose "All Classes" from the class filter dropdown above to display the fee ledger records.</p>
+            </div>
+        `;
+        return;
+    }
 
     const list = getFilteredUnits();
 
@@ -934,6 +953,11 @@ export const submitLedgerPayment = async () => {
 
 // Export to Landscape PDF
 const exportLedgerPdf = () => {
+    if (!filters.classFilter) {
+        showToast('Please select a class or choose All Classes to preview PDF.', 'info');
+        return;
+    }
+
     if (!window.jspdf?.jsPDF) {
         showToast('PDF generator is loading, please try again.', 'info');
         return;

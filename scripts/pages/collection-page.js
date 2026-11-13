@@ -983,7 +983,10 @@ const sortMonthlyItemsByAcademicYear = (items = [], academicYear = '') => {
 };
 
 const buildFeeStatusMatrix = () => {
-    const fCls = document.getElementById('filter-class')?.value || 'all';
+    const fCls = document.getElementById('filter-class')?.value ?? '';
+    if (!fCls) {
+        return { list: [], items: [] };
+    }
     const fGen = document.getElementById('filter-gender')?.value || 'all';
     const fYear = document.getElementById('filter-academic-year')?.value || currentWorkingAcademicYear;
     let dutyFilteredStudents = [];
@@ -1117,7 +1120,7 @@ window.openStudentProfile = (id) => {
             const isSelected = memberId === s.id;
             return `
                 <div class="flex items-center justify-between gap-2 rounded-lg bg-white border ${isSelected ? 'border-blue-300 bg-blue-50/40' : 'border-blue-100'} px-2.5 py-1.5 text-xs">
-                    <span class="${isSelected ? 'font-extrabold text-blue-950' : 'font-bold text-slate-800'} truncate">${index + 1}. ${escapeHtml(member.name || memberId)}</span>
+                    <span class="${isSelected ? 'font-extrabold text-blue-950' : 'font-bold text-slate-800'} truncate">${index + 1}. ${escapeHtml(member.name || 'Unknown Student')}</span>
                     <div class="flex items-center gap-1.5 shrink-0">
                         <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-bold">Adm: ${escapeHtml(member.adm || '-')}</span>
                         <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[10px]">Cls: ${escapeHtml(member.class || '-')}</span>
@@ -2561,11 +2564,13 @@ const populateClassDropdowns = () => {
     if (isSuperAdmin) {
         const opts = classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         const filterOpts = filterClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
-        const curFilterVal = filterClassEl ? filterClassEl.value : 'all';
+        const curFilterVal = filterClassEl ? filterClassEl.value : '';
         if (filterClassEl) {
-            filterClassEl.innerHTML = `<option value="all">All Classes</option>` + filterOpts + alumniFilterOpt;
+            filterClassEl.innerHTML = `<option value="">-- Select Class --</option><option value="all">All Classes</option>` + filterOpts + alumniFilterOpt;
             if (curFilterVal && (curFilterVal === 'all' || curFilterVal === 'ALUMNI_DUES' || filterClasses.includes(curFilterVal))) {
                 filterClassEl.value = curFilterVal;
+            } else {
+                filterClassEl.value = '';
             }
         }
         if (entryClassEl) entryClassEl.innerHTML = `<option value="all">All Classes</option>` + opts + alumniEntryOpt;
@@ -2574,11 +2579,13 @@ const populateClassDropdowns = () => {
     } else if (classOptions.length > 0 || filterClassOptions.length > 0) {
         const opts = classOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
         const filterOpts = filterClassOptions.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(formatClassOptionLabel(c))}</option>`).join('');
-        const curFilterVal = filterClassEl ? filterClassEl.value : 'all';
+        const curFilterVal = filterClassEl ? filterClassEl.value : '';
         if (filterClassEl) {
-            filterClassEl.innerHTML = `<option value="all">All Assigned Classes (${filterClassOptions.length})</option>` + filterOpts + alumniFilterOpt;
+            filterClassEl.innerHTML = `<option value="">-- Select Class --</option><option value="all">All Assigned Classes (${filterClassOptions.length})</option>` + filterOpts + alumniFilterOpt;
             if (curFilterVal && (curFilterVal === 'all' || curFilterVal === 'ALUMNI_DUES' || filterClassOptions.includes(curFilterVal))) {
                 filterClassEl.value = curFilterVal;
+            } else {
+                filterClassEl.value = '';
             }
         }
         if (entryClassEl) entryClassEl.innerHTML = `<option value="all">All Assigned Classes (${classOptions.length})</option>` + opts + alumniEntryOpt;
@@ -3897,6 +3904,11 @@ document.getElementById('bulk-start-upload-btn')?.addEventListener('click', asyn
 
 
 const downloadFeeStatusPdf = () => {
+    const fCls = document.getElementById('filter-class')?.value ?? '';
+    if (!fCls) {
+        alert('Please select a class or choose All Classes to export PDF.');
+        return;
+    }
     const { list, items: rawItems } = buildFeeStatusMatrix();
     const items = sortFeeItemsForDisplay(rawItems);
     if (!list.length || !items.length) {
@@ -4133,6 +4145,18 @@ document.getElementById('fee-status-bulk-edit-btn')?.addEventListener('click', (
 const renderFeeTable = () => {
     const cont = document.getElementById('fee-table-container');
     if (!cont) return;
+    const fCls = document.getElementById('filter-class')?.value ?? '';
+    if (!fCls) {
+        cont.innerHTML = `
+            <div class="py-16 px-4 text-center max-w-md mx-auto">
+                <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shadow-xs">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 mb-1">Select a Class to View Fee Status</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Please select a class or choose "All Classes" from the class filter dropdown above to display fee status records.</p>
+            </div>`;
+        return;
+    }
     const { list, items: rawItems } = buildFeeStatusMatrix();
     const items = sortFeeItemsForDisplay(rawItems);
     if(list.length === 0) {

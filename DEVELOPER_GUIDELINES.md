@@ -197,6 +197,10 @@ Data stored in Firebase Firestore takes first priority. Always adhere to these c
   - Value: Strictly `value="all"`.
   - Label: Strictly `All Classes`.
   - Query matching logic: `if (activeFilter && activeFilter !== 'all' && studentClass.toLowerCase() !== activeFilter.toLowerCase())`.
+- **Default Dropdown Order for Core Filtering Pages (Master Fee Ledger, Fee Status, Fee Dues & Defaulters)**:
+  - 1. `-- Select Class --` (`value=""`, selected by default on page load). When active, UI presents a clean select-class prompt card (`Select a Class to View...`).
+  - 2. `All Classes` (`value="all"`).
+  - 3. Individual classes naturally sorted (`Class: 1`, `Class: 2`, ...).
 - **Natural Class Sorting**:
   - Always sorted using `compareClassLabelsNatural()` from `scripts/shared/app-common.js`:
     Numeric classes sort `1, 2, 3... 9, 10, 11, 12` (never alphabetical `1, 10, 11, 2`).
@@ -220,6 +224,11 @@ Data stored in Firebase Firestore takes first priority. Always adhere to these c
 - **Table Sorting Hierarchy**:
   - Multi-class / School View: Class (Natural) $\rightarrow$ Gender (Boys first) $\rightarrow$ Admission No (Numeric) $\rightarrow$ Name (A-Z).
   - Single-class View: Admission No (Numeric) or Name (A-Z).
+
+- **Prohibition of Internal Firestore Document IDs in UI**:
+  - Internal Firestore document IDs (`doc.id` or `[ID: ...]`) must **NEVER** be shown to end users in UI tables, profile modals, suggestion datalists, or fallback labels.
+  - Suggestion datalists must only display `${s.name} (Adm: ${s.adm || '--'})` and resolve student IDs programmatically in background event listeners.
+  - If a student record is deleted or unmapped, fall back to clean user-facing labels like `'Unknown Student'` or `'Missing student record'` instead of exposing raw alphanumeric database IDs.
 
 ---
 
